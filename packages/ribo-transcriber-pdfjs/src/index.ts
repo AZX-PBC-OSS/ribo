@@ -98,7 +98,7 @@ export type {
  * worker and rejects the pending open and any in-flight page read; the sweep
  * additionally checks the signal at the top of every page, so work already
  * loaded stops at the next page boundary. A cancellation rejects with
- * `TerminalQueueError`, not a raw pdf.js exception, so the queue does not
+ * `TerminalError`, not a raw pdf.js exception, so the queue does not
  * mistake it for a flaky network and burn the retry budget — see `pdf-text.ts`.
  */
 export class PdfjsTranscriber implements Transcriber<DocumentCapture> {

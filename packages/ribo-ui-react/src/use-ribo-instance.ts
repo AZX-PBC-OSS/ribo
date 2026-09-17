@@ -5,7 +5,7 @@ import { RiboContext, type RiboInstances } from "./context.js";
 /** What a host has to do to supply each instance, quoted back to them in the error. */
 const HOW_TO_SUPPLY: Record<keyof RiboInstances, string> = {
   recorder: "new Recorder() from @azx/ribo-core",
-  outbox: "await openOutbox() from @azx/ribo-core",
+  outbox: "await openStorage() from @azx/ribo-core",
   connectivity: "createConnectivity({ … }) from @azx/ribo-core",
   captureCoordinator: "createCaptureCoordinator() from @azx/ribo-ui-react",
   liveTranscriber: "new OnDeviceLiveTranscriber(…) from @azx/ribo-transcriber-ondevice",

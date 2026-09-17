@@ -4,7 +4,7 @@ import { captureFields } from "./capture-fields.js";
 
 /**
  * The metadata record for one captured **audio** dictation — the audio branch
- * of the {@link CaptureItem} union.
+ * of the {@link CapturePayload} union.
  *
  * **The audio bytes are not here.** A `Recording` is metadata only; the `Blob` lives in the
  * capture queue (Phase 2), keyed by `id`, and is handed to a {@link Transcriber} alongside the
@@ -13,7 +13,7 @@ import { captureFields } from "./capture-fields.js";
  * looking for the audio, you want the queue's `getAudio(recording.id)`, not this type.
  *
  * `Recording` is not renamed and does not become the union — that follows from the target
- * signature `Transcriber<S extends CaptureItem = Recording>`, whose default argument only means
+ * signature `Transcriber<S extends CapturePayload = Recording>`, whose default argument only means
  * "exactly what it means today" if `Recording` is still the audio thing. It also keeps every
  * existing `.durationMs` access on a `Recording`-typed value compiling.
  *
@@ -46,7 +46,7 @@ import { captureFields } from "./capture-fields.js";
 export const recordingSchema = <C extends z.ZodType>(ctx: C) =>
   z.strictObject({
     ...captureFields(ctx),
-    /** Discriminant: this is the audio branch of {@link CaptureItem}. */
+    /** Discriminant: this is the audio branch of {@link CapturePayload}. */
     kind: z.literal("audio").default("audio"),
     /** Length of the audio in milliseconds. Zero is legal: a recording can be empty. */
     durationMs: z.number().int().nonnegative(),

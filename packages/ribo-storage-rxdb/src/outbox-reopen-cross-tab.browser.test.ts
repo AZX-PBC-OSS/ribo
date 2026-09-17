@@ -5,15 +5,15 @@ import { wrappedValidateAjvStorage } from "rxdb/plugins/validate-ajv";
 import { afterEach, expect, test } from "vitest";
 
 import {
-  OUTBOX_COLLECTION_NAME,
+  CAPTURES_COLLECTION_NAME,
   PLUGIN_STORAGE_COLLECTION_NAME,
   SESSION_COLLECTION_NAME,
-  openOutbox,
-  Outbox,
+  openStorage,
+  Storage,
 } from "@azx/ribo-core";
 
 import {
-  OUTBOX_MIGRATION_STRATEGIES,
+  CAPTURE_MIGRATION_STRATEGIES,
   removeOutboxDatabase,
   type OutboxCollection,
   type OutboxDatabase,
@@ -25,14 +25,14 @@ import { openRxdbBackend } from "./open.js";
 import {
   PLUGIN_STORAGE_MIGRATION_STRATEGIES,
   SESSION_MIGRATION_STRATEGIES,
-  outboxRxSchema,
+  captureRxSchema,
   pluginStorageRxSchema,
   sessionRxSchema,
 } from "./schemas.js";
 
 /**
  * @file The genuinely cross-tab case for `reopenSessionForReview`'s concurrency
- * guard — two independent `Outbox` instances, each its own `RxDatabase`
+ * guard — two independent `Storage` instances, each its own `RxDatabase`
  * connection over the SAME IndexedDB database, rather than two calls issued
  * through one.
  *
@@ -46,7 +46,7 @@ import {
  * RxDB's own escape hatch, `ignoreDuplicate: true`, is how RxDB tests its own
  * multi-instance behaviour, but it throws DB9 instead unless
  * `RxDBDevModePlugin` has been registered first — and that registration is a
- * PROCESS-GLOBAL side effect (`Outbox.submitSessionReview`'s own doc comment
+ * PROCESS-GLOBAL side effect (`Storage.submitSessionReview`'s own doc comment
  * records this as the reason its cross-tab case went untested). Vitest's
  * browser project isolates each test FILE in its own page, so paying that
  * cost here cannot change how any of `outbox.browser.test.ts`'s ~60 other
@@ -57,7 +57,7 @@ import {
  * `createRxDatabase` call in this JS context — not only the `ignoreDuplicate`
  * one — must use a storage wrapped by one of RxDB's `validate-*` plugins
  * (`preCreateRxDatabase`'s dev-mode hook throws `DVM1` otherwise, discovered
- * empirically: the plain `openOutbox({ name })` this file's FIRST connection
+ * empirically: the plain `openStorage({ name })` this file's FIRST connection
  * would otherwise use failed with it too). `wrappedValidateAjvStorage` is used
  * below for both connections; it adds no dependency of this package's own —
  * `ajv` is `rxdb`'s own direct dependency, resolved through `rxdb`'s package,
@@ -68,7 +68,7 @@ import {
  * It proves `reopenSessionForReview`'s `incrementalModify` guard survives a
  * genuine write race between two independent connections to the same
  * underlying IndexedDB store — the case an in-memory mutex scoped to a single
- * `Outbox` object cannot be fooled into passing, unlike the single-instance
+ * `Storage` object cannot be fooled into passing, unlike the single-instance
  * test in `session-outbox.test.ts`. It does not exercise
  * `submitSessionReview`'s identical guard directly (see that method's own doc
  * comment for why the two should be weighed the same way regardless), and it
@@ -80,7 +80,7 @@ import {
 
 addRxPlugin(RxDBDevModePlugin);
 
-const openOutboxes: Outbox[] = [];
+const openOutboxes: Storage[] = [];
 const usedNames: string[] = [];
 
 function uniqueName(): string {
@@ -101,11 +101,11 @@ afterEach(async () => {
  * everything `openOutboxDatabase` (`database.ts`) does, plus the
  * `ignoreDuplicate: true` production code has no reason to ever pass, since a
  * real second tab is a separate process with no duplicate to ignore. Kept
- * local to this file rather than added as an option on `openOutbox` for
+ * local to this file rather than added as an option on `openStorage` for
  * exactly that reason: it is a test-only way to simulate "a second tab" within
  * one JS heap, not a knob a host should be able to reach for.
  */
-async function openSecondConnection(name: string): Promise<Outbox> {
+async function openSecondConnection(name: string): Promise<Storage> {
   const database: OutboxDatabase = await createRxDatabase<{
     outbox: OutboxCollection;
     sessions: SessionCollection;
@@ -119,16 +119,16 @@ async function openSecondConnection(name: string): Promise<Outbox> {
     cleanupPolicy: {},
   });
   await database.addCollections({
-    [OUTBOX_COLLECTION_NAME]: {
-      schema: outboxRxSchema,
-      migrationStrategies: OUTBOX_MIGRATION_STRATEGIES,
+    [CAPTURES_COLLECTION_NAME]: {
+      schema: captureRxSchema,
+      migrationStrategies: CAPTURE_MIGRATION_STRATEGIES,
     },
     [SESSION_COLLECTION_NAME]: {
       schema: sessionRxSchema,
       // Mirrors `openOutboxDatabase`. Every version above 0 needs a strategy or
       // `addCollections` fails with COL12, so this file has to move with the
       // schema — the cost of hand-rolling the registration rather than going
-      // through `openOutbox`. It does that deliberately: this test needs two
+      // through `openStorage`. It does that deliberately: this test needs two
       // independent connections to one database, which the public helper does
       // not expose.
       migrationStrategies: SESSION_MIGRATION_STRATEGIES,
@@ -138,17 +138,17 @@ async function openSecondConnection(name: string): Promise<Outbox> {
       migrationStrategies: PLUGIN_STORAGE_MIGRATION_STRATEGIES,
     },
   });
-  const outbox = new Outbox(createRxdbBackend(database, name));
+  const outbox = new Storage(createRxdbBackend(database, name));
   openOutboxes.push(outbox);
   return outbox;
 }
 
-test("two reopenSessionForReview calls from two independent Outbox connections settle as one winner and one refusal", async () => {
+test("two reopenSessionForReview calls from two independent Storage connections settle as one winner and one refusal", async () => {
   const name = uniqueName();
   // The backend's `storage` option is the seam for choosing an engine — used
   // here for a validate wrapper instead, so the FIRST connection can go through
   // the ordinary `openRxdbBackend` and still satisfy dev mode's DVM1 check.
-  const first = await openOutbox({
+  const first = await openStorage({
     backend: await openRxdbBackend({
       name,
       storage: wrappedValidateAjvStorage({ storage: getRxStorageDexie() }),
@@ -156,8 +156,8 @@ test("two reopenSessionForReview calls from two independent Outbox connections s
   });
   openOutboxes.push(first);
 
-  const session = await first.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  await first.patchSession(session.id, {
+  const session = await first.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  await first.sessions.patch(session.id, {
     status: "dead",
     extracted: { atticRValue: 19 },
     extractedFromRecordingIds: ["r1"],
@@ -168,12 +168,12 @@ test("two reopenSessionForReview calls from two independent Outbox connections s
   const second = await openSecondConnection(name);
 
   const results = await Promise.allSettled([
-    first.reopenSessionForReview(session.id),
-    second.reopenSessionForReview(session.id),
+    first.sessions.reopenForReview(session.id),
+    second.sessions.reopenForReview(session.id),
   ]);
 
   // Exactly one connection's write landed. An implementation guarded only by an
-  // in-memory mutex scoped to one `Outbox` object would do nothing to prevent
+  // in-memory mutex scoped to one `Storage` object would do nothing to prevent
   // BOTH of these from reading "dead" and BOTH from believing they won — this
   // is the shape of bug this file exists to catch that the single-instance test
   // cannot.
@@ -182,7 +182,7 @@ test("two reopenSessionForReview calls from two independent Outbox connections s
   // Read back through a THIRD lens — the first connection's own `getSession`,
   // after the race has settled — so the assertion is not merely "one promise
   // resolved", but "the session actually ended up parked, once, not twice".
-  const settled = await first.getSession(session.id);
+  const settled = await first.sessions.get(session.id);
   expect(settled?.status).toBe("awaiting-review");
   expect(settled?.reviewOutcome).toBeUndefined();
 });

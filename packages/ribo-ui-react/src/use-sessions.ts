@@ -1,4 +1,4 @@
-import type { Outbox, SessionItem, SessionQuery } from "@azx/ribo-core";
+import type { Storage, SessionItem, SessionQuery } from "@azx/ribo-core";
 import { useEffect, useMemo, useState } from "react";
 
 import { queryFromKey, queryKey } from "./query-key.js";
@@ -13,19 +13,19 @@ export interface UseSessionsResult {
 
 /**
  * Sessions as live React state — the session-collection mirror of
- * {@link useOutboxItems}.
+ * {@link useCaptures}.
  *
  * ```tsx
  * const { items: open, loading } = useSessions({ status: "open" });
  * ```
  *
- * Same design as `useOutboxItems`: `loading` is load-bearing (an in-flight read
+ * Same design as `useCaptures`: `loading` is load-bearing (an in-flight read
  * is not an empty list), the query is compared by value (a caller builds a new
  * object every render and the subscription must not tear down on each one), and
  * the hook subscribes directly to the rxjs `Observable` rather than going
  * through `useSubscribed` (which is for core's callback-subscribe shape).
  */
-export function useSessions(query: SessionQuery = {}, outbox?: Outbox): UseSessionsResult {
+export function useSessions(query: SessionQuery = {}, outbox?: Storage): UseSessionsResult {
   const instance = useRiboInstance("outbox", outbox);
   // Derived from the query, never enumerated — see `query-key.ts`. Listing
   // fields by hand here is what dropped `ref` on the floor: the key was also
@@ -42,7 +42,7 @@ export function useSessions(query: SessionQuery = {}, outbox?: Outbox): UseSessi
     setLoading(true);
     setError(undefined);
     try {
-      const subscription = instance.watchSessions(stableQuery).subscribe({
+      const subscription = instance.sessions.watch(stableQuery).subscribe({
         next: (next) => {
           setItems(next);
           setLoading(false);

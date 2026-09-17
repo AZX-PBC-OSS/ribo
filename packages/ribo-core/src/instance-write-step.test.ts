@@ -5,10 +5,10 @@ import { z } from "zod";
 import type { ToolAdapter, WriteMetadata } from "./adapter.js";
 import { enveloped } from "./enveloped.js";
 import { FakeTranscriber } from "./fake-transcriber.js";
-import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
-import { openOutbox, type Outbox } from "./queue/outbox.js";
-import { createRelay } from "./queue/relay.js";
-import type { SessionItem } from "./queue/session-schema.js";
+import { isTransientFailure, TerminalError } from "./storage/backoff.js";
+import { openStorage, type Storage } from "./storage/storage.js";
+import { createRelay } from "./storage/relay.js";
+import type { SessionItem } from "./storage/session-schema.js";
 import { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-write-step.js";
 import { restrictToKind } from "./restrict-to-kind.js";
 
@@ -73,7 +73,7 @@ const makeAdapter = (sink: Write[]): ToolAdapter<Values, JobContext> => ({
 
 // --- Fixtures ---------------------------------------------------------------
 
-const opened: { outbox: Outbox; name: string }[] = [];
+const opened: { outbox: Storage; name: string }[] = [];
 
 afterEach(async () => {
   for (const { outbox, name } of opened.splice(0)) {
@@ -91,21 +91,21 @@ class TestClock {
   }
 }
 
-const openTestOutbox = async (clock?: TestClock): Promise<Outbox> => {
+const openTestOutbox = async (clock?: TestClock): Promise<Storage> => {
   const name = `ribo-instance-write-step-${crypto.randomUUID()}`;
-  const outbox = await openOutbox({ backend: createMemoryBackend(name), now: clock?.now });
+  const outbox = await openStorage({ backend: createMemoryBackend(name), now: clock?.now });
   opened.push({ outbox, name });
   return outbox;
 };
 
 const seedSession = async (
-  outbox: Outbox,
+  outbox: Storage,
   ctx: unknown,
   fields: Record<string, unknown>,
   instanceKeys?: Record<string, string[]>,
 ): Promise<{ session: SessionItem; ctx: unknown }> => {
-  const session = await outbox.openSession({ ctx, ref: "job-7" });
-  const enqueued = await outbox.enqueue({
+  const session = await outbox.sessions.open({ ctx, ref: "job-7" });
+  const enqueued = await outbox.captures.enqueue({
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
@@ -117,11 +117,11 @@ const seedSession = async (
     audio: new Blob(["audio"], { type: "audio/webm;codecs=opus" }),
     sessionId: session.id,
   });
-  await outbox.patch(enqueued.id, {
+  await outbox.captures.patch(enqueued.id, {
     transcript: { recordingId: "rec-1", text: "the house has systems", engine: "fake" },
     status: "transcribed",
   });
-  await outbox.patchSession(session.id, {
+  await outbox.sessions.patch(session.id, {
     extracted: {},
     // The OUTBOX ITEM id, not the recording's. `joinSessionTranscript` stamps
     // `r.id` off the item, and `enqueue` generates that independently of
@@ -130,7 +130,7 @@ const seedSession = async (
     extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
-  const reviewed = await outbox.submitSessionReview(session.id, {
+  const reviewed = await outbox.sessions.submitReview(session.id, {
     status: "accepted",
     fields,
     ...(instanceKeys ? { instanceKeys } : {}),
@@ -281,8 +281,8 @@ test("a write failing on the second of three instances, then retrying, re-attemp
     },
   };
 
-  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  const enqueued = await outbox.enqueue({
+  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const enqueued = await outbox.captures.enqueue({
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
@@ -294,17 +294,17 @@ test("a write failing on the second of three instances, then retrying, re-attemp
     audio: new Blob(["audio"], { type: "audio/webm;codecs=opus" }),
     sessionId: session.id,
   });
-  await outbox.patch(enqueued.id, {
+  await outbox.captures.patch(enqueued.id, {
     transcript: { recordingId: "rec-1", text: "the house has systems", engine: "fake" },
     status: "transcribed",
   });
-  await outbox.patchSession(session.id, {
+  await outbox.sessions.patch(session.id, {
     extracted: {},
     // The outbox item id, not the recording's — see the note in `seedSession`.
     extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
-  await outbox.submitSessionReview(session.id, {
+  await outbox.sessions.submitReview(session.id, {
     status: "accepted",
     fields: {
       hvac: [
@@ -330,7 +330,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
   });
 
   await relay.syncNow();
-  const failed = await outbox.getSession(session.id);
+  const failed = await outbox.sessions.get(session.id);
   expect(failed?.status).toBe("failed");
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:0"))).toEqual([
     { key: deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0), failed: false },
@@ -341,7 +341,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
 
   clock.advance(501);
   await relay.syncNow();
-  const done = await outbox.getSession(session.id);
+  const done = await outbox.sessions.get(session.id);
   expect(done?.status).toBe("done");
   // Instance 0 is re-attempted on retry — no positional skip.
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:0"))).toHaveLength(2);
@@ -377,7 +377,7 @@ test("a patch the adapter's schema rejects is terminal, and write is never calle
     (error: unknown) => error,
   );
 
-  expect(thrown).toBeInstanceOf(TerminalQueueError);
+  expect(thrown).toBeInstanceOf(TerminalError);
   expect((thrown as Error).message).toContain("not a valid patch");
   expect((thrown as Error).message).toContain("yearBuilt");
   expect(isTransientFailure(thrown)).toBe(false);
@@ -409,8 +409,8 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
     (error: unknown) => error,
   );
 
-  expect(thrown).toBeInstanceOf(TerminalQueueError);
-  expect((thrown as Error).message).toContain("Outbox.openSession");
+  expect(thrown).toBeInstanceOf(TerminalError);
+  expect((thrown as Error).message).toContain("Storage.openSession");
   expect(isTransientFailure(thrown)).toBe(false);
   expect(written).toEqual([]);
 });
@@ -446,7 +446,7 @@ test("a failing write propagates unchanged — the relay's retry contract is not
 
   expect(thrown).toBe(failure);
   expect(isTransientFailure(thrown)).toBe(true);
-  expect(thrown).not.toBeInstanceOf(TerminalQueueError);
+  expect(thrown).not.toBeInstanceOf(TerminalError);
 });
 
 // --- The reopen bug: a positional marker for an identity we do not keep --------
@@ -476,8 +476,8 @@ test("after reopening from dead and removing the first instance, the survivor re
     },
   };
 
-  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  const enqueued = await outbox.enqueue({
+  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const enqueued = await outbox.captures.enqueue({
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
@@ -489,17 +489,17 @@ test("after reopening from dead and removing the first instance, the survivor re
     audio: new Blob(["audio"], { type: "audio/webm;codecs=opus" }),
     sessionId: session.id,
   });
-  await outbox.patch(enqueued.id, {
+  await outbox.captures.patch(enqueued.id, {
     transcript: { recordingId: "rec-1", text: "the house has systems", engine: "fake" },
     status: "transcribed",
   });
-  await outbox.patchSession(session.id, {
+  await outbox.sessions.patch(session.id, {
     extracted: {},
     // The outbox item id, not the recording's — see the note in `seedSession`.
     extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
-  await outbox.submitSessionReview(session.id, {
+  await outbox.sessions.submitReview(session.id, {
     status: "accepted",
     fields: {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
@@ -523,12 +523,12 @@ test("after reopening from dead and removing the first instance, the survivor re
 
   // First drain: instance 0 writes, instance 1 throws → session dies.
   await relay.syncNow();
-  const dead = await outbox.getSession(session.id);
+  const dead = await outbox.sessions.get(session.id);
   expect(dead?.status).toBe("dead");
 
   // Reopen from dead, remove the first instance, resubmit with only the survivor.
-  await outbox.reopenSessionForReview(session.id);
-  await outbox.submitSessionReview(session.id, {
+  await outbox.sessions.reopenForReview(session.id);
+  await outbox.sessions.submitReview(session.id, {
     status: "accepted",
     fields: {
       hvac: [{ hvacSystemEquipmentType: "AC" }],
@@ -555,7 +555,7 @@ test("after reopening from dead and removing the first instance, the survivor re
   });
 
   await relay2.syncNow();
-  const done = await outbox.getSession(session.id);
+  const done = await outbox.sessions.get(session.id);
   expect(done?.status).toBe("done");
 
   // The survivor reached the adapter. Today it does not: it is now index 0,
@@ -574,7 +574,7 @@ test("after reopening from dead and removing the first instance, the survivor re
   // Receipts are keyed by the real instance key the reviewed outcome declares
   // (k2), not by array position. The relay doesn't expose the resolved
   // SessionWriteResult, so call the step directly with the same inputs.
-  const postRemoval = await outbox.getSession(session.id);
+  const postRemoval = await outbox.sessions.get(session.id);
   const receiptResult = await step2({
     session: postRemoval!,
     reviewed: reviewFields(postRemoval!),

@@ -1,7 +1,8 @@
+import type { CaptureStore } from "@azx/ribo-core";
 import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
-import { createConnectivity, openOutbox, type Outbox } from "@azx/ribo-core";
+import { createConnectivity, openStorage } from "@azx/ribo-core";
 
 import { RiboProvider } from "./RiboProvider.js";
 import { useWorkSafety } from "./use-work-safety.js";
@@ -9,11 +10,11 @@ import { useWorkSafety } from "./use-work-safety.js";
 // vitest-browser-react@2.2.0's `render` is async — see context.browser.test.tsx.
 // Every render below is awaited.
 
-/** The shape `Outbox.watch` returns — see use-outbox-items.browser.test.tsx for why
+/** The shape `Storage.watch` returns — see use-outbox-items.browser.test.tsx for why
  * this is spelled out rather than importing rxjs directly. */
-type WatchObservable = ReturnType<Outbox["watch"]>;
+type WatchObservable = ReturnType<CaptureStore["watch"]>;
 
-const freshOutbox = () => openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+const freshOutbox = () => openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
 
 /**
  * A connectivity model over injected seams — no real network, no real events.
@@ -34,8 +35,8 @@ test("un-reviewed work is never reported as safe", async () => {
   // now a session status (not a recording status), so the test opens a session
   // and patches it there directly.
   const outbox = await freshOutbox();
-  const session = await outbox.openSession({ ctx: {}, ref: "job-7" });
-  await outbox.patchSession(session.id, { status: "awaiting-review" });
+  const session = await outbox.sessions.open({ ctx: {}, ref: "job-7" });
+  await outbox.sessions.patch(session.id, { status: "awaiting-review" });
 
   function Probe() {
     const { safety, work, loading, error } = useWorkSafety();
@@ -60,20 +61,20 @@ test("un-reviewed work is never reported as safe", async () => {
 });
 
 test("an outbox read failure yields no verdict, never a safe one", async () => {
-  // The regression that matters most here: on a watch error `useOutboxItems` keeps
+  // The regression that matters most here: on a watch error `useCaptures` keeps
   // its initial empty array, an empty array summarizes to pending 0, and pending 0
   // classifies as `safe / nothing-captured`. A defaulted verdict would therefore
   // announce that the work is safe exactly when we failed to read it.
   //
-  // Errors through `Outbox.watch` in real use arrive via the returned
+  // Errors through `Storage.watch` in real use arrive via the returned
   // Observable's `error` channel (RxDB's `$.pipe(...)` stream), never as a
   // synchronous throw from `watch()` itself -- `use-outbox-items.browser.test.tsx`'s
   // own "surfaces a watch error" test mocks it the same way. Mirroring that here
-  // is what makes this test exercise `useOutboxItems`'s real error path instead of
+  // is what makes this test exercise `useCaptures`'s real error path instead of
   // an uncaught exception inside its effect, which React would treat as a render
   // crash rather than a value this hook could ever see.
   const outbox = await freshOutbox();
-  vi.spyOn(outbox, "watch").mockReturnValue({
+  vi.spyOn(outbox.captures, "watch").mockReturnValue({
     // The hook always subscribes with an object observer (see
     // use-outbox-items.ts), never the function-overload form, so this fake
     // only needs to handle that one shape — mirroring

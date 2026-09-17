@@ -3,14 +3,14 @@ import { openRxdbBackend } from "./open.js";
 import { afterEach, expect, test } from "vitest";
 
 import { FakeTranscriber } from "@azx/ribo-core";
-import type { CaptureItem } from "@azx/ribo-core";
+import type { CapturePayload } from "@azx/ribo-core";
 import type { Recording } from "@azx/ribo-core";
-import { openOutbox } from "@azx/ribo-core";
+import { openStorage } from "@azx/ribo-core";
 import { createRelay } from "@azx/ribo-core";
 import { toSessionExtractStep } from "@azx/ribo-core";
 import type { Extractor } from "@azx/ribo-core";
 import type { Transcriber } from "@azx/ribo-core";
-import type { OutboxItem } from "@azx/ribo-core";
+import type { Capture } from "@azx/ribo-core";
 import type { SessionItem } from "@azx/ribo-core";
 
 // The plugin-storage DELIVERY, end to end: a transcriber writes through the
@@ -49,7 +49,7 @@ function audioBlob(): Blob {
 }
 
 /** A transcriber that stores through the handle it was SUPPLIED, then transcribes normally. */
-function storageWritingTranscriber(engine: string): Transcriber<CaptureItem> {
+function storageWritingTranscriber(engine: string): Transcriber<CapturePayload> {
   return {
     engine,
     capability: async () => ({ status: "ready" }) as const,
@@ -63,11 +63,11 @@ function storageWritingTranscriber(engine: string): Transcriber<CaptureItem> {
 }
 
 interface RelayDeps {
-  readonly transcriber: Transcriber<CaptureItem>;
+  readonly transcriber: Transcriber<CapturePayload>;
   readonly sessionExtract: Parameters<typeof createRelay>[0]["sessionExtract"];
 }
 
-async function buildRelay(outbox: Awaited<ReturnType<typeof openOutbox>>, deps: RelayDeps) {
+async function buildRelay(outbox: Awaited<ReturnType<typeof openStorage>>, deps: RelayDeps) {
   return createRelay({
     outbox,
     transcriber: deps.transcriber,
@@ -77,10 +77,14 @@ async function buildRelay(outbox: Awaited<ReturnType<typeof openOutbox>>, deps: 
 }
 
 async function openSessionWithCapture(
-  outbox: Awaited<ReturnType<typeof openOutbox>>,
-): Promise<{ session: SessionItem; item: OutboxItem }> {
-  const session = await outbox.openSession({ ctx: { jobId: "job-1" }, ref: "job-1" });
-  const item = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
+  outbox: Awaited<ReturnType<typeof openStorage>>,
+): Promise<{ session: SessionItem; item: Capture }> {
+  const session = await outbox.sessions.open({ ctx: { jobId: "job-1" }, ref: "job-1" });
+  const item = await outbox.captures.enqueue({
+    recording,
+    audio: audioBlob(),
+    sessionId: session.id,
+  });
   return { session, item };
 }
 
@@ -88,7 +92,7 @@ test("a transcriber writes through its relay-supplied handle and an extractor re
   const name = uniqueName();
 
   // --- Tab 1: the transcriber half, through the relay's delivery ------------
-  const first = await openOutbox({ backend: await openRxdbBackend({ name }) });
+  const first = await openStorage({ backend: await openRxdbBackend({ name }) });
   const { session, item } = await openSessionWithCapture(first);
   const relay1 = await buildRelay(first, {
     transcriber: storageWritingTranscriber("plugin-docs"),
@@ -98,20 +102,20 @@ test("a transcriber writes through its relay-supplied handle and an extractor re
 
   // The transcription succeeded, which means the handle was supplied and the
   // write through it landed in the substrate.
-  expect((await first.get(item.id))?.status).toBe("transcribed");
-  expect(await first.pluginStorage(item.id, "plugin-docs").get("upload-handle")).toBe(
+  expect((await first.captures.get(item.id))?.status).toBe("transcribed");
+  expect(await first.scopedStore(item.id, "plugin-docs").get("upload-handle")).toBe(
     "uploaded-by-plugin-docs",
   );
 
   await first.close();
 
   // --- Tab 2, minutes later: the extractor half, over a REOPENED database ---
-  const second = await openOutbox({ backend: await openRxdbBackend({ name }) });
+  const second = await openStorage({ backend: await openRxdbBackend({ name }) });
   // The construction-time handle: the host knows which plugin it is building,
   // so the scope bakes in the pluginId and leaves the capture dimension to be
   // addressed per call. It is minted from the REOPENED outbox — a handle from
   // `first` would be bound to a closed database.
-  const scope = second.pluginStorageScope("plugin-docs");
+  const scope = second.store("plugin-docs");
   const extractor: Extractor<Record<string, unknown>> = {
     extract: async () => {
       // Read ACROSS the session's captures: enumerate what the plugin has,
@@ -130,12 +134,12 @@ test("a transcriber writes through its relay-supplied handle and an extractor re
     sessionExtract: toSessionExtractStep(extractor),
   });
 
-  await second.closeSession(session.id);
+  await second.sessions.close(session.id);
   await relay2.syncNow();
 
   // The extraction ran on what storage held across the close-and-reopen —
   // not on anything the transcriber left in memory.
-  const extracted = await second.getSession(session.id);
+  const extracted = await second.sessions.get(session.id);
   expect(extracted?.status).toBe("awaiting-review");
   expect(extracted?.extracted).toEqual({
     uploads: { [item.id]: "uploaded-by-plugin-docs" },
@@ -146,12 +150,12 @@ test("a transcriber writes through its relay-supplied handle and an extractor re
 
 test("two plugins cannot read each other's keys through the handles they are supplied", async () => {
   const name = uniqueName();
-  const outbox = await openOutbox({ backend: await openRxdbBackend({ name }) });
+  const outbox = await openStorage({ backend: await openRxdbBackend({ name }) });
   const { item } = await openSessionWithCapture(outbox);
 
   // The construction-time handles: one per plugin, baked to their pluginId.
-  const scopeA = outbox.pluginStorageScope("plugin-A");
-  const scopeB = outbox.pluginStorageScope("plugin-B");
+  const scopeA = outbox.store("plugin-A");
+  const scopeB = outbox.store("plugin-B");
   await scopeA.capture(item.id).set("secret", "a-value");
 
   expect(await scopeB.capture(item.id).get("secret")).toBeUndefined();
@@ -162,7 +166,7 @@ test("two plugins cannot read each other's keys through the handles they are sup
 
   // The transcribe-side view the relay supplies — the same isolation by the
   // plugin id the transcriber names for itself.
-  const captureScope = outbox.captureStorage(item.id);
+  const captureScope = outbox.captureStore(item.id);
   await captureScope.forPlugin("plugin-A").set("k", "a");
   expect(await captureScope.forPlugin("plugin-B").get("k")).toBeUndefined();
   expect(await captureScope.forPlugin("plugin-A").get("k")).toBe("a");
@@ -172,7 +176,7 @@ test("two plugins cannot read each other's keys through the handles they are sup
 
 test("dropping a capture sweeps what the transcriber wrote for it — the extractor reads no stale view", async () => {
   const name = uniqueName();
-  const outbox = await openOutbox({ backend: await openRxdbBackend({ name }) });
+  const outbox = await openStorage({ backend: await openRxdbBackend({ name }) });
   const { item } = await openSessionWithCapture(outbox);
 
   const relay = await buildRelay(outbox, {
@@ -184,19 +188,19 @@ test("dropping a capture sweeps what the transcriber wrote for it — the extrac
   // The extractor's scope, minted BEFORE the sweep and REUSED after it — the
   // strongest form of the staleness check: the handle caches nothing, so the
   // same instance must reflect the sweep on its very next read.
-  const scope = outbox.pluginStorageScope("plugin-docs");
+  const scope = outbox.store("plugin-docs");
   expect(await scope.captures()).toEqual([item.id]);
   expect(await scope.capture(item.id).get("upload-handle")).toBe("uploaded-by-plugin-docs");
 
-  await outbox.remove(item.id);
+  await outbox.captures.remove(item.id);
 
   expect(await scope.captures()).toEqual([]);
   expect(await scope.capture(item.id).get("upload-handle")).toBeUndefined();
 
   // And the sweep is durable: a fresh handle over a REOPENED database agrees.
   await outbox.close();
-  const reopened = await openOutbox({ backend: await openRxdbBackend({ name }) });
-  const fresh = reopened.pluginStorageScope("plugin-docs");
+  const reopened = await openStorage({ backend: await openRxdbBackend({ name }) });
+  const fresh = reopened.store("plugin-docs");
   expect(await fresh.captures()).toEqual([]);
   expect(await fresh.capture(item.id).get("upload-handle")).toBeUndefined();
   await reopened.close();

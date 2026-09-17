@@ -1,4 +1,4 @@
-import type { Outbox } from "./outbox.js";
+import type { Storage } from "./storage.js";
 import type { SessionItem } from "./session-schema.js";
 import type { AnnotatedTranscript } from "../annotated-transcript.js";
 import type { TranscriptCombiner } from "../transcript-combiner.js";
@@ -47,10 +47,10 @@ import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
  * extraction is still valid and need not re-run.
  */
 export async function listSessionTranscriptParts(
-  outbox: Outbox,
+  outbox: Storage,
   sessionId: string,
 ): Promise<{ parts: AnnotatedTranscript[]; recordingIds: string[] }> {
-  const recordings = await outbox.list({ sessionId });
+  const recordings = await outbox.captures.list({ sessionId });
   const usable = recordings
     .filter((r) => r.status === "transcribed" && r.transcript !== undefined)
     .sort((a, b) => a.seq - b.seq);
@@ -84,7 +84,7 @@ export async function listSessionTranscriptParts(
  * the extraction is still valid and need not re-run.
  */
 export async function joinSessionTranscript(
-  outbox: Outbox,
+  outbox: Storage,
   sessionId: string,
   combiner?: TranscriptCombiner,
 ): Promise<{ text: string; recordingIds: string[] }> {

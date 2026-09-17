@@ -39,7 +39,7 @@ async function until<T>(read: () => Promise<T | undefined>, label: string): Prom
 
 test("the playground records durably: one row, live from start(), committed by stop()", async () => {
   const outbox = await getOutbox();
-  await outbox.clear();
+  await outbox.captures.clear();
   const recorder = getRecorder();
 
   await recorder.start(crypto.randomUUID());
@@ -50,7 +50,7 @@ test("the playground records durably: one row, live from start(), committed by s
   // when the factory is missing — not some assertion about the final row, which
   // an in-memory capture also satisfies.
   const live = await until(async () => {
-    const [item] = await outbox.list({ status: ["recording"] });
+    const [item] = await outbox.captures.list({ status: ["recording"] });
     return item;
   }, "a recording row");
   expect(live.capture?.sourceId).toBeTypeOf("string");
@@ -65,7 +65,7 @@ test("the playground records durably: one row, live from start(), committed by s
   expect(capture.itemId).toBe(live.id);
 
   const committed = await until(async () => {
-    const item = await outbox.get(live.id);
+    const item = await outbox.captures.get(live.id);
     return item?.status === "queued" ? item : undefined;
   }, "the row to reach queued");
   expect(committed.audioReady).toBe(true);
@@ -73,7 +73,7 @@ test("the playground records durably: one row, live from start(), committed by s
 
   // One dictation, one row. Two would mean the hook enqueued a capture that had
   // already committed itself.
-  expect(await outbox.list({})).toHaveLength(1);
+  expect(await outbox.captures.list({})).toHaveLength(1);
 
-  await outbox.clear();
+  await outbox.captures.clear();
 });

@@ -1,18 +1,18 @@
 import type { ExtractionUsage, ExtractOptions } from "../extractor.js";
 import type { AnnotatedTranscript } from "../annotated-transcript.js";
-import type { CaptureItem } from "../capture-item.js";
+import type { CapturePayload } from "../capture-item.js";
 import type { Transcriber } from "../transcriber.js";
 import { transcriptSchema } from "../transcript.js";
 import {
   fullJitterDelay,
   isTransientFailure,
-  TerminalQueueError,
+  TerminalError,
   type BackoffOptions,
 } from "./backoff.js";
 import { holdLock, relayItemLock, relaySessionLock } from "./capture-lock.js";
-import type { Outbox } from "./outbox.js";
-import { isActiveStatus } from "./schema.js";
-import type { OutboxItem, OutboxPatch } from "./schema.js";
+import type { Storage } from "./storage.js";
+import { isActiveStatus } from "./capture-schema.js";
+import type { Capture, CapturePatch } from "./capture-schema.js";
 import type { SessionItem, SessionPatch } from "./session-schema.js";
 import { listSessionTranscriptParts } from "./session-extract.js";
 import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
@@ -141,20 +141,20 @@ export interface ConnectivitySource {
  * correctly-typed document with no cast.
  */
 export type RelaySubject =
-  | { readonly kind: "recording"; readonly item: OutboxItem }
+  | { readonly kind: "recording"; readonly item: Capture }
   | { readonly kind: "session"; readonly session: SessionItem };
 
 export interface RelayOptions extends BackoffOptions {
-  outbox: Outbox;
+  outbox: Storage;
   /**
-   * The transcriber draining the queue. Widened to `Transcriber<CaptureItem>`
-   * because `OutboxItem.recording` is now the union — an audio-only
+   * The transcriber draining the queue. Widened to `Transcriber<CapturePayload>`
+   * because `Capture.recording` is now the union — an audio-only
    * `Transcriber<Recording>` no longer typechecks into this slot (the
    * property-typed `transcribe` makes that assignment a type error, which is
    * the point). Wrap with `restrictToKind("audio", …)` to lift a narrow
    * engine.
    */
-  transcriber: Transcriber<CaptureItem>;
+  transcriber: Transcriber<CapturePayload>;
   /** Session-level extraction: joined transcripts → structured fields. */
   sessionExtract: SessionExtractStep;
   /** Session-level write: reviewed fields → host tool. */
@@ -360,17 +360,20 @@ class QueueRelay implements Relay {
   async #drain(): Promise<void> {
     for (;;) {
       // 1. Live needs the worker: do not admit new items while anything is recording.
-      const [recording] = await this.#options.outbox.list({ status: ["recording"], limit: 1 });
+      const [recording] = await this.#options.outbox.captures.list({
+        status: ["recording"],
+        limit: 1,
+      });
       if (recording) return;
 
       // 2. Drain recordings: transcribe the next pending one.
-      const item = await this.#options.outbox.nextPending();
+      const item = await this.#options.outbox.captures.nextPending();
       if (item) {
         if (Date.parse(item.nextAttemptAt) > this.#now()) return;
         const held = await holdLock(
           relayItemLock(item.id),
           async () => {
-            const fresh = await this.#options.outbox.get(item.id);
+            const fresh = await this.#options.outbox.captures.get(item.id);
             if (!fresh) return false;
             if (!isActiveStatus(fresh.status)) return false;
             if (Date.parse(fresh.nextAttemptAt) > this.#now()) return false;
@@ -393,13 +396,13 @@ class QueueRelay implements Relay {
       }
 
       // 3. Drain sessions: extract or write the next pending one.
-      const session = await this.#options.outbox.nextPendingSession();
+      const session = await this.#options.outbox.sessions.nextPending();
       if (session) {
         if (Date.parse(session.nextAttemptAt) > this.#now()) return;
         const held = await holdLock(
           relaySessionLock(session.id),
           async () => {
-            const fresh = await this.#options.outbox.getSession(session.id);
+            const fresh = await this.#options.outbox.sessions.get(session.id);
             if (!fresh) return false;
             if (!isSessionActive(fresh.status)) return false;
             if (Date.parse(fresh.nextAttemptAt) > this.#now()) return false;
@@ -429,7 +432,7 @@ class QueueRelay implements Relay {
   // Recording: transcribe only
   // -----------------------------------------------------------------------
 
-  async #processRecordingStep(item: OutboxItem): Promise<boolean> {
+  async #processRecordingStep(item: Capture): Promise<boolean> {
     try {
       await this.#patch(item.id, { status: "transcribing" });
       await this.#transcribe(item);
@@ -441,10 +444,10 @@ class QueueRelay implements Relay {
     }
   }
 
-  async #transcribe(item: OutboxItem): Promise<void> {
-    const audio = await this.#options.outbox.getAudio(item.id);
+  async #transcribe(item: Capture): Promise<void> {
+    const audio = await this.#options.outbox.captures.getAudio(item.id);
     if (!audio) {
-      throw new TerminalQueueError(`audio attachment is missing for item ${item.id}`);
+      throw new TerminalError(`audio attachment is missing for item ${item.id}`);
     }
     // The step's signal and the step timeout are one mechanism, not two: when
     // the deadline fires the controller aborts, so the transcriber's in-flight
@@ -461,9 +464,9 @@ class QueueRelay implements Relay {
           // `forPlugin` — the relay cannot know which engine a selection
           // combinator will pick, so it scopes what it knows and the engine
           // supplies the identity it knows. An extractor from the same plugin
-          // reads these entries back through `Outbox.pluginStorageScope`,
+          // reads these entries back through `Storage.pluginStorageScope`,
           // minted at that extractor's construction.
-          storage: this.#options.outbox.captureStorage(item.id),
+          storage: this.#options.outbox.captureStore(item.id),
         }),
         this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
         "transcribe",
@@ -472,17 +475,17 @@ class QueueRelay implements Relay {
     );
     // Transitions to `transcribed` — extraction and write are session-level now.
     // Routed through `writeTranscript` so `preview` is deleted in the same revision.
-    await this.#options.outbox.writeTranscript(item.id, transcript, {
+    await this.#options.outbox.captures.writeTranscript(item.id, transcript, {
       status: "transcribed",
       attempts: 0,
     });
     if (this.#options.dropAudioAfterTranscription) {
-      await this.#options.outbox.dropAudio(item.id);
+      await this.#options.outbox.captures.dropAudio(item.id);
     }
   }
 
   /** Records a transcription failure. Returns true if parked for retry, false if dead. */
-  async #recordFailure(item: OutboxItem, error: unknown): Promise<boolean> {
+  async #recordFailure(item: Capture, error: unknown): Promise<boolean> {
     const attempts = item.attempts + 1;
     const lastError = messageOf(error);
     const exhausted = attempts >= this.#maxAttempts;
@@ -571,9 +574,9 @@ class QueueRelay implements Relay {
   async #sessionWrite(session: SessionItem): Promise<void> {
     const outcome = session.reviewOutcome;
     if (outcome === undefined || outcome.status === "discarded") {
-      throw new TerminalQueueError(
+      throw new TerminalError(
         `session ${session.id} reached the write step with no review outcome. ` +
-          "Nothing is written that a human has not reviewed; move sessions forward with Outbox.submitSessionReview.",
+          "Nothing is written that a human has not reviewed; move sessions forward with Storage.submitSessionReview.",
       );
     }
 
@@ -582,9 +585,9 @@ class QueueRelay implements Relay {
         outcome.status === "edited"
           ? "the review rejected every field"
           : "the extraction produced no fields to review";
-      throw new TerminalQueueError(
+      throw new TerminalError(
         `session ${session.id} reached the write step with nothing to write — ${cause}. ` +
-          "To try again, re-park with Outbox.reopenSessionForReview(id); to abandon, Outbox.patchSession(id, { status: 'done' }).",
+          "To try again, re-park with Storage.sessions.reopenForReview(id); to abandon, Storage.sessions.patch(id, { status: 'done' }).",
       );
     }
 
@@ -638,11 +641,11 @@ class QueueRelay implements Relay {
   // Patches
   // -----------------------------------------------------------------------
 
-  async #patch(id: string, patch: OutboxPatch): Promise<void> {
-    await this.#options.outbox.patch(id, patch);
+  async #patch(id: string, patch: CapturePatch): Promise<void> {
+    await this.#options.outbox.captures.patch(id, patch);
   }
 
   async #patchSession(id: string, patch: SessionPatch): Promise<void> {
-    await this.#options.outbox.patchSession(id, patch);
+    await this.#options.outbox.sessions.patch(id, patch);
   }
 }

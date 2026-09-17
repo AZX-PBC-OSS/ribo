@@ -44,7 +44,7 @@ The recording half knows what a microphone is; the session half does not.
 
 Stage by stage:
 
-- **Capture** — `Recorder` negotiates a container and records from the microphone. `CaptureItem` is
+- **Capture** — `Recorder` negotiates a container and records from the microphone. `CapturePayload` is
   a union of `Recording` and `DocumentCapture`, so a PDF enqueues through the same path as a
   dictation.
 - **Transcribe** — four engines implement `Transcriber`: on-device speech (`@azx/ribo-transcriber-ondevice`,
@@ -66,12 +66,12 @@ Stage by stage:
   meaningless one.
 - **Review** — `buildReviewRequest` / `resolveReview` turn a session's extraction into a flat list of
   per-leaf review items, each carrying its own schema; a session parks at `awaiting-review` and only
-  an explicit `Outbox.submitSessionReview` moves it forward.
+  an explicit `Storage.submitSessionReview` moves it forward.
 - **Write-back is scaffolded, not wired.** The `ToolAdapter` contract and `snuggProAdapter` exist,
   but the live Snugg Pro write is **gated on a Helix platform ask** — egress request signing, see
   [Helix platform asks](docs/implementation/13-helix-platform-asks.md).
 
-Work never depends on a live network: a recording enters a durable RxDB **outbox** at capture and a
+Work never depends on a live network: a recording enters a durable RxDB **storage** at capture and a
 foreground relay drives each state machine forward when connectivity allows. The app shell and any
 on-device model weights are cached so a returning user boots and records fully offline. **iOS
 on-device transcription is out of scope** for now (the managed STT path covers it).
@@ -104,8 +104,8 @@ a new adapter package and nothing else.
 
 | Package                              | What it is                                                                                                                                                                                                                                                                      |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@azx/ribo-core`                     | The headless engine: capture, the recording and session state machines (durable outbox + relay), transcription and extraction contracts + selection, connectivity, the review contract, work-safety. No React, no DOM rendering.                                                |
-| `@azx/ribo-ui-react`                 | Headless React hook layer over the engine — `RiboProvider` plus recorder, review, outbox, connectivity and work-safety hooks. No components beyond `RiboProvider`, no markup.                                                                                                   |
+| `@azx/ribo-core`                     | The headless engine: capture, the recording and session state machines (durable storage + relay), transcription and extraction contracts + selection, connectivity, the review contract, work-safety. No React, no DOM rendering.                                               |
+| `@azx/ribo-ui-react`                 | Headless React hook layer over the engine — `RiboProvider` plus recorder, review, storage, connectivity and work-safety hooks. No components beyond `RiboProvider`, no markup.                                                                                                  |
 | `@azx/ribo-transcriber-ondevice`     | On-device speech transcription implementing `Transcriber` (Moonshine by default, Whisper models still selectable), running inference in a Web Worker. Separate package because `@huggingface/transformers` pulls heavy native deps no non-transcribing consumer should inherit. |
 | `@azx/ribo-transcriber-managed`      | Managed speech transcription (Azure AI Speech Fast Transcription) proxied through the host's transport. It never holds a credential — it takes an endpoint and an injected `fetch`.                                                                                             |
 | `@azx/ribo-transcriber-pdfjs`        | PDF transcription via pdf.js: extracts a PDF's existing text layer, and refuses a document with no text layer — it cannot OCR.                                                                                                                                                  |
@@ -119,7 +119,7 @@ setup, not part of the pipeline, never published.)
 
 The extension points are **`Transcriber`** (how a capture becomes text), **`Extractor`** (how text
 becomes fields), **`ToolAdapter`** (where tool-specific knowledge and write-back live), and the
-outbox's injectable **`RxStorage`** (where the durable queue persists — `AGENTS.md` §5.5). The
+storage's injectable **`RxStorage`** (where the durable queue persists — `AGENTS.md` §5.5). The
 consuming field app lives in a **separate repo**; `playground/` is this repo's stand-in for a
 consumer.
 

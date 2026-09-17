@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
-import type { Outbox } from "@azx/ribo-core";
+import type { Storage } from "@azx/ribo-core";
 
 import { acknowledgeEviction, getEvictionState, startEvictionWatch } from "./eviction-store.js";
 import { subscribeToEviction } from "./eviction-store.js";
@@ -24,7 +24,7 @@ import { button, muted, noticeBox } from "./styles.js";
  * fold is a message nobody read.
  */
 
-export function EvictionNotice({ outbox }: { outbox: Outbox }) {
+export function EvictionNotice({ outbox }: { outbox: Storage }) {
   const eviction = useSyncExternalStore(subscribeToEviction, getEvictionState);
 
   useEffect(() => startEvictionWatch(outbox), [outbox]);

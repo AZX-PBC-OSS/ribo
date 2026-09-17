@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, test } from "vitest";
 
 import type { ExtractionResult } from "./extractor.js";
-import { TerminalQueueError, isTransientFailure } from "./queue/backoff.js";
+import { TerminalError, isTransientFailure } from "./storage/backoff.js";
 import { SchemaParseError } from "./schema-parse-error.js";
 import {
   acceptAnySuccess,
@@ -74,7 +74,7 @@ describe("outcome discrimination", () => {
 
 describe("terminalFallsThrough", () => {
   test("falls through on a terminal error and gives up on a transient 503", () => {
-    const terminal = new TerminalQueueError("truncated");
+    const terminal = new TerminalError("truncated");
     const transient = Object.assign(new Error("service unavailable"), { status: 503 });
 
     expect(isTransientFailure(terminal)).toBe(false);
@@ -122,8 +122,8 @@ describe("terminalFallsThrough", () => {
   });
 
   test("gives up with the first error at exhaustion after two terminal failures", () => {
-    const first = new TerminalQueueError("first");
-    const second = new TerminalQueueError("second");
+    const first = new TerminalError("first");
+    const second = new TerminalError("second");
 
     expectContinue(terminalFallsThrough(makeInput([errorOutcome("a", first)])));
     expectGiveUp(
@@ -135,7 +135,7 @@ describe("terminalFallsThrough", () => {
   test("accepts a result that appears after an earlier failure", () => {
     const fields = { value: 1 };
     const result = makeResult(fields);
-    const error = new TerminalQueueError("bad");
+    const error = new TerminalError("bad");
 
     expectAccept(
       terminalFallsThrough(makeInput([errorOutcome("a", error), resultOutcome("b", result)])),
@@ -146,7 +146,7 @@ describe("terminalFallsThrough", () => {
 
 describe("acceptAnySuccess", () => {
   test("continues past terminal and transient errors where terminalFallsThrough would give up", () => {
-    const terminal = new TerminalQueueError("bad");
+    const terminal = new TerminalError("bad");
     const transient = Object.assign(new Error("service unavailable"), { status: 503 });
 
     expectContinue(acceptAnySuccess(makeInput([errorOutcome("a", terminal)])));

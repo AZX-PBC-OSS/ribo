@@ -1,13 +1,13 @@
-import type { CaptureItem } from "./capture-item.js";
+import type { CapturePayload } from "./capture-item.js";
 import type { Transcript } from "./transcript.js";
 import { UnsupportedItemError } from "./unsupported-item.js";
 import type { Transcriber, TranscriberCapability } from "./transcriber.js";
 
 /**
- * @file Lift a narrow transcriber into a slot that can see any `CaptureItem`.
+ * @file Lift a narrow transcriber into a slot that can see any `CapturePayload`.
  *
  * See the document-transcription plan D7a for the full reasoning. The short
- * version: `RelayOptions.transcriber` is `Transcriber<CaptureItem>`, because the
+ * version: `RelayOptions.transcriber` is `Transcriber<CapturePayload>`, because the
  * queue can hold either kind. With `transcribe` declared as a property (not a
  * method), an audio-only `Transcriber<Recording>` no longer typechecks into
  * that slot — which is the point. The compiler sends the host here, and this
@@ -16,7 +16,7 @@ import type { Transcriber, TranscriberCapability } from "./transcriber.js";
  */
 
 /**
- * Wrap a `Transcriber<S>` so it satisfies `Transcriber<CaptureItem>`, refusing
+ * Wrap a `Transcriber<S>` so it satisfies `Transcriber<CapturePayload>`, refusing
  * items of another kind with {@link UnsupportedItemError} and delegating for
  * the matching kind.
  *
@@ -25,10 +25,10 @@ import type { Transcriber, TranscriberCapability } from "./transcriber.js";
  * this is the fix — `relay({ transcriber: restrictToKind("audio", firstCapable([…])) })`.
  * It changes no engine, and nothing relies on remembering an ordering rule.
  */
-export function restrictToKind<S extends CaptureItem>(
+export function restrictToKind<S extends CapturePayload>(
   kind: S["kind"],
   transcriber: Transcriber<S>,
-): Transcriber<CaptureItem> {
+): Transcriber<CapturePayload> {
   return {
     engine: transcriber.engine,
     capability: (): Promise<TranscriberCapability> => transcriber.capability(),

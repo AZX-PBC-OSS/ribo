@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 
-import { OUTBOX_STATUSES } from "./queue/schema.js";
-import type { OutboxStatus } from "./queue/schema.js";
-import type { SessionStatus } from "./queue/session-schema.js";
+import { CAPTURE_STATUSES } from "./storage/capture-schema.js";
+import type { CaptureStatus } from "./storage/capture-schema.js";
+import type { SessionStatus } from "./storage/session-schema.js";
 import { summarizeWork, workSafety } from "./work-safety.js";
 import type { StoragePersistence, WorkOnDevice } from "./work-safety.js";
 
@@ -10,7 +10,7 @@ import type { StoragePersistence, WorkOnDevice } from "./work-safety.js";
 // nothing ever synced. Individual tests override just the field they exercise.
 const empty: WorkOnDevice = { pending: 0, dead: 0, synced: 0, awaitingReview: 0, openSessions: 0 };
 
-const items = (...statuses: OutboxStatus[]): { status: OutboxStatus }[] =>
+const items = (...statuses: CaptureStatus[]): { status: CaptureStatus }[] =>
   statuses.map((status) => ({ status }));
 
 const sessions = (...statuses: SessionStatus[]): { status: SessionStatus }[] =>
@@ -95,7 +95,7 @@ describe("summarizeWork", () => {
   test("every status is accounted for by exactly one bucket, or deliberately none", () => {
     // A guard against the next status added without revisiting this function: the
     // failure mode is silent under-counting, so it is pinned rather than trusted.
-    const unclassified = OUTBOX_STATUSES.filter((status) => {
+    const unclassified = CAPTURE_STATUSES.filter((status) => {
       const work = summarizeWork([{ status }]);
       return work.pending + work.dead + work.synced === 0;
     });

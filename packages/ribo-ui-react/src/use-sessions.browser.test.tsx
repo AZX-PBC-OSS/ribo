@@ -1,7 +1,7 @@
 import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
-import { openOutbox, type Outbox, type SessionQuery } from "@azx/ribo-core";
+import { openStorage, type Storage, type SessionQuery } from "@azx/ribo-core";
 
 import { useSessions } from "./use-sessions.js";
 
@@ -12,7 +12,7 @@ import { useSessions } from "./use-sessions.js";
  * @file `useSessions` — the query a caller passes must be the query that runs.
  *
  * This file exists because it did not. `SessionQuery` gained `ref` when the
- * session started owning what it is for, `Outbox.watchSessions` honours it, and
+ * session started owning what it is for, `Storage.watchSessions` honours it, and
  * the hook silently dropped it: its memo key enumerated `status` and `limit` by
  * hand and then rebuilt the query by parsing that key back, so a field nobody
  * remembered to list was discarded on the way through. Every consumer got every
@@ -22,13 +22,13 @@ import { useSessions } from "./use-sessions.js";
  * than about RxDB's filtering, which `session-outbox.test.ts` already covers.
  */
 
-const freshOutbox = () => openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+const freshOutbox = () => openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
 
 test("a ref in the query reaches the outbox, and only matching sessions come back", async () => {
   const outbox = await freshOutbox();
-  await outbox.openSession({ ctx: { jobId: "a" }, ref: "job-a" });
-  await outbox.openSession({ ctx: { jobId: "b" }, ref: "job-b" });
-  await outbox.openSession({ ctx: { jobId: "a2" }, ref: "job-a" });
+  await outbox.sessions.open({ ctx: { jobId: "a" }, ref: "job-a" });
+  await outbox.sessions.open({ ctx: { jobId: "b" }, ref: "job-b" });
+  await outbox.sessions.open({ ctx: { jobId: "a2" }, ref: "job-a" });
 
   const seen: string[][] = [];
   function Probe() {
@@ -44,10 +44,10 @@ test("a ref in the query reaches the outbox, and only matching sessions come bac
 
 test("ref composes with status rather than replacing it", async () => {
   const outbox = await freshOutbox();
-  const wanted = await outbox.openSession({ ctx: {}, ref: "job-a" });
-  await outbox.openSession({ ctx: {}, ref: "job-b" });
-  const otherStatus = await outbox.openSession({ ctx: {}, ref: "job-a" });
-  await outbox.closeSession(otherStatus.id); // → extracting
+  const wanted = await outbox.sessions.open({ ctx: {}, ref: "job-a" });
+  await outbox.sessions.open({ ctx: {}, ref: "job-b" });
+  const otherStatus = await outbox.sessions.open({ ctx: {}, ref: "job-a" });
+  await outbox.sessions.close(otherStatus.id); // → extracting
 
   const seen: string[][] = [];
   function Probe() {
@@ -74,11 +74,16 @@ test("every field of the query survives the memo key", async () => {
   const seen: SessionQuery[] = [];
   const spy = {
     ...outbox,
-    watchSessions: (q: SessionQuery = {}) => {
-      seen.push(q);
-      return outbox.watchSessions(q);
+    // The hook reads through the session store, so the spy has to sit there —
+    // overriding a method on the container would never be called.
+    sessions: {
+      ...outbox.sessions,
+      watch: (q: SessionQuery = {}) => {
+        seen.push(q);
+        return outbox.sessions.watch(q);
+      },
     },
-  } as unknown as Outbox;
+  } as unknown as Storage;
 
   function Probe() {
     useSessions(query, spy);
@@ -100,11 +105,16 @@ test("the same query written in a different key order does not resubscribe", asy
   let subscribes = 0;
   const spy = {
     ...outbox,
-    watchSessions: (q: SessionQuery = {}) => {
-      subscribes += 1;
-      return outbox.watchSessions(q);
+    // The hook reads through the session store, so the spy has to sit there —
+    // overriding a method on the container would never be called.
+    sessions: {
+      ...outbox.sessions,
+      watch: (q: SessionQuery = {}) => {
+        subscribes += 1;
+        return outbox.sessions.watch(q);
+      },
     },
-  } as unknown as Outbox;
+  } as unknown as Storage;
 
   function Probe({ swapped }: { swapped: boolean }) {
     useSessions(swapped ? { status: "open", ref: "job-a" } : { ref: "job-a", status: "open" }, spy);
@@ -124,11 +134,16 @@ test("a query passed as a fresh object each render does not resubscribe", async 
   let subscribes = 0;
   const spy = {
     ...outbox,
-    watchSessions: (q: SessionQuery = {}) => {
-      subscribes += 1;
-      return outbox.watchSessions(q);
+    // The hook reads through the session store, so the spy has to sit there —
+    // overriding a method on the container would never be called.
+    sessions: {
+      ...outbox.sessions,
+      watch: (q: SessionQuery = {}) => {
+        subscribes += 1;
+        return outbox.sessions.watch(q);
+      },
     },
-  } as unknown as Outbox;
+  } as unknown as Storage;
 
   function Probe({ tick }: { tick: number }) {
     // A NEW object literal every render, which is the shape a real caller writes.

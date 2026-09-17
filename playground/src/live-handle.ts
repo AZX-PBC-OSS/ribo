@@ -1,4 +1,4 @@
-import type { LiveSegment, LiveSession, LiveTranscriber, Outbox, Recording } from "@azx/ribo-core";
+import type { LiveSegment, LiveSession, LiveTranscriber, Storage, Recording } from "@azx/ribo-core";
 import { OnDeviceLiveTranscriber } from "@azx/ribo-transcriber-ondevice";
 
 import { getOutbox } from "./outbox-handle.js";
@@ -131,7 +131,7 @@ let liveGeneration = 0;
 export async function openLiveSession(
   recording: Recording,
   itemId: string,
-  outbox: Outbox,
+  outbox: Storage,
 ): Promise<void> {
   const myGeneration = ++liveGeneration;
   const liveTranscriber = getLiveTranscriber();
@@ -169,10 +169,10 @@ export async function openLiveSession(
         // text — the same reasoning as the seam's discriminated value (live.ts).
         switch (segment.kind) {
           case "tail":
-            void outbox.writePreviewTail(itemId, segment.text).catch(() => undefined);
+            void outbox.captures.writePreviewTail(itemId, segment.text).catch(() => undefined);
             break;
           case "commit":
-            void outbox.commitPreview(itemId, segment.text).catch(() => undefined);
+            void outbox.captures.commitPreview(itemId, segment.text).catch(() => undefined);
             break;
         }
       },

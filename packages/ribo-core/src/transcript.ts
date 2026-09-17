@@ -48,7 +48,7 @@ export const transcriptSchema = z.strictObject({
    * need to see, and "what is the engine mix across the queue?" would be unanswerable.
    *
    * It rides into the outbox document inside this object (`queue/schema.ts`), so the mix is
-   * readable straight off `Outbox.list()` without a second, denormalized copy of the same truth.
+   * readable straight off `Storage.list()` without a second, denormalized copy of the same truth.
    *
    * The value is an opaque id owned by the implementation — `ribo-core` deliberately does not
    * enumerate engines, because the engines ship in other packages. `"fake"`,

@@ -378,7 +378,7 @@ describe("singleShotExtractor — pre-parse check (non-stop finishReason)", () =
 
   test("BOTH non-stop outcomes are TERMINAL, not transient — the queue must not retry them", async () => {
     // The counterpart to the "failure is transient" block above, and the reason
-    // these throw TerminalQueueError rather than a plain Error: isTransientFailure
+    // these throw TerminalError rather than a plain Error: isTransientFailure
     // treats any error without a numeric `status` as retryable, so a plain Error
     // would make the outbox re-send an identical request. Truncation at a fixed
     // maxTokens is deterministic and a content filter fires again on the same

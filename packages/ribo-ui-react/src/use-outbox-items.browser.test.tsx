@@ -1,22 +1,23 @@
+import type { CaptureStore } from "@azx/ribo-core";
 import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { StrictMode, useState } from "react";
-import { openOutbox, type Outbox } from "@azx/ribo-core";
+import { openStorage } from "@azx/ribo-core";
 
-import { useOutboxItems } from "./use-outbox-items.js";
+import { useCaptures } from "./use-outbox-items.js";
 
 // vitest-browser-react@2.2.0's `render` is async — see context.browser.test.tsx.
 // Every render below is awaited.
 
-/** The shape `Outbox.watch` returns, spelled out so tests can fake it without
+/** The shape `Storage.watch` returns, spelled out so tests can fake it without
  * importing `rxjs` directly — `@azx/ribo-ui-react` has no dependency on it, only
  * `@azx/ribo-core` does. */
-type WatchObservable = ReturnType<Outbox["watch"]>;
+type WatchObservable = ReturnType<CaptureStore["watch"]>;
 type WatchObserver = Parameters<WatchObservable["subscribe"]>[0];
 type WatchSubscription = ReturnType<WatchObservable["subscribe"]>;
 
-const freshOutbox = () => openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+const freshOutbox = () => openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
 
 const aRecording = () => ({
   recording: {
@@ -38,7 +39,7 @@ test("loading is a real state, distinct from empty", async () => {
   const outbox = await freshOutbox();
   const seen: { loading: boolean; count: number }[] = [];
   function Probe() {
-    const { items, loading } = useOutboxItems({}, outbox);
+    const { items, loading } = useCaptures({}, outbox);
     seen.push({ loading, count: items.length });
     return null;
   }
@@ -51,24 +52,24 @@ test("loading is a real state, distinct from empty", async () => {
 test("updates live when an item is enqueued", async () => {
   const outbox = await freshOutbox();
   function Probe() {
-    return <p>count {useOutboxItems({}, outbox).items.length}</p>;
+    return <p>count {useCaptures({}, outbox).items.length}</p>;
   }
   const screen = await render(<Probe />);
   await expect.element(screen.getByText("count 0")).toBeInTheDocument();
 
-  await outbox.enqueue(aRecording());
+  await outbox.captures.enqueue(aRecording());
   await expect.element(screen.getByText("count 1")).toBeInTheDocument();
   await outbox.close();
 });
 
 test("honours a status filter", async () => {
   const outbox = await freshOutbox();
-  const item = await outbox.enqueue(aRecording());
-  await outbox.patch(item.id, { status: "transcribed" });
-  await outbox.enqueue(aRecording());
+  const item = await outbox.captures.enqueue(aRecording());
+  await outbox.captures.patch(item.id, { status: "transcribed" });
+  await outbox.captures.enqueue(aRecording());
 
   function Probe() {
-    return <p>parked {useOutboxItems({ status: "transcribed" }, outbox).items.length}</p>;
+    return <p>parked {useCaptures({ status: "transcribed" }, outbox).items.length}</p>;
   }
   const screen = await render(<Probe />);
   await expect.element(screen.getByText("parked 1")).toBeInTheDocument();
@@ -79,14 +80,14 @@ test("an inline query object does not re-subscribe every render", async () => {
   // The trap: `{ status: "queued" }` is a new object identity per render, so a
   // naive effect dependency tears the subscription down and rebuilds it forever.
   const outbox = await freshOutbox();
-  const watch = vi.spyOn(outbox, "watch");
+  const watch = vi.spyOn(outbox.captures, "watch");
   function Probe() {
-    const { items } = useOutboxItems({ status: "queued" }, outbox);
+    const { items } = useCaptures({ status: "queued" }, outbox);
     return <p>count {items.length}</p>;
   }
   const screen = await render(<Probe />);
   await expect.element(screen.getByText("count 0")).toBeInTheDocument();
-  await outbox.enqueue(aRecording());
+  await outbox.captures.enqueue(aRecording());
   await expect.element(screen.getByText("count 1")).toBeInTheDocument();
 
   expect(watch.mock.calls.length).toBeLessThanOrEqual(2);
@@ -101,9 +102,9 @@ test("tears down the RxDB subscription on unmount", async () => {
   // hook's effect creates, so `.closed` proves teardown rather than merely
   // asserting a mock was called.
   const outbox = await freshOutbox();
-  const originalWatch = outbox.watch.bind(outbox);
+  const originalWatch = outbox.captures.watch.bind(outbox.captures);
   const subscriptions: WatchSubscription[] = [];
-  vi.spyOn(outbox, "watch").mockImplementation((query) => {
+  vi.spyOn(outbox.captures, "watch").mockImplementation((query) => {
     const observable = originalWatch(query);
     return {
       subscribe: (observer: WatchObserver) => {
@@ -115,7 +116,7 @@ test("tears down the RxDB subscription on unmount", async () => {
   });
 
   function Probe() {
-    useOutboxItems({}, outbox);
+    useCaptures({}, outbox);
     return null;
   }
   const screen = await render(<Probe />);
@@ -135,9 +136,9 @@ test("under StrictMode, the double mount/cleanup/remount settles to one live sub
   // (or leaked) RxDB subscription here even though nothing above this test
   // exercises that mode.
   const outbox = await freshOutbox();
-  const originalWatch = outbox.watch.bind(outbox);
+  const originalWatch = outbox.captures.watch.bind(outbox.captures);
   const subscriptions: WatchSubscription[] = [];
-  vi.spyOn(outbox, "watch").mockImplementation((query) => {
+  vi.spyOn(outbox.captures, "watch").mockImplementation((query) => {
     const observable = originalWatch(query);
     return {
       subscribe: (observer: WatchObserver) => {
@@ -149,7 +150,7 @@ test("under StrictMode, the double mount/cleanup/remount settles to one live sub
   });
 
   function Probe() {
-    useOutboxItems({}, outbox);
+    useCaptures({}, outbox);
     return null;
   }
   const screen = await render(
@@ -167,7 +168,7 @@ test("under StrictMode, the double mount/cleanup/remount settles to one live sub
 
 test("surfaces a watch error without leaving loading stuck", async () => {
   const outbox = await freshOutbox();
-  vi.spyOn(outbox, "watch").mockReturnValue({
+  vi.spyOn(outbox.captures, "watch").mockReturnValue({
     // The hook always subscribes with an object observer (see the
     // implementation), never the function-overload form, so this fake only
     // needs to handle that one shape.
@@ -178,7 +179,7 @@ test("surfaces a watch error without leaving loading stuck", async () => {
   } as WatchObservable);
 
   function Probe() {
-    const { error, loading } = useOutboxItems({}, outbox);
+    const { error, loading } = useCaptures({}, outbox);
     return <p>state {error ? `error:${error.message}` : loading ? "loading" : "ready"}</p>;
   }
   const screen = await render(<Probe />);
@@ -195,12 +196,12 @@ test("surfaces a synchronous throw from watch() without crashing the render", as
   // error boundary in the playground that's a blank screen rather than a
   // hook reporting `error`.
   const outbox = await freshOutbox();
-  vi.spyOn(outbox, "watch").mockImplementation(() => {
+  vi.spyOn(outbox.captures, "watch").mockImplementation(() => {
     throw new Error("boom");
   });
 
   function Probe() {
-    const { error, loading } = useOutboxItems({}, outbox);
+    const { error, loading } = useCaptures({}, outbox);
     return <p>state {error ? `error:${error.message}` : loading ? "loading" : "ready"}</p>;
   }
   const screen = await render(<Probe />);
@@ -216,9 +217,9 @@ test("recovers after an error once the query changes to one that succeeds", asyn
   // literal with the same content) so the hook's own effect dependency sees a
   // genuine change and restarts.
   const outbox = await freshOutbox();
-  await outbox.enqueue(aRecording());
-  const originalWatch = outbox.watch.bind(outbox);
-  vi.spyOn(outbox, "watch").mockImplementation((query = {}) => {
+  await outbox.captures.enqueue(aRecording());
+  const originalWatch = outbox.captures.watch.bind(outbox.captures);
+  vi.spyOn(outbox.captures, "watch").mockImplementation((query = {}) => {
     if (query.status === "dead") {
       return {
         subscribe: (observer: { error?: (cause: unknown) => void }) => {
@@ -232,7 +233,7 @@ test("recovers after an error once the query changes to one that succeeds", asyn
 
   function Probe() {
     const [dead, setDead] = useState(true);
-    const { items, loading, error } = useOutboxItems({ status: dead ? "dead" : undefined }, outbox);
+    const { items, loading, error } = useCaptures({ status: dead ? "dead" : undefined }, outbox);
     return (
       <>
         <button type="button" onClick={() => setDead(false)}>
@@ -255,7 +256,7 @@ test("recovers after an error once the query changes to one that succeeds", asyn
 
 test("without a provider and without an override, throws the named error", async () => {
   function Probe() {
-    const { items } = useOutboxItems();
+    const { items } = useCaptures();
     return <p>count {items.length}</p>;
   }
   await expect(render(<Probe />)).rejects.toThrow(/outbox/i);

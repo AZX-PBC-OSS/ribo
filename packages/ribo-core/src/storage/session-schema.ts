@@ -9,9 +9,9 @@ export const SESSION_COLLECTION_NAME = "sessions";
  * The session state machine:
  *
  * ```
- * open → extracting → awaiting-review → writing → done ⇄ awaiting-review (Outbox.reopenSessionForReview)
+ * open → extracting → awaiting-review → writing → done ⇄ awaiting-review (Storage.reopenSessionForReview)
  *                          ↘ (transient) → failed → (backoff) → retry
- *                          ↘ (terminal)  → dead   ⇄ awaiting-review (Outbox.reopenSessionForReview)
+ *                          ↘ (terminal)  → dead   ⇄ awaiting-review (Storage.reopenSessionForReview)
  * ```
  *
  * A session owns extraction, review and write state for a set of captures
@@ -26,7 +26,7 @@ export const SESSION_COLLECTION_NAME = "sessions";
  *
  * **`awaiting-review` is the review gate, same as the outbox item's side.** Absent
  * from {@link ACTIVE_SESSION_STATUSES} so the relay drains past it;
- * `Outbox.submitSessionReview` is the only way out, `Outbox.reopenSessionForReview`
+ * `Storage.submitSessionReview` is the only way out, `Storage.reopenSessionForReview`
  * the only way back from `done` or `dead`.
  *
  * **Both `done` and `dead` have a human-driven way out.** `failed` is resting,
@@ -61,7 +61,7 @@ export const ACTIVE_SESSION_STATUSES = [
 
 /**
  * Statuses the relay will not act on again unattended. Both `done` and `dead`
- * have a human-driven way out (`Outbox.reopenSessionForReview`). The constant
+ * have a human-driven way out (`Storage.reopenSessionForReview`). The constant
  * keeps its name for now — whether it still earns it, or wants renaming to
  * something like `RESTING_SESSION_STATUSES`, is an open question (see the
  * session-ownership design's §10.1), left to a follow-up so a rename does not
@@ -98,7 +98,7 @@ export const sessionDocumentSchema = z.strictObject({
   openedAt: z.iso.datetime(),
   /**
    * When the host closed the session. Absent while `status === "open"`.
-   * Set by `Outbox.closeSession`; a reopened session clears this.
+   * Set by `Storage.closeSession`; a reopened session clears this.
    */
   closedAt: z.iso.datetime().optional(),
   /**
@@ -225,7 +225,7 @@ export type SessionItem = z.infer<typeof sessionItemSchema>;
  * `id`, `openedAt`, `idempotencyKey`, `ctx` and `ref` are deliberately absent:
  * they are decided once and re-deciding any of them would break provenance,
  * idempotency, strand a write or silently re-target it. Same reasoning as
- * `OutboxPatch` on the recording side.
+ * `CapturePatch` on the recording side.
  */
 export type SessionPatch = Partial<
   Omit<SessionDocument, "id" | "openedAt" | "idempotencyKey" | "ctx" | "ref">
@@ -234,7 +234,7 @@ export type SessionPatch = Partial<
 /**
  * The RxDB JSON schema for the sessions collection.
  *
- * Hand-written for the same reason `outboxRxSchema` is: RxDB needs metadata zod
+ * Hand-written for the same reason `captureRxSchema` is: RxDB needs metadata zod
  * has no concept of — `primaryKey`, `indexes`, and the `maxLength` bounds it
  * uses to build fixed-width index keys. `session-schema.test.ts` pins the two
  * descriptions against each other so they cannot drift.

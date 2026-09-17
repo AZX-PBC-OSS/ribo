@@ -103,7 +103,7 @@ interface HelixErrorBody {
  * a completion with the field omitted — see the guarantee on
  * {@link ChatCompletion}. `"max_tokens"` maps to `"length"` so the existing
  * truncation guard keeps working (`assertStopFinishReason` treats `"length"` as
- * a `TerminalQueueError`); `"end_turn"` maps to `"stop"`.
+ * a `TerminalError`); `"end_turn"` maps to `"stop"`.
  */
 export function helixChat({
   token,

@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-import { baseCaptureItemSchema } from "../capture-item.js";
+import { basePayloadSchema } from "../capture-item.js";
 import { transcriptSchema } from "../transcript.js";
 
 /** The RxDB collection name. One collection for outbox items (audio or document); sessions have their own. */
-export const OUTBOX_COLLECTION_NAME = "outbox";
+export const CAPTURES_COLLECTION_NAME = "outbox";
 
 /**
  * The attachment id the captured audio is stored under.
@@ -35,14 +35,14 @@ export const AUDIO_ATTACHMENT_ID = "audio";
  *
  * **`dead` is the only terminal state.** `failed` is a *resting* state: the
  * relay picks it back up once `nextAttemptAt` has passed, which is why
- * `failed ∈ ACTIVE_OUTBOX_STATUSES`. An item leaves `failed` for `dead` only by
+ * `failed ∈ ACTIVE_CAPTURE_STATUSES`. An item leaves `failed` for `dead` only by
  * exhausting `maxAttempts` or by a terminal failure classification.
  *
  * `discarded` means the auditor threw that capture away. Its words should
  * not return through a later extraction — `session-extract.ts` excludes
  * `discarded` items from the joined transcript.
  */
-export const OUTBOX_STATUSES = [
+export const CAPTURE_STATUSES = [
   "recording",
   "queued",
   "transcribing",
@@ -52,7 +52,7 @@ export const OUTBOX_STATUSES = [
   "discarded",
 ] as const;
 
-export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
+export type CaptureStatus = (typeof CAPTURE_STATUSES)[number];
 
 /**
  * Statuses the relay will still act on for an outbox item.
@@ -61,11 +61,11 @@ export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
  * (resting, retryable after backoff). **`transcribed` is NOT active** — the
  * relay is done with the item; the session owns the next steps.
  */
-export const ACTIVE_OUTBOX_STATUSES = [
+export const ACTIVE_CAPTURE_STATUSES = [
   "queued",
   "transcribing",
   "failed",
-] as const satisfies readonly OutboxStatus[];
+] as const satisfies readonly CaptureStatus[];
 
 /**
  * Whether the relay would act on this status.
@@ -73,8 +73,8 @@ export const ACTIVE_OUTBOX_STATUSES = [
  * Exported so a caller re-reading an item can ask the same question `nextPending()` asked, rather
  * than re-listing the statuses and drifting from them.
  */
-export function isActiveStatus(status: OutboxStatus): boolean {
-  return (ACTIVE_OUTBOX_STATUSES as readonly OutboxStatus[]).includes(status);
+export function isActiveStatus(status: CaptureStatus): boolean {
+  return (ACTIVE_CAPTURE_STATUSES as readonly CaptureStatus[]).includes(status);
 }
 
 /**
@@ -82,17 +82,17 @@ export function isActiveStatus(status: OutboxStatus): boolean {
  * because the relay is done with the item — the session owns extraction
  * and write. `dead` is terminal; `discarded` is a human decision.
  */
-export const FINISHED_OUTBOX_STATUSES = [
+export const FINISHED_CAPTURE_STATUSES = [
   "transcribed",
   "dead",
   "discarded",
-] as const satisfies readonly OutboxStatus[];
+] as const satisfies readonly CaptureStatus[];
 
 /**
  * In-flight capture. Its own category because it is neither: the relay must not
  * act on it (there is no committed audio yet), and it is plainly not finished.
  */
-export const RECORDING_OUTBOX_STATUSES = ["recording"] as const;
+export const RECORDING_CAPTURE_STATUSES = ["recording"] as const;
 
 /**
  * The persisted shape of one outbox item — exactly the fields that live
@@ -104,7 +104,7 @@ export const RECORDING_OUTBOX_STATUSES = ["recording"] as const;
  * documents going in are parsed too, so a bug surfaces at the write rather than
  * three reloads later.
  *
- * Pinned field-for-field against {@link outboxRxSchema} by `schema.test.ts`.
+ * Pinned field-for-field against {@link captureRxSchema} by `schema.test.ts`.
  * Anything added here must be added there, and vice versa.
  *
  * **Session-level fields moved to `session-schema.ts` in v6** (extracted,
@@ -112,7 +112,7 @@ export const RECORDING_OUTBOX_STATUSES = ["recording"] as const;
  * The item keeps capture and transcription; the session owns everything
  * downstream.
  */
-export const outboxDocumentSchema = z
+export const captureDocumentSchema = z
   .strictObject({
     /** Stable id, and the RxDB primary key. */
     id: z.string().min(1),
@@ -121,7 +121,7 @@ export const outboxDocumentSchema = z
      * item first, which preserves capture order for transcription.
      */
     seq: z.number().int().nonnegative(),
-    status: z.enum(OUTBOX_STATUSES),
+    status: z.enum(CAPTURE_STATUSES),
     /**
      * The session this item belongs to. Required — every item is
      * enqueued into a session. The session owns extraction, review and write
@@ -156,12 +156,12 @@ export const outboxDocumentSchema = z
      * migration. The name that would fit — `capture` — is already taken by the
      * durable-capture identity on the same document.
      */
-    recording: baseCaptureItemSchema,
+    recording: basePayloadSchema,
     /**
      * Step output — present once transcription has succeeded.
      *
-     * **Write it with {@link Outbox.writeTranscript}, never with `patch`.** `transcript` is still
-     * reachable through {@link OutboxPatch} — it has to be, because the relay's retry path patches
+     * **Write it with {@link Storage.writeTranscript}, never with `patch`.** `transcript` is still
+     * reachable through {@link CapturePatch} — it has to be, because the relay's retry path patches
      * other fields on the same rows — so nothing stops a future caller setting it directly. Doing
      * so would leave `preview` behind on a committed row, where nothing removes it again: `patch`
      * is an `incrementalPatch` and cannot delete a key at all. That is a convention here, not a
@@ -179,8 +179,8 @@ export const outboxDocumentSchema = z
      * region still being transcribed, accumulated while `status === "recording"`
      * and deleted wholesale when the batch transcript lands.
      *
-     * **Not patchable** — see {@link OutboxPatch}. Written through
-     * `Outbox.writePreviewTail` and `Outbox.commitPreview`, and deleted in the
+     * **Not patchable** — see {@link CapturePatch}. Written through
+     * `Storage.writePreviewTail` and `Storage.commitPreview`, and deleted in the
      * same `incrementalModify` that writes `transcript`.
      */
     preview: z
@@ -205,26 +205,26 @@ export const outboxDocumentSchema = z
     }
   });
 
-/** Inferred from {@link outboxDocumentSchema} — never hand-declared alongside it. */
-export type OutboxDocument = z.infer<typeof outboxDocumentSchema>;
+/** Inferred from {@link captureDocumentSchema} — never hand-declared alongside it. */
+export type CaptureDocument = z.infer<typeof captureDocumentSchema>;
 
 /**
  * The fields of the projection that are **derived from the attachment store**
  * rather than read out of the document.
  *
  * Named as a constant because two tests depend on the exact set: the drift
- * guard that pins {@link outboxDocumentSchema} against {@link outboxRxSchema}
+ * guard that pins {@link captureDocumentSchema} against {@link captureRxSchema}
  * (these keys must be absent from the RxDB schema — they are never persisted)
- * and the one that pins {@link outboxItemSchema} against the document schema
+ * and the one that pins {@link captureSchema} against the document schema
  * (these keys, and only these, are the difference).
  */
-export const DERIVED_OUTBOX_ITEM_KEYS = ["audioBytes", "audioReady"] as const;
+export const DERIVED_CAPTURE_KEYS = ["audioBytes", "audioReady"] as const;
 
 /**
  * What a *consumer* sees: the persisted document plus the attachment facts.
  * Same projection as before the split — the recording still carries audio.
  */
-export const outboxItemSchema = outboxDocumentSchema.extend({
+export const captureSchema = captureDocumentSchema.extend({
   /** Whether the `AUDIO_ATTACHMENT_ID` attachment exists **right now**. */
   audioReady: z.boolean(),
   /** Durable bytes on disk for this item: the canonical attachment, or the
@@ -232,8 +232,8 @@ export const outboxItemSchema = outboxDocumentSchema.extend({
   audioBytes: z.number().int().nonnegative(),
 });
 
-/** Inferred from {@link outboxItemSchema} — never hand-declared alongside it. */
-export type OutboxItem = z.infer<typeof outboxItemSchema>;
+/** Inferred from {@link captureSchema} — never hand-declared alongside it. */
+export type Capture = z.infer<typeof captureSchema>;
 
 /**
  * The fields a caller may change after enqueue.
@@ -243,12 +243,12 @@ export type OutboxItem = z.infer<typeof outboxItemSchema>;
  * break ordering, provenance, session membership or idempotency.
  *
  * `preview` is absent because it is written only through
- * `Outbox.writePreviewTail` / `Outbox.commitPreview` and deleted only in the
+ * `Storage.writePreviewTail` / `Storage.commitPreview` and deleted only in the
  * same `incrementalModify` that writes `transcript`.
  */
-export type OutboxPatch = Partial<
+export type CapturePatch = Partial<
   Omit<
-    OutboxDocument,
+    CaptureDocument,
     "id" | "seq" | "enqueuedAt" | "recording" | "sessionId" | "capture" | "preview"
   >
 >;

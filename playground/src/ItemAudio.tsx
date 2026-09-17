@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Outbox, OutboxStatus } from "@azx/ribo-core";
+import type { Storage, CaptureStatus } from "@azx/ribo-core";
 
 import { formatBytes, messageOf } from "./format.js";
 import { muted } from "./styles.js";
@@ -14,7 +14,7 @@ import { muted } from "./styles.js";
  * per item rather than a byte count.
  *
  * There is no retry loop here, and there must not be one. `audioReady` on the
- * item is authoritative at the moment it is emitted: `Outbox.enqueue` writes
+ * item is authoritative at the moment it is emitted: `Storage.enqueue` writes
  * the document and its attachment in a single storage transaction, so `items$`
  * cannot publish an item whose bytes have not landed. `audioReady: false` on a
  * committed row means the audio is genuinely gone — dropped after
@@ -43,9 +43,9 @@ export function ItemAudio({
   audioBytes,
   mimeType,
 }: {
-  outbox: Outbox;
+  outbox: Storage;
   id: string;
-  status: OutboxStatus;
+  status: CaptureStatus;
   audioReady: boolean;
   audioBytes: number;
   mimeType: string;
@@ -71,7 +71,7 @@ export function ItemAudio({
 
     void (async () => {
       try {
-        const blob = await outbox.getAudio(id);
+        const blob = await outbox.captures.getAudio(id);
         if (cancelled) return;
         // `audioReady` was true when this item was emitted; a `false` here means
         // the bytes were dropped between that emission and this read, and the

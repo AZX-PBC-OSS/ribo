@@ -3,7 +3,7 @@
 `@azx/ribo-core` has no idea React exists. `@azx/ribo-ui-react` is what TanStack calls a framework
 adapter for its own query and table packages: the engine underneath is framework-free, and this
 package is one binding over it — `RiboProvider` plus a set of hooks that wire core's recorder,
-outbox and connectivity into React state. A Vue or Svelte binding, if one is ever needed, is a new
+storage and connectivity into React state. A Vue or Svelte binding, if one is ever needed, is a new
 package written against the same core contracts. Nothing about capture, extraction, provenance,
 review or write-back would change to support it.
 
@@ -18,23 +18,23 @@ a `<canvas>` — all of that is the host's call, every time.
 
 ## The provider carries instances; it never constructs them
 
-`RiboProvider`'s `value` prop is a `RiboInstances` — a `recorder`, an `outbox`, a `connectivity`, a
+`RiboProvider`'s `value` prop is a `RiboInstances` — a `recorder`, an `storage`, a `connectivity`, a
 `captureCoordinator`, a `liveTranscriber`, every field optional — and the provider does nothing with
 it but hand it down through context unchanged:
 
 ```tsx
 // the host owns lifetime, above React
 const recorder = getRecorder();
-const outbox = await getOutbox();
+const storage = await getStorage();
 
-<RiboProvider value={{ recorder, outbox }}>
+<RiboProvider value={{ recorder, storage }}>
   <App />
 </RiboProvider>;
 ```
 
-It never calls `openOutbox()` or constructs a `Recorder` itself. The obvious alternative — a provider
-that opens the outbox for you — looks more convenient right up until it isn't. React StrictMode's
-double mount would open a second RxDB database over the same IndexedDB name and start a second
+It never calls `openStorage()` or constructs a `Recorder` itself. The obvious alternative — a provider
+that opens storage for you — looks more convenient right up until it isn't. React StrictMode's
+double mount would open a second backend over the same database name and start a second
 `Recorder` on a second microphone stream. Vite HMR replaces a module without reloading the page,
 which a provider-owned instance has no way to survive. A host that needs a stable instance across
 both — the playground keeps one behind a module singleton with `import.meta.hot.data` carry-over —
@@ -55,11 +55,11 @@ rather than failing silently later. From the barrel (`packages/ribo-ui-react/src
 | Hook                    | Wraps                                                                                                                              |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `useRecorder`           | `Recorder` — phase, level, `start`/`stop`/`toggle`, durable enqueue on stop                                                        |
-| `useOutboxItems`        | `Outbox.watch` — live recordings by query, as React state                                                                          |
-| `useSessions`           | `Outbox.watchSessions` — live sessions by query, the session-collection mirror of `useOutboxItems`                                 |
+| `useCaptures`           | `Storage.watch` — live recordings by query, as React state                                                                         |
+| `useSessions`           | `Storage.watchSessions` — live sessions by query, the session-collection mirror of `useCaptures`                                   |
 | `useReview`             | [`buildReviewRequest`/`resolveReview`](/guide/review) — a review card's full state machine: decide, edit, link an instance, submit |
 | `useConnectivity`       | `Connectivity` — the `offline`/`probing`/`online` state, not `navigator.onLine`                                                    |
-| `useWorkSafety`         | `summarizeWork` + `workSafety`, composed over the outbox, sessions, storage persistence and connectivity                           |
+| `useWorkSafety`         | `summarizeWork` + `workSafety`, composed over storage, sessions, storage persistence and connectivity                              |
 | `useStoragePersistence` | `navigator.storage` directly — see below                                                                                           |
 
 Alongside them, `createCaptureCoordinator` is a factory, not a hook: it builds the shared handle
@@ -90,7 +90,7 @@ guarantee `useReview` makes for you.
 ## `useStoragePersistence`: the one hook with no core counterpart
 
 Every other hook in the table above wraps something `@azx/ribo-core` already exports —
-a `Recorder`, an `Outbox`, a `Connectivity`. `useStoragePersistence` doesn't: it wraps
+a `Recorder`, an `Storage`, a `Connectivity`. `useStoragePersistence` doesn't: it wraps
 `navigator.storage` directly and reads nothing out of `RiboInstances` or context at all. It returns
 core's `StoragePersistence` vocabulary (`granted` / `denied` / `unknown` / `unsupported`, distinguishing
 "refused" from "not yet asked") because that's the shape `workSafety` wants as an input, but the grant
@@ -106,7 +106,7 @@ pnpm add @azx/ribo-ui-react
 
 Check `packages/ribo-ui-react/package.json` for the current ranges rather than assuming them: React
 and React DOM are **peer** dependencies (not plain ones), and `@azx/ribo-core` is a peer too — because
-`RiboProvider`'s `value` carries your app's own `Recorder` and `Outbox` instances across the package
+`RiboProvider`'s `value` carries your app's own `Recorder` and `Storage` instances across the package
 boundary, your app and `ribo-ui-react` have to resolve to one copy of core, or those instances stop
 being `instanceof` what the hooks expect. See [Installation](/guide/installation) for the full
 peer-dependency rationale, which applies here unchanged.
@@ -117,5 +117,5 @@ peer-dependency rationale, which applies here unchanged.
 `ReviewRequest`/`ReviewOutcome` shapes, instance-identity linking, and exactly what `resolveReview`
 does and doesn't enforce.
 
-**[Offline & the Outbox](/guide/offline-and-the-outbox)** covers the two state machines
-`useOutboxItems`, `useSessions` and `useWorkSafety` are all reading a live view of.
+**[Offline & Storage](/guide/offline-and-storage)** covers the two state machines
+`useCaptures`, `useSessions` and `useWorkSafety` are all reading a live view of.

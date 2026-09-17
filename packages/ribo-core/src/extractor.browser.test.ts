@@ -4,8 +4,8 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { FakeExtractor, toSessionExtractStep } from "./extractor.js";
 import { FakeTranscriber } from "./fake-transcriber.js";
 import { restrictToKind } from "./restrict-to-kind.js";
-import { openOutbox, type Outbox } from "./queue/outbox.js";
-import { createRelay } from "./queue/relay.js";
+import { openStorage, type Storage } from "./storage/storage.js";
+import { createRelay } from "./storage/relay.js";
 import type { Recording } from "./recording.js";
 
 // Browser mode, for the same reason as `queue/relay.browser.test.ts`: this is the
@@ -37,12 +37,12 @@ function audio(): Blob {
 }
 
 const names: string[] = [];
-const open: Outbox[] = [];
+const open: Storage[] = [];
 
-async function openTestOutbox(): Promise<Outbox> {
+async function openTestOutbox(): Promise<Storage> {
   const name = `ribo-extractor-test-${crypto.randomUUID()}`;
   names.push(name);
-  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  const outbox = await openStorage({ backend: createMemoryBackend(name) });
   open.push(outbox);
   return outbox;
 }
@@ -59,7 +59,7 @@ afterEach(async () => {
 
 test("a FakeExtractor substitutes into createRelay and its fields land on session.extracted", async () => {
   const outbox = await openTestOutbox();
-  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
   const fields: AtticFields = { atticInsulation: "fiberglass batts", rValue: 19 };
   const extractor = new FakeExtractor<AtticFields>(fields);
@@ -74,20 +74,20 @@ test("a FakeExtractor substitutes into createRelay and its fields land on sessio
     sessionWrite: async () => undefined,
   });
 
-  const item = await outbox.enqueue({ recording, audio: audio(), sessionId: session.id });
+  const item = await outbox.captures.enqueue({ recording, audio: audio(), sessionId: session.id });
 
   // Drain transcribes the recording to `transcribed`.
   await relay.syncNow();
-  expect((await outbox.get(item.id))?.status).toBe("transcribed");
+  expect((await outbox.captures.get(item.id))?.status).toBe("transcribed");
 
   // Closing the session transitions it to `extracting`, and the next drain
   // runs session-level extraction.
-  await outbox.closeSession(session.id);
+  await outbox.sessions.close(session.id);
   await relay.syncNow();
 
   // The session drained THROUGH the extracting step: the fake's exact fields
   // are what the relay persisted as `extracted` on the session.
-  const parked = await outbox.getSession(session.id);
+  const parked = await outbox.sessions.get(session.id);
   expect(parked?.extracted).toEqual(fields);
   // And it stopped at the review gate, which is where a successful extraction
   // ends.

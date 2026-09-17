@@ -1,5 +1,5 @@
 import type { Transcript } from "../transcript.js";
-import type { OutboxDocument, OutboxPatch } from "./schema.js";
+import type { CaptureDocument, CapturePatch } from "./capture-schema.js";
 
 /**
  * Replace the current region's provisional tail, or refuse silently.
@@ -22,7 +22,7 @@ import type { OutboxDocument, OutboxPatch } from "./schema.js";
  * Returns the (possibly unchanged) document and whether the tail was written,
  * so the caller can return `undefined` on refusal without a second read.
  */
-export function writeTail<T extends OutboxDocument>(data: T, text: string): readonly [T, boolean] {
+export function writeTail<T extends CaptureDocument>(data: T, text: string): readonly [T, boolean] {
   if (data.status !== "recording" || data.transcript !== undefined) {
     return [data, false] as const;
   }
@@ -50,7 +50,7 @@ export function writeTail<T extends OutboxDocument>(data: T, text: string): read
  * present. In the normal flow the two match: the last refresh wrote the tail,
  * and the commit finalises the same region.
  */
-export function commitRegion<T extends OutboxDocument>(
+export function commitRegion<T extends CaptureDocument>(
   data: T,
   text: string,
 ): readonly [T, boolean] {
@@ -66,7 +66,7 @@ export function commitRegion<T extends OutboxDocument>(
 /**
  * Write the batch transcript and delete the preview in one modification.
  *
- * `Outbox.patch` is an `incrementalPatch`, and assigning `undefined` to an
+ * `Storage.patch` is an `incrementalPatch`, and assigning `undefined` to an
  * optional property does not delete the persisted key — so a patch cannot
  * remove `preview` at all. This function uses `delete` instead, so the key is
  * gone from the stored document.
@@ -77,10 +77,10 @@ export function commitRegion<T extends OutboxDocument>(
  * which looks like a failed transcription. A single `incrementalModify` is one
  * committed revision, so no subscriber observes half of it.
  */
-export function handoffTranscript<T extends OutboxDocument>(
+export function handoffTranscript<T extends CaptureDocument>(
   data: T,
   transcript: Transcript,
-  patch: Omit<OutboxPatch, "transcript">,
+  patch: Omit<CapturePatch, "transcript">,
 ): T {
   const merged = { ...data, ...patch, transcript };
   delete merged.preview;

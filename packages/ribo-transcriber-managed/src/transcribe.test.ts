@@ -1,6 +1,6 @@
 import {
   isTransientFailure,
-  TerminalQueueError,
+  TerminalError,
   TranscriberUnavailableError,
   type Recording,
 } from "@azx/ribo-core";
@@ -118,7 +118,7 @@ describe("ManagedTranscriber — transcribe", () => {
     const t = new ManagedTranscriber({ endpoint: ENDPOINT, fetchImpl });
 
     const error = await t.transcribe(RECORDING, AUDIO).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect(isTransientFailure(error)).toBe(false);
   });
 
@@ -259,7 +259,7 @@ describe("ManagedTranscriber — cancellation", () => {
     expect(observed?.aborted).toBe(true);
     // ...and the classification: terminal, so the queue does not retry a
     // cancelled transcription the way it retries a flaky network.
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect(isTransientFailure(error)).toBe(false);
   });
 
@@ -279,7 +279,7 @@ describe("ManagedTranscriber — cancellation", () => {
 
     // The caller withdrew before the call — nothing may reach the network.
     expect(calls).toBe(0);
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
   });
 
   test("a genuine network failure stays retryable — the cancellation path must not swallow it", async () => {
@@ -290,7 +290,7 @@ describe("ManagedTranscriber — cancellation", () => {
       .transcribe(RECORDING, AUDIO, { signal: new AbortController().signal })
       .catch((e: unknown) => e);
 
-    expect(error).not.toBeInstanceOf(TerminalQueueError);
+    expect(error).not.toBeInstanceOf(TerminalError);
     expect(isTransientFailure(error)).toBe(true);
   });
 });

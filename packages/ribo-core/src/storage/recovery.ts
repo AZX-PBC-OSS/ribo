@@ -1,8 +1,8 @@
-import type { Outbox } from "./outbox.js";
+import type { Storage } from "./storage.js";
 import { CAPTURE_LOCK, holdLock, isLockFree } from "./capture-lock.js";
 
 export interface RecoveryOptions {
-  outbox: Outbox;
+  outbox: Storage;
   /**
    * Decode-verify the merged blob: returns `durationMs`, or throws if undecodable.
    * Injected so tests can fake it.
@@ -41,7 +41,7 @@ export async function recoverInterrupted(options: RecoveryOptions): Promise<stri
   // `holdLock`, and removing THAT would be silent.
   if (!(await isLockFree(CAPTURE_LOCK))) return [];
 
-  const recording = await outbox.list({ status: ["recording"] });
+  const recording = await outbox.captures.list({ status: ["recording"] });
   if (recording.length === 0) return [];
 
   // Take the lock for the duration of recovery, so a second tab does not race.
@@ -86,16 +86,19 @@ export async function recoverInterrupted(options: RecoveryOptions): Promise<stri
  * the new row carries the right audio.
  */
 async function recoverOne(
-  outbox: Outbox,
+  outbox: Storage,
   id: string,
   decode: (blob: Blob) => Promise<number>,
 ): Promise<string | undefined> {
-  const item = await outbox.get(id);
+  const item = await outbox.captures.get(id);
   if (!item || item.status !== "recording") return undefined;
 
   const sourceId = item.capture?.sourceId;
   if (!sourceId) {
-    await outbox.patch(id, { status: "dead", lastError: "unrecoverable: no capture.sourceId" });
+    await outbox.captures.patch(id, {
+      status: "dead",
+      lastError: "unrecoverable: no capture.sourceId",
+    });
     return undefined;
   }
 
@@ -104,7 +107,7 @@ async function recoverOne(
   // beginRecording, is the document path), so mark it dead with a reason
   // naming the kind rather than trying to decode its bytes as audio.
   if (item.recording.kind !== "audio") {
-    await outbox.patch(id, {
+    await outbox.captures.patch(id, {
       status: "dead",
       lastError: `unrecoverable: capture kind "${item.recording.kind}" is not audio — recovery decodes audio chunks`,
     });
@@ -112,7 +115,7 @@ async function recoverOne(
   }
 
   // Try to merge and decode. On failure, retry without the last chunk.
-  const merged = await outbox.mergeChunks(id);
+  const merged = await outbox.captures.mergeChunks(id);
   let audio: Blob;
   let durationMs: number;
   try {
@@ -120,10 +123,13 @@ async function recoverOne(
     audio = merged;
   } catch {
     // Drop the last chunk and retry — a truncated tail may be the culprit.
-    const trimmed = await outbox.mergeChunksExcludingLast(id);
+    const trimmed = await outbox.captures.mergeChunksExcludingLast(id);
     if (trimmed === null) {
       // Only one chunk and it failed — nothing to drop.
-      await outbox.patch(id, { status: "dead", lastError: "unrecoverable: cannot decode audio" });
+      await outbox.captures.patch(id, {
+        status: "dead",
+        lastError: "unrecoverable: cannot decode audio",
+      });
       return undefined;
     }
     try {
@@ -131,7 +137,10 @@ async function recoverOne(
       audio = trimmed;
     } catch {
       // Still undecodable — leave dead with chunks intact.
-      await outbox.patch(id, { status: "dead", lastError: "unrecoverable: cannot decode audio" });
+      await outbox.captures.patch(id, {
+        status: "dead",
+        lastError: "unrecoverable: cannot decode audio",
+      });
       return undefined;
     }
   }
@@ -139,7 +148,7 @@ async function recoverOne(
   // Success: insert a NEW row, queued, with the recovered audio. The new row
   // goes through the ordinary pipeline — created the way every other row is
   // created, with no `capture` and a fresh id. There is no half-recovered state.
-  const newItem = await outbox.enqueue({
+  const newItem = await outbox.captures.enqueue({
     recording: { ...item.recording, durationMs },
     audio,
     sessionId: item.sessionId,
@@ -148,7 +157,7 @@ async function recoverOne(
   // Mark the original dead with a reason naming its successor. The new row
   // exists before the original is marked, so the `lastError` can name it —
   // an operator seeing the orphan knows exactly where the audio went.
-  await outbox.patch(id, {
+  await outbox.captures.patch(id, {
     status: "dead",
     lastError: `recovered as ${newItem.id}`,
   });

@@ -10,7 +10,7 @@
 /**
  * `Transcriber.engine` this implementation stamps onto every `Transcript` it
  * produces. Short and stable across versions — it is persisted data, readable
- * straight off `Outbox.list()`. See D8 in the document-transcription plan.
+ * straight off `Storage.list()`. See D8 in the document-transcription plan.
  */
 export const PDFJS_ENGINE = "pdfjs";
 

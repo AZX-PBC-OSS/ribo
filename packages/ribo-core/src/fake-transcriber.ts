@@ -1,4 +1,4 @@
-import type { CaptureItem } from "./capture-item.js";
+import type { CapturePayload } from "./capture-item.js";
 import type { Recording } from "./recording.js";
 import type { Transcript } from "./transcript.js";
 import {
@@ -39,7 +39,7 @@ export interface FakeTranscriberOptions {
 }
 
 /** One `transcribe` invocation, in call order. */
-export interface FakeTranscribeCall<S extends CaptureItem = Recording> {
+export interface FakeTranscribeCall<S extends CapturePayload = Recording> {
   readonly item: S;
   readonly bytes: Blob;
 }
@@ -61,7 +61,7 @@ export interface FakeTranscribeCall<S extends CaptureItem = Recording> {
  * - item unsuitability — {@link failWithUnsupported} / {@link failNextWithUnsupported},
  *   the third failure kind: terminal for the queue but not for the item.
  */
-export class FakeTranscriber<S extends CaptureItem = Recording> implements Transcriber<S> {
+export class FakeTranscriber<S extends CapturePayload = Recording> implements Transcriber<S> {
   readonly engine: string;
 
   readonly #calls: FakeTranscribeCall<S>[] = [];

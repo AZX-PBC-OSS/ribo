@@ -3,7 +3,7 @@ import type { Observable } from "rxjs";
 import type { MangoQuery, RxAttachmentCreator, RxCollection, RxDocument } from "rxdb";
 
 import {
-  OUTBOX_COLLECTION_NAME,
+  CAPTURES_COLLECTION_NAME,
   PLUGIN_STORAGE_COLLECTION_NAME,
   SESSION_COLLECTION_NAME,
 } from "@azx/ribo-core";
@@ -18,7 +18,7 @@ import type {
 } from "@azx/ribo-core";
 
 import type { OutboxDatabase } from "./database.js";
-import { outboxRxSchema, pluginStorageRxSchema, sessionRxSchema } from "./schemas.js";
+import { captureRxSchema, pluginStorageRxSchema, sessionRxSchema } from "./schemas.js";
 
 /**
  * @file The RxDB implementation of the storage port.
@@ -42,7 +42,7 @@ import { outboxRxSchema, pluginStorageRxSchema, sessionRxSchema } from "./schema
  * auditor's recordings — and a rename buys nothing but tidiness.
  */
 const PERSISTED: Record<CollectionName, string> = {
-  captures: OUTBOX_COLLECTION_NAME,
+  captures: CAPTURES_COLLECTION_NAME,
   sessions: SESSION_COLLECTION_NAME,
   entries: PLUGIN_STORAGE_COLLECTION_NAME,
 };
@@ -55,7 +55,7 @@ const PERSISTED: Record<CollectionName, string> = {
  * back clean) keeps holding.
  */
 const PERSISTED_FIELDS: Record<CollectionName, readonly string[]> = {
-  captures: Object.keys(outboxRxSchema.properties),
+  captures: Object.keys(captureRxSchema.properties),
   sessions: Object.keys(sessionRxSchema.properties),
   entries: Object.keys(pluginStorageRxSchema.properties),
 };
@@ -207,7 +207,7 @@ function entryToPersisted(document: StoredDocument): Record<string, unknown> {
  * A storage backend that is known to be this one, and so can hand back the RxDB
  * database underneath it.
  *
- * This is the deliberate replacement for the old `Outbox.database` getter. That
+ * This is the deliberate replacement for the old `Storage.database` getter. That
  * one lived on core and made RxDB part of core's public surface for everyone; the
  * escape hatch now lives in the package that already owns RxDB, so a host reaches
  * for it knowingly and nobody else inherits the dependency.

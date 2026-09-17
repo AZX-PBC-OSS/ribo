@@ -11,7 +11,7 @@ import { createRxdbBackend as wrap, type RxdbStorageBackend } from "./backend.js
 /**
  * @file Opening the database, and the two ways to get a backend.
  *
- * The database-opening code still lives in `@azx/ribo-core` while its `Outbox`
+ * The database-opening code still lives in `@azx/ribo-core` while its `Storage`
  * class is the thing that uses it. It moves here — schemas, migration
  * strategies, `backfillSessions` and all — in the task that takes RxDB out of
  * core's dependencies, at which point this file stops delegating and owns it.

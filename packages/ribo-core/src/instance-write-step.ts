@@ -1,6 +1,6 @@
 import type { ToolAdapter } from "./adapter.js";
-import { TerminalQueueError } from "./queue/backoff.js";
-import type { SessionWriteResult, SessionWriteStep, SessionWriteInput } from "./queue/relay.js";
+import { TerminalError } from "./storage/backoff.js";
+import type { SessionWriteResult, SessionWriteStep, SessionWriteInput } from "./storage/relay.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 
 /**
@@ -72,21 +72,21 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
   }: SessionWriteInput): Promise<SessionWriteResult> => {
     const parsedCtx = adapter.ctxSchema.safeParse(ctx);
     if (!parsedCtx.success) {
-      throw new TerminalQueueError(
+      throw new TerminalError(
         `session ${session.id}: its ctx is not a valid write context for the ` +
           `"${adapter.name}" adapter — ${describeLocated(zodIssues(parsedCtx.error))}. The context is set ` +
           "at session open and cannot be repaired by retrying; check what the host passed to " +
-          "`Outbox.openSession`.",
+          "`Storage.openSession`.",
       );
     }
 
     const fields = adapter.schema.safeParse(reviewed);
     if (!fields.success) {
-      throw new TerminalQueueError(
+      throw new TerminalError(
         `session ${session.id}: the reviewed values are not a valid patch for the ` +
           `"${adapter.name}" adapter — ${describeLocated(zodIssues(fields.error))}. Nothing was written. ` +
           "The review outcome is already persisted, so a retry would fail identically; " +
-          "to try again, re-park with Outbox.reopenSessionForReview(id) and review it afresh.",
+          "to try again, re-park with Storage.sessions.reopenForReview(id) and review it afresh.",
       );
     }
 
@@ -97,7 +97,7 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
     // already follow.
     const outcome = session.reviewOutcome;
     if (outcome === undefined || outcome.status === "discarded") {
-      throw new TerminalQueueError(
+      throw new TerminalError(
         `session ${session.id} reached the instance write step with no reviewable outcome.`,
       );
     }
@@ -131,7 +131,7 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
         const instanceIdempotencyKey = deriveInstanceIdempotencyKey(idempotencyKey, group, index);
         const instanceKey = outcome.instanceKeys?.[group]?.[index];
         if (instanceKey === undefined) {
-          throw new TerminalQueueError(
+          throw new TerminalError(
             `session ${session.id}: no instance key found for group "${group}" at index ${index} — ` +
               "receipts cannot be safely recorded without a real key.",
           );

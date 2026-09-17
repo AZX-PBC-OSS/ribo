@@ -6,7 +6,7 @@ import {
   firstCapable,
   type TranscriberFallback,
 } from "./first-capable.js";
-import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
+import { isTransientFailure, TerminalError } from "./storage/backoff.js";
 import type { Recording } from "./recording.js";
 import { TranscriberUnavailableError } from "./transcriber.js";
 
@@ -300,7 +300,7 @@ test("nothing ready but something could be: transient, so the queue retries", as
   const error = await composite.transcribe(recording(), audio()).catch((e: unknown) => e);
 
   expect(error).toBeInstanceOf(TranscriberUnavailableError);
-  expect(error).not.toBeInstanceOf(TerminalQueueError);
+  expect(error).not.toBeInstanceOf(TerminalError);
   expect(isTransientFailure(error)).toBe(true);
   expect((error as Error).message).toContain("ondevice-whisper");
   expect((error as Error).message).toContain("managed-azure");
@@ -316,7 +316,7 @@ test("nothing can ever work here: terminal, so the queue stops burning attempts"
 
   const error = await composite.transcribe(recording(), audio()).catch((e: unknown) => e);
 
-  expect(error).toBeInstanceOf(TerminalQueueError);
+  expect(error).toBeInstanceOf(TerminalError);
   expect(isTransientFailure(error)).toBe(false);
   expect((error as Error).message).toContain("unsupported-platform");
 });

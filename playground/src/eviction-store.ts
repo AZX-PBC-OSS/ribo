@@ -1,4 +1,4 @@
-import type { Outbox } from "@azx/ribo-core";
+import type { Storage } from "@azx/ribo-core";
 
 import { markerSupported, readMarker, writeMarker, type StorageMarker } from "./eviction-marker.js";
 
@@ -20,7 +20,7 @@ import { markerSupported, readMarker, writeMarker, type StorageMarker } from "./
  *
  * ## Ordering matters
  *
- * The check runs against `outbox.list()` *before* the marker watch starts. If
+ * The check runs against `outbox.captures.list()` *before* the marker watch starts. If
  * the watch ran first it would write `items: 0` on its first emission and erase
  * the very evidence being checked — the detector would then be permanently
  * incapable of firing, while looking completely correct.
@@ -91,7 +91,7 @@ let started = false;
  * outbox rather than opening its own — a second handle over the same IndexedDB
  * name is the error `outbox-handle.ts` exists to prevent.
  */
-export function startEvictionWatch(outbox: Outbox): () => void {
+export function startEvictionWatch(outbox: Storage): () => void {
   if (started) return () => undefined;
   started = true;
 
@@ -104,13 +104,13 @@ export function startEvictionWatch(outbox: Outbox): () => void {
   let subscription: { unsubscribe: () => void } | undefined;
   let cancelled = false;
 
-  void outbox
+  void outbox.captures
     .list()
     .then((items) => {
       if (cancelled) return;
       setState(decide(marker, items.length));
       // Only now is it safe to let the watch overwrite the marker.
-      subscription = outbox.items$.subscribe({
+      subscription = outbox.captures.items$.subscribe({
         next: (live) => {
           writeMarker(live.length, marker);
         },

@@ -92,15 +92,15 @@ for a different one (inlining the whole worker as base64, breaking the module's 
 depending on how a downstream bundler resolves relative asset paths). Injection is what libraries in
 the same position — duckdb-wasm, ffmpeg.wasm — already do.
 
-## The outbox storage seam stops at Level 1, deliberately
+## Storage storage seam stops at Level 1, deliberately
 
-The offline outbox is injectable at the storage layer: `openOutbox({ storage })` takes an optional
+The offline storage is injectable at the storage layer: `openStorage({ storage })` takes an optional
 RxDB `RxStorage` engine and defaults to the browser's IndexedDB-backed Dexie storage, so an existing
 caller is unaffected while a test suite or a future non-browser host can supply its own engine — an
 in-memory store for fast tests today, and something like React Native's SQLite storage if Ribo ever
 leaves the browser.
 
-What does **not** exist yet is a formal `Outbox` interface with multiple concrete implementations
+What does **not** exist yet is a formal `Storage` interface with multiple concrete implementations
 and a storage conformance-test kit. That is a deliberate stopping point, not an oversight: extracting
 an interface today would be a contract with exactly one real implementation behind it, which locks
 in RxDB's shape while pretending the seam is more general than it is. The richer seam is deferred

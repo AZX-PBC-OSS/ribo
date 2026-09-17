@@ -1,8 +1,8 @@
 import type {
   Capture,
   LiveTranscriber,
-  Outbox,
-  OutboxItem,
+  Storage,
+  RecorderCapture,
   RecorderPhase,
   RecorderState,
 } from "@azx/ribo-core";
@@ -18,7 +18,7 @@ import { useSubscribed } from "./use-subscribed.js";
 
 export interface UseRecorderOptions {
   readonly recorder?: AnyRecorder;
-  readonly outbox?: Outbox;
+  readonly outbox?: Storage;
   /**
    * Hand the capture to the outbox on stop. Defaults to **`true`**.
    *
@@ -47,9 +47,9 @@ export interface UseRecorderOptions {
 }
 
 export interface StopResult {
-  readonly capture: Capture<Record<string, unknown>>;
+  readonly capture: RecorderCapture<Record<string, unknown>>;
   /** The queued row, or `undefined` when `enqueue` was `false`. */
-  readonly item: OutboxItem | undefined;
+  readonly item: Capture | undefined;
 }
 
 export interface UseRecorderResult {
@@ -105,7 +105,7 @@ export interface UseRecorderResult {
  * because a host typically fires it from a click handler with no return value to
  * act on and just re-renders off `phase`/`error`. `stop()` does that **and**
  * re-throws, because its resolved value carries the `Capture` (and, on the durable
- * path, the `OutboxItem`) the caller actually needs next — to hand to a review
+ * path, the `Capture`) the caller actually needs next — to hand to a review
  * screen, say. Swallowing the failure there would let a caller read `item`/`capture`
  * off a promise that never produced them, silently proceeding as if the recording
  * had been saved. A caller must therefore `await stop()` inside a `try`, same as
@@ -176,9 +176,9 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
       // again produced a second row and a second relay run for one dictation, and it
       // masked a worse bug: the durable row was being deleted during teardown, so the
       // duplicate quietly stood in for it.
-      let item: OutboxItem | undefined;
+      let item: Capture | undefined;
       if (capture.itemId !== undefined) {
-        item = await outbox?.get(capture.itemId);
+        item = await outbox?.captures.get(capture.itemId);
       } else if (outbox !== undefined) {
         if (sessionId === undefined) {
           throw new RecorderError(
@@ -186,7 +186,7 @@ export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult
             "useRecorder needs a sessionId to enqueue a stopped capture. Pass one to useRecorder({ sessionId }).",
           );
         }
-        item = await outbox.enqueue({
+        item = await outbox.captures.enqueue({
           recording: capture.recording,
           audio: capture.audio,
           sessionId,

@@ -1,4 +1,4 @@
-import { TerminalQueueError } from "./queue/backoff.js";
+import { TerminalError } from "./storage/backoff.js";
 
 /**
  * @file The third failure class: _item unsuitability_.
@@ -39,7 +39,7 @@ import { TerminalQueueError } from "./queue/backoff.js";
  *
  * ## Terminal for this engine+item pair
  *
- * Extends `TerminalQueueError` so `isTransientFailure` classifies it as
+ * Extends `TerminalError` so `isTransientFailure` classifies it as
  * non-retryable: a relay retry _is_ retrying the same engine on the same item,
  * so without this a bare pdf.js transcriber handed a scanned PDF burns eight
  * backed-off attempts over ~10 minutes before landing in `dead`. The error is
@@ -93,7 +93,7 @@ export interface UnsupportedItemInit {
  * the engine stays `ready` — pdf.js can read the next document fine. Demotion
  * is a capability failure's job, not this one's.
  */
-export class UnsupportedItemError extends TerminalQueueError {
+export class UnsupportedItemError extends TerminalError {
   override readonly name = "UnsupportedItemError";
   readonly engine: string;
   readonly reason: UnsupportedItemReason;

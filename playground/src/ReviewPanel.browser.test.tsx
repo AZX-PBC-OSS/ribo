@@ -1,7 +1,7 @@
 import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
-import { openOutbox, type Outbox } from "@azx/ribo-core";
+import { openStorage, type Storage } from "@azx/ribo-core";
 import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import { z } from "zod";
@@ -10,7 +10,7 @@ import { ReviewPanel } from "./ReviewPanel.js";
 
 /**
  * @file Interaction tests for the actual `ReviewPanel` component: the review
- * card is built by hand (`RiboProvider` + a real, IndexedDB-backed `Outbox`,
+ * card is built by hand (`RiboProvider` + a real, IndexedDB-backed `Storage`,
  * exactly what `App.tsx` wires), rendered, and driven by clicking the buttons
  * and typing into the editors it actually renders — not by calling `useReview`
  * directly, which every existing hook-level test already does.
@@ -131,28 +131,28 @@ const recording = () => ({
   ctx: {},
 });
 
-async function openTestOutbox(): Promise<Outbox> {
+async function openTestOutbox(): Promise<Storage> {
   // Default storage (Dexie/IndexedDB) — real Chromium via the `browser`
   // project provides it. The backend is the memory one rather than production's
-  // RxDB: what this test exercises is the real `Outbox.watch`/`submitReview`
+  // RxDB: what this test exercises is the real `Storage.watch`/`submitReview`
   // path, and which backend is underneath it is the conformance kit's question,
   // not this file's.
-  return openOutbox({ backend: createMemoryBackend(`review-panel-${crypto.randomUUID()}`) });
+  return openStorage({ backend: createMemoryBackend(`review-panel-${crypto.randomUUID()}`) });
 }
 
 async function parkedItem(
-  outbox: Outbox,
+  outbox: Storage,
   overrides: Readonly<Record<string, Envelope>>,
   instances: Readonly<Record<string, number>> = {},
   statedEmptyGroups?: Readonly<Record<string, string>>,
 ): Promise<string> {
-  const session = await outbox.openSession({ ctx: {}, ref: "job-7" });
-  const item = await outbox.enqueue({
+  const session = await outbox.sessions.open({ ctx: {}, ref: "job-7" });
+  const item = await outbox.captures.enqueue({
     recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
     sessionId: session.id,
   });
-  await outbox.patch(item.id, {
+  await outbox.captures.patch(item.id, {
     status: "transcribed",
     transcript: {
       recordingId: item.recording.id,
@@ -160,7 +160,7 @@ async function parkedItem(
       engine: "fake",
     },
   });
-  await outbox.patchSession(session.id, {
+  await outbox.sessions.patch(session.id, {
     status: "awaiting-review",
     extracted: fullExtraction(overrides, instances),
     extractedFromRecordingIds: [item.id],
@@ -169,7 +169,7 @@ async function parkedItem(
   return session.id;
 }
 
-async function renderReviewPanel(outbox: Outbox) {
+async function renderReviewPanel(outbox: Storage) {
   return render(
     <RiboProvider value={{ outbox }}>
       <ReviewPanel />
@@ -264,7 +264,7 @@ test("Accept, Edit and Reject each record the decision they claim, and reach sub
 
   const screen = await renderReviewPanel(outbox);
 
-  const submitReviewSpy = vi.spyOn(outbox, "submitSessionReview");
+  const submitReviewSpy = vi.spyOn(outbox.sessions, "submitReview");
 
   // Accept: take the extracted value as-is.
   await screen.getByTestId(`review-field-${acceptPath}`).getByTestId("accept-field").click();
@@ -328,7 +328,7 @@ test("a two-instance group renders two labelled instance sections, and a leaf ed
   );
 
   const screen = await renderReviewPanel(outbox);
-  const submitReviewSpy = vi.spyOn(outbox, "submitSessionReview");
+  const submitReviewSpy = vi.spyOn(outbox.sessions, "submitReview");
 
   await expect.element(screen.getByTestId("review-instance-hvac[k1]")).toBeInTheDocument();
   await expect.element(screen.getByTestId("review-instance-hvac[k2]")).toBeInTheDocument();
@@ -394,7 +394,7 @@ test("removing the first instance leaves the second instance's entered value int
   );
 
   const screen = await renderReviewPanel(outbox);
-  const submitReviewSpy = vi.spyOn(outbox, "submitSessionReview");
+  const submitReviewSpy = vi.spyOn(outbox.sessions, "submitReview");
 
   // Edit the second instance before removing the first.
   await screen

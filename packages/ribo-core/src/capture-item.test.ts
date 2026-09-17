@@ -2,16 +2,16 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
 import {
-  baseCaptureItemSchema,
+  basePayloadSchema,
   baseDocumentCaptureSchema,
-  captureItemSchema,
-  type CaptureItem,
+  capturePayloadSchema,
+  type CapturePayload,
   type DocumentCapture,
 } from "./capture-item.js";
 import { baseRecordingSchema, type Recording } from "./recording.js";
 
 const jobContext = z.object({ jobId: z.string().min(1) });
-const schema = captureItemSchema(jobContext);
+const schema = capturePayloadSchema(jobContext);
 
 const audioValid = {
   id: "rec_01",
@@ -31,7 +31,7 @@ const documentValid = {
   ctx: { jobId: "job_42" },
 };
 
-describe("captureItemSchema", () => {
+describe("capturePayloadSchema", () => {
   test("parses an audio capture", () => {
     const parsed = schema.parse(audioValid);
     expect(parsed).toEqual(audioValid);
@@ -112,10 +112,10 @@ describe("captureItemSchema", () => {
   });
 });
 
-describe("captureItemSchema — outbox document integration", () => {
+describe("capturePayloadSchema — outbox document integration", () => {
   test("an outbox document whose recording is a document capture parses", () => {
-    // baseCaptureItemSchema is what outboxDocumentSchema uses for `recording`.
-    expect(baseCaptureItemSchema.safeParse(documentValid).success).toBe(true);
+    // basePayloadSchema is what captureDocumentSchema uses for `recording`.
+    expect(basePayloadSchema.safeParse(documentValid).success).toBe(true);
   });
 
   test("an outbox document whose recording predates the discriminant parses and reports kind === audio", () => {
@@ -126,7 +126,7 @@ describe("captureItemSchema — outbox document integration", () => {
       mimeType: "audio/webm",
       ctx: {},
     };
-    const parsed = baseCaptureItemSchema.parse(legacyRecording);
+    const parsed = basePayloadSchema.parse(legacyRecording);
     expect(parsed.kind).toBe("audio");
     if (parsed.kind === "audio") {
       expect(parsed.durationMs).toBe(5000);
@@ -134,9 +134,9 @@ describe("captureItemSchema — outbox document integration", () => {
   });
 });
 
-describe("captureItemSchema — type-level properties", () => {
+describe("capturePayloadSchema — type-level properties", () => {
   test("the union narrows on kind in TypeScript", () => {
-    const item: CaptureItem = baseCaptureItemSchema.parse(audioValid);
+    const item: CapturePayload = basePayloadSchema.parse(audioValid);
     if (item.kind === "audio") {
       // durationMs is accessible after narrowing.
       const _ms: number = item.durationMs;
@@ -148,7 +148,7 @@ describe("captureItemSchema — type-level properties", () => {
     }
   });
 
-  test("Recording and DocumentCapture are both CaptureItem members", () => {
+  test("Recording and DocumentCapture are both CapturePayload members", () => {
     const rec: Recording = baseRecordingSchema.parse({
       id: "r",
       capturedAt: "2026-07-23T10:00:00.000Z",
@@ -159,7 +159,7 @@ describe("captureItemSchema — type-level properties", () => {
     });
     const doc: DocumentCapture = baseDocumentCaptureSchema.parse(documentValid);
 
-    const items: CaptureItem[] = [rec, doc];
+    const items: CapturePayload[] = [rec, doc];
     expect(items).toHaveLength(2);
     expect(items.map((i) => i.kind)).toEqual(["audio", "document"]);
   });

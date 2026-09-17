@@ -98,7 +98,7 @@ every run instead of retrying it. There is nothing to retry — a person has not
 relay processes a strictly ordered queue, so blocking on one parked session would stall every
 recording behind it.
 
-**`Outbox.submitSessionReview` is the only way out.** It takes the `id` and a
+**`Storage.submitSessionReview` is the only way out.** It takes the `id` and a
 `PersistedReviewOutcome` — the persisted mirror of what `resolveReview` returned — and only succeeds
 from `awaiting-review`; a session anywhere else refuses with an error naming its actual status. An
 `accepted` or `edited` outcome moves the session to `writing`, where the relay picks it up on its
@@ -106,7 +106,7 @@ next drain and hands `outcome.fields` to the write step (see [Write-back](/guide
 `discarded` outcome moves it straight to `done` — there is no audio to drop, unlike discarding a
 recording, so the session is simply finished and `reviewOutcome` records why.
 
-**`Outbox.reopenSessionForReview` is the supported way back in**, from `done` or `dead`, and it is
+**`Storage.reopenSessionForReview` is the supported way back in**, from `done` or `dead`, and it is
 explicitly not a raw `patchSession` call: it re-validates that the session still has an extraction
 to show, clears the stale `reviewOutcome`, and resets the retry budget. It also handles a case a
 plain re-park could not — a recording added or discarded after a session's last review — by comparing

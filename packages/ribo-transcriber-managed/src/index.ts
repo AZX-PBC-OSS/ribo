@@ -53,7 +53,7 @@ export type { ManagedTranscriberOptions } from "./config.js";
  * The signal is **honoured**: `TranscribeOptions.signal` is forwarded into the
  * fetch request init, so an abort tears down the in-flight HTTP request, and an
  * already-aborted signal cancels before the request is sent. A cancellation
- * rejects with `TerminalQueueError` rather than an abort error, so the queue
+ * rejects with `TerminalError` rather than an abort error, so the queue
  * does not mistake it for a flaky network and burn the retry budget — see
  * `transcribe.ts` for the full classification.
  */

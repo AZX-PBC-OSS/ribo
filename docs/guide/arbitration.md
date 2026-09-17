@@ -98,7 +98,7 @@ the same function, is how a deployment opts into degrading on purpose instead of
 ## `SchemaParseError`: retryable, and recognisable at once
 
 A model response can parse as JSON and still violate the extraction schema. `SchemaParseError` names
-that failure and is deliberately **not** a `TerminalQueueError`: the same request can miss the schema
+that failure and is deliberately **not** a `TerminalError`: the same request can miss the schema
 once and pass on re-send, so the queue has to keep retrying it. But it also needs to be
 _recognisable_, because `terminalFallsThrough` treats a schema-parse miss as a shape mismatch a
 different strategy might avoid, and falls through to the next candidate rather than repeating the

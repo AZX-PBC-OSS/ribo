@@ -1,9 +1,9 @@
-# Offline & the Outbox
+# Offline & Storage
 
 An auditor in a basement has no signal. The recording still has to happen, the transcript still has
 to get made, and none of it can wait for a network that might not come back for an hour. `@azx/ribo-core`
-answers this with a durable outbox — an RxDB collection every capture lands in the instant it's
-made — and a foreground relay that drains it whenever connectivity allows. The outbox is the only
+answers this with durable storage — a capture store every recording lands in the instant it's
+made — and a foreground relay that drains it whenever connectivity allows. Storage is the only
 path a capture ever takes, online or not.
 
 The browser-platform mechanics underneath this page — the service worker, storage persistence, the
@@ -28,9 +28,9 @@ recording → queued → transcribing → transcribed
                     ↘ discarded (human decision)
 ```
 
-`OUTBOX_STATUSES` is exactly these seven: `recording`, `queued`, `transcribing`, `transcribed`,
+`CAPTURE_STATUSES` is exactly these seven: `recording`, `queued`, `transcribing`, `transcribed`,
 `failed`, `dead`, `discarded`. The relay's job here is narrow — capture and transcription, nothing
-else — and `ACTIVE_OUTBOX_STATUSES` says so directly: `queued`, `transcribing`, `failed`.
+else — and `ACTIVE_CAPTURE_STATUSES` says so directly: `queued`, `transcribing`, `failed`.
 `transcribed` is deliberately **not** active. Once a recording is text, the relay is finished with
 it — extraction and write happen at the session level, against the joined transcript of every
 recording that belongs to it, and the recording itself never moves again except by a human decision.
@@ -68,7 +68,7 @@ structural argument in full. Both machines appear here because the relay acts on
 
 Both machines share this shape. **`dead` is the only terminal state** in either machine. **`failed`
 is a resting state** — the relay picks it back up once
-`nextAttemptAt` has passed, which is exactly why `failed` sits in both `ACTIVE_OUTBOX_STATUSES` and
+`nextAttemptAt` has passed, which is exactly why `failed` sits in both `ACTIVE_CAPTURE_STATUSES` and
 `ACTIVE_SESSION_STATUSES` alongside the in-flight statuses. An item or session becomes `failed` when
 the last attempt lost, the error looked transient, and the attempt budget isn't spent; it becomes
 `dead` only by exhausting `maxAttempts` or by a failure classified terminal outright.
@@ -95,7 +95,7 @@ the whole window spreads them out instead.
 import { createRelay } from "@azx/ribo-core";
 
 const relay = createRelay({
-  outbox,
+  storage,
   transcriber,
   sessionExtract,
   sessionWrite,
@@ -110,7 +110,7 @@ first because session-level extraction joins transcripts — a recording still `
 `transcribing` would simply be missing from the text a session-level extraction ran against, and
 running the session step first would extract against an incomplete set. Both phases process one item
 at a time, lowest `seq` (recordings) or `openedAt` (sessions) first, holding a per-item or
-per-session Web Lock for the duration — which is how two tabs draining the same outbox stay out of
+per-session Web Lock for the duration — which is how two tabs draining the same storage stay out of
 each other's way without a server to arbitrate.
 
 There is no background drain and no timer. iOS Safari has no Background Sync API, so `syncNow()` runs
@@ -140,7 +140,7 @@ window plus the edge-triggered resync are both there to prevent it.
 ## `workSafety` and `summarizeWork`: the one honest answer
 
 An auditor needs one sentence that answers "is my work safe?" honestly, and `workSafety` is that
-sentence's classifier. It's a pure function over three facts — the outbox's summarized state, the
+sentence's classifier. It's a pure function over three facts — storage's summarized state, the
 storage persistence grant, and connectivity — and it never overstates safety: `safe` is reserved for
 the case where no unsynced work remains on the device at all, because eviction and a lost device
 both take a persisted-but-unsynced item along with everything else the browser is holding for you.
@@ -154,26 +154,32 @@ out — `pending`, `dead`, `synced`, plus `awaitingReview` and `openSessions` as
 on its own, and a `discarded` one is counted nowhere — both already left the relay's active set for
 the reasons the state machines above give.
 
-## The storage seam: `openOutbox({ storage })`
+## The storage seam: `openStorage({ storage })`
 
 ```ts
-import { openOutbox } from "@azx/ribo-core";
+import { openStorage } from "@azx/ribo-core";
+import { openRxdbBackend } from "@azx/ribo-storage-rxdb";
 
-const outbox = await openOutbox(); // Dexie (IndexedDB), the browser default
+const storage = await openStorage({ backend: await openRxdbBackend() });
 ```
 
-`openOutbox` takes an optional RxDB `storage` engine and threads it through to `createRxDatabase`.
-Left unset, it defaults to `getRxStorageDexie()` — the free, IndexedDB-backed engine every browser
-build uses — lazily constructed, so a caller who injects something else never even touches Dexie.
-Tests that need no browser at all inject `getRxStorageMemory()` from `rxdb/plugins/storage-memory`
-instead, and get a real `Outbox` with real durability semantics minus the IndexedDB dependency.
+`openStorage` takes a **backend** and has no default, because every default would be wrong
+somewhere. `openRxdbBackend()` is the production path — RxDB over Dexie (IndexedDB), which works
+across the whole device matrix including iOS Safari. Tests that need no browser use
+`createMemoryBackend(name)` from `@azx/ribo-core` and get real durability semantics with no engine
+at all.
 
-This is a deliberate Level 1 seam: `Outbox` stays a concrete class over RxDB, and injecting the
-storage engine is the whole of what's exposed. Extracting a formal `Outbox`
-interface, with a storage conformance-test kit a second backend would have to satisfy, is deferred
-until a genuinely non-RxDB backend is real — writing that interface now would be a contract with
-exactly one implementation, which locks in RxDB's shape while pretending the seam is more general
-than it is.
+`@azx/ribo-core` does not depend on RxDB. It owns the contracts and every piece of domain logic —
+status transitions, chunk merging, the sweep, review — and writes them against a **port**: roughly
+fourteen mechanical operations over three collections, with a closed set of three finders rather
+than a query language. Where the bytes land is a backend's business.
+
+What makes a backend real is not the types but six behavioural obligations no signature can
+express: a capture is never published before its audio is readable; reactive queries see other
+tabs' writes; a modify loses no concurrent update; listing blobs reads lengths and never bytes;
+documents come back free of backend metadata; and sequence allocation is atomic across tabs. Those
+are executable, as the conformance kit published at `@azx/ribo-core/testing` — a third party writing
+a backend runs the same suite the two shipped backends do.
 
 ## Durable capture
 
@@ -184,13 +190,13 @@ the whole capture.
 ```ts
 import { openCaptureSession } from "@azx/ribo-core";
 
-const session = await openCaptureSession({ outbox, recording, sourceId, mimeType, sessionId });
+const session = await openCaptureSession({ storage, recording, sourceId, mimeType, sessionId });
 mediaRecorder.ondataavailable = (e) => session.ingest(e.data);
 mediaRecorder.onstop = () => session.finalize();
 ```
 
 `openCaptureSession` inserts the row in `recording` status up front and returns a session that
-ingests each `MediaRecorder` chunk as its own RxDB attachment, named from an immutable
+ingests each `MediaRecorder` chunk as its own stored blob, named from an immutable
 `capture.sourceId`. `session.health$` reports `"flushing"` (chunks are landing, which is the normal
 state of a live recording) or `"stalled"` (a chunk write failed, or nothing has arrived past a
 threshold) — and `workSafety` takes that health as an input, so a stalled capture reports `at-risk`
@@ -215,5 +221,5 @@ never something the app quietly patches over.
 ## Next
 
 [Storage & Eviction](/offline-first/storage-eviction) covers the other half of "is my work safe" —
-what happens when the browser reclaims the space the outbox lives in, and how that's made visible
+what happens when the browser reclaims the space storage lives in, and how that's made visible
 rather than silent.

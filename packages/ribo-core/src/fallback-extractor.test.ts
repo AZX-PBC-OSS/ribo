@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { FakeExtractor } from "./extractor.js";
 import type { Extractor } from "./extractor.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
-import { TerminalQueueError, isTransientFailure } from "./queue/backoff.js";
+import { TerminalError, isTransientFailure } from "./storage/backoff.js";
 import type { ExtractionArbiter } from "./arbitration.js";
 import { acceptAnySuccess, terminalFallsThrough } from "./arbitration.js";
 import { fallbackExtractor } from "./fallback-extractor.js";
@@ -42,7 +42,7 @@ describe("fallbackExtractor", () => {
       "first",
       { value: 1 },
       {
-        throws: new TerminalQueueError("truncated"),
+        throws: new TerminalError("truncated"),
       },
     );
     const second = makeExtractor("second", { value: 2 });
@@ -85,7 +85,7 @@ describe("fallbackExtractor", () => {
       "first",
       { value: 1 },
       {
-        throws: new TerminalQueueError("truncated"),
+        throws: new TerminalError("truncated"),
       },
     );
     const second = makeExtractor("second", { value: 2 }, { calls: 7, engine: "managed" });

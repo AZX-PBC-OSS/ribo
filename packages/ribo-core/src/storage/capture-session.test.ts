@@ -1,9 +1,10 @@
+import type { CaptureStore } from "./captures.js";
 import { expect, test, vi } from "vitest";
 import { firstValueFrom } from "rxjs";
 
 import { openCaptureSession } from "./capture-session.js";
-import type { Outbox } from "./outbox.js";
-import type { OutboxItem } from "./schema.js";
+import type { Storage } from "./storage.js";
+import type { Capture } from "./capture-schema.js";
 import type { Recording } from "../recording.js";
 
 const recording: Recording = {
@@ -15,9 +16,19 @@ const recording: Recording = {
   ctx: {},
 };
 
-/** A fake outbox that records calls and never blocks. */
+/**
+ * Wrap a fake capture store as the `Storage` the session takes.
+ *
+ * The fake implements the capture store because that is the only thing
+ * `openCaptureSession` touches; the container is a one-field shell over it.
+ */
+function asStorage(fake: ReturnType<typeof fakeOutbox>): Storage {
+  return { captures: fake } as unknown as Storage;
+}
+
+/** A fake capture store that records calls and never blocks. */
 function fakeOutbox(): Pick<
-  Outbox,
+  CaptureStore,
   "beginRecording" | "appendChunk" | "mergeChunks" | "commitRecording" | "remove"
 > & {
   chunkNames: string[];
@@ -44,7 +55,7 @@ function fakeOutbox(): Pick<
         capture: { sourceId },
         audioReady: false,
         audioBytes: 0,
-      } satisfies OutboxItem;
+      } satisfies Capture;
     },
     async appendChunk(_id: string, name: string, _blob: Blob) {
       // A REAL macrotask, not a resolved promise. With a synchronous fake the whole
@@ -74,7 +85,7 @@ function fakeOutbox(): Pick<
         recording: { ...recording, durationMs },
         audioReady: true,
         audioBytes: 1,
-      } satisfies OutboxItem;
+      } satisfies Capture;
     },
     async remove(_id: string) {},
   };
@@ -89,7 +100,7 @@ test("ingestion is synchronous and persistence is a separate stage", async () =>
   // but the final dataavailable may already be queued BEHIND it — so awaiting
   // finalization waits on an operation that waits on it.
   const session = await openCaptureSession({
-    outbox: fakeOutbox() as unknown as Outbox,
+    outbox: asStorage(fakeOutbox()),
     recording,
     sourceId: "s1",
     sessionId: "test-session",
@@ -109,7 +120,7 @@ test("ingestion is synchronous and persistence is a separate stage", async () =>
 test("finalize drains everything ingested before it", async () => {
   const outbox = fakeOutbox();
   const session = await openCaptureSession({
-    outbox: outbox as unknown as Outbox,
+    outbox: asStorage(outbox),
     recording,
     sourceId: "s1",
     sessionId: "test-session",
@@ -129,7 +140,7 @@ test("a stall is observed even when the late event arrives before the detector r
   // BEFORE updating it, or the stall is never seen at all.
   let t = 0;
   const session = await openCaptureSession({
-    outbox: fakeOutbox() as unknown as Outbox,
+    outbox: asStorage(fakeOutbox()),
     recording,
     sourceId: "s1",
     sessionId: "test-session",
@@ -145,7 +156,7 @@ test("a stall is observed even when the late event arrives before the detector r
 test("a user pause is not a stall", async () => {
   let t = 0;
   const session = await openCaptureSession({
-    outbox: fakeOutbox() as unknown as Outbox,
+    outbox: asStorage(fakeOutbox()),
     recording,
     sourceId: "s1",
     sessionId: "test-session",
@@ -169,7 +180,7 @@ test("an ONGOING stall is reported without waiting for the next event", async ()
   try {
     let clock = 0;
     const session = await openCaptureSession({
-      outbox: fakeOutbox() as unknown as Outbox,
+      outbox: asStorage(fakeOutbox()),
       recording,
       sourceId: "s1",
       sessionId: "test-session",
@@ -199,7 +210,7 @@ test("an oversized blob is ONE chunk in several slices, not several chunks", asy
   // naming no longer described what it names.
   const outbox = fakeOutbox();
   const session = await openCaptureSession({
-    outbox: outbox as unknown as Outbox,
+    outbox: asStorage(outbox),
     recording,
     sourceId: "s1",
     sessionId: "test-session",

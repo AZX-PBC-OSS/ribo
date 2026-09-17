@@ -24,8 +24,8 @@ contract and defaults `terminalFallsThrough` / `acceptAnySuccess`, a `SchemaPars
 retryable while being recognisable to the arbiter, and an optional `usage.strategy` provenance
 field), `ToolAdapter<V extends Record<string, unknown>, C, P = NoProvenance>`, the review contract
 (`buildReviewRequest`, `resolveReview`), and the
-offline-first outbox/relay's **two persisted state machines**, split where the code splits: a
-recording (`OUTBOX_STATUSES`: `recording → queued → transcribing → transcribed`, a resting `failed`
+offline-first storage and relay's **two persisted state machines**, split where the code splits: a
+recording (`CAPTURE_STATUSES`: `recording → queued → transcribing → transcribed`, a resting `failed`
 the relay retries after backoff, terminal `dead`, and a human-decision `discarded` that
 `session-extract.ts` excludes from the joined transcript) carries capture and transcription, while a session
 (`SESSION_STATUSES`: `open → extracting → awaiting-review → writing → done`, the same `failed`/`dead`
@@ -52,7 +52,7 @@ transcriber — `Transcriber<DocumentCapture>` with engine id `"managed-docs"`, 
 understanding API behind the host's transport with no capacity to authenticate, composing with
 pdf.js in a `fallbackTranscriber` ladder. `@azx/ribo-ui-react` is now the **headless hook layer**: `RiboProvider` plus
 the `use*` hooks over core's engine listed in its barrel (`packages/ribo-ui-react/src/index.ts`) —
-`useRecorder`, `useOutboxItems`, `useReview`, `useSessions`, `useConnectivity`, `useWorkSafety` and
+`useRecorder`, `useCaptures`, `useReview`, `useSessions`, `useConnectivity`, `useWorkSafety` and
 `useStoragePersistence` — no components beyond the provider, no markup, no stylesheet. **Write-back is scaffolded but gated** on a Helix platform ask (egress HMAC
 signing — `docs/implementation/13-helix-platform-asks.md`). The consuming **field app lives in a
 separate repo** and is not built here; the `playground/` app is this repo's stand-in for a consumer.
@@ -124,18 +124,18 @@ vocabulary — `ChatError`, `ChatCapability`, `ChatMessage`, `ChatRequest`, `Cap
 and `session.ts`. No other leaf package depends on a sibling leaf. The field app composes all of
 these; nothing depends on the field app.
 
-| Tier                                 | Location                                 | Responsibility                                                                                                                                                                                                    |
-| ------------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@azx/ribo-core`                     | `packages/ribo-core`                     | Headless engine: capture state machine, transcription, extraction, leaf-path review, queue/write. No React, no DOM rendering.                                                                                     |
-| `@azx/ribo-ui-react`                 | `packages/ribo-ui-react`                 | Headless React hook layer over the core engine — `RiboProvider` plus recorder, outbox, review, sessions, connectivity, work-safety and storage-persistence hooks. No components beyond `RiboProvider`, no markup. |
-| `@azx/ribo-adapter-snuggpro`         | `packages/ribo-adapter-snuggpro`         | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                                                                                                                                       |
-| `@azx/ribo-extractor-openai`         | `packages/ribo-extractor-openai`         | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction over an OpenAI-compatible transport.                                                                                                          |
-| `@azx/ribo-extractor-ondevice`       | `packages/ribo-extractor-ondevice`       | On-device extractor plasmid: three-phase managed-LLM extraction over the platform's on-device Language Model.                                                                                                     |
-| `@azx/ribo-transcriber-ondevice`     | `packages/ribo-transcriber-ondevice`     | On-device WASM Whisper transcription; measures device RTF at `prime()` time so `capability()` can report `too-slow`.                                                                                              |
-| `@azx/ribo-transcriber-managed`      | `packages/ribo-transcriber-managed`      | Managed Azure AI Speech Fast Transcription behind the `Transcriber` seam; no capacity to authenticate.                                                                                                            |
-| `@azx/ribo-transcriber-managed-docs` | `packages/ribo-transcriber-managed-docs` | Managed document transcription — `Transcriber<DocumentCapture>` with engine id `"managed-docs"`, a hosted document understanding API behind the host's transport; no capacity to authenticate.                    |
-| `@azx/ribo-transcriber-pdfjs`        | `packages/ribo-transcriber-pdfjs`        | PDF document transcription via pdf.js; `Transcriber<DocumentCapture>` with engine id `"pdfjs"`, lazy-loaded worker, page markers, and `no-text-layer` guard.                                                      |
-| Field app                            | **separate repo**                        | The deployed Helix app that composes these packages. Not built here.                                                                                                                                              |
+| Tier                                 | Location                                 | Responsibility                                                                                                                                                                                                     |
+| ------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@azx/ribo-core`                     | `packages/ribo-core`                     | Headless engine: capture state machine, transcription, extraction, leaf-path review, queue/write. No React, no DOM rendering.                                                                                      |
+| `@azx/ribo-ui-react`                 | `packages/ribo-ui-react`                 | Headless React hook layer over the core engine — `RiboProvider` plus recorder, storage, review, sessions, connectivity, work-safety and storage-persistence hooks. No components beyond `RiboProvider`, no markup. |
+| `@azx/ribo-adapter-snuggpro`         | `packages/ribo-adapter-snuggpro`         | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                                                                                                                                        |
+| `@azx/ribo-extractor-openai`         | `packages/ribo-extractor-openai`         | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction over an OpenAI-compatible transport.                                                                                                           |
+| `@azx/ribo-extractor-ondevice`       | `packages/ribo-extractor-ondevice`       | On-device extractor plasmid: three-phase managed-LLM extraction over the platform's on-device Language Model.                                                                                                      |
+| `@azx/ribo-transcriber-ondevice`     | `packages/ribo-transcriber-ondevice`     | On-device WASM Whisper transcription; measures device RTF at `prime()` time so `capability()` can report `too-slow`.                                                                                               |
+| `@azx/ribo-transcriber-managed`      | `packages/ribo-transcriber-managed`      | Managed Azure AI Speech Fast Transcription behind the `Transcriber` seam; no capacity to authenticate.                                                                                                             |
+| `@azx/ribo-transcriber-managed-docs` | `packages/ribo-transcriber-managed-docs` | Managed document transcription — `Transcriber<DocumentCapture>` with engine id `"managed-docs"`, a hosted document understanding API behind the host's transport; no capacity to authenticate.                     |
+| `@azx/ribo-transcriber-pdfjs`        | `packages/ribo-transcriber-pdfjs`        | PDF document transcription via pdf.js; `Transcriber<DocumentCapture>` with engine id `"pdfjs"`, lazy-loaded worker, page markers, and `no-text-layer` guard.                                                       |
+| Field app                            | **separate repo**                        | The deployed Helix app that composes these packages. Not built here.                                                                                                                                               |
 
 Supporting, non-published: `packages/tsconfig` (`@azx/tsconfig`, the shared compiler options) and
 `playground/` (a Vite app that imports **every** published package, so its production build is a real
@@ -378,7 +378,7 @@ scroll past.
 
 ### 5.5 Durability sits behind a port, and `@azx/ribo-core` owns no engine
 
-`openOutbox({ backend })` takes a `StorageBackend` — the contract in
+`openStorage({ backend })` takes a `StorageBackend` — the contract in
 `packages/ribo-core/src/storage/port.ts` — and **has no default**, because every default would be
 wrong somewhere. `createMemoryBackend` for tests and development; `openRxdbBackend` from
 `@azx/ribo-storage-rxdb` for a browser host, which is the production path. Core's dependencies are
@@ -392,17 +392,17 @@ in core, and the RxDB one. Read that design before widening the port.
 
 The engine within a backend is still swappable where that makes sense —
 `openRxdbBackend({ storage })` takes an `RxStorage` and defaults to Dexie, but that seam now sits
-_inside_ a backend rather than through core's public API. `removeOutboxDatabase` takes the
+_inside_ a backend rather than through core's public API. `removeStorageDatabase` takes the
 same optional storage and must be handed the **same** engine the database was opened with — RxDB's
 `removeRxDatabase` deletes through the storage's own on-disk layout, so a memory-opened database
 cannot be removed via Dexie and vice versa.
 
-This is the cheap, high-value seam: a host chooses where the outbox lives — memory
+This is the cheap, high-value seam: a host chooses where storage lives — memory
 (`rxdb/plugins/storage-memory`) for fast, browser-free tests, Dexie for the browser field app, a
 React-Native/SQLite `RxStorage` the day the app leaves the browser — **without touching the
-`Outbox` class or its durability logic**. The memory path is exercised by
-`packages/ribo-core/src/queue/outbox-memory.test.ts` (a node `unit` test, since memory storage needs
-no IndexedDB). The Dexie durability test in `outbox.browser.test.ts` stays on real IndexedDB on
+`Storage` class or its durability logic**. The memory path is exercised by
+`packages/ribo-core/src/queue/storage-memory.test.ts` (a node `unit` test, since memory storage needs
+no IndexedDB). The Dexie durability test in `storage.browser.test.ts` stays on real IndexedDB on
 purpose — memory storage would fake the very persistence it proves.
 
 **This was deferred once, on the reasoning that a contract with one implementation locks in that
@@ -420,20 +420,20 @@ same kit.
 Packages are named `ribo-<category>-<variant>`, published under the `@azx/` npm scope (kept
 deliberately — do not propose a rename). The **category is documentation for humans**; nothing in
 code ever depends on it. Wiring is always through the core contracts — `Transcriber`, `Extractor`,
-`Outbox`, `ToolAdapter` — never by matching or parsing a package name. A host composes plasmids by
+`Storage`, `ToolAdapter` — never by matching or parsing a package name. A host composes plasmids by
 constructing them and handing them to the engine, so renaming a package could never change what
 runs. If you ever find code branching on a package name, that is the bug.
 
 Reserved categories:
 
-| Package              | Category                    | Examples / status                                        |
-| -------------------- | --------------------------- | -------------------------------------------------------- |
-| `ribo-core`          | Contracts + headless engine | the one everything depends inward on                     |
-| `ribo-ui-*`          | UI component sets           | `ribo-ui-react` (headless recorder/review/outbox hooks)… |
-| `ribo-transcriber-*` | Transcriber plasmids        | `ribo-transcriber-ondevice`, `ribo-transcriber-azure`…   |
-| `ribo-extractor-*`   | Extractor plasmids          | `ribo-extractor-openai` (single-shot managed LLM)…       |
-| `ribo-adapter-*`     | Per-tool `ToolAdapter`s     | `ribo-adapter-snuggpro`…                                 |
-| `ribo-storage-*`     | Storage backends (the port) | `ribo-storage-rxdb` (RxDB + Dexie, the production one)   |
+| Package              | Category                    | Examples / status                                         |
+| -------------------- | --------------------------- | --------------------------------------------------------- |
+| `ribo-core`          | Contracts + headless engine | the one everything depends inward on                      |
+| `ribo-ui-*`          | UI component sets           | `ribo-ui-react` (headless recorder/review/storage hooks)… |
+| `ribo-transcriber-*` | Transcriber plasmids        | `ribo-transcriber-ondevice`, `ribo-transcriber-azure`…    |
+| `ribo-extractor-*`   | Extractor plasmids          | `ribo-extractor-openai` (single-shot managed LLM)…        |
+| `ribo-adapter-*`     | Per-tool `ToolAdapter`s     | `ribo-adapter-snuggpro`…                                  |
+| `ribo-storage-*`     | Storage backends (the port) | `ribo-storage-rxdb` (RxDB + Dexie, the production one)    |
 
 `ribo-storage-*` holds implementations of the storage port (§5.5). `@azx/ribo-storage-rxdb` is the
 production one and owns everything RxDB: the three `RxJsonSchema`s, the migration strategies, the
@@ -496,12 +496,12 @@ Checklist:
   copy of core — so declare `"@azx/ribo-core": "workspace:^"` in `peerDependencies` and mirror it in
   `devDependencies` as `"workspace:*"` (peers are not installed for you; the dev entry is what makes
   the workspace link exist for typecheck and tests). This is what `ribo-ui-react` does:
-  `RiboProvider`'s `RiboInstances` carries the host's own `Recorder`, `Outbox` and `Connectivity`
+  `RiboProvider`'s `RiboInstances` carries the host's own `Recorder`, `Storage` and `Connectivity`
   instances across the package boundary (`context.ts`) — the provider never constructs them itself,
   precisely so lifetime stays with the host — and every hook but `useStoragePersistence` reads one
-  back out of context, either directly (`useRecorder`, `useOutboxItems`, `useReview`,
+  back out of context, either directly (`useRecorder`, `useCaptures`, `useReview`,
   `useConnectivity`, `useSessions`) or indirectly by composing hooks that do (`useWorkSafety`, which calls
-  `useOutboxItems`, `useConnectivity` and `useStoragePersistence` itself).
+  `useCaptures`, `useConnectivity` and `useStoragePersistence` itself).
   `useStoragePersistence` is the one hook with no core counterpart at all — it wraps
   `navigator.storage` directly and reads nothing out of context. The distinguishing test for the
   peer-dependency question is **runtime object-identity sharing**, not "leaf vs. not": if a consumer
@@ -515,7 +515,7 @@ Checklist:
   plain-`dependencies`, but not all for the same reason: `ribo-extractor-openai` and
   `ribo-transcriber-ondevice` really do import core type-only; `ribo-adapter-snuggpro` also calls
   the runtime `enveloped()` helper (`schema.ts`) to derive its extraction schema. None of the three
-  holds onto a core `Recorder`/`Outbox`/`Connectivity` instance with identity that must stay shared
+  holds onto a core `Recorder`/`Storage`/`Connectivity` instance with identity that must stay shared
   with a consumer, which — not "type-only" — is the actual criterion. Use `workspace:^` for the
   published-facing declaration (pnpm rewrites it to `^<version>` on publish, and Changesets keeps
   the three libs in lockstep) and `workspace:*` for dev-only links.

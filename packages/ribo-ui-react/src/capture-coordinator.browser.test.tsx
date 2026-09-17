@@ -4,11 +4,11 @@ import { render } from "vitest-browser-react";
 import { BehaviorSubject } from "rxjs";
 import {
   createConnectivity,
-  openOutbox,
+  openStorage,
   Recorder,
   type CaptureHealth,
   type CaptureSession,
-  type Outbox,
+  type Storage,
   type WorkSafety,
 } from "@azx/ribo-core";
 
@@ -55,7 +55,7 @@ afterEach(async () => {
 async function renderHooks(opts: {
   captureCoordinator?: CaptureCoordinator;
   recorder: AnyRecorder;
-  outbox: Outbox;
+  outbox: Storage;
 }) {
   let recorderApi: UseRecorderResult | undefined;
   let safety: WorkSafety | undefined;
@@ -99,10 +99,10 @@ test("a session registered by useRecorder is visible to a SIBLING useWorkSafety"
   // subscribed useWorkSafety — the same observable mechanism, just a different
   // timing. The test verifies the coordinator plumbing, not the exact call site.
   const captureCoordinator = createCaptureCoordinator();
-  const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+  const outbox = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   // Pre-populate with a queued item so work.pending > 0 — the safety then
   // depends on capture health, which is the thing under test.
-  await outbox.enqueue({
+  await outbox.captures.enqueue({
     recording: {
       id: crypto.randomUUID(),
       capturedAt: new Date().toISOString(),
@@ -143,7 +143,7 @@ test("a session registered by useRecorder is visible to a SIBLING useWorkSafety"
 
 test("the session disappears on a failed start", async () => {
   const captureCoordinator = createCaptureCoordinator();
-  const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+  const outbox = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   // A recorder that fails on start — the microphone is denied.
   const failingRecorder = new Recorder({
     getUserMedia: () => Promise.reject(new DOMException("no", "NotAllowedError")),
@@ -163,7 +163,7 @@ test("the session disappears on a failed start", async () => {
 });
 
 test("no coordinator means no durable capture and today's behaviour", async () => {
-  const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+  const outbox = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   const recorder = new Recorder();
   started.push(recorder);
 

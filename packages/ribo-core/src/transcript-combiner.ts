@@ -12,7 +12,7 @@ import type { AnnotatedTranscript } from "./annotated-transcript.js";
 /**
  * Combines per-capture transcripts into one. **Pure**: takes an array (already
  * sorted by `seq`), returns a value, touches nothing else. A combiner that
- * takes the `Outbox`, or reads anything, has reproduced the defect this
+ * takes the `Storage`, or reads anything, has reproduced the defect this
  * contract exists to fix.
  *
  * The relay supplies the array; the combiner decides how the texts join. A

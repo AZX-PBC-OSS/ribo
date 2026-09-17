@@ -4,7 +4,7 @@ import { useCallback, useMemo } from "react";
 
 import { useConnectivity } from "./use-connectivity.js";
 import { useOptionalRiboInstance } from "./use-ribo-instance.js";
-import { useOutboxItems } from "./use-outbox-items.js";
+import { useCaptures } from "./use-outbox-items.js";
 import { useSessions } from "./use-sessions.js";
 import { useStoragePersistence } from "./use-storage-persistence.js";
 import { useSubscribed } from "./use-subscribed.js";
@@ -14,7 +14,7 @@ export interface UseWorkSafetyResult {
    * The verdict — **`undefined` when it cannot be computed honestly**, which is
    * either while `loading` or after an outbox read `error`.
    *
-   * Not a `WorkSafety` with a benign default. `useOutboxItems` yields an empty
+   * Not a `WorkSafety` with a benign default. `useCaptures` yields an empty
    * array both before its first emission and after a watch failure, and an empty
    * array summarizes to `{ pending: 0 }`, which `workSafety` classifies as
    * `safe / nothing-captured`. So a defaulted verdict would announce that the
@@ -45,17 +45,13 @@ export interface UseWorkSafetyResult {
  * has looked.
  *
  * **No override argument, unlike every other hook in this package.** It composes
- * `useOutboxItems`, `useConnectivity` and `useStoragePersistence` internally rather
+ * `useCaptures`, `useConnectivity` and `useStoragePersistence` internally rather
  * than taking their instances as parameters, so there is nothing here for a caller
  * to override — which means this hook can only be used under a `RiboProvider`
  * (see its own doc comment), never bypassed the way a test can bypass the others.
  */
 export function useWorkSafety(): UseWorkSafetyResult {
-  const {
-    items: recordings,
-    loading: recordingsLoading,
-    error: recordingsError,
-  } = useOutboxItems();
+  const { items: recordings, loading: recordingsLoading, error: recordingsError } = useCaptures();
   const { items: sessions, loading: sessionsLoading, error: sessionsError } = useSessions();
   const { persistence } = useStoragePersistence();
   const connectivity = useConnectivity();

@@ -3,8 +3,8 @@ import {
   createRelay,
   firstCapable,
   restrictToKind,
-  type Outbox,
-  type OutboxItem,
+  type Storage,
+  type Capture,
 } from "@azx/ribo-core";
 
 import { extractStep } from "./extractor-store.js";
@@ -41,7 +41,7 @@ import {
  * transcribe, see text — is demonstrable from here.
  */
 
-export function TranscribePanel({ outbox }: { outbox: Outbox }) {
+export function TranscribePanel({ outbox }: { outbox: Storage }) {
   const whisper = useSyncExternalStore(subscribeToWhisper, getWhisperState);
 
   // The capability probe is a side effect of the panel being on screen, kept in
@@ -184,8 +184,8 @@ function DownloadProgress({ whisper }: { whisper: WhisperState }) {
   );
 }
 
-function TranscribeControl({ outbox, onDeviceReady }: { outbox: Outbox; onDeviceReady: boolean }) {
-  const [items, setItems] = useState<OutboxItem[] | undefined>(undefined);
+function TranscribeControl({ outbox, onDeviceReady }: { outbox: Storage; onDeviceReady: boolean }) {
+  const [items, setItems] = useState<Capture[] | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [managedReady, setManagedReady] = useState(false);
@@ -216,7 +216,7 @@ function TranscribeControl({ outbox, onDeviceReady }: { outbox: Outbox; onDevice
   const runningRef = useRef(false);
 
   useEffect(() => {
-    const subscription = outbox.items$.subscribe({
+    const subscription = outbox.captures.items$.subscribe({
       next: setItems,
       error: (cause: unknown) => {
         setError(messageOf(cause));
@@ -339,7 +339,7 @@ function RoutingLog() {
  * real model, which is network-bound and rests in `extracting` until online.
  * Write-back stays a stub (Phase 4 Task 6, gated on A1).
  */
-async function runOnDeviceRelay(outbox: Outbox): Promise<void> {
+async function runOnDeviceRelay(outbox: Storage): Promise<void> {
   const relay = createRelay({
     outbox,
     // `onFallback` was designed to make exactly one thing visible — "every recording is

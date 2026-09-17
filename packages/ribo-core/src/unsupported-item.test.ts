@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { isTransientFailure, TerminalQueueError } from "./queue/backoff.js";
+import { isTransientFailure, TerminalError } from "./storage/backoff.js";
 import { TranscriberUnavailableError } from "./transcriber.js";
 import {
   UNSUPPORTED_ITEM_REASONS,
@@ -20,8 +20,8 @@ test("is terminal to the queue — isTransientFailure is false", () => {
   expect(isTransientFailure(error)).toBe(false);
 });
 
-test("is a TerminalQueueError, and its name is its own, not the supertype's", () => {
-  expect(error).toBeInstanceOf(TerminalQueueError);
+test("is a TerminalError, and its name is its own, not the supertype's", () => {
+  expect(error).toBeInstanceOf(TerminalError);
   expect(error.name).toBe("UnsupportedItemError");
 });
 

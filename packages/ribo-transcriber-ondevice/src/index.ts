@@ -13,7 +13,7 @@
  * `Blob` to 16 kHz mono PCM on the main thread (doc 11), transferring it to the worker, biasing the
  * decoder with the configured domain-jargon hints, and returning a stamped {@link Transcript}.
  */
-import { TerminalQueueError } from "@azx/ribo-core";
+import { TerminalError } from "@azx/ribo-core";
 import type {
   Recording,
   Transcript,
@@ -358,7 +358,7 @@ export class OnDeviceTranscriber implements Transcriber {
    * 3. **Between inference chunks, inside the worker.** The main thread posts a
    *    `cancelTranscribe { requestId }` protocol message when the signal fires; the worker's batch
    *    loop checks the flag before starting work and between chunks, and replies with an ordinary
-   *    `error`, which this side maps to a `TerminalQueueError` when its own signal has aborted.
+   *    `error`, which this side maps to a `TerminalError` when its own signal has aborted.
    *    Cancellation latency is therefore bounded by one chunk — at most Whisper's 30 s window —
    *    and a request that was still queued behind `serialize` when the cancel arrived skips its
    *    inference entirely.
@@ -372,7 +372,7 @@ export class OnDeviceTranscriber implements Transcriber {
    * (freeing the serialized inference chain sooner for the live session's next turn), and the worker
    * itself stays warm. {@link dispose} remains the only thing that ever terminates the worker.
    *
-   * A cancellation rejects with `TerminalQueueError` — the same classification the fetch transports
+   * A cancellation rejects with `TerminalError` — the same classification the fetch transports
    * use — so the queue does not burn its retry budget re-running work the caller withdrew.
    */
   async transcribe(
@@ -381,8 +381,8 @@ export class OnDeviceTranscriber implements Transcriber {
     options?: TranscribeOptions,
   ): Promise<Transcript> {
     const signal = options?.signal;
-    const cancelled = (when: string, cause?: unknown): TerminalQueueError =>
-      new TerminalQueueError(
+    const cancelled = (when: string, cause?: unknown): TerminalError =>
+      new TerminalError(
         `on-device: transcription of recording ${recording.id} was cancelled ${when} — ` +
           `the caller's AbortSignal fired. A cancelled transcription is never retried.`,
         { cause },

@@ -1,7 +1,7 @@
 import {
   buildReviewRequest,
   resolveReview,
-  outboxItemSchema,
+  captureSchema,
   sessionItemSchema,
   toWriteStep,
   transcriptSchema,
@@ -9,7 +9,7 @@ import {
 import type {
   FieldDecision,
   FieldDecisions,
-  OutboxItem,
+  Capture,
   SessionItem,
   ToolAdapter,
   Transcript,
@@ -110,7 +110,7 @@ const ctx: SnuggWriteContext = {
   apiBaseUrl: "https://helix.example.com/snuggpro",
 };
 
-const _item: OutboxItem = outboxItemSchema.parse({
+const _item: Capture = captureSchema.parse({
   id: "item-1",
   seq: 0,
   status: "transcribed",

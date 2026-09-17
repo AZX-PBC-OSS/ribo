@@ -41,7 +41,7 @@ import { isCapturing } from "./recorder-handle.js";
  * ordinary two-tab situation, and it is *already* possible today without any
  * service worker — a tab left open across a deploy is the same thing.
  *
- * What catches it is `outboxDocumentSchema`, which
+ * What catches it is `captureDocumentSchema`, which
  * `docs/implementation/09-offline-first.md` and the schema's own doc comment
  * call a trust boundary **in both directions**: documents are parsed on the way
  * out of IndexedDB as well as on the way in. It is a `z.strictObject`, so:

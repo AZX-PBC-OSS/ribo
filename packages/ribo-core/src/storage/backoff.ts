@@ -56,11 +56,11 @@ export function fullJitterDelay(attempts: number, options: BackoffOptions = {}):
  * the attachment store, a transcript that will never parse, a step that has
  * declared the item unprocessable.
  */
-export class TerminalQueueError extends Error {
+export class TerminalError extends Error {
   // `: string` is load-bearing: without it TypeScript infers the literal
-  // "TerminalQueueError", and a subclass overriding `name` with its own literal
+  // "TerminalError", and a subclass overriding `name` with its own literal
   // fails with TS2416. The widening has zero runtime change.
-  override readonly name: string = "TerminalQueueError";
+  override readonly name: string = "TerminalError";
 }
 
 function statusOf(error: unknown): number | undefined {
@@ -86,7 +86,7 @@ function statusOf(error: unknown): number | undefined {
  * uplink drops is the single most likely error this queue will ever see.
  */
 export function isTransientFailure(error: unknown): boolean {
-  if (error instanceof TerminalQueueError) return false;
+  if (error instanceof TerminalError) return false;
   const status = statusOf(error);
   if (status === undefined) return true;
   if (status === 408 || status === 429) return true;

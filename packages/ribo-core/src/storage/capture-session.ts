@@ -1,8 +1,8 @@
 import type { Observable } from "rxjs";
 import { BehaviorSubject } from "rxjs";
 
-import type { Outbox } from "./outbox.js";
-import type { OutboxItem } from "./schema.js";
+import type { Storage } from "./storage.js";
+import type { Capture } from "./capture-schema.js";
 import type { Recording } from "../recording.js";
 import { chunkName, sliceOversized } from "./chunk-names.js";
 
@@ -24,7 +24,7 @@ const STALL_AFTER_MS = 30_000;
 const MAX_CHUNK_BYTES = 10_000_000;
 
 export interface CaptureSessionOptions {
-  outbox: Outbox;
+  outbox: Storage;
   recording: Recording;
   sourceId: string;
   mimeType: string;
@@ -46,7 +46,7 @@ export interface CaptureSession {
   /** User-initiated `Recorder.resume()` — resets the emission baseline. */
   resumed: () => void;
   /** Close ingestion, drain, merge, decode-verify, commit. Resolves when done. */
-  finalize: () => Promise<{ audio: Blob; durationMs: number; item: OutboxItem }>;
+  finalize: () => Promise<{ audio: Blob; durationMs: number; item: Capture }>;
   /** Abort: stop accepting data and remove the row. Fire-and-forget. */
   abort: () => void;
   readonly itemId: string;
@@ -64,7 +64,7 @@ export async function openCaptureSession(options: CaptureSessionOptions): Promis
   const now = options.now ?? (() => Date.now());
   const decode = options.decode ?? decodeAudioDuration;
 
-  const item = await outbox.beginRecording({
+  const item = await outbox.captures.beginRecording({
     recording: options.recording,
     sourceId,
     sessionId: options.sessionId,
@@ -83,7 +83,7 @@ class CaptureSessionImpl implements CaptureSession {
   readonly #itemId: string;
   readonly #sourceId: string;
   readonly #mimeType: string;
-  readonly #outbox: Outbox;
+  readonly #outbox: Storage;
   readonly #now: () => number;
   readonly #decode: (blob: Blob) => Promise<number>;
   readonly #health$: BehaviorSubject<CaptureHealth>;
@@ -112,7 +112,7 @@ class CaptureSessionImpl implements CaptureSession {
     itemId: string,
     sourceId: string,
     mimeType: string,
-    outbox: Outbox,
+    outbox: Storage,
     now: () => number,
     decode: (blob: Blob) => Promise<number>,
     health$: BehaviorSubject<CaptureHealth>,
@@ -181,14 +181,14 @@ class CaptureSessionImpl implements CaptureSession {
     this.#lastEmission = this.#now();
   }
 
-  async finalize(): Promise<{ audio: Blob; durationMs: number; item: OutboxItem }> {
+  async finalize(): Promise<{ audio: Blob; durationMs: number; item: Capture }> {
     this.#closed = true;
     clearInterval(this.#watchdog);
     // Await the drain of everything ingested before finalize was called.
     await this.#drained;
-    const audio = await this.#outbox.mergeChunks(this.#itemId);
+    const audio = await this.#outbox.captures.mergeChunks(this.#itemId);
     const durationMs = await this.#decode(audio);
-    const item = await this.#outbox.commitRecording(this.#itemId, audio, durationMs);
+    const item = await this.#outbox.captures.commitRecording(this.#itemId, audio, durationMs);
     this.#health$.complete();
     return { audio, durationMs, item };
   }
@@ -198,7 +198,7 @@ class CaptureSessionImpl implements CaptureSession {
     clearInterval(this.#watchdog);
     this.#health$.complete();
     // Fire-and-forget: if the removal fails, startup recovery collects the row.
-    void this.#outbox.remove(this.#itemId).catch(() => undefined);
+    void this.#outbox.captures.remove(this.#itemId).catch(() => undefined);
   }
 
   #latchStalled(): void {
@@ -243,7 +243,7 @@ class CaptureSessionImpl implements CaptureSession {
             return;
           }
           try {
-            await this.#outbox.appendChunk(this.#itemId, name, slice);
+            await this.#outbox.captures.appendChunk(this.#itemId, name, slice);
           } catch {
             // A failed chunk write latches stalled. The session continues —
             // finalize will still try to merge what did land.

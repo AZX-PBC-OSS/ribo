@@ -101,8 +101,8 @@ class OnDeviceLiveSession implements LiveSession {
         // only prevents further feed() calls, not segment delivery.
         //
         // The `kind` discriminator ("tail" | "commit") is carried through to the host so
-        // it can route tails to `Outbox.writePreviewTail` and commits to
-        // `Outbox.commitPreview` — the distinction the seam exists to expose.
+        // it can route tails to `Storage.writePreviewTail` and commits to
+        // `Storage.commitPreview` — the distinction the seam exists to expose.
         this.#subject.next({ kind: reply.kind, text: reply.text });
       } else if (reply.type === "liveError") {
         // A mid-session error from the worker. The `liveError` listener in `openSession`'s

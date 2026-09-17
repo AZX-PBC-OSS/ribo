@@ -1,4 +1,4 @@
-import type { StorageBackend, StoredDocument } from "../storage/port.js";
+import type { StorageBackend, StoredDocument } from "./port.js";
 import { pluginStorageDocumentSchema, pluginStorageEntryId } from "./plugin-storage-schema.js";
 
 /**
@@ -35,7 +35,7 @@ export interface PluginStorage {
 /**
  * Create a {@link PluginStorage} handle scoped to one capture and one plugin.
  *
- * Called by {@link Outbox.pluginStorage}; not intended for direct construction
+ * Called by {@link Storage.pluginStorage}; not intended for direct construction
  * by plugins. The handle holds no state beyond the scoping ids and the
  * collection reference, so a fresh handle over the same database sees the same
  * entries — durability comes from the storage, not from the handle.
@@ -115,7 +115,7 @@ export interface PluginStorageScope {
   captures: () => Promise<string[]>;
 }
 
-/** Create a {@link CaptureStorageScope} over one capture. Called by {@link Outbox.captureStorage}. */
+/** Create a {@link CaptureStorageScope} over one capture. Called by {@link Storage.captureStorage}. */
 export function createCaptureStorageScope(
   backend: StorageBackend,
   captureId: string,
@@ -125,7 +125,7 @@ export function createCaptureStorageScope(
   };
 }
 
-/** Create a {@link PluginStorageScope} over one plugin. Called by {@link Outbox.pluginStorageScope}. */
+/** Create a {@link PluginStorageScope} over one plugin. Called by {@link Storage.pluginStorageScope}. */
 export function createPluginStorageScope(
   backend: StorageBackend,
   pluginId: string,

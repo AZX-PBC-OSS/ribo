@@ -18,7 +18,7 @@ export const CAPTURE_LOCK = "ribo-capture";
  * Per item, not one global relay lock: two tabs draining *different* items concurrently is fine and
  * desirable, and a single lock would serialise the whole queue behind whichever tab happened to start.
  *
- * **Web Locks rather than a lease field, and the reason is crash resume.** `ACTIVE_OUTBOX_STATUSES`
+ * **Web Locks rather than a lease field, and the reason is crash resume.** `ACTIVE_CAPTURE_STATUSES`
  * deliberately includes the in-flight statuses (`transcribing`, `extracting`, `writing`) so that a step
  * interrupted by a dead tab is picked up again rather than stranded. A lease would have to express
  * that with an expiry — which means a tuned timeout, and a wrong guess either strands work or lets two

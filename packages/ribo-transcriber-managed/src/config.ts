@@ -10,7 +10,7 @@
 /**
  * `Transcriber.engine` this implementation stamps onto every `Transcript` it
  * produces. Short and stable across versions — it is persisted data, readable
- * straight off `Outbox.list()` to see the on-device/managed engine mix. Matches
+ * straight off `Storage.list()` to see the on-device/managed engine mix. Matches
  * `docs/roadmap/design/managed-transcription-plan.md` Task 3 and `transcript.ts`.
  */
 export const MANAGED_AZURE_SPEECH_ENGINE = "managed-azure-speech";

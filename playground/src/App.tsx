@@ -3,7 +3,7 @@ import { RiboProvider } from "@azx/ribo-ui-react";
 import { SNUGGPRO_ADAPTER_NAME as ADAPTER } from "@azx/ribo-adapter-snuggpro";
 import { PDFJS_ENGINE } from "@azx/ribo-transcriber-pdfjs";
 import { MANAGED_DOCS_ENGINE } from "@azx/ribo-transcriber-managed-docs";
-import type { Outbox } from "@azx/ribo-core";
+import type { Storage } from "@azx/ribo-core";
 
 import { getCaptureCoordinator } from "./capture-coordinator-handle.js";
 import { ConnectivityPanel } from "./ConnectivityPanel.js";
@@ -40,7 +40,7 @@ import { WorkSafetyPanel } from "./WorkSafetyPanel.js";
  * `connectivity` and `captureCoordinator` are available immediately (their
  * handles construct lazily but synchronously), `outbox` only once `useOutbox()`
  * below resolves its promise. Every panel below the outbox-ready gate resolves
- * what it needs through the provider now, rather than being handed an `Outbox`
+ * what it needs through the provider now, rather than being handed an `Storage`
  * prop by hand.
  *
  * `captureCoordinator` is the durable-capture half of that set, and is what
@@ -147,7 +147,7 @@ export function App() {
 }
 
 type OutboxHandle =
-  { kind: "opening" } | { kind: "error"; message: string } | { kind: "ready"; outbox: Outbox };
+  { kind: "opening" } | { kind: "error"; message: string } | { kind: "ready"; outbox: Storage };
 
 /**
  * Awaits the shared outbox.

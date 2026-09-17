@@ -2,7 +2,7 @@ import { createMemoryBackend } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 import { render, renderHook } from "vitest-browser-react";
 import { StrictMode } from "react";
-import { openOutbox, Recorder, RecorderError } from "@azx/ribo-core";
+import { openStorage, Recorder, RecorderError } from "@azx/ribo-core";
 
 import type { AnyRecorder } from "./context.js";
 import type { UseRecorderResult } from "./use-recorder.js";
@@ -117,7 +117,7 @@ test("scaledLevel follows Math.sqrt of the raw level, pinned at real, non-zero p
 });
 
 test("records, and enqueues the capture on stop by default", async () => {
-  const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+  const outbox = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   const recorder = new Recorder();
   let api: ReturnType<typeof useRecorder> | undefined;
   function Probe() {
@@ -132,7 +132,7 @@ test("records, and enqueues the capture on stop by default", async () => {
 
   // The durability promise: bytes reach disk without the host wiring it up.
   expect(item).toBeDefined();
-  expect(await outbox.get(item!.id)).toBeDefined();
+  expect(await outbox.captures.get(item!.id)).toBeDefined();
   await outbox.close();
 });
 

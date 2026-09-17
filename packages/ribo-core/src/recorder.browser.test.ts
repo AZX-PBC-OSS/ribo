@@ -16,9 +16,9 @@ import {
   holdLock,
   isLockFree,
   openCaptureSession,
-  openOutbox,
-} from "./queue/index.js";
-import type { CaptureSession } from "./queue/index.js";
+  openStorage,
+} from "./storage/index.js";
+import type { CaptureSession } from "./storage/index.js";
 import type { Recording } from "./recording.js";
 
 // Browser mode, not jsdom, and the filename says so: `*.browser.test.ts` is the
@@ -603,7 +603,7 @@ describe("Recorder durable capture", () => {
     // It also pins the identity: `stop()` used to mint a SECOND id and `capturedAt` for
     // the returned capture, so callers were handed metadata describing a different
     // recording than the one on disk.
-    const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+    const outbox = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
     const recorder = new Recorder({
       captureSession: ({
         recording,
@@ -637,7 +637,7 @@ describe("Recorder durable capture", () => {
 
     // The row survives teardown.
     expect(capture.itemId).toBeDefined();
-    const item = await outbox.get(capture.itemId!);
+    const item = await outbox.captures.get(capture.itemId!);
     expect(item).toBeDefined();
     expect(item!.status).toBe("queued");
     expect(item!.audioReady).toBe(true);
@@ -663,7 +663,7 @@ describe("Recorder durable capture", () => {
     );
     expect(held).toBeDefined();
 
-    const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+    const outbox = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
     const factory = ({
       recording,
       sourceId,
@@ -694,7 +694,7 @@ describe("Recorder durable capture", () => {
     // The factory creates the recording row (via openCaptureSession), then
     // recorder.start(timeslice) throws — the catch in start() must teardown,
     // which aborts the session (removing the row) and releases the lock.
-    const outbox = await openOutbox({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+    const outbox = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
     const factory = ({
       recording,
       sourceId,
@@ -722,7 +722,7 @@ describe("Recorder durable capture", () => {
       expect(await isLockFree(CAPTURE_LOCK)).toBe(true);
     });
     await vi.waitFor(async () => {
-      const rows = await outbox.list({ status: ["recording"] });
+      const rows = await outbox.captures.list({ status: ["recording"] });
       expect(rows).toHaveLength(0);
     });
     await outbox.close();

@@ -237,10 +237,10 @@ test("flapping the link around a queued item neither duplicates it, loses it, no
 // the drain no longer ran to completion unaided.
 //
 // The connectivity property this test exists for is untouched by the gate — it
-// is about the link, not the review card — so the fix drives `Outbox.submitReview`
+// is about the link, not the review card — so the fix drives `Storage.submitReview`
 // the same way `extraction-ui.e2e.test.ts` does: through the actual review card,
 // not a page-context call straight into core. There is no app-exposed handle onto
-// the live `Outbox` instance to call `submitReview` on directly without adding new
+// the live `Storage` instance to call `submitReview` on directly without adding new
 // production surface area for it, and this file's own header says every invariant
 // here is asserted "through observable app behaviour ... and never through
 // internals" — clicking the card is that same discipline applied to the gate.
@@ -305,7 +305,7 @@ test("the manual drain runs to completion while offline — the stub steps do no
   await expect(submit.isDisabled()).resolves.toBe(false);
   await submit.click();
 
-  // `Outbox.submitReview` moved the item to `writing`, dropping it out of the
+  // `Storage.submitReview` moved the item to `writing`, dropping it out of the
   // review panel's `awaiting-review` filter.
   await card.waitFor({ state: "detached", timeout: 15_000 });
 

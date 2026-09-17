@@ -1,4 +1,4 @@
-import { isPermanentlyUnavailable, isTransientFailure, TerminalQueueError } from "@azx/ribo-core";
+import { isPermanentlyUnavailable, isTransientFailure, TerminalError } from "@azx/ribo-core";
 import type { DocumentCapture } from "@azx/ribo-core";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -282,7 +282,7 @@ describe("PdfjsTranscriber — cancellation", () => {
     expect(h.destroyCalls).toBe(1);
     // And the classification: terminal, so the queue does not retry a cancelled
     // transcription the way it retries a flaky network.
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect(isTransientFailure(error)).toBe(false);
   });
 
@@ -304,7 +304,7 @@ describe("PdfjsTranscriber — cancellation", () => {
     // Page 2 was never requested — the sweep stopped at the page boundary.
     expect(h.pageCalls).toEqual([1]);
     expect(h.destroyCalls).toBe(1);
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect(isTransientFailure(error)).toBe(false);
   });
 
@@ -317,7 +317,7 @@ describe("PdfjsTranscriber — cancellation", () => {
       .transcribe(capture, new Blob([new Uint8Array(0)]), { signal: controller.signal })
       .catch((e: unknown) => e);
 
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect(h.pageCalls).toEqual([]);
   });
 

@@ -1,11 +1,11 @@
-import type { Outbox, OutboxItem, OutboxQuery } from "@azx/ribo-core";
+import type { Storage, Capture, CaptureQuery } from "@azx/ribo-core";
 import { useEffect, useMemo, useState } from "react";
 
 import { queryFromKey, queryKey } from "./query-key.js";
 import { useRiboInstance } from "./use-ribo-instance.js";
 
-export interface UseOutboxItemsResult {
-  readonly items: readonly OutboxItem[];
+export interface UseCapturesResult {
+  readonly items: readonly Capture[];
   /** No emission has arrived yet. Distinct from an empty queue. */
   readonly loading: boolean;
   readonly error: Error | undefined;
@@ -15,7 +15,7 @@ export interface UseOutboxItemsResult {
  * The outbox as live React state.
  *
  * ```tsx
- * const { items: parked, loading } = useOutboxItems({ status: "awaiting-review" });
+ * const { items: parked, loading } = useCaptures({ status: "awaiting-review" });
  * ```
  *
  * `loading` is load-bearing, not cosmetic: "reading the outbox…" and "nothing in
@@ -23,15 +23,15 @@ export interface UseOutboxItemsResult {
  * on every mount.
  *
  * The query is compared **by value**, not by identity. A caller writing
- * `useOutboxItems({ status: "queued" })` builds a new object every render, and an
+ * `useCaptures({ status: "queued" })` builds a new object every render, and an
  * effect keyed on that object would tear down the RxDB subscription and rebuild it
  * on every single render — a trap a consumer hits immediately and diagnoses slowly.
  *
- * Does not consume `useSubscribed`: `Outbox.watch` is an rxjs `Observable`, not
+ * Does not consume `useSubscribed`: `Storage.watch` is an rxjs `Observable`, not
  * core's callback-subscribe shape, so this hook subscribes directly and tears the
  * subscription down itself on cleanup.
  */
-export function useOutboxItems(query: OutboxQuery = {}, outbox?: Outbox): UseOutboxItemsResult {
+export function useCaptures(query: CaptureQuery = {}, outbox?: Storage): UseCapturesResult {
   const instance = useRiboInstance("outbox", outbox);
   // Serialized rather than deep-compared: the query has two scalar-ish fields, so
   // a string key is cheaper and more obvious than a comparison helper. Key order
@@ -40,17 +40,17 @@ export function useOutboxItems(query: OutboxQuery = {}, outbox?: Outbox): UseOut
   // Known, accepted gap: `status` as an array is compared element-order-sensitively,
   // so `["queued", "failed"]` and `["failed", "queued"]` key differently and
   // needlessly re-subscribe. Every real call site builds `status` from a fixed
-  // literal or a constant array (`ACTIVE_OUTBOX_STATUSES`), never a
+  // literal or a constant array (`ACTIVE_CAPTURE_STATUSES`), never a
   // dynamically-reordered one, so this has no observed impact; sorting the
   // array before serializing would fix it but was judged not worth the extra
   // branch for a case no caller hits.
   // Derived from the query, never enumerated — see `query-key.ts`. This hook
-  // happened to list all three of `OutboxQuery`'s fields, so it was correct by
+  // happened to list all three of `CaptureQuery`'s fields, so it was correct by
   // attention rather than by construction; its sibling was not.
   const key = queryKey(query);
-  const stableQuery = useMemo<OutboxQuery>(() => queryFromKey<OutboxQuery>(key), [key]);
+  const stableQuery = useMemo<CaptureQuery>(() => queryFromKey<CaptureQuery>(key), [key]);
 
-  const [items, setItems] = useState<readonly OutboxItem[]>([]);
+  const [items, setItems] = useState<readonly Capture[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | undefined>(undefined);
 
@@ -75,7 +75,7 @@ export function useOutboxItems(query: OutboxQuery = {}, outbox?: Outbox): UseOut
     // `loading` resolves to `false` for the same reason the `error` callback
     // below sets it to `false`: there is nothing left pending to load.
     try {
-      const subscription = instance.watch(stableQuery).subscribe({
+      const subscription = instance.captures.watch(stableQuery).subscribe({
         next: (next) => {
           setItems(next);
           setLoading(false);

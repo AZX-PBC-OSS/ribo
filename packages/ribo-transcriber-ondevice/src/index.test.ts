@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 
-import { TerminalQueueError, isTransientFailure } from "@azx/ribo-core";
+import { TerminalError, isTransientFailure } from "@azx/ribo-core";
 import type { Recording, Transcriber } from "@azx/ribo-core";
 
 import {
@@ -325,7 +325,7 @@ test("an already-aborted signal rejects as terminal before the worker is even cr
 
   // Terminal, not retryable: the queue must not spend its retry budget on work
   // the caller withdrew.
-  expect(error).toBeInstanceOf(TerminalQueueError);
+  expect(error).toBeInstanceOf(TerminalError);
   expect(isTransientFailure(error)).toBe(false);
   // Nothing was engaged — no worker, so no decode, no postMessage.
   expect(workersCreated).toBe(0);

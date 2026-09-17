@@ -92,8 +92,8 @@ export type { FieldPath } from "./field-path.js";
  * at `awaiting-review` — a status deliberately absent from
  * `ACTIVE_SESSION_STATUSES` — and stops seeing it; the relay drains the next
  * capture instead of blocking. A UI finds parked sessions with an ordinary query
- * (`outbox.watchSessions({ status: "awaiting-review" })`), and
- * `Outbox.submitSessionReview` records the outcome and moves the session to `writing`.
+ * (`outbox.sessions.watch({ status: "awaiting-review" })`), and
+ * `Storage.submitSessionReview` records the outcome and moves the session to `writing`.
  *
  * An earlier design had the relay `await` a `ReviewPresenter.present(request)`
  * promise the UI resolved. It was removed rather than kept unused: the relay

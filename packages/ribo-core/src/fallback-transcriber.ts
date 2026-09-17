@@ -1,4 +1,4 @@
-import type { CaptureItem } from "./capture-item.js";
+import type { CapturePayload } from "./capture-item.js";
 import type { Transcript } from "./transcript.js";
 import {
   applyTranscriptionVerdict,
@@ -44,14 +44,14 @@ export interface FallbackTranscriberOptions {
  *
  * Nothing is stamped onto the result. `Transcript.engine` is already required
  * and set by the implementation that ran, so "which one did?" is answerable off
- * `Outbox.list()` for free. The returned transcript is returned as-is, never
+ * `Storage.list()` for free. The returned transcript is returned as-is, never
  * re-stamped with the wrapper's own engine id.
  *
  * `capability()` on the composite reports the **best** of its delegates, with
  * `firstCapable`'s precedence (`ready` beats `needs-download` beats
  * `unavailable`, first in order within a tier).
  */
-export function fallbackTranscriber<S extends CaptureItem = CaptureItem>(
+export function fallbackTranscriber<S extends CapturePayload = CapturePayload>(
   transcribers: readonly Transcriber<S>[],
   arbiter: TranscriptionArbiter,
   options?: FallbackTranscriberOptions,

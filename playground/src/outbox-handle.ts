@@ -1,8 +1,8 @@
-import { openOutbox, type Outbox } from "@azx/ribo-core";
+import { openStorage, type Storage } from "@azx/ribo-core";
 import { openRxdbBackend } from "@azx/ribo-storage-rxdb";
 
 /**
- * @file One {@link Outbox} per page load, shared by every component and
+ * @file One {@link Storage} per page load, shared by every component and
  * deliberately never closed.
  *
  * Two things want to open a second database over the same IndexedDB name, and
@@ -25,12 +25,12 @@ import { openRxdbBackend } from "@azx/ribo-storage-rxdb";
  */
 
 interface HotData {
-  outbox?: Promise<Outbox>;
+  outbox?: Promise<Storage>;
 }
 
 const hotData = import.meta.hot?.data as HotData | undefined;
 
-let handle: Promise<Outbox> | undefined = hotData?.outbox;
+let handle: Promise<Storage> | undefined = hotData?.outbox;
 
 /**
  * The shared outbox, opening it on first call.
@@ -39,10 +39,10 @@ let handle: Promise<Outbox> | undefined = hotData?.outbox;
  * during StrictMode's double mount share one open, and so this module has no
  * top-level await.
  */
-export function getOutbox(): Promise<Outbox> {
+export function getOutbox(): Promise<Storage> {
   // The production path: core owns the contracts, the backend package owns
   // RxDB. One import, Dexie already wired.
-  handle ??= openRxdbBackend().then((backend) => openOutbox({ backend }));
+  handle ??= openRxdbBackend().then((backend) => openStorage({ backend }));
   if (hotData) hotData.outbox = handle;
   return handle;
 }

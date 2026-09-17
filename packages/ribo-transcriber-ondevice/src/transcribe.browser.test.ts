@@ -2,12 +2,12 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import {
   createRelay,
-  openOutbox,
+  openStorage,
   createMemoryBackend,
   removeMemoryDatabase,
   restrictToKind,
-  TerminalQueueError,
-  type Outbox,
+  TerminalError,
+  type Storage,
   type Recording,
   type SessionExtractStep,
   type SessionWriteStep,
@@ -278,7 +278,7 @@ test("an abort mid-transcription posts cancelTranscribe for the in-flight batch'
   // cancellation (terminal), not as the retryable worker-timeout it would
   // otherwise be classified as.
   const error = await pending.catch((e: unknown) => e);
-  expect(error).toBeInstanceOf(TerminalQueueError);
+  expect(error).toBeInstanceOf(TerminalError);
 });
 
 test("an error reply arriving while the caller's signal is aborted is classified as a cancellation, not an attempt failure", async () => {
@@ -321,7 +321,7 @@ test("an error reply arriving while the caller's signal is aborted is classified
   });
 
   const error = await pending.catch((e: unknown) => e);
-  expect(error).toBeInstanceOf(TerminalQueueError);
+  expect(error).toBeInstanceOf(TerminalError);
 });
 
 // ── relay substitutability: drop-in for FakeTranscriber, zero relay changes ───────────────────────
@@ -333,11 +333,11 @@ afterEach(async () => {
 });
 
 test("the queue relay drives an OnDeviceTranscriber with no changes", async () => {
-  const outbox: Outbox = await openOutbox({ backend: createMemoryBackend(DB_NAME) });
-  const session = await outbox.openSession({ ctx: recording.ctx, ref: "job-7" });
+  const outbox: Storage = await openStorage({ backend: createMemoryBackend(DB_NAME) });
+  const session = await outbox.sessions.open({ ctx: recording.ctx, ref: "job-7" });
   // A real, decodable capture blob — the relay hands this straight to transcribe().
   const audio = wavBlob([constant(0.1, 16_000)], 16_000);
-  const enqueued = await outbox.enqueue({ recording, audio, sessionId: session.id });
+  const enqueued = await outbox.captures.enqueue({ recording, audio, sessionId: session.id });
 
   const transcriber: Transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
@@ -357,7 +357,7 @@ test("the queue relay drives an OnDeviceTranscriber with no changes", async () =
   await relay.syncNow();
   await relay.settled();
 
-  const item = await outbox.get(enqueued.id);
+  const item = await outbox.captures.get(enqueued.id);
   // The transcript the relay persisted carries this engine's provenance (transcript.ts contract).
   expect(item?.transcript).toEqual({
     recordingId: "rec-1",

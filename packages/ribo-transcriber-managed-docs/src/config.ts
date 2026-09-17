@@ -10,7 +10,7 @@
 /**
  * `Transcriber.engine` this implementation stamps onto every `Transcript` it
  * produces. Short and stable across versions — it is persisted data, readable
- * straight off `Outbox.list()` to see the engine mix across a queue.
+ * straight off `Storage.list()` to see the engine mix across a queue.
  *
  * Chosen to parallel `"managed-azure-speech"` (the managed audio transcriber)
  * and to read as distinct from `"pdfjs"` (the on-device document transcriber).

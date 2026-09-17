@@ -16,7 +16,7 @@
  *     the retry budget is derived from that count exactly as the per-group
  *     extractor derives it (`batches = ceil(entries / concurrency)`).
  *   - **Retry.** A transient failure of a group entry's `extract()` is retried
- *     with `fullJitterDelay` up to the derived budget; `TerminalQueueError` is
+ *     with `fullJitterDelay` up to the derived budget; `TerminalError` is
  *     never retried; a `SchemaParseError` stays transient. **The unit of retry
  *     is the group entry's `extract()`**, not the chat call alone — a group
  *     extractor that assembles its own messages re-runs that assembly per
@@ -44,12 +44,12 @@ import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
   fullJitterDelay,
-  TerminalQueueError,
-} from "./queue/backoff.js";
+  TerminalError,
+} from "./storage/backoff.js";
 import { deriveRetryBudget, PER_CALL_CEILING_MS } from "./retry-budget.js";
 import type { RetryBudgetObserver } from "./retry-budget.js";
 import { nextUnitId } from "./extraction-observer.js";
-import type { BackoffOptions } from "./queue/backoff.js";
+import type { BackoffOptions } from "./storage/backoff.js";
 import type { ExtractionObserver, GroupUnit } from "./extraction-observer.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import type {
@@ -107,7 +107,7 @@ export interface GroupedExtractorOptions<V extends Record<string, unknown>, P = 
   /**
    * Max retries per group entry after a transient failure (so the total attempts
    * per entry is `maxRetries + 1`). Terminal failures
-   * (`TerminalQueueError` — truncation, content filtering, refusal,
+   * (`TerminalError` — truncation, content filtering, refusal,
    * unsupported) are never retried and never delay. Defaults to 2, capped by
    * the derived budget — see `deriveRetryBudget`.
    */
@@ -466,12 +466,12 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
                 error: cause,
               });
               // Terminal failures are never retried — a
-              // TerminalQueueError names a deterministic failure
+              // TerminalError names a deterministic failure
               // (truncation, content filtering, refusal, unsupported);
               // re-sending an identical request reproduces it. Retrying
               // would burn the budget for nothing and hide a
               // configuration problem behind a retry storm.
-              if (cause instanceof TerminalQueueError) throw cause;
+              if (cause instanceof TerminalError) throw cause;
               // If aborted — by a sibling's failure or by the caller — don't
               // retry; propagate. A cancellation is not a transient blip.
               if (effectiveSignal.aborted) throw cause;

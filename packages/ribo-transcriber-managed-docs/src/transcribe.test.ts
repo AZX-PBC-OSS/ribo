@@ -1,6 +1,6 @@
 import {
   isTransientFailure,
-  TerminalQueueError,
+  TerminalError,
   TranscriberUnavailableError,
   UnsupportedItemError,
   type DocumentCapture,
@@ -192,8 +192,8 @@ describe("ManagedDocsTranscriber — transcribe", () => {
     expect(isTransientFailure(error)).toBe(false);
   });
 
-  test("a 413 throws UnsupportedItemError with reason unsupported-format (not TerminalQueueError)", async () => {
-    // The managed audio transcriber maps 413 to TerminalQueueError (terminal,
+  test("a 413 throws UnsupportedItemError with reason unsupported-format (not TerminalError)", async () => {
+    // The managed audio transcriber maps 413 to TerminalError (terminal,
     // not routed). Here 413 maps to UnsupportedItemError instead, because this
     // package composes in a fallback ladder: a document too large for the
     // managed service may be within pdf.js's limits.
@@ -346,7 +346,7 @@ describe("ManagedDocsTranscriber — transcribe", () => {
     expect(observed?.aborted).toBe(true);
     // ...and the classification: terminal, so the queue does not retry a
     // cancelled transcription the way it retries a flaky network.
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
     expect(isTransientFailure(error)).toBe(false);
   });
 
@@ -366,7 +366,7 @@ describe("ManagedDocsTranscriber — transcribe", () => {
 
     // The caller withdrew before the call — nothing may reach the network.
     expect(calls).toBe(0);
-    expect(error).toBeInstanceOf(TerminalQueueError);
+    expect(error).toBeInstanceOf(TerminalError);
   });
 
   test("a genuine network failure stays retryable — the cancellation path must not swallow it", async () => {
@@ -377,7 +377,7 @@ describe("ManagedDocsTranscriber — transcribe", () => {
       .transcribe(DOC, BYTES, { signal: new AbortController().signal })
       .catch((e: unknown) => e);
 
-    expect(error).not.toBeInstanceOf(TerminalQueueError);
+    expect(error).not.toBeInstanceOf(TerminalError);
     expect(isTransientFailure(error)).toBe(true);
   });
 });

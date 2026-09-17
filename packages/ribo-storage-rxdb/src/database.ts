@@ -5,12 +5,12 @@ import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 
 import {
-  OUTBOX_COLLECTION_NAME,
+  CAPTURES_COLLECTION_NAME,
   PLUGIN_STORAGE_COLLECTION_NAME,
   SESSION_COLLECTION_NAME,
 } from "@azx/ribo-core";
 import type {
-  OutboxDocument,
+  CaptureDocument,
   PersistedReviewOutcome,
   PluginStorageDocument,
   SessionDocument,
@@ -19,7 +19,7 @@ import type {
 import {
   PLUGIN_STORAGE_MIGRATION_STRATEGIES,
   SESSION_MIGRATION_STRATEGIES,
-  outboxRxSchema,
+  captureRxSchema,
   pluginStorageRxSchema,
   sessionRxSchema,
 } from "./schemas.js";
@@ -27,11 +27,11 @@ import {
 /**
  * The RxDB collection holding the outbox documents.
  *
- * Parameterised by `OutboxDocument` — what is *stored* — not by `OutboxItem`,
+ * Parameterised by `CaptureDocument` — what is *stored* — not by `Capture`,
  * which is the projection consumers see and carries two fields derived from the
  * attachment store rather than from the document.
  */
-export type OutboxCollection = RxCollection<OutboxDocument>;
+export type OutboxCollection = RxCollection<CaptureDocument>;
 
 /**
  * The RxDB collection holding session documents.
@@ -45,7 +45,7 @@ export type SessionCollection = RxCollection<SessionDocument>;
 /**
  * The RxDB collection holding plugin-scoped storage entries — key-value pairs
  * namespaced by plugin id and capture id. Core sweeps entries for a capture
- * when it is dropped or discarded; see `Outbox.pluginStorage`.
+ * when it is dropped or discarded; see `Storage.pluginStorage`.
  */
 export type PluginStorageCollection = RxCollection<PluginStorageDocument>;
 
@@ -77,7 +77,7 @@ export interface LegacySessionFields {
 }
 
 /** Read the migration carrier off a recording document. */
-function legacyOf(doc: OutboxDocument): LegacySessionFields | undefined {
+function legacyOf(doc: CaptureDocument): LegacySessionFields | undefined {
   return doc.legacy;
 }
 
@@ -156,8 +156,8 @@ const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "wri
  *
  * v2 → v3 added `preview` (optional) — identity, for the same reason: an absent
  * optional field needs no transformation. `preview` is written only by
- * `Outbox.writePreviewTail` / `Outbox.commitPreview` and deleted only by
- * `Outbox.writeTranscript`, so pre-v3 documents simply have no preview, which is
+ * `Storage.writePreviewTail` / `Storage.commitPreview` and deleted only by
+ * `Storage.writeTranscript`, so pre-v3 documents simply have no preview, which is
  * the correct state for a recording that was captured before live transcription
  * existed.
  *
@@ -234,12 +234,12 @@ const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "wri
  * Exported (rather than inlined into `addCollections`) so a test can exercise
  * the strategy function directly, independent of a real migration run.
  */
-export const OUTBOX_MIGRATION_STRATEGIES = {
-  1: (doc: OutboxDocument) => doc,
-  2: (doc: OutboxDocument) => doc,
-  3: (doc: OutboxDocument) => doc,
-  4: (doc: OutboxDocument) => doc,
-  5: (doc: OutboxDocument) => doc,
+export const CAPTURE_MIGRATION_STRATEGIES = {
+  1: (doc: CaptureDocument) => doc,
+  2: (doc: CaptureDocument) => doc,
+  3: (doc: CaptureDocument) => doc,
+  4: (doc: CaptureDocument) => doc,
+  5: (doc: CaptureDocument) => doc,
   6: (doc: Record<string, unknown>) => {
     // v5 → v6, the EXPAND half of the split. Per-document, no side effects, and
     // idempotent: running it twice on the same document yields the same result,
@@ -278,9 +278,9 @@ export const OUTBOX_MIGRATION_STRATEGIES = {
     // parameter is `unknown`, so nothing failed; the outbox simply grouped
     // wrongly and silently.
     next.sessionId = migratedSessionId((doc.recording as { ctx?: unknown } | undefined)?.ctx);
-    return next as OutboxDocument;
+    return next as CaptureDocument;
   },
-  7: (doc: OutboxDocument) => doc,
+  7: (doc: CaptureDocument) => doc,
 };
 
 /**
@@ -324,7 +324,7 @@ function registerPlugins(): void {
  * This is only the *default*. A host can inject another `RxStorage` — memory for
  * tests (`rxdb/plugins/storage-memory`), a React-Native/SQLite storage the day
  * the field app leaves the browser — via the `storage` argument threaded down
- * from `openOutbox`. The default is a factory rather than a shared instance so
+ * from `openStorage`. The default is a factory rather than a shared instance so
  * each database gets its own, matching the pre-injection behaviour exactly.
  */
 function defaultStorage(): RxStorage<unknown, unknown> {
@@ -375,9 +375,9 @@ export async function openOutboxDatabase(
     cleanupPolicy: {},
   });
   await database.addCollections({
-    [OUTBOX_COLLECTION_NAME]: {
-      schema: outboxRxSchema,
-      migrationStrategies: OUTBOX_MIGRATION_STRATEGIES,
+    [CAPTURES_COLLECTION_NAME]: {
+      schema: captureRxSchema,
+      migrationStrategies: CAPTURE_MIGRATION_STRATEGIES,
     },
     [SESSION_COLLECTION_NAME]: {
       schema: sessionRxSchema,
@@ -430,11 +430,11 @@ export async function backfillSessions(database: OutboxDatabase): Promise<void> 
   const recordings = await database.collections.outbox.find().exec();
   if (recordings.length === 0) return;
 
-  const groups = new Map<string, RxDocument<OutboxDocument>[]>();
+  const groups = new Map<string, RxDocument<CaptureDocument>[]>();
   for (const doc of recordings) {
     // Only migrated rows carry a legacy bag. A recording enqueued by current
     // code already has a real session and must not be swept into a synthetic one.
-    if (legacyOf(doc.toJSON() as OutboxDocument) === undefined) continue;
+    if (legacyOf(doc.toJSON() as CaptureDocument) === undefined) continue;
     const { sessionId } = doc;
     const group = groups.get(sessionId);
     if (group) group.push(doc);
@@ -442,7 +442,7 @@ export async function backfillSessions(database: OutboxDatabase): Promise<void> 
   }
 
   for (const [sessionId, group] of groups) {
-    const data = group.map((doc) => doc.toJSON() as OutboxDocument);
+    const data = group.map((doc) => doc.toJSON() as CaptureDocument);
     // The idempotency hinge. A crash between the insert below and the clear that
     // follows it leaves the carriers in place with the session already built, so
     // the next open finds this group again — and must leave it alone rather than
@@ -469,9 +469,9 @@ export async function backfillSessions(database: OutboxDatabase): Promise<void> 
 /** Build one session document from every recording that migrated into it. */
 function sessionDocumentFromMigratedGroup(
   sessionId: string,
-  group: readonly OutboxDocument[],
+  group: readonly CaptureDocument[],
 ): SessionDocument {
-  const bagOf = (doc: OutboxDocument): LegacySessionFields => legacyOf(doc) ?? {};
+  const bagOf = (doc: CaptureDocument): LegacySessionFields => legacyOf(doc) ?? {};
   const bySeq = [...group].sort((a, b) => a.seq - b.seq);
 
   // The extraction can be on any recording. Prefer the one the human actually

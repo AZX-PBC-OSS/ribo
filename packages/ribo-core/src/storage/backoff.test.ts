@@ -6,7 +6,7 @@ import {
   DEFAULT_BACKOFF_CAP_MS,
   fullJitterDelay,
   isTransientFailure,
-  TerminalQueueError,
+  TerminalError,
 } from "./backoff.js";
 
 // Pure arithmetic and pure classification — no storage, no browser API. This is
@@ -92,15 +92,15 @@ describe("isTransientFailure", () => {
     expect(isTransientFailure("not even an error")).toBe(true);
   });
 
-  test("honours an explicit TerminalQueueError whatever its status looks like", () => {
-    expect(isTransientFailure(new TerminalQueueError("audio is gone"))).toBe(false);
-    expect(isTransientFailure(Object.assign(new TerminalQueueError("nope"), { status: 503 }))).toBe(
+  test("honours an explicit TerminalError whatever its status looks like", () => {
+    expect(isTransientFailure(new TerminalError("audio is gone"))).toBe(false);
+    expect(isTransientFailure(Object.assign(new TerminalError("nope"), { status: 503 }))).toBe(
       false,
     );
   });
 
   test("treats a SchemaParseError as transient — a sampled miss can pass on re-send", () => {
-    // A schema parse error is deliberately not a TerminalQueueError. The same
+    // A schema parse error is deliberately not a TerminalError. The same
     // request can fail zod once and pass on re-send, so the queue must keep
     // retrying it rather than marking the recording dead.
     expect(isTransientFailure(new SchemaParseError("did not match the schema"))).toBe(true);

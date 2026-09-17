@@ -4,7 +4,7 @@ import {
   type CompositeTranscriber,
   type EngineCapability,
 } from "./first-capable.js";
-import { TerminalQueueError } from "./queue/backoff.js";
+import { TerminalError } from "./storage/backoff.js";
 import type { Recording } from "./recording.js";
 import type { Transcript } from "./transcript.js";
 import {
@@ -538,14 +538,14 @@ function describe({ engine, capability }: EngineCapability): string {
 
 /**
  * Nothing was ready. Same retry decision as `firstCapable`'s `noneCapable`:
- * every engine permanently unavailable → `TerminalQueueError` (stop
+ * every engine permanently unavailable → `TerminalError` (stop
  * retrying); anything else → `TranscriberUnavailableError` (retry on next
  * drain).
  */
 function noneReady(engine: string, skipped: readonly EngineCapability[]): Error {
   const summary = `no transcriber is ready — ${skipped.map(describe).join("; ")}`;
   if (skipped.every((report) => isPermanentlyUnavailable(report.capability))) {
-    return new TerminalQueueError(summary);
+    return new TerminalError(summary);
   }
   return new TranscriberUnavailableError({
     engine,

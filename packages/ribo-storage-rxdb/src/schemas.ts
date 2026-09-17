@@ -1,6 +1,6 @@
 import type { RxJsonSchema } from "rxdb";
 
-import type { OutboxDocument, PluginStorageDocument, SessionDocument } from "@azx/ribo-core";
+import type { CaptureDocument, PluginStorageDocument, SessionDocument } from "@azx/ribo-core";
 
 /**
  * @file The RxDB schema layer: the hand-written JSON schemas and the migration
@@ -32,7 +32,7 @@ import type { OutboxDocument, PluginStorageDocument, SessionDocument } from "@az
  * fixed-width index keys. `schema.test.ts` pins the two descriptions of the same
  * document against each other so they cannot drift apart unnoticed.
  */
-export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
+export const captureRxSchema: RxJsonSchema<CaptureDocument> = {
   version: 7,
   primaryKey: "id",
   type: "object",
@@ -52,7 +52,7 @@ export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
     // Migration-only carrier: the v5 session-level fields, held on the recording
     // by the v6 (expand) migration until `backfillSessions` lifts them onto a
     // session document and clears it. Transient — no row keeps it past the open
-    // that migrated it. See `OUTBOX_MIGRATION_STRATEGIES`.
+    // that migrated it. See `CAPTURE_MIGRATION_STRATEGIES`.
     legacy: { type: "object" },
   },
   required: [
@@ -98,7 +98,7 @@ export const outboxRxSchema: RxJsonSchema<OutboxDocument> = {
  * outbox exists to protect. That is not a migration, and "the new field is
  * optional so no data needs transforming" does not reach it — that answers the
  * data question and leaves the schema question unasked. This is the same
- * reasoning `OUTBOX_MIGRATION_STRATEGIES` records for its own identity steps
+ * reasoning `CAPTURE_MIGRATION_STRATEGIES` records for its own identity steps
  * (v1→v2, v2→v3, v3→v4 `extractedBy`, v4→v5): declared and exercised rather
  * than skipped, so the migration path exists and is proven to run.
  */
@@ -173,7 +173,7 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
  *
  * The collection starts at version 0, so no strategies are needed yet. When a
  * future change adds or removes a field, the version bumps and a strategy is
- * added here — the same pattern `OUTBOX_MIGRATION_STRATEGIES` and
+ * added here — the same pattern `CAPTURE_MIGRATION_STRATEGIES` and
  * `SESSION_MIGRATION_STRATEGIES` follow. Declared and exported rather than
  * inlined so a test can exercise it directly.
  */

@@ -40,10 +40,10 @@ import type { TranscriberCapability } from "./transcriber.js";
  *
  * - `"tail"` — provisional text for the current growing region. Replaces the
  *   previous tail wholesale; never appended to. The host renders it as still
- *   being revised and stores it via `Outbox.writePreviewTail`.
+ *   being revised and stores it via `Storage.writePreviewTail`.
  * - `"commit"` — permanent text for a committed region. Appended to the
  *   committed list; never revised. The host renders it as settled and stores it
- *   via `Outbox.commitPreview`.
+ *   via `Storage.commitPreview`.
  */
 export type LiveSegmentKind = "tail" | "commit";
 
@@ -111,7 +111,7 @@ export interface LiveSession {
   /**
    * One emission per transcribed region — a {@link LiveSegment} carrying the
    * text and whether it is a provisional tail or a permanent commit. Internal
-   * to core: the host app reads preview text through `Outbox.watch()`, not by
+   * to core: the host app reads preview text through `Storage.watch()`, not by
    * subscribing here directly.
    *
    * **Stays open after `close()`** so the worker's final drain — transcribing
