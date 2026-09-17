@@ -37,7 +37,9 @@
 
 - [ ] **Step 1: Write the failing tests**
 
-  In `cancellation.test.ts`, assert that: a `new CancellationError("...")` satisfies `isCancellation`; a plain `new Error("...")` does not; an object carrying `{ [CANCELLATION]: true }` does (the foreign-error case — construct a plain `Error` and assign the branded property, which is what `ChatError` will do in Task 4); a `DOMException` with name `"AbortError"` does (the native case a `fetch` abort produces); `isCancellation(new Error("x"), signal)` is `true` when `signal.aborted` is true and `false` when it is not; and `isCancellation(undefined)` and `isCancellation(null)` are both `false` rather than throwing. Also assert `CancellationError` keeps a useful `message` and that its `name` is `"CancellationError"`.
+  In `cancellation.test.ts`, assert that: a `new CancellationError("...")` satisfies `isCancellation`; a plain `new Error("...")` does not; an object carrying a truthy `[CANCELLATION]` **own** property does (the foreign-error case — construct a plain `Error` and assign the branded property, which is what `ChatError` will do in Task 4); an object carrying `[CANCELLATION]: undefined` as an own property does **not** (this is the case Task 4's TypeScript mechanics can accidentally create on every instance — see that task); a `DOMException` with name `"AbortError"` does; `isCancellation(new Error("x"), signal)` is `true` when `signal.aborted` is true and `false` when it is not; and `isCancellation(undefined)`, `isCancellation(null)` and `isCancellation("a string")` are all `false` rather than throwing. Assert `CancellationError`'s `name` is `"CancellationError"` and its `message` survives.
+
+  **Pin the never-throws contract with hostile inputs, not prose.** Add: a `Proxy` whose `get` trap throws; a `Proxy` whose `has` and `getOwnPropertyDescriptor` traps throw; and a plain object with a `[CANCELLATION]` accessor whose getter throws. Each must return `false`, not propagate. These are the cases that turn a predicate called from a `catch` block into a bug that replaces the caller's original error with an unrelated one.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -46,7 +48,15 @@
 
 - [ ] **Step 3: Implement the module**
 
-  Export the symbol, the class and the predicate. The predicate checks three things in order: the passed signal's `aborted` flag when a signal was given; the brand as an own or inherited property on a non-null object; and a `DOMException` whose `name` is `"AbortError"`. Guard the property read behind a `typeof error === "object" && error !== null` check so a string or `undefined` returns `false` instead of throwing — the predicate is called from catch blocks and must never itself throw. Declare the brand property as optional on an exported interface so a TypeScript author can set it without a cast.
+  Export the symbol, the class and the predicate. The predicate checks, in order: the passed signal's `aborted` flag when a signal was given; a truthy `[CANCELLATION]` **own** property on a non-null object; and an error whose `name` is `"AbortError"`.
+
+  Three implementation requirements, each answering a way the obvious version breaks:
+
+  - **Wrap the entire body in `try { … } catch { return false; }`.** A `typeof`/null guard is not enough: a property read on a `Proxy` invokes its traps, and `Object.prototype.hasOwnProperty.call` invokes `getOwnPropertyDescriptor`. The try/catch is the only construct that actually delivers "never throws" for arbitrary input, and this predicate runs inside catch blocks where throwing would destroy the error being handled.
+  - **Own property, and truthy.** Not `in`, which walks the prototype chain for no benefit — Task 4 brands instances in a factory, never a prototype — and widens the surface where a trap can fire. Truthy rather than present, because `useDefineForClassFields` can put an own `[CANCELLATION]: undefined` on every instance of a class that merely declares the field.
+  - **Duck-check `name === "AbortError"`, not `instanceof DOMException`.** A `DOMException` crossing a realm boundary (iframe, worker) fails `instanceof` against the local constructor — and a worker boundary is exactly where this repo's on-device transport lives, so the native case this check exists for is the one `instanceof` would miss.
+
+  Declare the brand property as optional on an exported interface so a TypeScript author can set it without a cast.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -76,11 +86,17 @@
 - Consumes: `isCancellation` from Task 1.
 - Produces: `retryExtractor<F>(extractor: Extractor<F>, options?: RetryExtractorOptions): Extractor<F>`. `RetryExtractorOptions` carries `maxRetries?: number` (default 2, matching `GroupedExtractorOptions`), `delay?: (ms: number) => Promise<void>` and the existing `BackoffOptions` members. The `delay` member takes the **already-computed** `fullJitterDelay` result in milliseconds, exactly as `GroupedExtractorOptions.delay` does — a caller that wants no backoff passes a function that ignores its argument and resolves immediately, which is how the on-device preset will disable backoff in Wave 6.
 
-**The retry rules, in the order they are checked.** Before each attempt, if the caller's signal has already aborted, throw without starting the attempt and without counting it — the invariant `three-phase-extractor.ts:377-386` repeats at four sites and explains: an attempt that never ran must not appear in the attempt count. After a failure: a `TerminalQueueError` is rethrown untouched; a cancellation (per Task 1's predicate, consulted with the caller's signal) is rethrown untouched; a failure for which `isTransientFailure` returns `false` is rethrown untouched; anything else is retried until `maxRetries` is exhausted, after which the last error is rethrown. A `SchemaParseError` is retried, because `isTransientFailure` already returns `true` for it and the design keeps that.
+**The retry rules, in the order they are checked.** Before each attempt, if the caller's signal has already aborted, throw a `CancellationError` without starting the attempt and without counting it — the invariant `three-phase-extractor.ts:377-386` repeats at four sites and explains: an attempt that never ran must not appear in the attempt count. On attempt zero there is no previous error to rethrow, which is why this throws a fresh `CancellationError` rather than a captured one. After a failure: a `TerminalQueueError` is rethrown untouched; a cancellation (per Task 1's predicate, consulted with the caller's signal) is rethrown untouched; a failure for which `isTransientFailure` returns `false` is rethrown untouched; anything else is retried until `maxRetries` is exhausted, after which the last error is rethrown. A `SchemaParseError` is retried, because `isTransientFailure` already returns `true` for it and the design keeps that.
+
+**Usage across attempts — the semantics this combinator has to choose.** `ExtractionUsage.calls` is documented as "Model calls made, **including retries**" (`extractor.ts:41`), and `grouped-extractor.ts:428` — the loop this generalizes — sums `usage.calls` across attempts. `retryExtractor` follows suit: on a **retried** success it returns a new result whose `usage.calls` is the sum over every attempt that reported one, preserving all other usage members from the accepted attempt. On a **first-attempt** success it returns the inner result object unchanged, by identity, because there is nothing to sum and rebuilding would break the passthrough guarantee downstream consumers rely on. A failed attempt that rejects reports no usage and contributes nothing; only attempts that returned a result can.
 
 - [ ] **Step 1: Write the failing tests**
 
-  In `retry-extractor.test.ts`, drive a stub `Extractor` whose `extract` is backed by a scripted queue of outcomes, with an injected `delay` that records the milliseconds it was asked to wait and resolves immediately. Assert: a first-attempt success calls the inner extractor once and returns its result unchanged, including `usage` and `raw` by identity; a transient failure followed by a success calls twice and returns the second result; exhausting `maxRetries` rejects with the **last** error, not the first; a `TerminalQueueError` rejects immediately after one call; a `CancellationError` rejects immediately after one call; a 400-status error rejects immediately after one call (`isTransientFailure` is false); a `SchemaParseError` **is** retried; the `delay` function is called once per retry and never before the first attempt; the recorded delays are non-decreasing in expectation given a stubbed random (assert simply that `delay` was called with a number, not an exact value, since `fullJitterDelay` is randomised); and an already-aborted signal passed in `options` rejects without calling the inner extractor at all. Finally, assert the caller's `ExtractOptions` — signal included — is forwarded to the inner extractor on every attempt, using `FakeExtractor`'s `callOptions` recorder, which exists precisely so a dropped forward is visible.
+  In `retry-extractor.test.ts`, drive a stub `Extractor` whose `extract` is backed by a scripted queue of outcomes and which **records the options it was called with on every call** — `FakeExtractor` cannot serve here, because it always resolves and so can never produce a second attempt. Inject a `delay` that records the milliseconds it was asked to wait and resolves immediately.
+
+  Assert: a first-attempt success calls the inner extractor once and returns its result unchanged, **by identity** (`toBe`); a transient failure followed by a success calls twice and returns the second attempt's fields; exhausting `maxRetries` rejects with the **last** error, not the first; a `TerminalQueueError` rejects immediately after one call; a `CancellationError` rejects immediately after one call; a 400-status error rejects immediately after one call (`isTransientFailure` is false); a `SchemaParseError` **is** retried; the `delay` function is called once per retry and never before the first attempt; `delay` receives a number (not an exact value — `fullJitterDelay` is randomised); an already-aborted signal rejects with a `CancellationError` without calling the inner extractor at all; and the caller's `ExtractOptions`, signal included, reaches the stub on **every** attempt.
+
+  Pin the usage rule both ways: a first-attempt success returns the inner `usage` object by identity, and a success on the third attempt reports `usage.calls` equal to the sum across the attempts that returned one.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -116,13 +132,21 @@
 
 - Produces: `timeoutExtractor<F>(extractor: Extractor<F>, options: TimeoutExtractorOptions): Extractor<F>`. `TimeoutExtractorOptions` carries `timeoutMs: number` (required — a timeout combinator with a default timeout is a trap) and `scheduleTimer?: ScheduleTimer`, reusing the injectable timer type already exported from `connectivity.ts` and used by `hedged.ts`, so tests drive time without sleeping. Also produces `ExtractionTimeoutError`.
 
-**The decision this task encodes, which is not obvious.** When the timer fires, the inner extractor is aborted — and the inner extractor will typically reject with its own cancellation-branded error as a result. `timeoutExtractor` must **replace** that with an `ExtractionTimeoutError` when its own timer is what fired, rather than letting the inner cancellation propagate. Two reasons. First, they are different events: a caller cancelled versus a deadline elapsed, and a consumer that cannot distinguish them cannot report either honestly. Second, `ExtractionTimeoutError` is deliberately **not** cancellation-branded, so `isTransientFailure` treats it as transient (the unrecognised-error default) and an **outer** `retryExtractor` will retry it — which is the useful composition, a per-attempt deadline with retries around it. A cancellation-branded timeout would make that composition silently do nothing.
+**Shape: a `Promise.race`, following `withTimeout`.** The deadline must hold even against an inner extractor that ignores its signal — that is the whole point of a timeout, and it is why the relay's own `withTimeout` (`relay.ts:198-221`) races the work against a timer promise rather than awaiting the work and converting afterwards. An await-then-convert shape cannot reject until the inner settles, so a hung inner hangs the combinator forever. Copy `withTimeout`'s ordering too: fire the abort **before** rejecting, so anything the signal cancels is already unwinding when the caller sees the timeout.
 
-When the caller's own signal aborts, the inner rejection passes through untouched: that is a real cancellation and must stay one.
+**Reap the losing promise.** When the timer wins, the inner promise is still outstanding and will often reject once its abort lands. An unhandled rejection fails the suite; `hedged.ts:233-234` documents this exact trap for the same reason. Attach a no-op catch to the inner promise at the point the race is set up, not conditionally afterwards.
+
+**The error the caller sees, and why it is not cancellation-branded.** A deadline elapsing and a caller cancelling are different events, and a consumer that cannot tell them apart can report neither honestly. `ExtractionTimeoutError` is deliberately **not** branded, so `isTransientFailure` treats it as transient (the unrecognised-error default) and an **outer** `retryExtractor` will retry it — a per-attempt deadline with retries around it, which is the composition worth having. A cancellation-branded timeout would make that composition silently do nothing.
+
+**Precedence when both happen.** If the caller's signal has aborted, the caller's cancellation wins, whatever the timer did — first aborter wins, matching `AbortSignal.any`'s own reason semantics, and misreporting a user's cancel as a deadline would be a lie in the direction that hides a user action. So: on rejection, if the caller's signal is aborted, propagate the inner error untouched; only when the caller's signal is intact does a fired timer produce `ExtractionTimeoutError`.
 
 - [ ] **Step 1: Write the failing tests**
 
-  In `timeout-extractor.test.ts`, with an injected `scheduleTimer` that captures the callback rather than scheduling it, assert: an inner extractor that resolves before the timer fires returns its result unchanged and the timer is cleared (assert the captured clear function was called); firing the timer rejects with `ExtractionTimeoutError`, whose message names the elapsed budget; when the timer fires, the signal handed to the inner extractor is aborted (capture it via `FakeExtractor.callOptions`); an inner extractor that rejects with its own cancellation-branded error **after** the timer fired still surfaces as `ExtractionTimeoutError`, not as the inner error; `isCancellation(new ExtractionTimeoutError(...))` is `false`; and when the **caller's** signal aborts, the inner cancellation propagates unchanged rather than being converted to a timeout. Also assert that a caller-supplied signal and the timeout's own signal are combined, so the inner extractor sees a signal that aborts on either — drive both directions.
+  In `timeout-extractor.test.ts`, inject a `scheduleTimer` that captures the callback rather than scheduling it, so tests fire the timer on demand. Most cases need a **hand-written pending stub** whose `extract` returns a promise that stays pending until the test resolves or rejects it, and which records the options it received — `FakeExtractor` resolves immediately, so it can only serve the success-path case and cannot be held pending while the timer fires.
+
+  Assert: an inner extractor that resolves before the timer fires returns its result unchanged and the captured clear function was called; the clear function is **also** called when the inner rejects, and when the timer fires; firing the timer rejects with `ExtractionTimeoutError` whose message names the budget, **even though the pending stub never settles** (this is the test that distinguishes the race shape from an await-then-convert shape, and it is the reason for the shape); when the timer fires, the signal the stub received is already aborted at the moment of rejection; a stub that rejects with its own cancellation-branded error *after* the timer fired still surfaces as `ExtractionTimeoutError`; `isCancellation(new ExtractionTimeoutError(...))` is `false`; when the **caller's** signal aborts, the inner cancellation propagates unchanged rather than becoming a timeout; and — the race the plan previously left unpinned — when the caller's signal aborts **and** the timer fires in the same tick, the caller's cancellation wins, asserted in **both** firing orders.
+
+  Assert no unhandled rejection is produced when the timer wins and the inner later rejects. Assert a non-positive `timeoutMs` is rejected at construction, naming the value, as `fullJitterDelay` validates its own input (`backoff.ts:36-40`).
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -131,7 +155,7 @@ When the caller's own signal aborts, the inner rejection passes through untouche
 
 - [ ] **Step 3: Implement the combinator**
 
-  Combine the caller's signal with the timeout controller's using `AbortSignal.any`, never `??` — `grouped-extractor.ts` documents that exact trap, where a caller-supplied signal silently replaces the combinator's own and disables it. Track whether the timer fired in a closure flag so the catch block can distinguish a timeout from a caller cancellation. Always clear the timer, on the success path and both failure paths.
+  Race the inner `extract()` against a timer promise, as `withTimeout` does. Combine the caller's signal with the timeout controller's using `AbortSignal.any`, never `??` — `grouped-extractor.ts:360-364` documents that exact trap, where a caller-supplied signal silently replaces the combinator's own and disables it. Attach the no-op catch to the inner promise where the race is built. Clear the timer in a `finally`, so every path clears it. Apply the caller-signal precedence rule above before converting anything to a timeout.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -171,6 +195,10 @@ When the caller's own signal aborts, the inner rejection passes through untouche
 - [ ] **Step 3: Set the brand in the `aborted` factory only**
 
   Set the branded property in the `aborted` static factory, not in the constructor and not on the prototype. Import the symbol from `@azx/ribo-core` — the dependency already exists in this package's `package.json`.
+
+  **The TypeScript mechanics here are a trap and must be followed exactly.** Implementing the brand interface does not give the class a settable member — `implements` creates nothing. But a plain field declaration is worse: the repo targets ES2023 (`packages/tsconfig/base.json:4`), so `useDefineForClassFields` is on and a declared field **defines an own `[CANCELLATION]: undefined` on every `ChatError` instance**, including transport failures. Paired with a presence-based predicate that would mark every chat error as a cancellation and silently disable retries across the whole extraction path — which is why Task 1's predicate checks truthiness and Task 1's tests pin the `undefined`-own-property case.
+
+  So: declare the member with `declare` (emitting no field initialiser) and **not** `readonly` (a `readonly` declaration makes the factory's assignment fail with TS2540), then assign it in the factory.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -220,3 +248,23 @@ When the caller's own signal aborts, the inner rejection passes through untouche
 ## Notes for the reviewer
 
 The two things most worth adversarial attention: whether Task 1's predicate can be fooled or made to throw by a hostile input reaching it from a catch block, and whether Task 3's timer-fired-versus-caller-aborted discrimination actually holds under a race where both happen in the same tick.
+
+## Reviewed
+
+Reviewed by OpenCode (`glm-5p3-flash`, run 80c8) before implementation. All eight findings applied.
+The substantive ones: Task 3's original prose specified an await-then-convert shape whose deadline
+would not bound a non-cooperating inner extractor, and whose described tests could not pass under
+that shape — it is now a `Promise.race` following `withTimeout` (`relay.ts:198-221`), with the
+losing promise reaped; Task 3's timer-versus-caller race was undefined and could misreport a user's
+cancellation as a deadline — caller precedence is now specified and pinned in both firing orders;
+Task 1's "never throws" was asserted in prose but achievable only with a total `try`/`catch`, since a
+`Proxy` trap or a throwing getter defeats a `typeof` guard, and `instanceof DOMException` misses the
+cross-realm case that is the whole reason for the check; Task 2 left usage-across-retries
+unspecified against a documented "including retries" invariant; Task 2's forwarding test named
+`FakeExtractor`, which cannot fail on cue and so can never produce a second attempt; and Task 4's
+class-field mechanics would, under this repo's ES2023 target, have branded every `ChatError`.
+
+The review independently verified the plan's load-bearing claim — that `isTransientFailure` must not
+change — against `extraction-common.ts:246`, `docs/guide/extraction.md:46`, `single-shot.test.ts:362-376`
+and the relay's own classification path, and confirmed Task 4 is additive for every existing consumer
+of aborted errors.
