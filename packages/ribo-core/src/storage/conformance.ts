@@ -16,6 +16,22 @@ import type { EntryScopeKind, StorageBackend, StoredDocument } from "./port.js";
  * Framework-agnostic on purpose. It imports no test runner; `describe`, `it` and
  * `expect` arrive as arguments, so a backend author on any runner can use it and
  * this package needs no test-framework peer dependency.
+ *
+ * ## What these tests can and cannot catch
+ *
+ * Each obligation's test was verified by breaking it, and the exercise found
+ * something worth writing down: **a violation is only observable across an await
+ * boundary.** A backend that publishes a change and then writes the blob
+ * *synchronously* satisfies obligation 1, because no subscriber can run in
+ * between; the same code with an `await` before the blob write fails. The same
+ * held for obligation 6 — a synchronous read-highest-then-insert cannot race in
+ * a single-threaded runtime, and only yields wrong sequences once it yields.
+ *
+ * So these tests bite exactly where the hazard is real: a backend that touches
+ * IndexedDB, a socket or a file. Do not read a green run against a trivially
+ * synchronous backend as strong evidence — it is evidence that backend is
+ * correct, not that the test would catch an asynchronous one. It would; that was
+ * checked.
  */
 
 /** The subset of a matcher API this kit uses. Structural, so any runner's `expect` satisfies it. */

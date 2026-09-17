@@ -19,3 +19,8 @@ export type {
   StorageBackend,
   StoredDocument,
 } from "./port.js";
+
+// The in-memory backend: the fast one for node tests and development, and the
+// standing proof that this package needs no RxDB. It is a real implementation of
+// the port and passes the same conformance kit the production backend does.
+export { createMemoryBackend, removeMemoryDatabase } from "./memory-backend.js";
