@@ -1,7 +1,12 @@
 # Phased extraction: a pass is a value, and a strategy is a list of them
 
 **Date:** 2026-09-16
-**Status:** Draft — revised after review. No implementation plan written yet.
+**Status:** Implemented. Eight wave-plan files live beside this document — waves 1, 2, 3a, 3b, 4, 5,
+6 and 7, wave 3 having been split into 3a (vocabulary) and 3b (engine). Waves 1–6 have shipped: the
+phase vocabulary and `phasedExtractor` engine in `@azx/ribo-core`, and all three strategies
+(`gapFillExtractor`, `scopedInstanceExtractor`, `threePhaseExtractor`) ported onto it as presets.
+Wave 7 is the documentation pass. The one item still outstanding is the acceptance-gate run — how to
+run it is written up in [phased-extraction-acceptance.md](phased-extraction-acceptance.md).
 **Question answered:** "We have a phased extractor as an example — generalize the concept. What are
 all the generally useful meta extractors, transcribers and combiners? And an agentic extractor that
 plans and executes."
