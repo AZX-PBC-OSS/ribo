@@ -78,7 +78,7 @@ export function toWriteStep<V extends Record<string, unknown>, C>(
         `session ${session.id}: its ctx is not a valid write context for the ` +
           `"${adapter.name}" adapter — ${describeLocated(zodIssues(parsedCtx.error))}. The context is set ` +
           "at session open and cannot be repaired by retrying; check what the host passed to " +
-          "`Storage.openSession`.",
+          "`storage.sessions.open`.",
       );
     }
 

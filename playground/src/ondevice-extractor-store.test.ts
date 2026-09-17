@@ -37,7 +37,7 @@ import {
  *    and probing the store must never call `create()`.
  * 3. The prime action forwards progress events so the UI can render them.
  * 4. An item extracted on-device is distinguishable: the composite stamps
- *    `usage.engine` as `ondevice-chat`, which reaches the outbox as
+ *    `usage.engine` as `ondevice-chat`, which reaches the storage as
  *    `extractedBy`.
  * 5. A connectivity transition invalidates the composite's capability cache.
  *

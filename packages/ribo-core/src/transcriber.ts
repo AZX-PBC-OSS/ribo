@@ -121,7 +121,7 @@ export interface TranscribeOptions {
   readonly signal?: AbortSignal;
   /**
    * The plugin-storage handle for **this capture**, supplied by the caller that has one — the
-   * relay, which drains captures through an outbox. A host driving a transcriber by hand has
+   * relay, which drains captures through storage. A host driving a transcriber by hand has
    * none to give, so the member is optional and an implementation that needs storage must
    * handle its absence rather than assume it.
    *
@@ -187,7 +187,7 @@ export interface TranscribeOptions {
 export interface Transcriber<S extends CapturePayload = Recording> {
   /**
    * Stable, opaque id for this engine. Goes into every `Transcript.engine` it produces, so it
-   * ends up persisted in the outbox — keep it short and stable across versions.
+   * ends up persisted in the storage — keep it short and stable across versions.
    */
   readonly engine: string;
 

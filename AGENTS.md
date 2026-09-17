@@ -397,13 +397,16 @@ same optional storage and must be handed the **same** engine the database was op
 `removeRxDatabase` deletes through the storage's own on-disk layout, so a memory-opened database
 cannot be removed via Dexie and vice versa.
 
-This is the cheap, high-value seam: a host chooses where storage lives — memory
-(`rxdb/plugins/storage-memory`) for fast, browser-free tests, Dexie for the browser field app, a
-React-Native/SQLite `RxStorage` the day the app leaves the browser — **without touching the
-`Storage` class or its durability logic**. The memory path is exercised by
-`packages/ribo-core/src/queue/storage-memory.test.ts` (a node `unit` test, since memory storage needs
-no IndexedDB). The Dexie durability test in `storage.browser.test.ts` stays on real IndexedDB on
-purpose — memory storage would fake the very persistence it proves.
+Two backends exist and both pass the kit. The memory one is exercised by
+`packages/ribo-core/src/storage/no-rxdb.test.ts` — a node `unit` test whose point is in its name:
+it drives the whole public API with nothing in its import graph that touches RxDB, so a regression
+that dragged a storage engine back into core fails to resolve rather than being noticed in review.
+
+The durability tests stay on real IndexedDB in `@azx/ribo-storage-rxdb`
+(`outbox-durability.browser.test.ts`, `plugin-storage-durability.browser.test.ts`) **on purpose**:
+they assert that bytes reach disk and survive a reopen, and the memory backend is durable across a
+close-and-reopen too — obligation 2 requires it — so running them there would pass while proving
+something else entirely. When a test's header says memory would fake the property, believe it.
 
 **This was deferred once, on the reasoning that a contract with one implementation locks in that
 implementation's shape while pretending not to.** That reasoning was sound, and the premise it

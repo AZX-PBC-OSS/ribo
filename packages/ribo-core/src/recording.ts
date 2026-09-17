@@ -25,7 +25,7 @@ import { captureFields } from "./capture-fields.js";
  *
  * The session is now authoritative for the write destination (`SessionDocument.ctx`,
  * set at `openSession`); nothing reads `Recording.ctx` for writing. This field is the
- * capture-time copy and stays because it lives on the v6 outbox collection with real
+ * capture-time copy and stays because it lives on the v6 storage collection with real
  * user data — deleting it would mean a migration on the one collection where migrations hurt.
  *
  * It is deliberately **not** `ctx: unknown`. An untyped hole hides host coupling from the type

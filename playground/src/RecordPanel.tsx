@@ -21,7 +21,7 @@ const METER_HEIGHT = 14;
 export function RecordPanel() {
   const { phase, elapsedMs, level, scaledLevel, busy, error, toggle, pause, resume } =
     useRecorder();
-  // The recording row is already in the outbox (durable capture inserts it at
+  // The recording row is already in the storage (durable capture inserts it at
   // `start()`), so `useCaptures` delivers its `preview` reactively — no new
   // subscription mechanism is added (design §Delivery). `preview` is absent
   // before the first utterance closes and after the batch transcript lands.

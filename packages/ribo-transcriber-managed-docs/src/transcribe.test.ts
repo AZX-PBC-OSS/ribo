@@ -94,7 +94,7 @@ describe("ManagedDocsTranscriber — transcribe", () => {
   test("HTML entities in the response content are decoded to literal characters", async () => {
     // Transcript.text holds rendered text, not escaped markup. A managed document
     // understanding API may return content with HTML entities (e.g. &amp;), so
-    // decoding happens at the transcriber before the text reaches the outbox.
+    // decoding happens at the transcriber before the text reaches the storage.
     const body = {
       pages: [
         {

@@ -5,12 +5,12 @@ import { render } from "vitest-browser-react";
 import { StrictMode, useState } from "react";
 import { openStorage } from "@azx/ribo-core";
 
-import { useCaptures } from "./use-outbox-items.js";
+import { useCaptures } from "./use-captures.js";
 
 // vitest-browser-react@2.2.0's `render` is async — see context.browser.test.tsx.
 // Every render below is awaited.
 
-/** The shape `Storage.watch` returns, spelled out so tests can fake it without
+/** The shape `storage.captures.watch` returns, spelled out so tests can fake it without
  * importing `rxjs` directly — `@azx/ribo-ui-react` has no dependency on it, only
  * `@azx/ribo-core` does. */
 type WatchObservable = ReturnType<CaptureStore["watch"]>;
@@ -33,65 +33,65 @@ const aRecording = () => ({
 });
 
 test("loading is a real state, distinct from empty", async () => {
-  // A UI must be able to say "reading the outbox…" rather than flashing "nothing
+  // A UI must be able to say "reading the storage…" rather than flashing "nothing
   // here" before the first emission — the playground's ReviewPanel already draws
   // this distinction and it matters.
-  const outbox = await freshOutbox();
+  const storage = await freshOutbox();
   const seen: { loading: boolean; count: number }[] = [];
   function Probe() {
-    const { items, loading } = useCaptures({}, outbox);
+    const { items, loading } = useCaptures({}, storage);
     seen.push({ loading, count: items.length });
     return null;
   }
   await render(<Probe />);
   expect(seen[0]).toEqual({ loading: true, count: 0 });
   await vi.waitFor(() => expect(seen.at(-1)).toEqual({ loading: false, count: 0 }));
-  await outbox.close();
+  await storage.close();
 });
 
 test("updates live when an item is enqueued", async () => {
-  const outbox = await freshOutbox();
+  const storage = await freshOutbox();
   function Probe() {
-    return <p>count {useCaptures({}, outbox).items.length}</p>;
+    return <p>count {useCaptures({}, storage).items.length}</p>;
   }
   const screen = await render(<Probe />);
   await expect.element(screen.getByText("count 0")).toBeInTheDocument();
 
-  await outbox.captures.enqueue(aRecording());
+  await storage.captures.enqueue(aRecording());
   await expect.element(screen.getByText("count 1")).toBeInTheDocument();
-  await outbox.close();
+  await storage.close();
 });
 
 test("honours a status filter", async () => {
-  const outbox = await freshOutbox();
-  const item = await outbox.captures.enqueue(aRecording());
-  await outbox.captures.patch(item.id, { status: "transcribed" });
-  await outbox.captures.enqueue(aRecording());
+  const storage = await freshOutbox();
+  const item = await storage.captures.enqueue(aRecording());
+  await storage.captures.patch(item.id, { status: "transcribed" });
+  await storage.captures.enqueue(aRecording());
 
   function Probe() {
-    return <p>parked {useCaptures({ status: "transcribed" }, outbox).items.length}</p>;
+    return <p>parked {useCaptures({ status: "transcribed" }, storage).items.length}</p>;
   }
   const screen = await render(<Probe />);
   await expect.element(screen.getByText("parked 1")).toBeInTheDocument();
-  await outbox.close();
+  await storage.close();
 });
 
 test("an inline query object does not re-subscribe every render", async () => {
   // The trap: `{ status: "queued" }` is a new object identity per render, so a
   // naive effect dependency tears the subscription down and rebuilds it forever.
-  const outbox = await freshOutbox();
-  const watch = vi.spyOn(outbox.captures, "watch");
+  const storage = await freshOutbox();
+  const watch = vi.spyOn(storage.captures, "watch");
   function Probe() {
-    const { items } = useCaptures({ status: "queued" }, outbox);
+    const { items } = useCaptures({ status: "queued" }, storage);
     return <p>count {items.length}</p>;
   }
   const screen = await render(<Probe />);
   await expect.element(screen.getByText("count 0")).toBeInTheDocument();
-  await outbox.captures.enqueue(aRecording());
+  await storage.captures.enqueue(aRecording());
   await expect.element(screen.getByText("count 1")).toBeInTheDocument();
 
   expect(watch.mock.calls.length).toBeLessThanOrEqual(2);
-  await outbox.close();
+  await storage.close();
 });
 
 test("tears down the RxDB subscription on unmount", async () => {
@@ -101,10 +101,10 @@ test("tears down the RxDB subscription on unmount", async () => {
   // returned Observable's own `subscribe` captures the real Subscription the
   // hook's effect creates, so `.closed` proves teardown rather than merely
   // asserting a mock was called.
-  const outbox = await freshOutbox();
-  const originalWatch = outbox.captures.watch.bind(outbox.captures);
+  const storage = await freshOutbox();
+  const originalWatch = storage.captures.watch.bind(storage.captures);
   const subscriptions: WatchSubscription[] = [];
-  vi.spyOn(outbox.captures, "watch").mockImplementation((query) => {
+  vi.spyOn(storage.captures, "watch").mockImplementation((query) => {
     const observable = originalWatch(query);
     return {
       subscribe: (observer: WatchObserver) => {
@@ -116,7 +116,7 @@ test("tears down the RxDB subscription on unmount", async () => {
   });
 
   function Probe() {
-    useCaptures({}, outbox);
+    useCaptures({}, storage);
     return null;
   }
   const screen = await render(<Probe />);
@@ -126,7 +126,7 @@ test("tears down the RxDB subscription on unmount", async () => {
   await screen.unmount();
   expect(subscriptions[0]!.closed).toBe(true);
 
-  await outbox.close();
+  await storage.close();
 });
 
 test("under StrictMode, the double mount/cleanup/remount settles to one live subscription, zero after unmount", async () => {
@@ -135,10 +135,10 @@ test("under StrictMode, the double mount/cleanup/remount settles to one live sub
   // deliberate double mount/cleanup/remount of effects would surface a doubled
   // (or leaked) RxDB subscription here even though nothing above this test
   // exercises that mode.
-  const outbox = await freshOutbox();
-  const originalWatch = outbox.captures.watch.bind(outbox.captures);
+  const storage = await freshOutbox();
+  const originalWatch = storage.captures.watch.bind(storage.captures);
   const subscriptions: WatchSubscription[] = [];
-  vi.spyOn(outbox.captures, "watch").mockImplementation((query) => {
+  vi.spyOn(storage.captures, "watch").mockImplementation((query) => {
     const observable = originalWatch(query);
     return {
       subscribe: (observer: WatchObserver) => {
@@ -150,7 +150,7 @@ test("under StrictMode, the double mount/cleanup/remount settles to one live sub
   });
 
   function Probe() {
-    useCaptures({}, outbox);
+    useCaptures({}, storage);
     return null;
   }
   const screen = await render(
@@ -163,12 +163,12 @@ test("under StrictMode, the double mount/cleanup/remount settles to one live sub
   await screen.unmount();
   expect(subscriptions.every((s) => s.closed)).toBe(true);
 
-  await outbox.close();
+  await storage.close();
 });
 
 test("surfaces a watch error without leaving loading stuck", async () => {
-  const outbox = await freshOutbox();
-  vi.spyOn(outbox.captures, "watch").mockReturnValue({
+  const storage = await freshOutbox();
+  vi.spyOn(storage.captures, "watch").mockReturnValue({
     // The hook always subscribes with an object observer (see the
     // implementation), never the function-overload form, so this fake only
     // needs to handle that one shape.
@@ -179,12 +179,12 @@ test("surfaces a watch error without leaving loading stuck", async () => {
   } as WatchObservable);
 
   function Probe() {
-    const { error, loading } = useCaptures({}, outbox);
+    const { error, loading } = useCaptures({}, storage);
     return <p>state {error ? `error:${error.message}` : loading ? "loading" : "ready"}</p>;
   }
   const screen = await render(<Probe />);
   await expect.element(screen.getByText("state error:boom")).toBeInTheDocument();
-  await outbox.close();
+  await storage.close();
 });
 
 test("surfaces a synchronous throw from watch() without crashing the render", async () => {
@@ -195,18 +195,18 @@ test("surfaces a synchronous throw from watch() without crashing the render", as
   // effect and crash the render instead of landing in `error`, and with no
   // error boundary in the playground that's a blank screen rather than a
   // hook reporting `error`.
-  const outbox = await freshOutbox();
-  vi.spyOn(outbox.captures, "watch").mockImplementation(() => {
+  const storage = await freshOutbox();
+  vi.spyOn(storage.captures, "watch").mockImplementation(() => {
     throw new Error("boom");
   });
 
   function Probe() {
-    const { error, loading } = useCaptures({}, outbox);
+    const { error, loading } = useCaptures({}, storage);
     return <p>state {error ? `error:${error.message}` : loading ? "loading" : "ready"}</p>;
   }
   const screen = await render(<Probe />);
   await expect.element(screen.getByText("state error:boom")).toBeInTheDocument();
-  await outbox.close();
+  await storage.close();
 });
 
 test("recovers after an error once the query changes to one that succeeds", async () => {
@@ -216,10 +216,10 @@ test("recovers after an error once the query changes to one that succeeds", asyn
   // re-render. This drives a real `useState` update (not a fresh object
   // literal with the same content) so the hook's own effect dependency sees a
   // genuine change and restarts.
-  const outbox = await freshOutbox();
-  await outbox.captures.enqueue(aRecording());
-  const originalWatch = outbox.captures.watch.bind(outbox.captures);
-  vi.spyOn(outbox.captures, "watch").mockImplementation((query = {}) => {
+  const storage = await freshOutbox();
+  await storage.captures.enqueue(aRecording());
+  const originalWatch = storage.captures.watch.bind(storage.captures);
+  vi.spyOn(storage.captures, "watch").mockImplementation((query = {}) => {
     if (query.status === "dead") {
       return {
         subscribe: (observer: { error?: (cause: unknown) => void }) => {
@@ -233,7 +233,7 @@ test("recovers after an error once the query changes to one that succeeds", asyn
 
   function Probe() {
     const [dead, setDead] = useState(true);
-    const { items, loading, error } = useCaptures({ status: dead ? "dead" : undefined }, outbox);
+    const { items, loading, error } = useCaptures({ status: dead ? "dead" : undefined }, storage);
     return (
       <>
         <button type="button" onClick={() => setDead(false)}>
@@ -251,7 +251,7 @@ test("recovers after an error once the query changes to one that succeeds", asyn
 
   await expect.element(screen.getByText("state ready")).toBeInTheDocument();
   await expect.element(screen.getByText("count 1")).toBeInTheDocument();
-  await outbox.close();
+  await storage.close();
 });
 
 test("without a provider and without an override, throws the named error", async () => {
@@ -259,5 +259,5 @@ test("without a provider and without an override, throws the named error", async
     const { items } = useCaptures();
     return <p>count {items.length}</p>;
   }
-  await expect(render(<Probe />)).rejects.toThrow(/outbox/i);
+  await expect(render(<Probe />)).rejects.toThrow(/storage/i);
 });

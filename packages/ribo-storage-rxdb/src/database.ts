@@ -25,7 +25,7 @@ import {
 } from "./schemas.js";
 
 /**
- * The RxDB collection holding the outbox documents.
+ * The RxDB collection holding the storage documents.
  *
  * Parameterised by `CaptureDocument` — what is *stored* — not by `Capture`,
  * which is the projection consumers see and carries two fields derived from the
@@ -45,7 +45,7 @@ export type SessionCollection = RxCollection<SessionDocument>;
 /**
  * The RxDB collection holding plugin-scoped storage entries — key-value pairs
  * namespaced by plugin id and capture id. Core sweeps entries for a capture
- * when it is dropped or discarded; see `Storage.pluginStorage`.
+ * when it is dropped or discarded; see `storage.scopedStore`.
  */
 export type PluginStorageCollection = RxCollection<PluginStorageDocument>;
 
@@ -101,7 +101,7 @@ export function migratedSessionId(ctx: unknown): string {
       return `migrated-session-${assessmentId}`;
     }
   }
-  // Recordings with no assessmentId share one singleton session per outbox.
+  // Recordings with no assessmentId share one singleton session per storage.
   return `migrated-session-singleton`;
 }
 
@@ -117,7 +117,7 @@ export function migratedSessionId(ctx: unknown): string {
  * `sessionRxSchema` types `ctx` as an object and lists it as required, so a
  * minted session whose `ctx` is `undefined` or a primitive is rejected at
  * insert — and that insert happens inside `openOutboxDatabase`, so the failure
- * is a device that will not open its own outbox. An empty object keeps the
+ * is a device that will not open its own storage. An empty object keeps the
  * failure where it belongs: the write step parses `ctx` through the adapter's
  * `ctxSchema`, refuses it terminally, and the session goes `dead` with an error
  * a human can read. That is what the same recording did before the session
@@ -141,7 +141,7 @@ function migratedSessionRef(ctx: unknown): string {
 const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "writing", "done"]);
 
 /**
- * Schema-migration strategies for the outbox collection, keyed by the schema
+ * Schema-migration strategies for the storage collection, keyed by the schema
  * version being migrated *to*.
  *
  * v0 → v1 added the optional `reviewOutcome` field (the review gate). An absent
@@ -157,7 +157,7 @@ const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "wri
  * v2 → v3 added `preview` (optional) — identity, for the same reason: an absent
  * optional field needs no transformation. `preview` is written only by
  * `Storage.writePreviewTail` / `Storage.commitPreview` and deleted only by
- * `Storage.writeTranscript`, so pre-v3 documents simply have no preview, which is
+ * `storage.captures.writeTranscript`, so pre-v3 documents simply have no preview, which is
  * the correct state for a recording that was captured before live transcription
  * existed.
  *
@@ -228,7 +228,7 @@ const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "wri
  *
  * Note this entry is not optional bookkeeping: RxDB calls into the migration
  * plugin for every version above 0, and a bumped schema with no strategy for the
- * new version makes the outbox **fail to open**, not fail to migrate. The error
+ * new version makes the storage **fail to open**, not fail to migrate. The error
  * arrives at open time and does not mention migrations.
  *
  * Exported (rather than inlined into `addCollections`) so a test can exercise
@@ -275,7 +275,7 @@ export const CAPTURE_MIGRATION_STRATEGIES = {
     // handing it the whole recording made the `"assessmentId" in ctx` test
     // always false, so every row on a device fell through to the singleton and
     // one session swallowed every job the auditor had ever captured. The
-    // parameter is `unknown`, so nothing failed; the outbox simply grouped
+    // parameter is `unknown`, so nothing failed; the storage simply grouped
     // wrongly and silently.
     next.sessionId = migratedSessionId((doc.recording as { ctx?: unknown } | undefined)?.ctx);
     return next as CaptureDocument;
@@ -287,7 +287,7 @@ export const CAPTURE_MIGRATION_STRATEGIES = {
  * Default IndexedDB database name.
  *
  * Namespaced because the host app owns the origin and we are a library living in
- * it — an unprefixed `outbox` would be a genuine collision risk.
+ * it — an unprefixed `storage` would be a genuine collision risk.
  */
 export const DEFAULT_OUTBOX_DATABASE_NAME = "ribo-outbox";
 
@@ -305,7 +305,7 @@ function registerPlugins(): void {
   addRxPlugin(RxDBAttachmentsPlugin);
   // Required from schema version 1 onward. RxDB calls into the migration plugin
   // during `addCollections` whenever a collection's schema version is above 0
-  // (`autoMigrate` defaults to true), so without this the outbox fails to OPEN —
+  // (`autoMigrate` defaults to true), so without this the storage fails to OPEN —
   // the error arrives at open time and says nothing about migrations.
   addRxPlugin(RxDBMigrationSchemaPlugin);
   pluginsRegistered = true;
@@ -332,7 +332,7 @@ function defaultStorage(): RxStorage<unknown, unknown> {
 }
 
 /**
- * Open (or create) the outbox database.
+ * Open (or create) the storage database.
  *
  * Every call builds a genuinely fresh `RxDatabase` over the named storage. With
  * the default Dexie storage that is a named IndexedDB database, which is what
@@ -521,7 +521,7 @@ function sessionDocumentFromMigratedGroup(
     // rejects `openOutboxDatabase` on every launch: an un-bootable app, not a
     // degraded one. Substituting an empty object reproduces exactly what that
     // recording did before this change — the write step's `ctxSchema.safeParse`
-    // refuses it, the session goes `dead`, and the rest of the outbox works.
+    // refuses it, the session goes `dead`, and the rest of the storage works.
     ctx: migratedCtx(bySeq[0]!.recording.ctx),
     ref: migratedSessionRef(bySeq[0]!.recording.ctx),
     // A session past `open` had, by definition, stopped accepting recordings.
@@ -543,7 +543,7 @@ function sessionDocumentFromMigratedGroup(
 /**
  * Delete the named database from IndexedDB entirely, attachments included.
  *
- * Exists for tests and for the "wiped outbox" recovery path in `09 §iOS`, not as
+ * Exists for tests and for the "wiped storage" recovery path in `09 §iOS`, not as
  * routine housekeeping. The database must be closed first.
  *
  * `storage` must match the one the database was opened with — RxDB's

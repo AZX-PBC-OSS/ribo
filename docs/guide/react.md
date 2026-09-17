@@ -55,8 +55,8 @@ rather than failing silently later. From the barrel (`packages/ribo-ui-react/src
 | Hook                    | Wraps                                                                                                                              |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `useRecorder`           | `Recorder` — phase, level, `start`/`stop`/`toggle`, durable enqueue on stop                                                        |
-| `useCaptures`           | `Storage.watch` — live recordings by query, as React state                                                                         |
-| `useSessions`           | `Storage.watchSessions` — live sessions by query, the session-collection mirror of `useCaptures`                                   |
+| `useCaptures`           | `storage.captures.watch` — live recordings by query, as React state                                                                |
+| `useSessions`           | `storage.sessions.watch` — live sessions by query, the session-collection mirror of `useCaptures`                                  |
 | `useReview`             | [`buildReviewRequest`/`resolveReview`](/guide/review) — a review card's full state machine: decide, edit, link an instance, submit |
 | `useConnectivity`       | `Connectivity` — the `offline`/`probing`/`online` state, not `navigator.onLine`                                                    |
 | `useWorkSafety`         | `summarizeWork` + `workSafety`, composed over storage, sessions, storage persistence and connectivity                              |

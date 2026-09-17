@@ -28,7 +28,7 @@ import {
 } from "@azx/ribo-core";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { useCaptures } from "./use-outbox-items.js";
+import { useCaptures } from "./use-captures.js";
 import { useRiboInstance } from "./use-ribo-instance.js";
 
 export interface UseReviewOptions<T extends z.ZodObject = z.ZodObject> {
@@ -99,7 +99,7 @@ export interface UseReviewOptions<T extends z.ZodObject = z.ZodObject> {
     existing: readonly ExistingRecord[],
   ) => readonly RankedCandidate[];
   /** Bypasses the provider. What the tests inject through. */
-  readonly outbox?: Storage;
+  readonly storage?: Storage;
 }
 
 export interface UseReviewResult {
@@ -408,12 +408,15 @@ export function useReview<T extends z.ZodObject>(
   options: UseReviewOptions<T>,
 ): UseReviewResult {
   const { valuesSchema, requiredOnCreate, existingRecords, provenance, rankCandidates } = options;
-  const outbox = useRiboInstance("outbox", options.outbox);
+  const storage = useRiboInstance("storage", options.storage);
 
   // Fetch the session's recordings so the hook can join their transcripts. A
   // sentinel sessionId ensures no recordings match when there is no session,
-  // rather than the empty-query default of "every recording in the outbox".
-  const { items: recordings } = useCaptures({ sessionId: session?.id ?? "__no-session__" }, outbox);
+  // rather than the empty-query default of "every recording in the storage".
+  const { items: recordings } = useCaptures(
+    { sessionId: session?.id ?? "__no-session__" },
+    storage,
+  );
 
   const [state, setState] = useState<ReviewState>({
     forSession: session?.id,
@@ -774,7 +777,7 @@ export function useReview<T extends z.ZodObject>(
         // `toPersisted` is a value conversion, not a cast — see its own note. What
         // gets sent is still structurally identical to `outcome`, and
         // `submitSessionReview` re-parses it regardless.
-        await outbox.sessions.submitReview(id, toPersisted(outcome));
+        await storage.sessions.submitReview(id, toPersisted(outcome));
         applyIfCurrent({ submitting: false });
         return outcome;
       } catch (cause) {
@@ -783,7 +786,7 @@ export function useReview<T extends z.ZodObject>(
         throw failure;
       }
     },
-    [session, outbox],
+    [session, storage],
   );
 
   const submit = useCallback(async (): Promise<ReviewOutcome> => {

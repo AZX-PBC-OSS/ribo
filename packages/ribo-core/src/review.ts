@@ -92,8 +92,8 @@ export type { FieldPath } from "./field-path.js";
  * at `awaiting-review` — a status deliberately absent from
  * `ACTIVE_SESSION_STATUSES` — and stops seeing it; the relay drains the next
  * capture instead of blocking. A UI finds parked sessions with an ordinary query
- * (`outbox.sessions.watch({ status: "awaiting-review" })`), and
- * `Storage.submitSessionReview` records the outcome and moves the session to `writing`.
+ * (`storage.sessions.watch({ status: "awaiting-review" })`), and
+ * `storage.sessions.submitReview` records the outcome and moves the session to `writing`.
  *
  * An earlier design had the relay `await` a `ReviewPresenter.present(request)`
  * promise the UI resolved. It was removed rather than kept unused: the relay
@@ -406,7 +406,7 @@ export interface ReviewIssue {
  * purpose. The three branches are the *outcomes of a review*, and each one is
  * persisted and acted on; "this submission is malformed" is not an outcome, it is a
  * refusal to produce one. Making it a branch would put it in `reviewOutcomeSchema`
- * and so in the outbox document, where a caller could persist it and advance an item
+ * and so in the storage document, where a caller could persist it and advance an item
  * to `writing`. Throwing is what makes "does not persist" structural rather than a
  * convention every caller has to remember.
  *
@@ -1244,7 +1244,7 @@ export const resolveReview = (
 };
 
 /**
- * The **persisted** mirror of {@link ReviewOutcome} — loose, because the outbox
+ * The **persisted** mirror of {@link ReviewOutcome} — loose, because the storage
  * document schema cannot be generic in an adapter's field set.
  *
  * Same reasoning as `extracted` in `queue/schema.ts`: one document schema
@@ -1256,7 +1256,7 @@ export const resolveReview = (
  * worth stating because a reader would reasonably expect a document version bump:
  * `z.record(z.string(), z.unknown())` accepts a nested object as readily as a flat
  * one, and `z.array(z.string())` accepts `"health.healthGasLeak"` as readily as
- * `"basedata.yearBuilt"`. `review.test.ts` and `queue/outbox-memory.test.ts` pin that.
+ * `"basedata.yearBuilt"`. `review.test.ts` and `queue/storage-memory.test.ts` pin that.
  *
  * Strict objects on each branch: an `edited` outcome that lost `editedFields` is
  * indistinguishable from `accepted`, and silently under-reporting review effort is

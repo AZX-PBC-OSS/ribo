@@ -25,12 +25,12 @@ export interface UseSessionsResult {
  * the hook subscribes directly to the rxjs `Observable` rather than going
  * through `useSubscribed` (which is for core's callback-subscribe shape).
  */
-export function useSessions(query: SessionQuery = {}, outbox?: Storage): UseSessionsResult {
-  const instance = useRiboInstance("outbox", outbox);
+export function useSessions(query: SessionQuery = {}, storage?: Storage): UseSessionsResult {
+  const instance = useRiboInstance("storage", storage);
   // Derived from the query, never enumerated — see `query-key.ts`. Listing
   // fields by hand here is what dropped `ref` on the floor: the key was also
   // what the query got rebuilt from, so an unlisted field never reached the
-  // outbox and every caller filtered client-side instead.
+  // storage and every caller filtered client-side instead.
   const key = queryKey(query);
   const stableQuery = useMemo<SessionQuery>(() => queryFromKey<SessionQuery>(key), [key]);
 

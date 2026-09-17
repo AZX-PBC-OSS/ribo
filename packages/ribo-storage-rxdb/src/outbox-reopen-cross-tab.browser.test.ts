@@ -36,7 +36,7 @@ import {
  * connection over the SAME IndexedDB database, rather than two calls issued
  * through one.
  *
- * ## Why this could not simply be added to `outbox.browser.test.ts`
+ * ## Why this could not simply be added to `storage.browser.test.ts`
  *
  * Opening a second `RxDatabase` with a name already open in the same JS
  * process throws RxDB's DB8 ("already exists") by default — a check that has
@@ -46,10 +46,10 @@ import {
  * RxDB's own escape hatch, `ignoreDuplicate: true`, is how RxDB tests its own
  * multi-instance behaviour, but it throws DB9 instead unless
  * `RxDBDevModePlugin` has been registered first — and that registration is a
- * PROCESS-GLOBAL side effect (`Storage.submitSessionReview`'s own doc comment
+ * PROCESS-GLOBAL side effect (`storage.sessions.submitReview`'s own doc comment
  * records this as the reason its cross-tab case went untested). Vitest's
  * browser project isolates each test FILE in its own page, so paying that
- * cost here cannot change how any of `outbox.browser.test.ts`'s ~60 other
+ * cost here cannot change how any of `storage.browser.test.ts`'s ~60 other
  * assertions run; that isolation is the entire reason this is its own file
  * rather than a few more tests appended to that one.
  *
@@ -69,7 +69,7 @@ import {
  * genuine write race between two independent connections to the same
  * underlying IndexedDB store — the case an in-memory mutex scoped to a single
  * `Storage` object cannot be fooled into passing, unlike the single-instance
- * test in `session-outbox.test.ts`. It does not exercise
+ * test in `session-storage.test.ts`. It does not exercise
  * `submitSessionReview`'s identical guard directly (see that method's own doc
  * comment for why the two should be weighed the same way regardless), and it
  * does not exercise RxDB's own multi-instance change-propagation
@@ -84,20 +84,20 @@ const openOutboxes: Storage[] = [];
 const usedNames: string[] = [];
 
 function uniqueName(): string {
-  const name = `ribo-outbox-cross-tab-test-${crypto.randomUUID()}`;
+  const name = `ribo-storage-cross-tab-test-${crypto.randomUUID()}`;
   usedNames.push(name);
   return name;
 }
 
 afterEach(async () => {
-  for (const outbox of openOutboxes.splice(0)) {
-    if (!outbox.closed) await outbox.close();
+  for (const storage of openOutboxes.splice(0)) {
+    if (!storage.closed) await storage.close();
   }
   for (const name of usedNames.splice(0)) await removeOutboxDatabase(name);
 });
 
 /**
- * A second, independent connection to an ALREADY-OPEN outbox database —
+ * A second, independent connection to an ALREADY-OPEN storage database —
  * everything `openOutboxDatabase` (`database.ts`) does, plus the
  * `ignoreDuplicate: true` production code has no reason to ever pass, since a
  * real second tab is a separate process with no duplicate to ignore. Kept
@@ -138,9 +138,9 @@ async function openSecondConnection(name: string): Promise<Storage> {
       migrationStrategies: PLUGIN_STORAGE_MIGRATION_STRATEGIES,
     },
   });
-  const outbox = new Storage(createRxdbBackend(database, name));
-  openOutboxes.push(outbox);
-  return outbox;
+  const storage = new Storage(createRxdbBackend(database, name));
+  openOutboxes.push(storage);
+  return storage;
 }
 
 test("two reopenSessionForReview calls from two independent Storage connections settle as one winner and one refusal", async () => {

@@ -61,9 +61,9 @@ test("ref is indexed so a host can query 'the session for this job'", () => {
   expect(sessionRxSchema.indexes).toContain("ref");
 });
 
-test("the collection name is not the outbox's", () => {
+test("the collection name is not the storage's", () => {
   expect(SESSION_COLLECTION_NAME).toBe("sessions");
-  expect(SESSION_COLLECTION_NAME).not.toBe("outbox");
+  expect(SESSION_COLLECTION_NAME).not.toBe("storage");
 });
 
 test("the RxDB schema is at version 2, with a strategy for each step it took", () => {
@@ -281,7 +281,7 @@ describe("statedEmptyGroups — additive optional field on v2, cleared on re-ext
     };
 
     // patchSession validates the merged document before writing — this is
-    // exactly what outbox.patchSession does: `sessionItemSchema.parse({ ...doc, ...patch })`.
+    // exactly what storage.patchSession does: `sessionItemSchema.parse({ ...doc, ...patch })`.
     const merged = { ...prior, ...reExtractedPatch };
     const parsed = sessionItemSchema.parse(merged);
     expect(parsed.statedEmptyGroups).toBeUndefined();

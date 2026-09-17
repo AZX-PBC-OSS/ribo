@@ -224,7 +224,7 @@ export type ChatCapability =
 export interface CapableChatClient extends ChatClient {
   /**
    * Stable, opaque id for this engine. Goes into extraction provenance so it ends
-   * up persisted in the outbox — keep it short and stable across versions.
+   * up persisted in the storage — keep it short and stable across versions.
    */
   readonly engine: string;
 

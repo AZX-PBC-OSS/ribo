@@ -18,7 +18,7 @@ import type { Observable } from "rxjs";
  * The three collections, by their logical names.
  *
  * These are not the persisted names. The RxDB backend maps `captures` onto the
- * on-disk `outbox` collection, because renaming a collection is a migration on
+ * on-disk `storage` collection, because renaming a collection is a migration on
  * the one place where migrations strand real recordings. A backend is free to
  * store them wherever it likes under whatever names it likes.
  *

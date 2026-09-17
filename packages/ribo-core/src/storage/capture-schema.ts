@@ -3,7 +3,7 @@ import { z } from "zod";
 import { basePayloadSchema } from "../capture-item.js";
 import { transcriptSchema } from "../transcript.js";
 
-/** The RxDB collection name. One collection for outbox items (audio or document); sessions have their own. */
+/** The RxDB collection name. One collection for storage items (audio or document); sessions have their own. */
 export const CAPTURES_COLLECTION_NAME = "outbox";
 
 /**
@@ -18,7 +18,7 @@ export const CAPTURES_COLLECTION_NAME = "outbox";
 export const AUDIO_ATTACHMENT_ID = "audio";
 
 /**
- * The outbox item's state machine — capture and transcription only.
+ * The storage item's state machine — capture and transcription only.
  *
  * ```
  * recording → queued → transcribing → transcribed
@@ -28,7 +28,7 @@ export const AUDIO_ATTACHMENT_ID = "audio";
  * ```
  *
  * Extraction, review and write moved to the **session** (`session-schema.ts`).
- * The outbox item narrows to what it is: metadata for one captured item — audio
+ * The storage item narrows to what it is: metadata for one captured item — audio
  * or document — and the transcript that came out of it. Once transcribed, the
  * item is finished from the relay's perspective — the session owns the next
  * steps.
@@ -55,7 +55,7 @@ export const CAPTURE_STATUSES = [
 export type CaptureStatus = (typeof CAPTURE_STATUSES)[number];
 
 /**
- * Statuses the relay will still act on for an outbox item.
+ * Statuses the relay will still act on for a capture.
  *
  * `queued` (waiting to transcribe), `transcribing` (in flight), and `failed`
  * (resting, retryable after backoff). **`transcribed` is NOT active** — the
@@ -95,7 +95,7 @@ export const FINISHED_CAPTURE_STATUSES = [
 export const RECORDING_CAPTURE_STATUSES = ["recording"] as const;
 
 /**
- * The persisted shape of one outbox item — exactly the fields that live
+ * The persisted shape of one storage item — exactly the fields that live
  * in IndexedDB, and nothing else.
  *
  * This is a **trust boundary** in both directions (AGENTS.md §4): documents that
@@ -160,7 +160,7 @@ export const captureDocumentSchema = z
     /**
      * Step output — present once transcription has succeeded.
      *
-     * **Write it with {@link Storage.writeTranscript}, never with `patch`.** `transcript` is still
+     * **Write it with {@link storage.captures.writeTranscript}, never with `patch`.** `transcript` is still
      * reachable through {@link CapturePatch} — it has to be, because the relay's retry path patches
      * other fields on the same rows — so nothing stops a future caller setting it directly. Doing
      * so would leave `preview` behind on a committed row, where nothing removes it again: `patch`

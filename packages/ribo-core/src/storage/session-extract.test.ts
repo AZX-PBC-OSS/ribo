@@ -25,11 +25,11 @@ import { joinSessionTranscript, listSessionTranscriptParts } from "./session-ext
 // the first two red, and dropping the page markers from the joined text turns
 // the third red.
 
-const opened: { outbox: Storage; name: string }[] = [];
+const opened: { storage: Storage; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name } of opened.splice(0)) {
-    if (!outbox.closed) await outbox.close();
+  for (const { storage, name } of opened.splice(0)) {
+    if (!storage.closed) await storage.close();
     // A memory database outlives its handle, as an IndexedDB one does.
     removeMemoryDatabase(name);
   }
@@ -37,9 +37,9 @@ afterEach(async () => {
 
 async function freshOutbox(): Promise<Storage> {
   const name = `ribo-session-extract-${crypto.randomUUID()}`;
-  const outbox = await openStorage({ backend: createMemoryBackend(name) });
-  opened.push({ outbox, name });
-  return outbox;
+  const storage = await openStorage({ backend: createMemoryBackend(name) });
+  opened.push({ storage, name });
+  return storage;
 }
 
 const bytes = (): Blob => new Blob([new Uint8Array(8)], { type: "application/pdf" });
@@ -68,21 +68,21 @@ const INVOICE_TEXT =
   "\n===== PAGE 2 =====\nINSTALLATION Installation / Service Work 1EA 17,087.70\n";
 
 test("a document's transcript reaches session extraction like any other", async () => {
-  const outbox = await freshOutbox();
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const storage = await freshOutbox();
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording: document("doc-1"),
     audio: bytes(),
     sessionId: session.id,
   });
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     item.id,
     { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
     { status: "transcribed" },
   );
 
-  const joined = await joinSessionTranscript(outbox, session.id);
+  const joined = await joinSessionTranscript(storage, session.id);
 
   expect(joined.recordingIds).toEqual([item.id]);
   expect(joined.text).toContain("Invoice # 58534");
@@ -92,32 +92,32 @@ test("a session mixing a document and a dictation joins both, in capture order",
   // The session is the unit of extraction, and nothing says its members must be
   // the same medium. A PDF submitted alongside the walkthrough dictation is the
   // driving use case, so the ordering guarantee has to hold across kinds.
-  const outbox = await freshOutbox();
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const storage = await freshOutbox();
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
-  const first = await outbox.captures.enqueue({
+  const first = await storage.captures.enqueue({
     recording: document("doc-1"),
     audio: bytes(),
     sessionId: session.id,
   });
-  const second = await outbox.captures.enqueue({
+  const second = await storage.captures.enqueue({
     recording: dictation("rec-1"),
     audio: bytes(),
     sessionId: session.id,
   });
 
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     first.id,
     { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
     { status: "transcribed" },
   );
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     second.id,
     { recordingId: "rec-1", text: "the attic insulation is R-19", engine: "fake" },
     { status: "transcribed" },
   );
 
-  const joined = await joinSessionTranscript(outbox, session.id);
+  const joined = await joinSessionTranscript(storage, session.id);
 
   expect(joined.text).toContain("Invoice # 58534");
   expect(joined.text).toContain("R-19");
@@ -130,15 +130,15 @@ test("page markers survive into the extractor's input", async () => {
   // which matters when a document contradicts itself. That is only true if they
   // are still there by the time the model sees the text — every layer between
   // `transcribe` and `extract` is a chance to normalise them away.
-  const outbox = await freshOutbox();
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const storage = await freshOutbox();
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording: document("doc-1"),
     audio: bytes(),
     sessionId: session.id,
   });
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     item.id,
     { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
     { status: "transcribed" },
@@ -146,7 +146,7 @@ test("page markers survive into the extractor's input", async () => {
 
   const extractor = new FakeExtractor({ invoiceNumber: "58534" });
   const step = toSessionExtractStep(extractor);
-  const joined = await joinSessionTranscript(outbox, session.id);
+  const joined = await joinSessionTranscript(storage, session.id);
 
   await step({
     session,
@@ -169,7 +169,7 @@ test("page markers survive into the extractor's input", async () => {
 // a document's own text are the existing precedent for the fix — a marker in the
 // text is what gives the model something to cite.
 //
-// `joinSessionTranscript(outbox, sessionId, { markCaptures: true })` delimits
+// `joinSessionTranscript(storage, sessionId, { markCaptures: true })` delimits
 // each capture's text with a per-capture marker in the page-marker family
 // (`\n===== CAPTURE seq:N kind:K id:I =====\n`). The option defaults to off so
 // existing callers see the same text they always have. These tests were verified
@@ -179,41 +179,41 @@ test("page markers survive into the extractor's input", async () => {
 // case-sensitive, so the marker must sit beside the text, not alter it.
 
 test("per-capture markers delimit each capture's text when markCaptures is true", async () => {
-  const outbox = await freshOutbox();
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const storage = await freshOutbox();
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
-  const first = await outbox.captures.enqueue({
+  const first = await storage.captures.enqueue({
     recording: document("doc-1"),
     audio: bytes(),
     sessionId: session.id,
   });
-  const second = await outbox.captures.enqueue({
+  const second = await storage.captures.enqueue({
     recording: dictation("rec-1"),
     audio: bytes(),
     sessionId: session.id,
   });
 
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     first.id,
     { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
     { status: "transcribed" },
   );
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     second.id,
     { recordingId: "rec-1", text: "the attic insulation is R-19", engine: "fake" },
     { status: "transcribed" },
   );
 
   const joined = await joinSessionTranscript(
-    outbox,
+    storage,
     session.id,
     createDefaultTranscriptCombiner({ markCaptures: true }),
   );
 
   // Each capture is preceded by a marker in the page-marker family.
   expect(joined.text).toContain("===== CAPTURE");
-  // The marker carries the seq, kind, and outbox item id — what a consumer
-  // needs to resolve a citation back to a row via `outbox.captures.get(id)`.
+  // The marker carries the seq, kind, and storage item id — what a consumer
+  // needs to resolve a citation back to a row via `storage.captures.get(id)`.
   expect(joined.text).toContain("seq:0");
   expect(joined.text).toContain("kind:document");
   expect(joined.text).toContain(`id:${first.id}`);
@@ -231,21 +231,21 @@ test("per-capture markers are absent by default", async () => {
   // The option defaults to off so existing callers see the same text they
   // always have — changing what every extractor sees unconditionally is a
   // risk the caller should opt into.
-  const outbox = await freshOutbox();
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const storage = await freshOutbox();
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording: dictation("rec-1"),
     audio: bytes(),
     sessionId: session.id,
   });
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     item.id,
     { recordingId: "rec-1", text: "the attic insulation is R-19", engine: "fake" },
     { status: "transcribed" },
   );
 
-  const joined = await joinSessionTranscript(outbox, session.id);
+  const joined = await joinSessionTranscript(storage, session.id);
 
   expect(joined.text).not.toContain("===== CAPTURE");
   expect(joined.text).toBe("the attic insulation is R-19");
@@ -257,33 +257,33 @@ test("span grounding survives per-capture markers", async () => {
   // verbatim quote from within a single capture remains a substring. This is
   // the non-negotiable constraint: whatever we add must not break grounding
   // for values that were already groundable.
-  const outbox = await freshOutbox();
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const storage = await freshOutbox();
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
-  const first = await outbox.captures.enqueue({
+  const first = await storage.captures.enqueue({
     recording: document("doc-1"),
     audio: bytes(),
     sessionId: session.id,
   });
-  const second = await outbox.captures.enqueue({
+  const second = await storage.captures.enqueue({
     recording: dictation("rec-1"),
     audio: bytes(),
     sessionId: session.id,
   });
 
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     first.id,
     { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
     { status: "transcribed" },
   );
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     second.id,
     { recordingId: "rec-1", text: "the attic insulation is R-19", engine: "fake" },
     { status: "transcribed" },
   );
 
   const joined = await joinSessionTranscript(
-    outbox,
+    storage,
     session.id,
     createDefaultTranscriptCombiner({ markCaptures: true }),
   );
@@ -300,26 +300,26 @@ test("per-capture markers survive into the extractor's input", async () => {
   // The markers exist so a model can attribute a value to the capture it came
   // from. That is only true if they reach the model — every layer between
   // `joinSessionTranscript` and the extractor's call is a chance to strip them.
-  const outbox = await freshOutbox();
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const storage = await freshOutbox();
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
-  const first = await outbox.captures.enqueue({
+  const first = await storage.captures.enqueue({
     recording: document("doc-1"),
     audio: bytes(),
     sessionId: session.id,
   });
-  const second = await outbox.captures.enqueue({
+  const second = await storage.captures.enqueue({
     recording: dictation("rec-1"),
     audio: bytes(),
     sessionId: session.id,
   });
 
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     first.id,
     { recordingId: "doc-1", text: INVOICE_TEXT, engine: "pdfjs" },
     { status: "transcribed" },
   );
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     second.id,
     { recordingId: "rec-1", text: "the attic insulation is R-19", engine: "fake" },
     { status: "transcribed" },
@@ -328,7 +328,7 @@ test("per-capture markers survive into the extractor's input", async () => {
   const extractor = new FakeExtractor({ invoiceNumber: "58534" });
   const step = toSessionExtractStep(extractor);
   const joined = await joinSessionTranscript(
-    outbox,
+    storage,
     session.id,
     createDefaultTranscriptCombiner({ markCaptures: true }),
   );
@@ -348,7 +348,7 @@ test("per-capture markers survive into the extractor's input", async () => {
 // ---------------------------------------------------------------------------
 // Collision rule: a transcriber annotation named `seq` coexists with `capture.seq`.
 //
-// The relay writes `capture.seq`, `capture.kind`, and `capture.id` from outbox
+// The relay writes `capture.seq`, `capture.kind`, and `capture.id` from storage
 // row metadata. A transcriber might reasonably use `seq` (or `kind` or `id`) as
 // its own annotation key. Namespacing under `capture.` is the rule that prevents
 // a collision: both keys live in the same bag, and the transcriber's value is
@@ -356,9 +356,9 @@ test("per-capture markers survive into the extractor's input", async () => {
 // ---------------------------------------------------------------------------
 
 test("a transcriber annotation named seq coexists with the relay's capture.seq", async () => {
-  const outbox = await freshOutbox();
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  const item = await outbox.captures.enqueue({
+  const storage = await freshOutbox();
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const item = await storage.captures.enqueue({
     recording: dictation("rec-1"),
     audio: bytes(),
     sessionId: session.id,
@@ -366,7 +366,7 @@ test("a transcriber annotation named seq coexists with the relay's capture.seq",
 
   // The transcriber uses `seq` — the exact generic name the plan flags as
   // plausible. It also uses `id` and `kind` for good measure.
-  await outbox.captures.writeTranscript(
+  await storage.captures.writeTranscript(
     item.id,
     {
       recordingId: "rec-1",
@@ -377,7 +377,7 @@ test("a transcriber annotation named seq coexists with the relay's capture.seq",
     { status: "transcribed" },
   );
 
-  const { parts } = await listSessionTranscriptParts(outbox, session.id);
+  const { parts } = await listSessionTranscriptParts(storage, session.id);
 
   expect(parts).toHaveLength(1);
 

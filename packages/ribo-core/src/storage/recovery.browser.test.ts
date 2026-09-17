@@ -18,12 +18,12 @@ const recording: Recording = {
 
 /** Plant a `recording` row with N chunk attachments, simulating a crash. */
 async function plantInterrupted(
-  outbox: Storage,
+  storage: Storage,
   sourceId: string,
   chunks: number,
   truncateLast = false,
 ): Promise<string> {
-  const item = await outbox.captures.beginRecording({
+  const item = await storage.captures.beginRecording({
     recording,
     sourceId,
     sessionId: "test-session",
@@ -32,7 +32,7 @@ async function plantInterrupted(
     const isLast = i === chunks - 1;
     const bytes =
       isLast && truncateLast ? new Uint8Array([0, 0, 0, 0]) : new Uint8Array(2048).fill(42);
-    await outbox.captures.appendChunk(
+    await storage.captures.appendChunk(
       item.id,
       chunkName(sourceId, i, 0),
       new Blob([bytes], { type: "audio/webm" }),
@@ -61,18 +61,18 @@ const failsUnlessLastDropped = {
 };
 
 test("recovery produces a complete new queued row and marks the original dead", async () => {
-  const outbox = await openStorage({
+  const storage = await openStorage({
     backend: createMemoryBackend(`ribo-recovery-${crypto.randomUUID()}`),
   });
   try {
-    const id = await plantInterrupted(outbox, "s1", 3);
+    const id = await plantInterrupted(storage, "s1", 3);
     const recovered = await recoverInterrupted({
-      outbox,
+      storage,
       decode: okDecode,
       onRecovered: () => undefined,
     });
     expect(recovered).toHaveLength(1);
-    const newRow = await outbox.captures.get(recovered[0]!);
+    const newRow = await storage.captures.get(recovered[0]!);
     expect(newRow).toBeDefined();
     expect(newRow!.status).toBe("queued");
     expect(newRow!.audioReady).toBe(true);
@@ -80,89 +80,89 @@ test("recovery produces a complete new queued row and marks the original dead", 
     expect(newRow!.recording.id).toBe(recording.id);
     expect(newRow!.id).not.toBe(id); // a NEW row, not the original
     // The original is dead, with a reason naming its successor.
-    const original = await outbox.captures.get(id);
+    const original = await storage.captures.get(id);
     expect(original!.status).toBe("dead");
     expect(original!.lastError).toMatch(new RegExp(recovered[0]!));
   } finally {
-    await outbox.close();
+    await storage.close();
   }
 });
 
 test("undecodable audio leaves the original dead with chunks intact", async () => {
-  const outbox = await openStorage({
+  const storage = await openStorage({
     backend: createMemoryBackend(`ribo-recovery-${crypto.randomUUID()}`),
   });
   try {
-    const id = await plantInterrupted(outbox, "s1", 2);
-    await recoverInterrupted({ outbox, decode: alwaysFails, onRecovered: () => undefined });
-    const original = await outbox.captures.get(id);
+    const id = await plantInterrupted(storage, "s1", 2);
+    await recoverInterrupted({ storage, decode: alwaysFails, onRecovered: () => undefined });
+    const original = await storage.captures.get(id);
     expect(original!.status).toBe("dead");
     expect(original!.lastError).toMatch(/unrecoverable|cannot decode/i);
     // Chunks are NOT swept — never silently discard bytes.
-    const audio = await outbox.captures.getAudio(id);
+    const audio = await storage.captures.getAudio(id);
     expect(audio).toBeUndefined(); // no canonical audio on a dead row
     // But the chunk attachments are still there (mergeChunks would find them).
-    const merged = await outbox.captures.mergeChunks(id);
+    const merged = await storage.captures.mergeChunks(id);
     expect(merged.size).toBeGreaterThan(0);
   } finally {
-    await outbox.close();
+    await storage.close();
   }
 });
 
 test("a truncated final chunk recovers by dropping it", async () => {
-  const outbox = await openStorage({
+  const storage = await openStorage({
     backend: createMemoryBackend(`ribo-recovery-${crypto.randomUUID()}`),
   });
   try {
-    const _id = await plantInterrupted(outbox, "s1", 3, true);
+    const _id = await plantInterrupted(storage, "s1", 3, true);
     const decoder = failsUnlessLastDropped;
     const recovered = await recoverInterrupted({
-      outbox,
+      storage,
       decode: decoder.decode.bind(decoder),
       onRecovered: () => undefined,
     });
     expect(recovered).toHaveLength(1);
-    const newRow = await outbox.captures.get(recovered[0]!);
+    const newRow = await storage.captures.get(recovered[0]!);
     expect(newRow!.status).toBe("queued");
     expect(newRow!.audioReady).toBe(true);
   } finally {
-    await outbox.close();
+    await storage.close();
   }
 });
 
 test("recovery does nothing when the lock is held — a live session owns it", async () => {
-  const outbox = await openStorage({
+  const storage = await openStorage({
     backend: createMemoryBackend(`ribo-recovery-${crypto.randomUUID()}`),
   });
   try {
-    await plantInterrupted(outbox, "s1", 2);
+    await plantInterrupted(storage, "s1", 2);
     // Hold the capture lock — simulating a live recording in another tab.
     const release = await holdLock(CAPTURE_LOCK, () => new Promise<void>(() => {}));
     expect(release).toBeDefined();
     const recovered = await recoverInterrupted({
-      outbox,
+      storage,
       decode: okDecode,
       onRecovered: () => undefined,
     });
     expect(recovered).toEqual([]); // nothing recovered — the row is left alone
     release!.ready.catch(() => undefined); // don't let it reject unhandled
   } finally {
-    await outbox.close();
+    await storage.close();
   }
 });
 
 test("recovery with no interrupted rows returns empty", async () => {
-  const outbox = await openStorage({
+  const storage = await openStorage({
     backend: createMemoryBackend(`ribo-recovery-${crypto.randomUUID()}`),
   });
   try {
     const recovered = await recoverInterrupted({
-      outbox,
+      storage,
       decode: okDecode,
       onRecovered: () => undefined,
     });
     expect(recovered).toEqual([]);
   } finally {
-    await outbox.close();
+    await storage.close();
   }
 });

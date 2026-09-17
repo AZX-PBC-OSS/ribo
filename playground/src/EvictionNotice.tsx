@@ -24,10 +24,10 @@ import { button, muted, noticeBox } from "./styles.js";
  * fold is a message nobody read.
  */
 
-export function EvictionNotice({ outbox }: { outbox: Storage }) {
+export function EvictionNotice({ storage }: { storage: Storage }) {
   const eviction = useSyncExternalStore(subscribeToEviction, getEvictionState);
 
-  useEffect(() => startEvictionWatch(outbox), [outbox]);
+  useEffect(() => startEvictionWatch(storage), [storage]);
 
   if (eviction.phase !== "evicted") return null;
 

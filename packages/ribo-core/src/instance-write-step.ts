@@ -43,7 +43,7 @@ export interface ToInstanceWriteStepOptions<V extends Record<string, unknown>, C
  * Derive a per-instance idempotency key that is stable across retries of the
  * same instance and distinct between instances of the same item.
  *
- * The item key is the outbox item's `idempotencyKey`. The group is the top-level
+ * The item key is the storage item's `idempotencyKey`. The group is the top-level
  * collection name (e.g. `"hvac"`). The index is the instance's position in the
  * emitted array, which is first-mention order. The same inputs always produce
  * the same output, so a retry re-derives the same key for the same instance.
@@ -76,7 +76,7 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
         `session ${session.id}: its ctx is not a valid write context for the ` +
           `"${adapter.name}" adapter — ${describeLocated(zodIssues(parsedCtx.error))}. The context is set ` +
           "at session open and cannot be repaired by retrying; check what the host passed to " +
-          "`Storage.openSession`.",
+          "`storage.sessions.open`.",
       );
     }
 

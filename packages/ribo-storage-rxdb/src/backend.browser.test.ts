@@ -34,7 +34,7 @@ import { openRxdbBackend } from "./open.js";
 //
 // Vitest's browser project isolates each test FILE in its own page, which is why
 // the global registration cannot reach any other suite.
-// `outbox-reopen-cross-tab.browser.test.ts` established this pattern and its
+// `storage-reopen-cross-tab.browser.test.ts` established this pattern and its
 // header explains it at length.
 addRxPlugin(RxDBDevModePlugin);
 

@@ -346,7 +346,7 @@ export class OnDeviceTranscriber implements Transcriber {
    * ({@link decodeTo16kMono}) and **transferred** to the worker (samples move, not copy). The worker
    * runs Whisper on the `Float32Array`, biased by the configured hints (turned into a decoder prefix
    * there). The returned {@link Transcript} is stamped with this transcriber's {@link engine}, so
-   * provenance flows into the outbox.
+   * provenance flows into the storage.
    *
    * ## Cancellation — the signal IS honoured, and `terminate()` is deliberately not the mechanism
    *

@@ -9,7 +9,7 @@ field-app  (React + Vite static bundle, helix deploy)
   imports @azx/ribo-core, @azx/ribo-ui-react, @azx/ribo-adapter-snuggpro,
           @azx/ribo-transcriber-ondevice, @azx/ribo-extractor-openai
   wires RiboProvider around its own UI, built on ribo-ui-react's headless hooks
-    (useRecorder, useReview, useOutboxItems, useConnectivity, useWorkSafety) —
+    (useRecorder, useReview, useCaptures, useConnectivity, useWorkSafety) —
     there is no CaptureControl/StatusIndicator/ReviewCard to mount; those never
     shipped (superseded by the headless-hook-layer decision, see 04)
   holds NO secrets, picks NO vendor — Helix injects both keys server-side

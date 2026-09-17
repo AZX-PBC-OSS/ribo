@@ -47,7 +47,7 @@ import { isCapturing } from "./recorder-handle.js";
  * out of IndexedDB as well as on the way in. It is a `z.strictObject`, so:
  *
  * - **New field written by N+1, read by N** → the strict parse *rejects* the
- *   unknown key. The user sees the outbox fail to open, or that row fail to
+ *   unknown key. The user sees the storage fail to open, or that row fail to
  *   read — an error, not silent corruption. Loud, and recoverable by reloading.
  * - **Field removed or narrowed by N+1** → the parse rejects the same way.
  * - **Same shape, different meaning** → the parse cannot see it. No schema can.

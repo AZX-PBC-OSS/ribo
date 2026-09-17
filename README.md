@@ -66,7 +66,7 @@ Stage by stage:
   meaningless one.
 - **Review** — `buildReviewRequest` / `resolveReview` turn a session's extraction into a flat list of
   per-leaf review items, each carrying its own schema; a session parks at `awaiting-review` and only
-  an explicit `Storage.submitSessionReview` moves it forward.
+  an explicit `storage.sessions.submitReview` moves it forward.
 - **Write-back is scaffolded, not wired.** The `ToolAdapter` contract and `snuggProAdapter` exist,
   but the live Snugg Pro write is **gated on a Helix platform ask** — egress request signing, see
   [Helix platform asks](docs/implementation/13-helix-platform-asks.md).

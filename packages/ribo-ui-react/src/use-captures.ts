@@ -12,13 +12,13 @@ export interface UseCapturesResult {
 }
 
 /**
- * The outbox as live React state.
+ * The storage as live React state.
  *
  * ```tsx
  * const { items: parked, loading } = useCaptures({ status: "awaiting-review" });
  * ```
  *
- * `loading` is load-bearing, not cosmetic: "reading the outbox…" and "nothing in
+ * `loading` is load-bearing, not cosmetic: "reading the storage…" and "nothing in
  * the queue" are different sentences, and conflating them flashes the empty state
  * on every mount.
  *
@@ -27,12 +27,12 @@ export interface UseCapturesResult {
  * effect keyed on that object would tear down the RxDB subscription and rebuild it
  * on every single render — a trap a consumer hits immediately and diagnoses slowly.
  *
- * Does not consume `useSubscribed`: `Storage.watch` is an rxjs `Observable`, not
+ * Does not consume `useSubscribed`: `storage.captures.watch` is an rxjs `Observable`, not
  * core's callback-subscribe shape, so this hook subscribes directly and tears the
  * subscription down itself on cleanup.
  */
-export function useCaptures(query: CaptureQuery = {}, outbox?: Storage): UseCapturesResult {
-  const instance = useRiboInstance("outbox", outbox);
+export function useCaptures(query: CaptureQuery = {}, storage?: Storage): UseCapturesResult {
+  const instance = useRiboInstance("storage", storage);
   // Serialized rather than deep-compared: the query has two scalar-ish fields, so
   // a string key is cheaper and more obvious than a comparison helper. Key order
   // is stable because the object is built from a fixed set of fields.

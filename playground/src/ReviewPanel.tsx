@@ -218,7 +218,7 @@ export function ReviewPanel() {
       {error !== undefined && <p style={errorBox}>{error.message}</p>}
 
       {loading ? (
-        <p style={muted}>reading the outbox…</p>
+        <p style={muted}>reading the storage…</p>
       ) : parked.length === 0 ? (
         <p data-testid="review-empty" style={muted}>
           Nothing waiting for review — record something, then drain the queue so an item reaches the{" "}

@@ -1,5 +1,9 @@
-import { createPluginStorage, createPluginStorageScope } from "./plugin-storage.js";
-import type { PluginStorage, PluginStorageScope } from "./plugin-storage.js";
+import {
+  createCaptureStorageScope,
+  createPluginStorage,
+  createPluginStorageScope,
+} from "./plugin-storage.js";
+import type { CaptureStorageScope, PluginStorage, PluginStorageScope } from "./plugin-storage.js";
 import type { StorageBackend } from "./port.js";
 
 /**
@@ -7,7 +11,7 @@ import type { StorageBackend } from "./port.js";
  * writes through.
  *
  * The third thing the old `Outbox` class fronted, and the one that was never an
- * outbox in any sense. A declared store is a *namespace*, not a collection —
+ * storage in any sense. A declared store is a *namespace*, not a collection —
  * every entry lives in the port's one `entries` collection, distinguished by its
  * owner and its scope, which is why adding a store costs the backend nothing.
  */
@@ -35,8 +39,11 @@ export function createStore(backend: StorageBackend, owner: string): Store {
 }
 
 /** One capture's namespace, with the owner supplied later. */
-export interface CaptureScopedStore {
-  forPlugin: (owner: string) => PluginStorage;
+export function createCaptureStore(
+  backend: StorageBackend,
+  captureId: string,
+): CaptureStorageScope {
+  return createCaptureStorageScope(backend, captureId);
 }
 
 /** One capture's namespace for one owner, for a caller holding both ids already. */
@@ -78,4 +85,4 @@ export async function sweepCaptureEntries(
   );
 }
 
-export type { PluginStorage, PluginStorageScope };
+export type { CaptureStorageScope, PluginStorage, PluginStorageScope };

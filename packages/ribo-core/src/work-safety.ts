@@ -11,7 +11,7 @@ import type { SessionItem } from "./storage/session-schema.js";
  * This app exists to capture field work that must not be lost, so its most
  * important sentence is the one that tells an auditor whether the captures on
  * their device are actually safe. That answer is derived, not stored: it is a
- * pure classification of state that already exists — the outbox, the storage
+ * pure classification of state that already exists — the storage, the storage
  * persistence grant, connectivity — into a single verdict. It lives in core, next
  * to {@link resolveReview}, for the same reason: the playground (verbose) and a
  * future `ribo-ui-react` (one sentence) must classify *identically*, and the only way
@@ -80,7 +80,7 @@ import type { SessionItem } from "./storage/session-schema.js";
  */
 
 /**
- * A summary of the outbox reduced to the three facts safety depends on. The
+ * A summary of the storage reduced to the three facts safety depends on. The
  * input {@link workSafety} classifies, so the classifier never has to hold the
  * full {@link Capture} shape and a caller can summarize once per render.
  */

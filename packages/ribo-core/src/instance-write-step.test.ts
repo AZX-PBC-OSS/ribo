@@ -73,11 +73,11 @@ const makeAdapter = (sink: Write[]): ToolAdapter<Values, JobContext> => ({
 
 // --- Fixtures ---------------------------------------------------------------
 
-const opened: { outbox: Storage; name: string }[] = [];
+const opened: { storage: Storage; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name } of opened.splice(0)) {
-    if (!outbox.closed) await outbox.close();
+  for (const { storage, name } of opened.splice(0)) {
+    if (!storage.closed) await storage.close();
     // A memory database outlives its handle, as an IndexedDB one does.
     removeMemoryDatabase(name);
   }
@@ -93,19 +93,19 @@ class TestClock {
 
 const openTestOutbox = async (clock?: TestClock): Promise<Storage> => {
   const name = `ribo-instance-write-step-${crypto.randomUUID()}`;
-  const outbox = await openStorage({ backend: createMemoryBackend(name), now: clock?.now });
-  opened.push({ outbox, name });
-  return outbox;
+  const storage = await openStorage({ backend: createMemoryBackend(name), now: clock?.now });
+  opened.push({ storage, name });
+  return storage;
 };
 
 const seedSession = async (
-  outbox: Storage,
+  storage: Storage,
   ctx: unknown,
   fields: Record<string, unknown>,
   instanceKeys?: Record<string, string[]>,
 ): Promise<{ session: SessionItem; ctx: unknown }> => {
-  const session = await outbox.sessions.open({ ctx, ref: "job-7" });
-  const enqueued = await outbox.captures.enqueue({
+  const session = await storage.sessions.open({ ctx, ref: "job-7" });
+  const enqueued = await storage.captures.enqueue({
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
@@ -117,11 +117,11 @@ const seedSession = async (
     audio: new Blob(["audio"], { type: "audio/webm;codecs=opus" }),
     sessionId: session.id,
   });
-  await outbox.captures.patch(enqueued.id, {
+  await storage.captures.patch(enqueued.id, {
     transcript: { recordingId: "rec-1", text: "the house has systems", engine: "fake" },
     status: "transcribed",
   });
-  await outbox.sessions.patch(session.id, {
+  await storage.sessions.patch(session.id, {
     extracted: {},
     // The OUTBOX ITEM id, not the recording's. `joinSessionTranscript` stamps
     // `r.id` off the item, and `enqueue` generates that independently of
@@ -130,7 +130,7 @@ const seedSession = async (
     extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
-  const reviewed = await outbox.sessions.submitReview(session.id, {
+  const reviewed = await storage.sessions.submitReview(session.id, {
     status: "accepted",
     fields,
     ...(instanceKeys ? { instanceKeys } : {}),
@@ -148,7 +148,7 @@ function reviewFields(session: SessionItem): Record<string, unknown> {
 // --- The happy path and the key derivation --------------------------------
 
 test("each instance's derived key is stable across retries and distinct between instances", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   const written: Write[] = [];
   const step = toInstanceWriteStep({
     adapter: makeAdapter(written),
@@ -156,7 +156,7 @@ test("each instance's derived key is stable across retries and distinct between 
   });
 
   const { session, ctx } = await seedSession(
-    outbox,
+    storage,
     { jobId: "job-7" },
     {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
@@ -189,7 +189,7 @@ test("each instance's derived key is stable across retries and distinct between 
 });
 
 test("singleton groups are written once with the session's original idempotency key", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   const written: Write[] = [];
   const step = toInstanceWriteStep({
     adapter: makeAdapter(written),
@@ -197,7 +197,7 @@ test("singleton groups are written once with the session's original idempotency 
   });
 
   const { session, ctx } = await seedSession(
-    outbox,
+    storage,
     { jobId: "job-7" },
     {
       basedata: { yearBuilt: 2004 },
@@ -227,7 +227,7 @@ test("singleton groups are written once with the session's original idempotency 
 });
 
 test("a patch with an empty collection group writes nothing for that group", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   const written: Write[] = [];
   const step = toInstanceWriteStep({
     adapter: makeAdapter(written),
@@ -235,7 +235,7 @@ test("a patch with an empty collection group writes nothing for that group", asy
   });
 
   const { session, ctx } = await seedSession(
-    outbox,
+    storage,
     { jobId: "job-7" },
     {
       basedata: { yearBuilt: 2004 },
@@ -262,7 +262,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
   // IS re-attempted on retry; a vendor honouring Idempotency-Key recognises
   // it rather than creating a duplicate.
   const clock = new TestClock();
-  const outbox = await openTestOutbox(clock);
+  const storage = await openTestOutbox(clock);
   const written: Write[] = [];
   const base = makeAdapter(written);
   let instanceOneFailed = true;
@@ -281,8 +281,8 @@ test("a write failing on the second of three instances, then retrying, re-attemp
     },
   };
 
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  const enqueued = await outbox.captures.enqueue({
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const enqueued = await storage.captures.enqueue({
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
@@ -294,17 +294,17 @@ test("a write failing on the second of three instances, then retrying, re-attemp
     audio: new Blob(["audio"], { type: "audio/webm;codecs=opus" }),
     sessionId: session.id,
   });
-  await outbox.captures.patch(enqueued.id, {
+  await storage.captures.patch(enqueued.id, {
     transcript: { recordingId: "rec-1", text: "the house has systems", engine: "fake" },
     status: "transcribed",
   });
-  await outbox.sessions.patch(session.id, {
+  await storage.sessions.patch(session.id, {
     extracted: {},
-    // The outbox item id, not the recording's — see the note in `seedSession`.
+    // The storage item id, not the recording's — see the note in `seedSession`.
     extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
-  await outbox.sessions.submitReview(session.id, {
+  await storage.sessions.submitReview(session.id, {
     status: "accepted",
     fields: {
       hvac: [
@@ -317,7 +317,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
   });
 
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.reject(new Error("session extraction should not run")),
     sessionWrite: toInstanceWriteStep({
@@ -330,7 +330,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
   });
 
   await relay.syncNow();
-  const failed = await outbox.sessions.get(session.id);
+  const failed = await storage.sessions.get(session.id);
   expect(failed?.status).toBe("failed");
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:0"))).toEqual([
     { key: deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0), failed: false },
@@ -341,7 +341,7 @@ test("a write failing on the second of three instances, then retrying, re-attemp
 
   clock.advance(501);
   await relay.syncNow();
-  const done = await outbox.sessions.get(session.id);
+  const done = await storage.sessions.get(session.id);
   expect(done?.status).toBe("done");
   // Instance 0 is re-attempted on retry — no positional skip.
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:0"))).toHaveLength(2);
@@ -354,10 +354,10 @@ test("a write failing on the second of three instances, then retrying, re-attemp
 // --- The same trust boundary as toWriteStep --------------------------------
 
 test("a patch the adapter's schema rejects is terminal, and write is never called", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   const written: Write[] = [];
   const { session, ctx } = await seedSession(
-    outbox,
+    storage,
     { jobId: "job-7" },
     {
       basedata: { yearBuilt: "nineteen" },
@@ -385,10 +385,10 @@ test("a patch the adapter's schema rejects is terminal, and write is never calle
 });
 
 test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is never called", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   const written: Write[] = [];
   const { session, ctx } = await seedSession(
-    outbox,
+    storage,
     { jobId: "" },
     {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }],
@@ -410,20 +410,20 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
   );
 
   expect(thrown).toBeInstanceOf(TerminalError);
-  expect((thrown as Error).message).toContain("Storage.openSession");
+  expect((thrown as Error).message).toContain("storage.sessions.open");
   expect(isTransientFailure(thrown)).toBe(false);
   expect(written).toEqual([]);
 });
 
 test("a failing write propagates unchanged — the relay's retry contract is not swallowed", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   const failure = Object.assign(new Error("snuggpro returned 503"), { status: 503 });
   const adapter: ToolAdapter<Values, JobContext> = {
     ...makeAdapter([]),
     write: () => Promise.reject(failure),
   };
   const { session, ctx } = await seedSession(
-    outbox,
+    storage,
     { jobId: "job-7" },
     {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }],
@@ -459,7 +459,7 @@ test("after reopening from dead and removing the first instance, the survivor re
   // deleted instance; and the write step silently skips it. This test stops a
   // future receipts implementation reintroducing positional identity.
   const clock = new TestClock();
-  const outbox = await openTestOutbox(clock);
+  const storage = await openTestOutbox(clock);
   const written: Write[] = [];
   const base = makeAdapter(written);
   let firstAttempt = true;
@@ -476,8 +476,8 @@ test("after reopening from dead and removing the first instance, the survivor re
     },
   };
 
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  const enqueued = await outbox.captures.enqueue({
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const enqueued = await storage.captures.enqueue({
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
@@ -489,17 +489,17 @@ test("after reopening from dead and removing the first instance, the survivor re
     audio: new Blob(["audio"], { type: "audio/webm;codecs=opus" }),
     sessionId: session.id,
   });
-  await outbox.captures.patch(enqueued.id, {
+  await storage.captures.patch(enqueued.id, {
     transcript: { recordingId: "rec-1", text: "the house has systems", engine: "fake" },
     status: "transcribed",
   });
-  await outbox.sessions.patch(session.id, {
+  await storage.sessions.patch(session.id, {
     extracted: {},
-    // The outbox item id, not the recording's — see the note in `seedSession`.
+    // The storage item id, not the recording's — see the note in `seedSession`.
     extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
-  await outbox.sessions.submitReview(session.id, {
+  await storage.sessions.submitReview(session.id, {
     status: "accepted",
     fields: {
       hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
@@ -508,7 +508,7 @@ test("after reopening from dead and removing the first instance, the survivor re
   });
 
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.reject(new Error("should not extract")),
     sessionWrite: toInstanceWriteStep({
@@ -523,12 +523,12 @@ test("after reopening from dead and removing the first instance, the survivor re
 
   // First drain: instance 0 writes, instance 1 throws → session dies.
   await relay.syncNow();
-  const dead = await outbox.sessions.get(session.id);
+  const dead = await storage.sessions.get(session.id);
   expect(dead?.status).toBe("dead");
 
   // Reopen from dead, remove the first instance, resubmit with only the survivor.
-  await outbox.sessions.reopenForReview(session.id);
-  await outbox.sessions.submitReview(session.id, {
+  await storage.sessions.reopenForReview(session.id);
+  await storage.sessions.submitReview(session.id, {
     status: "accepted",
     fields: {
       hvac: [{ hvacSystemEquipmentType: "AC" }],
@@ -545,7 +545,7 @@ test("after reopening from dead and removing the first instance, the survivor re
     collectionGroups: ["hvac"],
   });
   const relay2 = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.reject(new Error("should not extract")),
     sessionWrite: step2,
@@ -555,7 +555,7 @@ test("after reopening from dead and removing the first instance, the survivor re
   });
 
   await relay2.syncNow();
-  const done = await outbox.sessions.get(session.id);
+  const done = await storage.sessions.get(session.id);
   expect(done?.status).toBe("done");
 
   // The survivor reached the adapter. Today it does not: it is now index 0,
@@ -574,7 +574,7 @@ test("after reopening from dead and removing the first instance, the survivor re
   // Receipts are keyed by the real instance key the reviewed outcome declares
   // (k2), not by array position. The relay doesn't expose the resolved
   // SessionWriteResult, so call the step directly with the same inputs.
-  const postRemoval = await outbox.sessions.get(session.id);
+  const postRemoval = await storage.sessions.get(session.id);
   const receiptResult = await step2({
     session: postRemoval!,
     reviewed: reviewFields(postRemoval!),

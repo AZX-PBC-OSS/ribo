@@ -37,7 +37,7 @@ import { captureRxSchema, pluginStorageRxSchema, sessionRxSchema } from "./schem
  * Logical collection name to the name on disk.
  *
  * The persisted names do not change, and this map is why they do not have to.
- * `captures` is stored in a collection called `outbox` because renaming it would
+ * `captures` is stored in a collection called `storage` because renaming it would
  * be a migration on the one collection where a bad migration strands a real
  * auditor's recordings — and a rename buys nothing but tidiness.
  */

@@ -16,15 +16,15 @@ import { openStorage, type Storage } from "./storage.js";
 //
 // It is a node `unit` test on purpose — no IndexedDB, no browser — which is
 // what makes the domain suite fast. It deliberately does NOT stand in for the
-// durability test in `outbox.browser.test.ts`, and the conformance kit is what
+// durability test in `storage.browser.test.ts`, and the conformance kit is what
 // proves the memory backend and the RxDB one agree
 // (`@azx/ribo-core/testing`).
 
-const opened: { outbox: Storage; name: string }[] = [];
+const opened: { storage: Storage; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name } of opened.splice(0)) {
-    if (!outbox.closed) await outbox.close();
+  for (const { storage, name } of opened.splice(0)) {
+    if (!storage.closed) await storage.close();
     // A memory database outlives its handle, exactly as an IndexedDB one does, so
     // a cold start is explicit rather than implied by closing.
     removeMemoryDatabase(name);
@@ -47,13 +47,13 @@ function audioBlob(): Blob {
 }
 
 test("the memory backend drives the whole Storage API with no RxDB present", async () => {
-  const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
+  const name = `ribo-storage-memory-${crypto.randomUUID()}`;
 
-  const outbox = await openStorage({ backend: createMemoryBackend(name) });
-  opened.push({ outbox, name });
+  const storage = await openStorage({ backend: createMemoryBackend(name) });
+  opened.push({ storage, name });
 
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  const enqueued = await outbox.captures.enqueue({
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const enqueued = await storage.captures.enqueue({
     recording,
     audio: audioBlob(),
     sessionId: session.id,
@@ -66,12 +66,12 @@ test("the memory backend drives the whole Storage API with no RxDB present", asy
 
   // Read the item back through the public API — off the injected engine, in a
   // node process with no IndexedDB at all.
-  const read = await outbox.captures.get(enqueued.id);
+  const read = await storage.captures.get(enqueued.id);
   expect(read).toEqual(enqueued);
-  expect((await outbox.captures.list()).map((item) => item.id)).toEqual([enqueued.id]);
+  expect((await storage.captures.list()).map((item) => item.id)).toEqual([enqueued.id]);
 
   // The bytes round-trip through the injected engine unchanged.
-  const audio = await outbox.captures.getAudio(enqueued.id);
+  const audio = await storage.captures.getAudio(enqueued.id);
   expect(audio).toBeInstanceOf(Blob);
   expect(new Uint8Array(await audio!.arrayBuffer())).toEqual(audioBytes);
 });
@@ -85,14 +85,14 @@ test("a nested review outcome with dotted paths round-trips storage with no migr
   // settle it — the RxDB collection carries its own JSON schema and its own `version`.
   // This drives the real thing: a nested outcome through `submitSessionReview`, out to
   // storage and back through `getSession`, on the sessions collection.
-  const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
+  const name = `ribo-storage-memory-${crypto.randomUUID()}`;
 
-  const outbox = await openStorage({ backend: createMemoryBackend(name) });
-  opened.push({ outbox, name });
+  const storage = await openStorage({ backend: createMemoryBackend(name) });
+  opened.push({ storage, name });
 
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  await outbox.captures.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
-  await outbox.sessions.patch(session.id, { status: "awaiting-review" });
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  await storage.captures.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
+  await storage.sessions.patch(session.id, { status: "awaiting-review" });
 
   const outcome: PersistedReviewOutcome = {
     status: "edited",
@@ -104,10 +104,10 @@ test("a nested review outcome with dotted paths round-trips storage with no migr
     rejectedFields: ["healthSafety.asbestos"],
   };
 
-  const submitted = await outbox.sessions.submitReview(session.id, outcome);
+  const submitted = await storage.sessions.submitReview(session.id, outcome);
   expect(submitted.status).toBe("writing");
 
-  const read = await outbox.sessions.get(session.id);
+  const read = await storage.sessions.get(session.id);
 
   // Nesting survives as nesting, not flattened or stringified, and the dotted paths
   // survive as the strings they are.
@@ -118,11 +118,11 @@ test("a document round-trips real storage — kind and pageCount survive, bytes 
   // Per D2 the zod parse on read is the only interior check on `recording`, so
   // this is the test that catches the whole corruption class — the
   // `commitRecording` hazard included.
-  const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
-  const outbox = await openStorage({ backend: createMemoryBackend(name) });
-  opened.push({ outbox, name });
+  const name = `ribo-storage-memory-${crypto.randomUUID()}`;
+  const storage = await openStorage({ backend: createMemoryBackend(name) });
+  opened.push({ storage, name });
 
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
   const doc: DocumentCapture = {
     id: "doc-1",
@@ -133,7 +133,7 @@ test("a document round-trips real storage — kind and pageCount survive, bytes 
     ctx: { jobId: "job-7" },
   };
   const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
-  const enqueued = await outbox.captures.enqueue({
+  const enqueued = await storage.captures.enqueue({
     recording: doc,
     audio: new Blob([pdfBytes], { type: "application/pdf" }),
     sessionId: session.id,
@@ -143,19 +143,19 @@ test("a document round-trips real storage — kind and pageCount survive, bytes 
   expect(enqueued.audioReady).toBe(true);
 
   // get() and list() return it with kind and pageCount intact.
-  const read = await outbox.captures.get(enqueued.id);
+  const read = await storage.captures.get(enqueued.id);
   expect(read).toEqual(enqueued);
   expect(read?.recording.kind).toBe("document");
   if (read?.recording.kind === "document") {
     expect(read.recording.pageCount).toBe(3);
   }
 
-  const listed = await outbox.captures.list();
+  const listed = await storage.captures.list();
   expect(listed.map((item) => item.id)).toEqual([enqueued.id]);
   expect(listed[0]?.recording.kind).toBe("document");
 
   // The bytes round-trip unchanged.
-  const audio = await outbox.captures.getAudio(enqueued.id);
+  const audio = await storage.captures.getAudio(enqueued.id);
   expect(audio).toBeInstanceOf(Blob);
   expect(new Uint8Array(await audio!.arrayBuffer())).toEqual(pdfBytes);
 });
@@ -169,14 +169,14 @@ test("commitRecording refuses a non-audio row — the spread the compiler does n
   // `Recording`, so a document cannot enter `recording` status that way), so
   // the test casts to construct it. The cast is not laziness — it is the only
   // way to reach the code path the guard protects.
-  const name = `ribo-outbox-memory-${crypto.randomUUID()}`;
-  const outbox = await openStorage({ backend: createMemoryBackend(name) });
-  opened.push({ outbox, name });
+  const name = `ribo-storage-memory-${crypto.randomUUID()}`;
+  const storage = await openStorage({ backend: createMemoryBackend(name) });
+  opened.push({ storage, name });
 
-  const session = await outbox.sessions.open({ ctx: {}, ref: "test" });
+  const session = await storage.sessions.open({ ctx: {}, ref: "test" });
 
   // Begin a real audio recording to get a `recording`-status row.
-  const item = await outbox.captures.beginRecording({
+  const item = await storage.captures.beginRecording({
     recording: { ...recording, id: "rec-commit-guard" },
     sourceId: "src-1",
     sessionId: session.id,
@@ -185,7 +185,7 @@ test("commitRecording refuses a non-audio row — the spread the compiler does n
   // Cast the row's recording to a document shape, simulating the unreachable
   // state the guard exists for. This goes straight through the backend,
   // bypassing the public API that would refuse it.
-  await outbox.backend.modify("captures", item.id, (data) => ({
+  await storage.backend.modify("captures", item.id, (data) => ({
     ...data,
     recording: {
       id: "rec-commit-guard",
@@ -198,7 +198,7 @@ test("commitRecording refuses a non-audio row — the spread the compiler does n
   }));
 
   // commitRecording must refuse — not silently corrupt the row.
-  await expect(outbox.captures.commitRecording(item.id, new Blob([]), 1000)).rejects.toThrow(
+  await expect(storage.captures.commitRecording(item.id, new Blob([]), 1000)).rejects.toThrow(
     /document/,
   );
 });

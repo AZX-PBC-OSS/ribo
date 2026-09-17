@@ -9,7 +9,7 @@ import { captureFields } from "./capture-fields.js";
  *
  * - **D1** — `Recording` is the audio branch; `DocumentCapture` is the document
  *   branch; `CapturePayload` is the union of the two, discriminated by `kind`.
- * - **D2** — no RxDB version bump. The outbox schema's `recording` field is
+ * - **D2** — no RxDB version bump. The storage schema's `recording` field is
  *   `{ type: "object" }` with no nested `properties`, so RxDB neither validates
  *   nor indexes the interior. The zod schema is the only description of that
  *   interior, and it is parsed on read — which is where legacy tolerance lives.

@@ -32,7 +32,7 @@ import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
  *   level. A document transcriber that produces page boundaries, table
  *   structure, or a provider's own structured response puts them here.
  * - **Capture metadata** — the relay writes `seq`, `kind`, and `id` from the
- *   outbox item under a reserved `capture.` prefix (`capture.seq`,
+ *   storage item under a reserved `capture.` prefix (`capture.seq`,
  *   `capture.kind`, `capture.id`). The prefix is reserved so a transcriber's
  *   own `seq` or `id` cannot collide with the relay's metadata; both coexist in
  *   the same bag. If a transcriber does use a `capture.`-prefixed key, the
@@ -47,10 +47,10 @@ import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
  * extraction is still valid and need not re-run.
  */
 export async function listSessionTranscriptParts(
-  outbox: Storage,
+  storage: Storage,
   sessionId: string,
 ): Promise<{ parts: AnnotatedTranscript[]; recordingIds: string[] }> {
-  const recordings = await outbox.captures.list({ sessionId });
+  const recordings = await storage.captures.list({ sessionId });
   const usable = recordings
     .filter((r) => r.status === "transcribed" && r.transcript !== undefined)
     .sort((a, b) => a.seq - b.seq);
@@ -84,11 +84,11 @@ export async function listSessionTranscriptParts(
  * the extraction is still valid and need not re-run.
  */
 export async function joinSessionTranscript(
-  outbox: Storage,
+  storage: Storage,
   sessionId: string,
   combiner?: TranscriptCombiner,
 ): Promise<{ text: string; recordingIds: string[] }> {
-  const { parts, recordingIds } = await listSessionTranscriptParts(outbox, sessionId);
+  const { parts, recordingIds } = await listSessionTranscriptParts(storage, sessionId);
   const combine = combiner ?? createDefaultTranscriptCombiner();
   const { text } = combine(parts);
   return { text, recordingIds };

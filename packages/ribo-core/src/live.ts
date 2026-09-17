@@ -111,7 +111,7 @@ export interface LiveSession {
   /**
    * One emission per transcribed region — a {@link LiveSegment} carrying the
    * text and whether it is a provisional tail or a permanent commit. Internal
-   * to core: the host app reads preview text through `Storage.watch()`, not by
+   * to core: the host app reads preview text through `storage.captures.watch()`, not by
    * subscribing here directly.
    *
    * **Stays open after `close()`** so the worker's final drain — transcribing

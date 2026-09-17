@@ -171,7 +171,7 @@ export interface RecorderCapture<C = EmptyContext> {
   readonly recording: Omit<Recording, "ctx"> & { ctx: C };
   readonly audio: Blob;
   /**
-   * The outbox item this capture is ALREADY committed to, when durable capture ran.
+   * The storage item this capture is ALREADY committed to, when durable capture ran.
    *
    * Present means the audio is on disk and the row is `queued` — a caller must NOT
    * enqueue it again. Absent means the legacy in-memory path produced this, and the
@@ -432,7 +432,7 @@ export class Recorder<C = EmptyContext> {
   /**
    * Opens the microphone and starts recording.
    *
-   * @returns The outbox item id when recording durably, or `undefined` in non-durable mode.
+   * @returns The storage item id when recording durably, or `undefined` in non-durable mode.
    * @throws {RecorderError} `already-recording`, `capture-busy`, `permission-denied`,
    * `no-input-device`, `unsupported-mime-type` or `capture-failed`. On every failure the stream is
    * released, the lock is freed, and the recorder is left idle, so a retry starts from a clean state.

@@ -19,10 +19,10 @@ past a parked session, every recording behind it would stall too, and a reload m
 the wait entirely. Persisting the parked state, rather than awaiting a promise, is what lets review
 survive the tab closing.
 
-**The only way out is [`Storage.submitSessionReview`](/guide/review).** Nothing else advances a
+**The only way out is [`storage.sessions.submitReview`](/guide/review).** Nothing else advances a
 parked session — not a retry, not a reload, not time passing. If a session's status needs to move
 back to `awaiting-review` from `done` or `dead` (the auditor wants to correct something already
-written, or already given up on), [`Storage.reopenSessionForReview`](/guide/review) is the way back
+written, or already given up on), [`storage.sessions.reopenForReview`](/guide/review) is the way back
 in.
 
 **The symptom if you don't know this:** you watch storage, a session reaches `awaiting-review`,
@@ -59,7 +59,7 @@ passes. Retrying is the default behavior, not something you opt into.
 
 **`dead` is the terminal one.** An item only reaches `dead` after exhausting its retry attempts (or
 after a failure classified as unrecoverable — a 4xx that isn't a rate limit, for instance). `dead`
-has no automatic way out; a session can be rescued with `Storage.reopenSessionForReview`, but nothing
+has no automatic way out; a session can be rescued with `storage.sessions.reopenForReview`, but nothing
 retries a `dead` item on its own.
 
 **The symptom:** an item you expected to have failed hard is still sitting there quietly, with no

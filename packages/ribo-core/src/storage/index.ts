@@ -33,7 +33,7 @@ export { CaptureStore } from "./captures.js";
 export type { CaptureQuery, EnqueueInput } from "./captures.js";
 export { SessionStore } from "./sessions.js";
 export type { OpenSessionInput, SessionQuery } from "./sessions.js";
-export type { CaptureScopedStore, Store } from "./entries.js";
+export type { Store } from "./entries.js";
 
 export { createRelay } from "./relay.js";
 export type {

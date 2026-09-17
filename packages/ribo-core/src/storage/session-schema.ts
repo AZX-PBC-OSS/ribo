@@ -2,20 +2,20 @@ import { z } from "zod";
 
 import { reviewOutcomeSchema } from "../review.js";
 
-/** The RxDB collection name for sessions. Sits beside `outbox` in the same database. */
+/** The RxDB collection name for sessions. Sits beside `storage` in the same database. */
 export const SESSION_COLLECTION_NAME = "sessions";
 
 /**
  * The session state machine:
  *
  * ```
- * open → extracting → awaiting-review → writing → done ⇄ awaiting-review (Storage.reopenSessionForReview)
+ * open → extracting → awaiting-review → writing → done ⇄ awaiting-review (storage.sessions.reopenForReview)
  *                          ↘ (transient) → failed → (backoff) → retry
- *                          ↘ (terminal)  → dead   ⇄ awaiting-review (Storage.reopenSessionForReview)
+ *                          ↘ (terminal)  → dead   ⇄ awaiting-review (storage.sessions.reopenForReview)
  * ```
  *
  * A session owns extraction, review and write state for a set of captures
- * (audio or document) taken together. The outbox item's state machine
+ * (audio or document) taken together. The storage item's state machine
  * narrows to capture + transcription; everything downstream moves here.
  *
  * **`open` is the host's phase.** Captures are being taken and
@@ -24,13 +24,13 @@ export const SESSION_COLLECTION_NAME = "sessions";
  * close the session (the auditor is done walking the house). This matches what
  * `jobs.ts` already does: the capture set is intentional, not inferred.
  *
- * **`awaiting-review` is the review gate, same as the outbox item's side.** Absent
+ * **`awaiting-review` is the review gate, same as the storage item's side.** Absent
  * from {@link ACTIVE_SESSION_STATUSES} so the relay drains past it;
- * `Storage.submitSessionReview` is the only way out, `Storage.reopenSessionForReview`
+ * `storage.sessions.submitReview` is the only way out, `storage.sessions.reopenForReview`
  * the only way back from `done` or `dead`.
  *
  * **Both `done` and `dead` have a human-driven way out.** `failed` is resting,
- * same as the outbox item's: the relay picks it back up once `nextAttemptAt`
+ * same as the storage item's: the relay picks it back up once `nextAttemptAt`
  * has passed.
  */
 export const SESSION_STATUSES = [
@@ -51,7 +51,7 @@ export type SessionStatus = (typeof SESSION_STATUSES)[number];
  * `extracting` and `writing` are in-flight; `failed` is resting (retryable
  * after backoff). **`open` is NOT active** — the relay does not act on an open
  * session until the host closes it. **`awaiting-review` is NOT active** — the
- * review gate, same omission as the outbox item's side.
+ * review gate, same omission as the storage item's side.
  */
 export const ACTIVE_SESSION_STATUSES = [
   "extracting",
@@ -61,7 +61,7 @@ export const ACTIVE_SESSION_STATUSES = [
 
 /**
  * Statuses the relay will not act on again unattended. Both `done` and `dead`
- * have a human-driven way out (`Storage.reopenSessionForReview`). The constant
+ * have a human-driven way out (`storage.sessions.reopenForReview`). The constant
  * keeps its name for now — whether it still earns it, or wants renaming to
  * something like `RESTING_SESSION_STATUSES`, is an open question (see the
  * session-ownership design's §10.1), left to a follow-up so a rename does not
@@ -88,7 +88,7 @@ export const FINISHED_SESSION_STATUSES = [
  *
  * Pinned field-for-field against {@link sessionRxSchema} by
  * `session-schema.test.ts`, the same seam `schema.test.ts` guards for the
- * outbox item.
+ * storage item.
  */
 export const sessionDocumentSchema = z.strictObject({
   /** Stable id, and the RxDB primary key. */
@@ -98,7 +98,7 @@ export const sessionDocumentSchema = z.strictObject({
   openedAt: z.iso.datetime(),
   /**
    * When the host closed the session. Absent while `status === "open"`.
-   * Set by `Storage.closeSession`; a reopened session clears this.
+   * Set by `storage.sessions.close`; a reopened session clears this.
    */
   closedAt: z.iso.datetime().optional(),
   /**

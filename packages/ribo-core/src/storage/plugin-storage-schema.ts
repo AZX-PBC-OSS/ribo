@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** The RxDB collection name for plugin-scoped storage. Sits beside `outbox` and `sessions` in the same database. */
+/** The RxDB collection name for plugin-scoped storage. Sits beside `storage` and `sessions` in the same database. */
 export const PLUGIN_STORAGE_COLLECTION_NAME = "pluginStorage";
 
 /**

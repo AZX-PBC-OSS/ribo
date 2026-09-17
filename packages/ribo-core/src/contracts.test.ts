@@ -33,7 +33,7 @@ import type {
  * itself is a queue state, not a callback the pipeline awaits — see `review.ts`'s file header —
  * so what stands in for "a human reviewed it" here is a hand-built {@link FieldDecisions}, the
  * same shape `resolveReview` turns into the `PersistedReviewOutcome` that
- * `Storage.submitSessionReview` would receive from a real UI.
+ * `storage.sessions.submitReview` would receive from a real UI.
  *
  * Two threads worth following through the file:
  *
@@ -218,7 +218,7 @@ test("the contracts compose: record → transcribe → extract → review → wr
   //    justification does not check out, drop the health-safety test that was never run. There
   //    is no presenter to invoke here — review is a queue state a UI reports back into, not a
   //    callback the pipeline awaits, so a hand-built `FieldDecisions` stands in for what
-  //    `Storage.submitSessionReview` would receive from a real one. The two `healthSafety` leaves get
+  //    `storage.sessions.submitReview` would receive from a real one. The two `healthSafety` leaves get
   //    DIFFERENT verdicts, which is the thing top-level-key review could not do.
   const decisions: FieldDecisions = {
     rValue: { status: "accepted" },
@@ -250,7 +250,7 @@ test("the contracts compose: record → transcribe → extract → review → wr
   //    and a `meta` that does not: the idempotency key is the queue's, not the recording's,
   //    which is why it is a third parameter rather than another key on `ctx`.
   await adapter.write(fields, adapter.ctxSchema.parse(recording.ctx), {
-    idempotencyKey: "outbox-item-1",
+    idempotencyKey: "storage-item-1",
   });
 
   expect(written).toEqual([
@@ -315,7 +315,7 @@ test("the adapter's ctx is typed end to end — a foreign context does not compi
   // line that follows it, and a call Prettier wraps would attach the directive to
   // `await adapter.write(` — where nothing is wrong — instead of to the bad ctx.
   const fields = { rValue: 19, area: 400, notes: "" };
-  const meta = { idempotencyKey: "outbox-item-1" };
+  const meta = { idempotencyKey: "storage-item-1" };
 
   // @ts-expect-error - `ToolAdapter<AtticValues, JobContext>` needs a `jobId`. This is the hole
   // that `ctx: unknown` left open, and the reason `C` is a real type parameter. A valid `meta`

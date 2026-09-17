@@ -44,7 +44,7 @@ export interface FallbackTranscriberOptions {
  *
  * Nothing is stamped onto the result. `Transcript.engine` is already required
  * and set by the implementation that ran, so "which one did?" is answerable off
- * `Storage.list()` for free. The returned transcript is returned as-is, never
+ * `storage.captures.list()` for free. The returned transcript is returned as-is, never
  * re-stamped with the wrapper's own engine id.
  *
  * `capability()` on the composite reports the **best** of its delegates, with

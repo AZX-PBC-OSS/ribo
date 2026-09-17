@@ -55,7 +55,7 @@ afterEach(async () => {
 async function renderHooks(opts: {
   captureCoordinator?: CaptureCoordinator;
   recorder: AnyRecorder;
-  outbox: Storage;
+  storage: Storage;
 }) {
   let recorderApi: UseRecorderResult | undefined;
   let safety: WorkSafety | undefined;
@@ -69,7 +69,7 @@ async function renderHooks(opts: {
 
   const instances: RiboInstances = {
     recorder: opts.recorder,
-    outbox: opts.outbox,
+    storage: opts.storage,
     connectivity: fakeConnectivity(true),
     captureCoordinator: opts.captureCoordinator,
   };
@@ -99,10 +99,10 @@ test("a session registered by useRecorder is visible to a SIBLING useWorkSafety"
   // subscribed useWorkSafety — the same observable mechanism, just a different
   // timing. The test verifies the coordinator plumbing, not the exact call site.
   const captureCoordinator = createCaptureCoordinator();
-  const outbox = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+  const storage = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   // Pre-populate with a queued item so work.pending > 0 — the safety then
   // depends on capture health, which is the thing under test.
-  await outbox.captures.enqueue({
+  await storage.captures.enqueue({
     recording: {
       id: crypto.randomUUID(),
       capturedAt: new Date().toISOString(),
@@ -126,7 +126,7 @@ test("a session registered by useRecorder is visible to a SIBLING useWorkSafety"
   started.push(recorder);
 
   try {
-    const { result } = await renderHooks({ captureCoordinator, recorder, outbox });
+    const { result } = await renderHooks({ captureCoordinator, recorder, storage });
     // workSafety checks captureHealth === "flushing" BEFORE persistence, so the
     // safety is protected/recording regardless of the persistence grant.
     await vi.waitFor(
@@ -137,13 +137,13 @@ test("a session registered by useRecorder is visible to a SIBLING useWorkSafety"
     );
     unregister();
   } finally {
-    await outbox.close();
+    await storage.close();
   }
 });
 
 test("the session disappears on a failed start", async () => {
   const captureCoordinator = createCaptureCoordinator();
-  const outbox = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+  const storage = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   // A recorder that fails on start — the microphone is denied.
   const failingRecorder = new Recorder({
     getUserMedia: () => Promise.reject(new DOMException("no", "NotAllowedError")),
@@ -153,28 +153,28 @@ test("the session disappears on a failed start", async () => {
     const { result } = await renderHooks({
       captureCoordinator,
       recorder: failingRecorder,
-      outbox,
+      storage,
     });
     await result.recorder.start().catch(() => undefined);
     expect(captureCoordinator.active()).toBeUndefined();
   } finally {
-    await outbox.close();
+    await storage.close();
   }
 });
 
 test("no coordinator means no durable capture and today's behaviour", async () => {
-  const outbox = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
+  const storage = await openStorage({ backend: createMemoryBackend(`t-${crypto.randomUUID()}`) });
   const recorder = new Recorder();
   started.push(recorder);
 
   try {
-    const { result } = await renderHooks({ recorder, outbox });
+    const { result } = await renderHooks({ recorder, storage });
     await result.recorder.start();
     // Without a coordinator there is no capture health, so the reason is never
     // "recording" — it falls through to the existing classification.
     expect(result.safety?.reason).not.toBe("recording");
     await result.recorder.stop();
   } finally {
-    await outbox.close();
+    await storage.close();
   }
 });

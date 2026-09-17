@@ -326,18 +326,18 @@ test("an error reply arriving while the caller's signal is aborted is classified
 
 // ── relay substitutability: drop-in for FakeTranscriber, zero relay changes ───────────────────────
 
-const DB_NAME = "ribo-outbox-ondevice-test";
+const DB_NAME = "ribo-storage-ondevice-test";
 
 afterEach(async () => {
   removeMemoryDatabase(DB_NAME);
 });
 
 test("the queue relay drives an OnDeviceTranscriber with no changes", async () => {
-  const outbox: Storage = await openStorage({ backend: createMemoryBackend(DB_NAME) });
-  const session = await outbox.sessions.open({ ctx: recording.ctx, ref: "job-7" });
+  const storage: Storage = await openStorage({ backend: createMemoryBackend(DB_NAME) });
+  const session = await storage.sessions.open({ ctx: recording.ctx, ref: "job-7" });
   // A real, decodable capture blob — the relay hands this straight to transcribe().
   const audio = wavBlob([constant(0.1, 16_000)], 16_000);
-  const enqueued = await outbox.captures.enqueue({ recording, audio, sessionId: session.id });
+  const enqueued = await storage.captures.enqueue({ recording, audio, sessionId: session.id });
 
   const transcriber: Transcriber = new OnDeviceTranscriber({
     wasmPaths: WASM_PATHS,
@@ -348,7 +348,7 @@ test("the queue relay drives an OnDeviceTranscriber with no changes", async () =
   const sessionExtract: SessionExtractStep = () => Promise.resolve({ fields: { ok: true } });
   const sessionWrite: SessionWriteStep = () => Promise.resolve();
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", transcriber),
     sessionExtract,
     sessionWrite,
@@ -357,12 +357,12 @@ test("the queue relay drives an OnDeviceTranscriber with no changes", async () =
   await relay.syncNow();
   await relay.settled();
 
-  const item = await outbox.captures.get(enqueued.id);
+  const item = await storage.captures.get(enqueued.id);
   // The transcript the relay persisted carries this engine's provenance (transcript.ts contract).
   expect(item?.transcript).toEqual({
     recordingId: "rec-1",
     text: "on-device transcript",
     engine: ondeviceEngineId({ modelId: DEFAULT_MODEL_ID }),
   });
-  await outbox.close();
+  await storage.close();
 });

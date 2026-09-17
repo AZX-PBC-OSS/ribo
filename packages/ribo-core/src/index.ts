@@ -243,7 +243,7 @@ export { toWriteStep } from "./write-step.js";
 
 // Per-instance write-back: a sibling of `toWriteStep` that writes each collection
 // instance separately with a derived idempotency key, and persists per-instance
-// progress in the outbox so a retry resumes after the instances already written.
+// progress in the storage so a retry resumes after the instances already written.
 export { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-write-step.js";
 export type { ToInstanceWriteStepOptions } from "./instance-write-step.js";
 
@@ -322,7 +322,7 @@ export { mergeGroupPieces } from "./merge-group-pieces.js";
 export { parseWithSchema } from "./parse-with-schema.js";
 
 // Work safety: the one honest "is my work safe?" answer, derived purely from the
-// outbox, the storage persistence grant and connectivity — so every presenter
+// storage, the storage persistence grant and connectivity — so every presenter
 // classifies identically. Only synced work is truly safe; the rest is a gradient.
 export { summarizeWork, workSafety } from "./work-safety.js";
 export type { StoragePersistence, WorkOnDevice, WorkSafety } from "./work-safety.js";

@@ -13,7 +13,7 @@
 export const CAPTURE_LOCK = "ribo-capture";
 
 /**
- * The lock a relay holds while working one outbox item.
+ * The lock a relay holds while working one storage item.
  *
  * Per item, not one global relay lock: two tabs draining *different* items concurrently is fine and
  * desirable, and a single lock would serialise the whole queue behind whichever tab happened to start.

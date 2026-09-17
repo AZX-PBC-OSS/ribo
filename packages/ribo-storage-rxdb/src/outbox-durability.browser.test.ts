@@ -45,7 +45,7 @@ const usedNames: string[] = [];
  * test's leftovers satisfy another test's assertions.
  */
 function uniqueName(): string {
-  const name = `ribo-outbox-test-${crypto.randomUUID()}`;
+  const name = `ribo-storage-test-${crypto.randomUUID()}`;
   usedNames.push(name);
   return name;
 }
@@ -55,14 +55,14 @@ async function open(name: string, options: Partial<Parameters<typeof openStorage
   // prove that state reaches real IndexedDB and survives a reopen, and that the
   // migration ladder runs against what is physically on disk — a memory backend
   // would fake exactly the property under test.
-  const outbox = await openStorage({ ...options, backend: await openRxdbBackend({ name }) });
-  openDatabases.push(outbox);
-  return outbox;
+  const storage = await openStorage({ ...options, backend: await openRxdbBackend({ name }) });
+  openDatabases.push(storage);
+  return storage;
 }
 
 afterEach(async () => {
-  for (const outbox of openDatabases.splice(0)) {
-    if (!outbox.closed) await outbox.close();
+  for (const storage of openDatabases.splice(0)) {
+    if (!storage.closed) await storage.close();
   }
   for (const name of usedNames.splice(0)) await removeOutboxDatabase(name);
 });
@@ -100,7 +100,7 @@ function idbDatabaseName(outboxName: string, schemaVersion = captureRxSchema.ver
   // The `--N--` segment is RxDB's schema version. Read it from the schema rather
   // than hardcoding it, so a version bump does not send this test looking in a
   // database that was never created.
-  return `rxdb-dexie-${outboxName}--${String(schemaVersion)}--outbox`;
+  return `rxdb-dexie-${outboxName}--${String(schemaVersion)}--${CAPTURES_COLLECTION_NAME}`;
 }
 
 function promisify<T>(request: IDBRequest<T>): Promise<T> {
@@ -260,7 +260,7 @@ test("step outputs written before a close are readable after a reopen", async ()
 // imitation of it.
 // ---------------------------------------------------------------------------
 
-/** The outbox document shape as it was at schema version 0, before the session split. */
+/** The storage document shape as it was at schema version 0, before the session split. */
 interface V0OutboxDocument {
   id: string;
   seq: number;
@@ -276,7 +276,7 @@ interface V0OutboxDocument {
   writeResult?: Record<string, unknown>;
 }
 
-/** The outbox's RxDB schema exactly as it was before this task's version bump. */
+/** The storage's RxDB schema exactly as it was before this task's version bump. */
 const OUTBOX_RX_SCHEMA_V0: RxJsonSchema<V0OutboxDocument> = {
   version: 0,
   primaryKey: "id",
@@ -330,7 +330,7 @@ function v0Document(): V0OutboxDocument {
 }
 
 /**
- * Builds a real outbox collection at schema version 0 and writes one document
+ * Builds a real storage collection at schema version 0 and writes one document
  * into it, through RxDB's own API rather than raw IndexedDB — see the note
  * above for why that is the part that makes this a genuine migration fixture.
  */
@@ -350,19 +350,19 @@ async function seedVersionZeroOutbox(name: string, document: V0OutboxDocument): 
   await database.close();
 }
 
-test("an outbox stored at schema version 0 opens and migrates to version 7", async () => {
+test("a capture store stored at schema version 0 opens and migrates to version 7", async () => {
   const name = uniqueName();
   await seedVersionZeroOutbox(name, v0Document());
 
-  const outbox = await open(name);
-  const items = await outbox.captures.list({});
+  const storage = await open(name);
+  const items = await storage.captures.list({});
 
   expect(items).toHaveLength(1);
   // v5 → v6 migration: `sessionId` is added, and the old
   // session-level fields (`extracted`, `reviewOutcome`, etc.) are dropped.
   expect(items[0]?.sessionId).toBeDefined();
   expect(items[0]?.status).toBe("queued");
-  await outbox.close();
+  await storage.close();
 });
 
 test("two v5 jobs migrate to two sessions, not one", async () => {
@@ -405,8 +405,8 @@ test("two v5 jobs migrate to two sessions, not one", async () => {
   }
   await db0.close();
 
-  const outbox = await open(name);
-  const items = await outbox.captures.list({});
+  const storage = await open(name);
+  const items = await storage.captures.list({});
   expect(items).toHaveLength(3);
 
   const sessionOf = (id: string) => items.find((r) => r.id === id)!.sessionId;
@@ -422,7 +422,7 @@ test("two v5 jobs migrate to two sessions, not one", async () => {
   expect(sessionOf("a")).toBe("migrated-session-job-alpha");
   expect(sessionOf("b")).toBe("migrated-session-job-beta");
 
-  await outbox.close();
+  await storage.close();
 });
 
 /**
@@ -499,8 +499,8 @@ test("a v0 session survives the v1 bump that added extractionUsage", async () =>
 
   // Opening through the real path runs the migration. The assertion is partly
   // that this resolves at all.
-  const outbox = await open(name);
-  const session = await outbox.sessions.get("s-v0");
+  const storage = await open(name);
+  const session = await storage.sessions.get("s-v0");
 
   expect(session).toBeDefined();
   // Nothing was transformed: the pre-existing state is intact...
@@ -511,11 +511,11 @@ test("a v0 session survives the v1 bump that added extractionUsage", async () =>
   // ...and the new field is absent, which is the correct state for a session
   // extracted before usage was carried. Not `{}` — absent.
   expect(session?.extractionUsage).toBeUndefined();
-  await outbox.close();
+  await storage.close();
 });
 
 test("v5 recordings with extracted/reviewOutcome migrate to sessions", async () => {
-  // Seed a v0 outbox with two recordings sharing an assessmentId.
+  // Seed a v0 storage with two recordings sharing an assessmentId.
   const name = uniqueName();
   addRxPlugin(RxDBAttachmentsPlugin);
   const db0 = await createRxDatabase({
@@ -556,8 +556,8 @@ test("v5 recordings with extracted/reviewOutcome migrate to sessions", async () 
   });
   await db0.close();
 
-  const outbox = await open(name);
-  const items = await outbox.captures.list({});
+  const storage = await open(name);
+  const items = await storage.captures.list({});
   expect(items).toHaveLength(2);
 
   // Both recordings have a sessionId derived from their assessmentId.
@@ -566,7 +566,7 @@ test("v5 recordings with extracted/reviewOutcome migrate to sessions", async () 
 
   // A session was created by the post-migration step.
   const sessionId = items[0]!.sessionId;
-  const session = await outbox.sessions.get(sessionId);
+  const session = await storage.sessions.get(sessionId);
   expect(session).toBeDefined();
 
   // The migrated session carries a write destination and a ref, recovered from
@@ -580,7 +580,7 @@ test("v5 recordings with extracted/reviewOutcome migrate to sessions", async () 
   // "queued" stays "queued".
   expect(items.find((r) => r.id === "a")?.status).toBe("transcribed");
   expect(items.find((r) => r.id === "b")?.status).toBe("queued");
-  await outbox.close();
+  await storage.close();
 });
 
 test("v5 recordings with no assessmentId get singleton sessions", async () => {
@@ -602,27 +602,27 @@ test("v5 recordings with no assessmentId get singleton sessions", async () => {
     },
   });
 
-  const outbox = await open(name);
-  const items = await outbox.captures.list({});
+  const storage = await open(name);
+  const items = await storage.captures.list({});
   expect(items).toHaveLength(1);
   // A session was created — a singleton.
-  const session = await outbox.sessions.get(items[0]!.sessionId);
+  const session = await storage.sessions.get(items[0]!.sessionId);
   expect(session).toBeDefined();
   // The recording never reached transcription, so there is nothing to review
   // yet and the work is NOT finished. `done` would misreport it as synced —
   // reopening is possible now, but it takes a human, and nothing should need
   // one to finish work the relay can finish by itself.
   expect(session?.status).toBe("open");
-  await outbox.close();
+  await storage.close();
 });
 
-test("a v5 recording whose ctx is a primitive migrates to a session the outbox can still open", async () => {
+test("a v5 recording whose ctx is a primitive migrates to a session storage can still open", async () => {
   // `Recording["ctx"]` is `unknown` and `baseRecordingSchema` leaves it
   // unconstrained, so a host could legally enqueue `ctx: "job-42"` under v5.
   // `sessionRxSchema` types the session's `ctx` as an object, so minting a
   // session from that recording without a substitute produces a document the
   // insert refuses — and that insert runs inside `openOutboxDatabase`, which
-  // means an outbox that will not open, on every launch, with no way back.
+  // means storage that will not open, on every launch, with no way back.
   // Before the session owned its destination, the same recording reached the
   // write step and died there with a readable error.
   //
@@ -648,16 +648,16 @@ test("a v5 recording whose ctx is a primitive migrates to a session the outbox c
   });
 
   // The assertion is that this resolves at all.
-  const outbox = await open(name);
-  const [item] = await outbox.captures.list({});
-  const session = await outbox.sessions.get(item!.sessionId);
+  const storage = await open(name);
+  const [item] = await storage.captures.list({});
+  const session = await storage.sessions.get(item!.sessionId);
 
   expect(session).toBeDefined();
   // An empty destination, not an invalid one: the adapter's `ctxSchema` refuses
   // it at write time and the session goes dead with an error naming the
   // adapter, which is what this recording did before.
   expect(session?.ctx).toEqual({});
-  await outbox.close();
+  await storage.close();
 });
 
 test("a v5 recording still awaiting transcription is not stranded in a finished session", async () => {
@@ -679,9 +679,9 @@ test("a v5 recording still awaiting transcription is not stranded in a finished 
     },
   });
 
-  const outbox = await open(name);
-  const [item] = await outbox.captures.list({});
-  const session = await outbox.sessions.get(item!.sessionId);
+  const storage = await open(name);
+  const [item] = await storage.captures.list({});
+  const session = await storage.sessions.get(item!.sessionId);
 
   // The auditor captured this and upgraded before it transcribed. The session
   // must still be reachable by the RELAY: a finished status takes a human to
@@ -692,7 +692,7 @@ test("a v5 recording still awaiting transcription is not stranded in a finished 
   // `work-safety.ts` calls the non-negotiable rule.
   expect(FINISHED_SESSION_STATUSES).not.toContain(session!.status);
   expect(summarizeWork([item!], [session!]).synced).toBe(0);
-  await outbox.close();
+  await storage.close();
 });
 
 test("backfilling twice leaves one session, not two", async () => {
@@ -719,10 +719,10 @@ test("backfilling twice leaves one session, not two", async () => {
   // every subsequent app start, and after a migration interrupted mid-way.
   const first = await open(name);
   await first.close();
-  const outbox = await open(name);
+  const storage = await open(name);
 
-  expect(await outbox.sessions.list({})).toHaveLength(1);
-  await outbox.close();
+  expect(await storage.sessions.list({})).toHaveLength(1);
+  await storage.close();
 });
 
 test("the migration carrier is cleared once its session holds the data", async () => {
@@ -744,14 +744,14 @@ test("the migration carrier is cleared once its session holds the data", async (
     },
   });
 
-  const outbox = await open(name);
+  const storage = await open(name);
   // v6 is not deployed, so the carrier never needs to outlive the backfill that
   // consumes it — no second schema version is required to tidy it away.
-  const [doc] = await (outbox.backend as RxdbStorageBackend).database.collections.outbox
+  const [doc] = await (storage.backend as RxdbStorageBackend).database.collections.outbox
     .find()
     .exec();
   expect(doc!.toJSON()).not.toHaveProperty("legacy");
-  await outbox.close();
+  await storage.close();
 });
 
 test("a backfill that already created the session does not insert it twice", async () => {
@@ -776,16 +776,16 @@ test("a backfill that already created the session does not insert it twice", asy
     },
   });
 
-  const outbox = await open(name);
-  const [doc] = await (outbox.backend as RxdbStorageBackend).database.collections.outbox
+  const storage = await open(name);
+  const [doc] = await (storage.backend as RxdbStorageBackend).database.collections.outbox
     .find()
     .exec();
   await doc!.incrementalPatch({ legacy: { extracted: { hvac: "furnace" } } });
 
-  await backfillSessions((outbox.backend as RxdbStorageBackend).database);
+  await backfillSessions((storage.backend as RxdbStorageBackend).database);
 
-  expect(await outbox.sessions.list({})).toHaveLength(1);
-  await outbox.close();
+  expect(await storage.sessions.list({})).toHaveLength(1);
+  await storage.close();
 });
 
 test("the extraction survives when a later recording carries it, not the first", async () => {
@@ -832,9 +832,9 @@ test("the extraction survives when a later recording carries it, not the first",
   });
   await db0.close();
 
-  const outbox = await open(name);
-  const items = await outbox.captures.list({});
-  const session = await outbox.sessions.get(items[0]!.sessionId);
+  const storage = await open(name);
+  const items = await storage.captures.list({});
+  const session = await storage.sessions.get(items[0]!.sessionId);
 
   // A per-document fold that seeds from whichever recording it sees first
   // drops this entirely — the auditor's cached extraction is their work.
@@ -846,7 +846,7 @@ test("the extraction survives when a later recording carries it, not the first",
   // extraction. Claiming both would make `recordingSetChanged` report the
   // cache as valid and suppress the session-wide re-extraction that repairs it.
   expect(session?.extractedFromRecordingIds).toEqual(["second"]);
-  await outbox.close();
+  await storage.close();
 });
 
 // ---------------------------------------------------------------------------
@@ -867,7 +867,7 @@ test("the extraction survives when a later recording carries it, not the first",
 // the migration is not a data-integrity assertion but an open-time failure.
 // ---------------------------------------------------------------------------
 
-/** The outbox RxDB schema as it was at version 6 — identical to v7 except the version. */
+/** The storage RxDB schema as it was at version 6 — identical to v7 except the version. */
 const OUTBOX_RX_SCHEMA_V6: RxJsonSchema<CaptureDocument> = {
   version: 6,
   primaryKey: "id",
@@ -901,7 +901,7 @@ const OUTBOX_RX_SCHEMA_V6: RxJsonSchema<CaptureDocument> = {
   attachments: {},
 };
 
-/** A v6 outbox document with a transcript that has no annotations field. */
+/** A v6 storage document with a transcript that has no annotations field. */
 function v6TranscribedDocument(): CaptureDocument {
   return {
     id: "v6-item",
@@ -928,7 +928,7 @@ function v6TranscribedDocument(): CaptureDocument {
 }
 
 /**
- * Seed a real outbox collection at schema version 6. Unlike the v0 seeding, this
+ * Seed a real storage collection at schema version 6. Unlike the v0 seeding, this
  * needs the migration plugin registered (RxDB requires it for any version above 0).
  */
 async function seedVersionSixOutbox(name: string, document: CaptureDocument): Promise<void> {
@@ -948,12 +948,12 @@ async function seedVersionSixOutbox(name: string, document: CaptureDocument): Pr
   await database.close();
 }
 
-test("an outbox stored at schema version 6 opens and migrates to version 7", async () => {
+test("a capture store stored at schema version 6 opens and migrates to version 7", async () => {
   const name = uniqueName();
   await seedVersionSixOutbox(name, v6TranscribedDocument());
 
-  const outbox = await open(name);
-  const items = await outbox.captures.list({});
+  const storage = await open(name);
+  const items = await storage.captures.list({});
 
   expect(items).toHaveLength(1);
   expect(items[0]?.id).toBe("v6-item");
@@ -970,7 +970,7 @@ test("an outbox stored at schema version 6 opens and migrates to version 7", asy
   // field that was never written is not written by the migration either.
   expect(items[0]?.transcript).not.toHaveProperty("annotations");
 
-  await outbox.close();
+  await storage.close();
 });
 
 // ---------------------------------------------------------------------------
@@ -978,7 +978,7 @@ test("an outbox stored at schema version 6 opens and migrates to version 7", asy
 //
 // Reopening is the point — an in-memory pass-through would satisfy a weaker test
 // and miss the durability this exists for. The transcript (with annotations) is
-// written through `writeTranscript`, the outbox is closed, a fresh handle is
+// written through `writeTranscript`, the storage is closed, a fresh handle is
 // opened, and `listSessionTranscriptParts` yields a part whose bag contains the
 // transcriber's keys alongside the relay's namespaced `capture.*` metadata.
 // ---------------------------------------------------------------------------
@@ -1051,10 +1051,10 @@ test("enqueue assigns monotonically increasing seq values that continue across r
 });
 
 test("concurrent enqueues never collide on seq", async () => {
-  const outbox = await open(uniqueName());
+  const storage = await open(uniqueName());
   const items = await Promise.all(
     Array.from({ length: 8 }, (_, i) =>
-      outbox.captures.enqueue({
+      storage.captures.enqueue({
         recording: { ...recording, id: `rec-${i}` },
         audio: audioBlob(),
         sessionId: SESSION_ID,
@@ -1067,8 +1067,8 @@ test("concurrent enqueues never collide on seq", async () => {
 });
 
 test("enqueue starts an item queued, with zero attempts and a session id", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.captures.enqueue({
+  const storage = await open(uniqueName());
+  const item = await storage.captures.enqueue({
     recording,
     audio: audioBlob(),
     sessionId: SESSION_ID,
@@ -1082,22 +1082,22 @@ test("enqueue starts an item queued, with zero attempts and a session id", async
 });
 
 test("list returns items in seq order", async () => {
-  const outbox = await open(uniqueName());
+  const storage = await open(uniqueName());
   for (const id of ["a", "b", "c"]) {
-    await outbox.captures.enqueue({
+    await storage.captures.enqueue({
       recording: { ...recording, id },
       audio: audioBlob(),
       sessionId: SESSION_ID,
     });
   }
-  const listed = await outbox.captures.list();
+  const listed = await storage.captures.list();
   expect(listed.map((item) => item.recording.id)).toEqual(["a", "b", "c"]);
 });
 
 test("get returns undefined for an unknown id", async () => {
-  const outbox = await open(uniqueName());
-  expect(await outbox.captures.get("nope")).toBeUndefined();
-  expect(await outbox.captures.getAudio("nope")).toBeUndefined();
+  const storage = await open(uniqueName());
+  expect(await storage.captures.get("nope")).toBeUndefined();
+  expect(await storage.captures.getAudio("nope")).toBeUndefined();
 });
 
 test("audio can be dropped once it is no longer needed, leaving the item intact", async () => {
@@ -1129,22 +1129,22 @@ test("audio can be dropped once it is no longer needed, leaving the item intact"
 // ---------------------------------------------------------------------------
 
 test("audioReady tracks the attachment, not a pointer", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.captures.enqueue({
+  const storage = await open(uniqueName());
+  const item = await storage.captures.enqueue({
     recording,
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
   expect(item.audioReady).toBe(true);
-  await outbox.captures.dropAudio(item.id);
-  const after = await outbox.captures.get(item.id);
+  await storage.captures.dropAudio(item.id);
+  const after = await storage.captures.get(item.id);
   expect(after!.audioReady).toBe(false);
   expect(after!.audioBytes).toBe(0);
 });
 
 test("audioReady is true from the moment of enqueue, with the attachment's size", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.captures.enqueue({
+  const storage = await open(uniqueName());
+  const item = await storage.captures.enqueue({
     recording,
     audio: audioBlob(),
     sessionId: SESSION_ID,
@@ -1155,34 +1155,34 @@ test("audioReady is true from the moment of enqueue, with the attachment's size"
   // The value the caller got back and the value a reader sees must agree — the
   // return of `enqueue` is a projection of the very document that was written,
   // not a hand-assembled optimistic copy.
-  expect(await outbox.captures.get(item.id)).toEqual(item);
-  expect((await outbox.captures.list())[0]).toEqual(item);
+  expect(await storage.captures.get(item.id)).toEqual(item);
+  expect((await storage.captures.list())[0]).toEqual(item);
 });
 
 test("audioReady goes false after dropAudio, and items$ re-emits to say so", async () => {
-  const outbox = await open(uniqueName());
+  const storage = await open(uniqueName());
   const seen: { audioReady: boolean; audioBytes: number }[] = [];
-  const subscription = outbox.captures.items$.subscribe((items) => {
+  const subscription = storage.captures.items$.subscribe((items) => {
     const item = items[0];
     if (item) seen.push({ audioReady: item.audioReady, audioBytes: item.audioBytes });
   });
 
   try {
-    const item = await outbox.captures.enqueue({
+    const item = await storage.captures.enqueue({
       recording,
       audio: audioBlob(),
       sessionId: SESSION_ID,
     });
     await vi.waitFor(() => expect(seen.at(-1)?.audioReady).toBe(true));
 
-    await outbox.captures.dropAudio(item.id);
+    await storage.captures.dropAudio(item.id);
 
     // The document's own fields are byte-identical across a `dropAudio`, so
     // before `audioReady` existed this re-emission carried no information at all
     // and a memoizing consumer could not tell anything had happened.
     await vi.waitFor(() => expect(seen.at(-1)).toEqual({ audioReady: false, audioBytes: 0 }));
-    expect(await outbox.captures.getAudio(item.id)).toBeUndefined();
-    expect((await outbox.captures.get(item.id))?.audioReady).toBe(false);
+    expect(await storage.captures.getAudio(item.id)).toBeUndefined();
+    expect((await storage.captures.get(item.id))?.audioReady).toBe(false);
   } finally {
     subscription.unsubscribe();
   }
@@ -1252,69 +1252,69 @@ test("remove deletes the item and its attachment for good", async () => {
 
 test("clear empties the queue, attachments included, in one pass", async () => {
   const name = uniqueName();
-  const outbox = await open(name);
+  const storage = await open(name);
   for (const id of ["a", "b", "c"]) {
-    await outbox.captures.enqueue({
+    await storage.captures.enqueue({
       recording: { ...recording, id },
       audio: audioBlob(),
       sessionId: SESSION_ID,
     });
   }
 
-  expect(await outbox.captures.clear()).toBe(3);
-  expect(await outbox.captures.list()).toEqual([]);
-  await outbox.close();
+  expect(await storage.captures.clear()).toBe(3);
+  expect(await storage.captures.list()).toEqual([]);
+  await storage.close();
 
   const reopened = await open(name);
   expect(await reopened.captures.list()).toEqual([]);
 });
 
 test("clear can be scoped, leaving unfinished work alone", async () => {
-  const outbox = await open(uniqueName());
-  const a = await outbox.captures.enqueue({
+  const storage = await open(uniqueName());
+  const a = await storage.captures.enqueue({
     recording: { ...recording, id: "a" },
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
-  const b = await outbox.captures.enqueue({
+  const b = await storage.captures.enqueue({
     recording: { ...recording, id: "b" },
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
-  await outbox.captures.patch(a.id, { status: "transcribed" });
+  await storage.captures.patch(a.id, { status: "transcribed" });
 
   // The "tidy up what has landed" gesture, as opposed to the device reset.
-  expect(await outbox.captures.clear({ status: FINISHED_CAPTURE_STATUSES })).toBe(1);
-  expect((await outbox.captures.list()).map((item) => item.id)).toEqual([b.id]);
+  expect(await storage.captures.clear({ status: FINISHED_CAPTURE_STATUSES })).toBe(1);
+  expect((await storage.captures.list()).map((item) => item.id)).toEqual([b.id]);
 });
 
 test("removeMany deletes the named items and is idempotent", async () => {
-  const outbox = await open(uniqueName());
-  const a = await outbox.captures.enqueue({
+  const storage = await open(uniqueName());
+  const a = await storage.captures.enqueue({
     recording: { ...recording, id: "a" },
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
-  const b = await outbox.captures.enqueue({
+  const b = await storage.captures.enqueue({
     recording: { ...recording, id: "b" },
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
-  const c = await outbox.captures.enqueue({
+  const c = await storage.captures.enqueue({
     recording: { ...recording, id: "c" },
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
 
-  expect(await outbox.captures.removeMany([a.id, c.id])).toBe(2);
-  expect((await outbox.captures.list()).map((item) => item.id)).toEqual([b.id]);
-  expect(await outbox.captures.getAudio(a.id)).toBeUndefined();
+  expect(await storage.captures.removeMany([a.id, c.id])).toBe(2);
+  expect((await storage.captures.list()).map((item) => item.id)).toEqual([b.id]);
+  expect(await storage.captures.getAudio(a.id)).toBeUndefined();
 
   // A second pass over ids that are already gone must not throw: a "clear
   // queue" button clicked twice is not an error.
-  expect(await outbox.captures.removeMany([a.id, c.id])).toBe(0);
-  expect(await outbox.captures.removeMany([])).toBe(0);
-  expect((await outbox.captures.list()).map((item) => item.id)).toEqual([b.id]);
+  expect(await storage.captures.removeMany([a.id, c.id])).toBe(0);
+  expect(await storage.captures.removeMany([])).toBe(0);
+  expect((await storage.captures.list()).map((item) => item.id)).toEqual([b.id]);
 });
 
 // ---------------------------------------------------------------------------
@@ -1322,68 +1322,68 @@ test("removeMany deletes the named items and is idempotent", async () => {
 // ---------------------------------------------------------------------------
 
 test("list and watch can filter by status and cap the result", async () => {
-  const outbox = await open(uniqueName());
-  const a = await outbox.captures.enqueue({
+  const storage = await open(uniqueName());
+  const a = await storage.captures.enqueue({
     recording: { ...recording, id: "a" },
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
-  const b = await outbox.captures.enqueue({
+  const b = await storage.captures.enqueue({
     recording: { ...recording, id: "b" },
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
-  const c = await outbox.captures.enqueue({
+  const c = await storage.captures.enqueue({
     recording: { ...recording, id: "c" },
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
-  await outbox.captures.patch(b.id, { status: "transcribed" });
+  await storage.captures.patch(b.id, { status: "transcribed" });
 
   // The no-argument calls keep their old meaning: every item, seq-ascending.
-  expect((await outbox.captures.list()).map((item) => item.id)).toEqual([a.id, b.id, c.id]);
+  expect((await storage.captures.list()).map((item) => item.id)).toEqual([a.id, b.id, c.id]);
 
-  expect((await outbox.captures.list({ status: "transcribed" })).map((item) => item.id)).toEqual([
+  expect((await storage.captures.list({ status: "transcribed" })).map((item) => item.id)).toEqual([
     b.id,
   ]);
   expect(
-    (await outbox.captures.list({ status: ["queued", "transcribed"] })).map((item) => item.id),
+    (await storage.captures.list({ status: ["queued", "transcribed"] })).map((item) => item.id),
   ).toEqual([a.id, b.id, c.id]);
   expect(
-    (await outbox.captures.list({ status: ACTIVE_CAPTURE_STATUSES })).map((item) => item.id),
+    (await storage.captures.list({ status: ACTIVE_CAPTURE_STATUSES })).map((item) => item.id),
   ).toEqual([a.id, c.id]);
   // Still lowest-seq first, so a limit takes the head of the queue rather than
   // an arbitrary slice.
-  expect((await outbox.captures.list({ limit: 2 })).map((item) => item.id)).toEqual([a.id, b.id]);
+  expect((await storage.captures.list({ limit: 2 })).map((item) => item.id)).toEqual([a.id, b.id]);
   expect(
-    (await outbox.captures.list({ status: "queued", limit: 1 })).map((item) => item.id),
+    (await storage.captures.list({ status: "queued", limit: 1 })).map((item) => item.id),
   ).toEqual([a.id]);
 
-  const watched = await firstValueFrom(outbox.captures.watch({ status: "queued" }));
+  const watched = await firstValueFrom(storage.captures.watch({ status: "queued" }));
   expect(watched.map((item) => item.id)).toEqual([a.id, c.id]);
 });
 
 test("a filtered watch re-emits when an item moves in or out of the filter", async () => {
-  const outbox = await open(uniqueName());
+  const storage = await open(uniqueName());
   const seen: string[][] = [];
-  const subscription = outbox.captures
+  const subscription = storage.captures
     .watch({ status: ACTIVE_CAPTURE_STATUSES })
     .subscribe((items) => seen.push(items.map((item) => item.recording.id)));
 
   try {
-    const a = await outbox.captures.enqueue({
+    const a = await storage.captures.enqueue({
       recording: { ...recording, id: "a" },
       audio: audioBlob(),
       sessionId: SESSION_ID,
     });
-    await outbox.captures.enqueue({
+    await storage.captures.enqueue({
       recording: { ...recording, id: "b" },
       audio: audioBlob(),
       sessionId: SESSION_ID,
     });
     await vi.waitFor(() => expect(seen.at(-1)).toEqual(["a", "b"]));
 
-    await outbox.captures.patch(a.id, { status: "transcribed" });
+    await storage.captures.patch(a.id, { status: "transcribed" });
     await vi.waitFor(() => expect(seen.at(-1)).toEqual(["b"]));
   } finally {
     subscription.unsubscribe();
@@ -1395,30 +1395,30 @@ test("a filtered watch re-emits when an item moves in or out of the filter", asy
 // ---------------------------------------------------------------------------
 
 test("nextPending returns the lowest-seq item that is not finished", async () => {
-  const outbox = await open(uniqueName());
-  const a = await outbox.captures.enqueue({
+  const storage = await open(uniqueName());
+  const a = await storage.captures.enqueue({
     recording: { ...recording, id: "a" },
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
-  const b = await outbox.captures.enqueue({
+  const b = await storage.captures.enqueue({
     recording: { ...recording, id: "b" },
     audio: audioBlob(),
     sessionId: SESSION_ID,
   });
 
-  expect((await outbox.captures.nextPending())?.id).toBe(a.id);
-  await outbox.captures.patch(a.id, { status: "transcribed" });
-  expect((await outbox.captures.nextPending())?.id).toBe(b.id);
-  await outbox.captures.patch(b.id, { status: "dead" });
-  expect(await outbox.captures.nextPending()).toBeUndefined();
+  expect((await storage.captures.nextPending())?.id).toBe(a.id);
+  await storage.captures.patch(a.id, { status: "transcribed" });
+  expect((await storage.captures.nextPending())?.id).toBe(b.id);
+  await storage.captures.patch(b.id, { status: "dead" });
+  expect(await storage.captures.nextPending()).toBeUndefined();
 });
 
 test("a persisted stream of documents is observable for the UI", async () => {
-  const outbox = await open(uniqueName());
+  const storage = await open(uniqueName());
   const seen: number[] = [];
-  const subscription = outbox.captures.items$.subscribe((items) => seen.push(items.length));
-  await outbox.captures.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
+  const subscription = storage.captures.items$.subscribe((items) => seen.push(items.length));
+  await storage.captures.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
   await vi.waitFor(() => expect(seen.at(-1)).toBe(1));
   subscription.unsubscribe();
 });
@@ -1428,7 +1428,7 @@ test("a persisted stream of documents is observable for the UI", async () => {
 // ---------------------------------------------------------------------------
 
 test("the first items$ emission carrying a new item already has its audio", async () => {
-  const outbox = await open(uniqueName());
+  const storage = await open(uniqueName());
 
   // The read is issued **synchronously inside the subscription callback**, at
   // the very first instant the item is observable. No `waitFor`, no retry, no
@@ -1438,15 +1438,15 @@ test("the first items$ emission carrying a new item already has its audio", asyn
   // captured before `enqueue` resolves.
   let subscription: { unsubscribe: () => void } | undefined;
   const atFirstSighting = new Promise<{ item: Capture; audio: Blob | undefined }>((resolve) => {
-    subscription = outbox.captures.items$.subscribe((items) => {
+    subscription = storage.captures.items$.subscribe((items) => {
       const item = items[0];
       if (!item) return; // the initial empty emission
-      resolve(outbox.captures.getAudio(item.id).then((audio) => ({ item, audio })));
+      resolve(storage.captures.getAudio(item.id).then((audio) => ({ item, audio })));
     });
   });
 
   try {
-    await outbox.captures.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
+    await storage.captures.enqueue({ recording, audio: audioBlob(), sessionId: SESSION_ID });
     const { item, audio } = await atFirstSighting;
 
     expect(audio).toBeInstanceOf(Blob);
@@ -1472,8 +1472,8 @@ test("the first items$ emission carrying a new item already has its audio", asyn
  * databases of one name in a single context, which the v0-migration seeding above works
  * around the same way.
  */
-async function attachmentIdsAfterClose(outbox: Storage, name: string, id: string) {
-  await outbox.close();
+async function attachmentIdsAfterClose(storage: Storage, name: string, id: string) {
+  await storage.close();
   addRxPlugin(RxDBAttachmentsPlugin);
   addRxPlugin(RxDBMigrationSchemaPlugin);
   const database: RxDatabase<{ outbox: RxCollection<CaptureDocument> }> = await createRxDatabase({
@@ -1511,8 +1511,8 @@ async function attachmentIdsAfterClose(outbox: Storage, name: string, id: string
 // ---------------------------------------------------------------------------
 
 test("beginRecording creates a recording row with capture.sourceId and no committed audio", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.captures.beginRecording({
+  const storage = await open(uniqueName());
+  const item = await storage.captures.beginRecording({
     recording: { ...recording, durationMs: 0 },
     sourceId: "s1",
     sessionId: SESSION_ID,
@@ -1524,14 +1524,14 @@ test("beginRecording creates a recording row with capture.sourceId and no commit
 });
 
 test("appendChunk writes a chunk attachment and audioBytes reflects it", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.captures.beginRecording({
+  const storage = await open(uniqueName());
+  const item = await storage.captures.beginRecording({
     recording: { ...recording, durationMs: 0 },
     sourceId: "s1",
     sessionId: SESSION_ID,
   });
-  await outbox.captures.appendChunk(item.id, chunkName("s1", 0, 0), audioBlob());
-  const after = await outbox.captures.get(item.id);
+  await storage.captures.appendChunk(item.id, chunkName("s1", 0, 0), audioBlob());
+  const after = await storage.captures.get(item.id);
   // THE untested gap from Task 1: a recording row carrying chunks reports
   // audioReady: false (no canonical yet) but non-zero audioBytes (chunks ARE
   // durable). Before beginRecording, no public API could build this state.
@@ -1541,15 +1541,15 @@ test("appendChunk writes a chunk attachment and audioBytes reflects it", async (
 
 test("commitRecording writes canonical audio, transitions to queued, and sweeps chunks", async () => {
   const name = uniqueName();
-  const outbox = await open(name);
-  const item = await outbox.captures.beginRecording({
+  const storage = await open(name);
+  const item = await storage.captures.beginRecording({
     recording: { ...recording, durationMs: 0 },
     sourceId: "s1",
     sessionId: SESSION_ID,
   });
-  await outbox.captures.appendChunk(item.id, chunkName("s1", 0, 0), audioBlob());
-  const merged = await outbox.captures.mergeChunks(item.id);
-  const committed = await outbox.captures.commitRecording(item.id, merged, 4200);
+  await storage.captures.appendChunk(item.id, chunkName("s1", 0, 0), audioBlob());
+  const merged = await storage.captures.mergeChunks(item.id);
+  const committed = await storage.captures.commitRecording(item.id, merged, 4200);
   expect(committed.status).toBe("queued");
   expect(committed.audioReady).toBe(true);
   expect(committed.audioBytes).toBe(audioBytes.byteLength);
@@ -1557,7 +1557,7 @@ test("commitRecording writes canonical audio, transitions to queued, and sweeps 
   if (committed.recording.kind === "audio") {
     expect(committed.recording.durationMs).toBe(4200);
   }
-  const audio = await outbox.captures.getAudio(item.id);
+  const audio = await storage.captures.getAudio(item.id);
   expect(new Uint8Array(await audio!.arrayBuffer())).toEqual(audioBytes);
 
   // The chunks are ACTUALLY gone — and proving it needs a trick, because the projection
@@ -1567,12 +1567,12 @@ test("commitRecording writes canonical audio, transitions to queued, and sweeps 
   // other assertion in this test green.
   //
   // Read from storage, because no public reading can see it — see the helper's note.
-  expect(await attachmentIdsAfterClose(outbox, name, item.id)).toEqual([AUDIO_ATTACHMENT_ID]);
+  expect(await attachmentIdsAfterClose(storage, name, item.id)).toEqual([AUDIO_ATTACHMENT_ID]);
 });
 
 test("mergeChunks concatenates chunk attachments in name order", async () => {
-  const outbox = await open(uniqueName());
-  const item = await outbox.captures.beginRecording({
+  const storage = await open(uniqueName());
+  const item = await storage.captures.beginRecording({
     recording: { ...recording, durationMs: 0 },
     sourceId: "s1",
     sessionId: SESSION_ID,
@@ -1586,11 +1586,11 @@ test("mergeChunks concatenates chunk attachments in name order", async () => {
   // right bytes with no sort at all — verified by mutation, removing the sort left the
   // in-order version of this test green. Audio assembled in the wrong order is
   // unrecoverable and silent, so the ordering has to be the thing under test.
-  await outbox.captures.appendChunk(item.id, chunkName("s1", 2, 0), partC);
-  await outbox.captures.appendChunk(item.id, chunkName("s1", 0, 0), partA);
-  await outbox.captures.appendChunk(item.id, chunkName("s1", 1, 0), partB);
+  await storage.captures.appendChunk(item.id, chunkName("s1", 2, 0), partC);
+  await storage.captures.appendChunk(item.id, chunkName("s1", 0, 0), partA);
+  await storage.captures.appendChunk(item.id, chunkName("s1", 1, 0), partB);
 
-  const merged = await outbox.captures.mergeChunks(item.id);
+  const merged = await storage.captures.mergeChunks(item.id);
   expect(new Uint8Array(await merged.arrayBuffer())).toEqual(
     new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]),
   );

@@ -66,7 +66,7 @@ export function commitRegion<T extends CaptureDocument>(
 /**
  * Write the batch transcript and delete the preview in one modification.
  *
- * `Storage.patch` is an `incrementalPatch`, and assigning `undefined` to an
+ * `storage.captures.patch` is an `incrementalPatch`, and assigning `undefined` to an
  * optional property does not delete the persisted key — so a patch cannot
  * remove `preview` at all. This function uses `delete` instead, so the key is
  * gone from the stored document.

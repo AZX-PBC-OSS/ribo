@@ -100,7 +100,7 @@ test("ingestion is synchronous and persistence is a separate stage", async () =>
   // but the final dataavailable may already be queued BEHIND it — so awaiting
   // finalization waits on an operation that waits on it.
   const session = await openCaptureSession({
-    outbox: asStorage(fakeOutbox()),
+    storage: asStorage(fakeOutbox()),
     recording,
     sourceId: "s1",
     sessionId: "test-session",
@@ -118,9 +118,9 @@ test("ingestion is synchronous and persistence is a separate stage", async () =>
 });
 
 test("finalize drains everything ingested before it", async () => {
-  const outbox = fakeOutbox();
+  const storage = fakeOutbox();
   const session = await openCaptureSession({
-    outbox: asStorage(outbox),
+    storage: asStorage(storage),
     recording,
     sourceId: "s1",
     sessionId: "test-session",
@@ -131,7 +131,7 @@ test("finalize drains everything ingested before it", async () => {
   session.ingest(blobOf(10));
   session.ingest(blobOf(10));
   await session.finalize();
-  expect(outbox.chunkNames).toHaveLength(2); // the last chunk is not dropped
+  expect(storage.chunkNames).toHaveLength(2); // the last chunk is not dropped
 });
 
 test("a stall is observed even when the late event arrives before the detector runs", async () => {
@@ -140,7 +140,7 @@ test("a stall is observed even when the late event arrives before the detector r
   // BEFORE updating it, or the stall is never seen at all.
   let t = 0;
   const session = await openCaptureSession({
-    outbox: asStorage(fakeOutbox()),
+    storage: asStorage(fakeOutbox()),
     recording,
     sourceId: "s1",
     sessionId: "test-session",
@@ -156,7 +156,7 @@ test("a stall is observed even when the late event arrives before the detector r
 test("a user pause is not a stall", async () => {
   let t = 0;
   const session = await openCaptureSession({
-    outbox: asStorage(fakeOutbox()),
+    storage: asStorage(fakeOutbox()),
     recording,
     sourceId: "s1",
     sessionId: "test-session",
@@ -180,7 +180,7 @@ test("an ONGOING stall is reported without waiting for the next event", async ()
   try {
     let clock = 0;
     const session = await openCaptureSession({
-      outbox: asStorage(fakeOutbox()),
+      storage: asStorage(fakeOutbox()),
       recording,
       sourceId: "s1",
       sessionId: "test-session",
@@ -208,9 +208,9 @@ test("an oversized blob is ONE chunk in several slices, not several chunks", asy
   // event looked like several separate events and the `-NN` slice field stayed `00`
   // forever. Ordering survived either way, which is why nothing caught it — but the
   // naming no longer described what it names.
-  const outbox = fakeOutbox();
+  const storage = fakeOutbox();
   const session = await openCaptureSession({
-    outbox: asStorage(outbox),
+    storage: asStorage(storage),
     recording,
     sourceId: "s1",
     sessionId: "test-session",
@@ -222,9 +222,9 @@ test("an oversized blob is ONE chunk in several slices, not several chunks", asy
   session.ingest(blobOf(12 * 1024 * 1024));
   await session.finalize();
 
-  expect(outbox.chunkNames.length).toBeGreaterThan(1);
+  expect(storage.chunkNames.length).toBeGreaterThan(1);
   // One chunk index across every slice, and the slice index actually counting.
-  const parsed = outbox.chunkNames.map((n) => n.split("-").slice(-2));
+  const parsed = storage.chunkNames.map((n) => n.split("-").slice(-2));
   expect(new Set(parsed.map(([chunk]) => chunk)).size).toBe(1);
   expect(parsed.map(([, slice]) => slice)).toEqual(
     parsed.map((_, i) => String(i).padStart(2, "0")),

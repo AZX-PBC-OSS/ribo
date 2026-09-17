@@ -6,14 +6,14 @@ import { PAGE_LOADED_AT } from "./session.js";
  * @file Phase 2's definition of done, written where the person checking it is
  * already looking.
  *
- * The outbox is the one subsystem where "it works" and "it looks like it works"
+ * The storage is the one subsystem where "it works" and "it looks like it works"
  * are indistinguishable without a refresh — a row appears either way. So the
  * recipe lives in the UI, not in a doc nobody opens.
  */
 
 const STEPS = [
   "Press ● Start recording and say something for a few seconds. The timer runs and the level meter moves — that is a live microphone, not a spinner.",
-  "Press ■ Stop and queue. A row appears in the outbox below within a moment, status queued.",
+  "Press ■ Stop and queue. A row appears in the storage below within a moment, status queued.",
   "Play that row's audio. You should hear yourself. A row proves a document persisted; playback proves the attachment did.",
   "Reload the page (⌘R / F5). This is the step that matters — everything above is still just memory.",
   "The row is still there, still queued, now marked “survived reload ✓”, and still plays. That is Phase 2 done.",

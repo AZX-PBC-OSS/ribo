@@ -9,13 +9,13 @@ import { openStorage, type Storage } from "./storage.js";
 // each have an obvious version that passes against the bug they guard, and are
 // driven through the real `Storage` class over an in-memory RxStorage, so they
 // run in the node `unit` project without IndexedDB — the same seam
-// `outbox-memory.test.ts` uses.
+// `storage-memory.test.ts` uses.
 
-const opened: { outbox: Storage; name: string }[] = [];
+const opened: { storage: Storage; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name } of opened.splice(0)) {
-    if (!outbox.closed) await outbox.close();
+  for (const { storage, name } of opened.splice(0)) {
+    if (!storage.closed) await storage.close();
     // A memory database outlives its handle, as an IndexedDB one does.
     removeMemoryDatabase(name);
   }
@@ -37,10 +37,10 @@ const transcript: Transcript = {
 };
 
 function freshOutbox(): Promise<Storage> {
-  const name = `ribo-outbox-preview-${crypto.randomUUID()}`;
-  return openStorage({ backend: createMemoryBackend(name) }).then((outbox) => {
-    opened.push({ outbox, name });
-    return outbox;
+  const name = `ribo-storage-preview-${crypto.randomUUID()}`;
+  return openStorage({ backend: createMemoryBackend(name) }).then((storage) => {
+    opened.push({ storage, name });
+    return storage;
   });
 }
 
@@ -55,21 +55,21 @@ function freshOutbox(): Promise<Storage> {
 // ---------------------------------------------------------------------------
 
 test("a tail write replaces the previous tail rather than appending to it", async () => {
-  const outbox = await freshOutbox();
+  const storage = await freshOutbox();
 
-  const item = await outbox.captures.beginRecording({
+  const item = await storage.captures.beginRecording({
     recording,
     sourceId: "s1",
     sessionId: "test-session",
   });
 
-  await outbox.captures.writePreviewTail(item.id, "first");
-  const first = await outbox.captures.get(item.id);
+  await storage.captures.writePreviewTail(item.id, "first");
+  const first = await storage.captures.get(item.id);
   expect(first?.preview).toEqual({ committed: [], tail: "first" });
 
   // A second tail write must overwrite, not accumulate.
-  await outbox.captures.writePreviewTail(item.id, "second");
-  const second = await outbox.captures.get(item.id);
+  await storage.captures.writePreviewTail(item.id, "second");
+  const second = await storage.captures.get(item.id);
   expect(second?.preview).toEqual({ committed: [], tail: "second" });
   expect(second?.preview?.tail).toBe("second");
 });
@@ -88,20 +88,20 @@ test("a tail write replaces the previous tail rather than appending to it", asyn
 // ---------------------------------------------------------------------------
 
 test("a commit appends to committed and clears the tail in one modification", async () => {
-  const outbox = await freshOutbox();
+  const storage = await freshOutbox();
 
-  const item = await outbox.captures.beginRecording({
+  const item = await storage.captures.beginRecording({
     recording,
     sourceId: "s1",
     sessionId: "test-session",
   });
   // Seed a tail so the commit has something to clear — a commit with no prior
   // tail would not exercise the "both" intermediate.
-  await outbox.captures.writePreviewTail(item.id, "alpha");
+  await storage.captures.writePreviewTail(item.id, "alpha");
 
   // `alpha` is the text being committed. Track where it appears in each emission.
   const emissions: { inCommitted: boolean; inTail: boolean }[] = [];
-  const subscription = outbox.captures.watch().subscribe((items) => {
+  const subscription = storage.captures.watch().subscribe((items) => {
     const row = items.find((i) => i.id === item.id);
     if (row) {
       emissions.push({
@@ -122,7 +122,7 @@ test("a commit appends to committed and clears the tail in one modification", as
 
     // Commit — this must append to `committed` and clear `tail` in the SAME
     // modification.
-    await outbox.captures.commitPreview(item.id, "alpha");
+    await storage.captures.commitPreview(item.id, "alpha");
 
     // Wait for the final state: text in committed, tail gone.
     await vi.waitFor(() => {
@@ -146,7 +146,7 @@ test("a commit appends to committed and clears the tail in one modification", as
     subscription.unsubscribe();
   }
 
-  const settled = await outbox.captures.get(item.id);
+  const settled = await storage.captures.get(item.id);
   expect(settled?.preview).toEqual({ committed: ["alpha"] });
 });
 
@@ -166,49 +166,49 @@ test("a commit appends to committed and clears the tail in one modification", as
 // ---------------------------------------------------------------------------
 
 test("a stale live reply after the transcript is written does not restore preview", async () => {
-  const outbox = await freshOutbox();
+  const storage = await freshOutbox();
 
-  const item = await outbox.captures.beginRecording({
+  const item = await storage.captures.beginRecording({
     recording,
     sourceId: "s1",
     sessionId: "test-session",
   });
-  await outbox.captures.writePreviewTail(item.id, "hello world");
+  await storage.captures.writePreviewTail(item.id, "hello world");
 
   // The batch transcript lands — preview is deleted in the same modification.
-  await outbox.captures.writeTranscript(item.id, transcript, {
+  await storage.captures.writeTranscript(item.id, transcript, {
     status: "transcribed",
     attempts: 0,
   });
 
-  const afterWrite = await outbox.captures.get(item.id);
+  const afterWrite = await storage.captures.get(item.id);
   expect(afterWrite?.transcript).toBeDefined();
   expect(afterWrite?.preview).toBeUndefined();
 
   // A stale tail reply arrives after the transcript has landed. The write
   // modifier must refuse — status is no longer "recording" and transcript
   // already exists — so preview is NOT restored.
-  const tailResult = await outbox.captures.writePreviewTail(item.id, "late tail");
+  const tailResult = await storage.captures.writePreviewTail(item.id, "late tail");
   expect(tailResult).toBeUndefined();
 
   // A stale commit reply is refused for the same reason.
-  const commitResult = await outbox.captures.commitPreview(item.id, "late commit");
+  const commitResult = await storage.captures.commitPreview(item.id, "late commit");
   expect(commitResult).toBeUndefined();
 
-  const afterLateReply = await outbox.captures.get(item.id);
+  const afterLateReply = await storage.captures.get(item.id);
   expect(afterLateReply?.preview).toBeUndefined();
   expect(afterLateReply?.transcript).toBeDefined();
 });
 
 test("a live reply after the row leaves recording (but before any transcript) is refused", async () => {
-  const outbox = await freshOutbox();
+  const storage = await freshOutbox();
 
-  const item = await outbox.captures.beginRecording({
+  const item = await storage.captures.beginRecording({
     recording,
     sourceId: "s1",
     sessionId: "test-session",
   });
-  await outbox.captures.writePreviewTail(item.id, "hello world");
+  await storage.captures.writePreviewTail(item.id, "hello world");
 
   // Commit the durable recording: recording → queued. There is no transcript
   // yet, so this exercises the `status !== "recording"` clause of the guard on
@@ -217,18 +217,18 @@ test("a live reply after the row leaves recording (but before any transcript) is
   // seeded above is still on the row; the point is that a reply arriving NOW
   // must not change it, not that it is gone (the batch handoff deletes it).
   const audio = new Blob([new Uint8Array([0])], { type: "audio/webm" });
-  await outbox.captures.commitRecording(item.id, audio, 100);
-  const committed = await outbox.captures.get(item.id);
+  await storage.captures.commitRecording(item.id, audio, 100);
+  const committed = await storage.captures.get(item.id);
   expect(committed?.status).toBe("queued");
   expect(committed?.transcript).toBeUndefined();
 
   // A live reply arriving after the row left `recording` must be refused, even
   // though no transcript exists yet.
-  expect(await outbox.captures.writePreviewTail(item.id, "late tail")).toBeUndefined();
-  expect(await outbox.captures.commitPreview(item.id, "late commit")).toBeUndefined();
+  expect(await storage.captures.writePreviewTail(item.id, "late tail")).toBeUndefined();
+  expect(await storage.captures.commitPreview(item.id, "late commit")).toBeUndefined();
 
   // The existing preview is untouched — the refusal left it as it was.
-  const afterReply = await outbox.captures.get(item.id);
+  const afterReply = await storage.captures.get(item.id);
   expect(afterReply?.preview).toEqual({ committed: [], tail: "hello world" });
 });
 
@@ -246,18 +246,18 @@ test("a live reply after the row leaves recording (but before any transcript) is
 // ---------------------------------------------------------------------------
 
 test("deleting preview and writing transcript is one revision — no half-applied state", async () => {
-  const outbox = await freshOutbox();
+  const storage = await freshOutbox();
 
-  const item = await outbox.captures.beginRecording({
+  const item = await storage.captures.beginRecording({
     recording,
     sourceId: "s1",
     sessionId: "test-session",
   });
-  await outbox.captures.writePreviewTail(item.id, "hello world");
+  await storage.captures.writePreviewTail(item.id, "hello world");
 
   // Collect every emission a subscriber sees for this item.
   const emissions: { hasPreview: boolean; hasTranscript: boolean }[] = [];
-  const subscription = outbox.captures.watch().subscribe((items) => {
+  const subscription = storage.captures.watch().subscribe((items) => {
     const row = items.find((i) => i.id === item.id);
     if (row) {
       emissions.push({
@@ -277,7 +277,7 @@ test("deleting preview and writing transcript is one revision — no half-applie
     const initialCount = emissions.length;
 
     // Write the transcript — this must delete preview in the SAME modification.
-    await outbox.captures.writeTranscript(item.id, transcript, {
+    await storage.captures.writeTranscript(item.id, transcript, {
       status: "transcribed",
       attempts: 0,
     });

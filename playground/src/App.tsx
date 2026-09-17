@@ -12,7 +12,7 @@ import { EvictionNotice } from "./EvictionNotice.js";
 import { messageOf } from "./format.js";
 import { getLiveTranscriber } from "./live-handle.js";
 import { MANAGED_AZURE_SPEECH_ENGINE } from "./managed-transcriber-store.js";
-import { getOutbox } from "./outbox-handle.js";
+import { getOutbox } from "./storage-handle.js";
 import { QueuePanel } from "./QueuePanel.js";
 import { getRecorder } from "./recorder-handle.js";
 import { RecordPanel } from "./RecordPanel.js";
@@ -38,8 +38,8 @@ import { WorkSafetyPanel } from "./WorkSafetyPanel.js";
  *
  * `RiboProvider`'s `value` carries the four host-owned singletons — `recorder`,
  * `connectivity` and `captureCoordinator` are available immediately (their
- * handles construct lazily but synchronously), `outbox` only once `useOutbox()`
- * below resolves its promise. Every panel below the outbox-ready gate resolves
+ * handles construct lazily but synchronously), `storage` only once `useOutbox()`
+ * below resolves its promise. Every panel below the storage-ready gate resolves
  * what it needs through the provider now, rather than being handed an `Storage`
  * prop by hand.
  *
@@ -60,21 +60,21 @@ const COMPOSED_NAMES = [
 ];
 
 export function App() {
-  const outbox = useOutbox();
+  const storage = useOutbox();
 
   return (
     // The instances a host constructs above React: `recorder` and `connectivity`
     // are always ready (their handles construct lazily but synchronously);
-    // `outbox` is `undefined` until `useOutbox()` below resolves its promise, so
+    // `storage` is `undefined` until `useOutbox()` below resolves its promise, so
     // every hook that requires one throws only once a caller tries to use it
-    // before the outbox-ready gate — which no panel below does. Rendering the
+    // before the storage-ready gate — which no panel below does. Rendering the
     // provider here — rather than merely importing it — is what makes this a
     // *runtime* composition check rather than a type-only one; see the `@file`
     // note above.
     <RiboProvider
       value={{
         recorder: getRecorder(),
-        outbox: outbox.kind === "ready" ? outbox.outbox : undefined,
+        storage: storage.kind === "ready" ? storage.storage : undefined,
         connectivity: getConnectivity(),
         captureCoordinator: getCaptureCoordinator(),
         liveTranscriber: getLiveTranscriber(),
@@ -90,7 +90,7 @@ export function App() {
         {/* Above everything else, and outside the panels: if the browser dropped
           this user's recordings, that is the first thing they need to know, not
           something to find after scrolling past a storage readout. */}
-        {outbox.kind === "ready" && <EvictionNotice outbox={outbox.outbox} />}
+        {storage.kind === "ready" && <EvictionNotice storage={storage.storage} />}
 
         {/* Beside the eviction notice, and for the mirror-image reason: if a
           recording this user thought they had lost came back, that is the first
@@ -103,16 +103,16 @@ export function App() {
         <ConnectivityPanel />
         <VerifyPanel />
 
-        {outbox.kind === "opening" && <p style={muted}>opening the outbox…</p>}
-        {outbox.kind === "error" && (
-          <p style={errorBox}>The outbox could not be opened: {outbox.message}</p>
+        {storage.kind === "opening" && <p style={muted}>opening the storage…</p>}
+        {storage.kind === "error" && (
+          <p style={errorBox}>The storage could not be opened: {storage.message}</p>
         )}
-        {outbox.kind === "ready" && (
+        {storage.kind === "ready" && (
           <>
             <WorkSafetyPanel />
             <RecordPanel />
-            <QueuePanel outbox={outbox.outbox} />
-            <TranscribePanel outbox={outbox.outbox} />
+            <QueuePanel storage={storage.storage} />
+            <TranscribePanel storage={storage.storage} />
             <ReviewPanel />
           </>
         )}
@@ -147,12 +147,12 @@ export function App() {
 }
 
 type OutboxHandle =
-  { kind: "opening" } | { kind: "error"; message: string } | { kind: "ready"; outbox: Storage };
+  { kind: "opening" } | { kind: "error"; message: string } | { kind: "ready"; storage: Storage };
 
 /**
- * Awaits the shared outbox.
+ * Awaits the shared storage.
  *
- * The handle itself is a module singleton (`outbox-handle.ts`) precisely so that
+ * The handle itself is a module singleton (`storage-handle.ts`) precisely so that
  * this effect running twice under StrictMode, or the component remounting under
  * HMR, cannot open a second database over the same IndexedDB name.
  */
@@ -162,8 +162,8 @@ function useOutbox(): OutboxHandle {
   useEffect(() => {
     let cancelled = false;
     void getOutbox()
-      .then((outbox) => {
-        if (!cancelled) setHandle({ kind: "ready", outbox });
+      .then((storage) => {
+        if (!cancelled) setHandle({ kind: "ready", storage });
       })
       .catch((cause: unknown) => {
         if (!cancelled) setHandle({ kind: "error", message: messageOf(cause) });

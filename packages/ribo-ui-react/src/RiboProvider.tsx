@@ -8,9 +8,9 @@ import { RiboContext, type RiboInstances } from "./context.js";
  * ```tsx
  * // the host owns lifetime, above React
  * const recorder = getRecorder();
- * const outbox = await getOutbox();
+ * const storage = await getOutbox();
  *
- * <RiboProvider value={{ recorder, outbox }}>
+ * <RiboProvider value={{ recorder, storage }}>
  *   <App />
  * </RiboProvider>
  * ```

@@ -90,12 +90,12 @@ export const captureRxSchema: RxJsonSchema<CaptureDocument> = {
  * **An optional addition still needs the bump, and the stake is the captures.**
  * RxDB validates the declared schema against the one the collection was created
  * with, so adding a property at the same version is refused at `addCollections`
- * — and `openOutboxDatabase` adds `outbox` and `sessions` in ONE call on ONE
+ * — and `openOutboxDatabase` adds `storage` and `sessions` in ONE call on ONE
  * database. A `DB6` on this collection therefore rejects the whole open, so the
- * outbox is unreachable too: an auditor's captured items and their audio (or
+ * storage is unreachable too: an auditor's captured items and their audio (or
  * document) attachments, on a device, with no way in. The only recovery a host could offer
  * is clearing the origin's IndexedDB, which destroys exactly the field work the
- * outbox exists to protect. That is not a migration, and "the new field is
+ * storage exists to protect. That is not a migration, and "the new field is
  * optional so no data needs transforming" does not reach it — that answers the
  * data question and leaves the schema question unasked. This is the same
  * reasoning `CAPTURE_MIGRATION_STRATEGIES` records for its own identity steps

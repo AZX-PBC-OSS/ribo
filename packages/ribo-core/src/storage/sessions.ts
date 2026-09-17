@@ -211,7 +211,7 @@ export class SessionStore {
    *   drain and passes `outcome.fields` to the write step.
    * - `discarded` → `done`. Unlike the recording's discard (which drops audio),
    *   there is no audio on the session to drop — the recordings stay in the
-   *   outbox. The session is finished; the `reviewOutcome` records why.
+   *   storage. The session is finished; the `reviewOutcome` records why.
    */
   async submitReview(id: string, outcome: PersistedReviewOutcome): Promise<SessionItem> {
     const parsed = reviewOutcomeSchema.parse(outcome);
@@ -302,7 +302,7 @@ export class SessionStore {
     }
 
     // Read before the modify: `incrementalModify` takes a synchronous mutator
-    // and this is an outbox query. Recordings the extraction would never read
+    // and this is storage query. Recordings the extraction would never read
     // are excluded, so discarding one does not read as new work forever.
     const eligible = (await this.#captures.list({ sessionId: id }))
       .filter((r) => r.status !== "discarded" && r.status !== "dead")
@@ -333,7 +333,7 @@ export class SessionStore {
         // already-parked document with an unchanged set and is told so. Accepting
         // `awaiting-review` unconditionally would make both callers succeed and
         // would make an implementation that lost the race indistinguishable from
-        // one that won it — see `outbox-reopen-cross-tab.browser.test.ts`.
+        // one that won it — see `storage-reopen-cross-tab.browser.test.ts`.
         if (current.status !== "awaiting-review" || !setMoved) {
           throw new Error(
             `outbox: session ${id} is "${current.status}" with ` +

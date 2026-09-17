@@ -26,7 +26,7 @@ import type { SessionItem } from "./session-schema.js";
 import type { Transcriber } from "../transcriber.js";
 import { createConnectivity, type ScheduleTimer } from "../connectivity.js";
 
-// Browser mode because the relay drives the real RxDB/IndexedDB outbox. The
+// Browser mode because the relay drives the real RxDB/IndexedDB storage. The
 // state machine is only interesting *against durable storage* — the assertions
 // that matter here are about what survives a close and reopen, which is exactly
 // what jsdom's IndexedDB shim cannot tell the truth about.
@@ -83,7 +83,7 @@ class FakeSource {
  * A hand-driven timer scheduler for the connectivity model's stability window.
  *
  * Deliberately NOT `vi.useFakeTimers()`: the relay drives the real RxDB/IndexedDB
- * outbox, whose async work would deadlock against faked global timers (the same
+ * storage, whose async work would deadlock against faked global timers (the same
  * reason this file uses a manual `TestClock` for the relay's own clock). Only the
  * connectivity window is advanced by hand; every RxDB await runs on real timers.
  */
@@ -117,9 +117,9 @@ const open: Storage[] = [];
 let clock: TestClock;
 
 async function openTestOutbox(name: string): Promise<Storage> {
-  const outbox = await openStorage({ backend: createMemoryBackend(name), now: clock.now });
-  open.push(outbox);
-  return outbox;
+  const storage = await openStorage({ backend: createMemoryBackend(name), now: clock.now });
+  open.push(storage);
+  return storage;
 }
 
 function uniqueName(): string {
@@ -133,12 +133,12 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  for (const outbox of open.splice(0)) if (!outbox.closed) await outbox.close();
+  for (const storage of open.splice(0)) if (!storage.closed) await storage.close();
   for (const name of names.splice(0)) removeMemoryDatabase(name);
 });
 
 interface Harness {
-  outbox: Storage;
+  storage: Storage;
   relay: Relay;
   transcriber: Transcriber;
   session: SessionItem;
@@ -153,7 +153,7 @@ interface Harness {
 }
 
 async function buildRelay(
-  outbox: Storage,
+  storage: Storage,
   overrides: {
     transcriber?: Transcriber;
     sessionExtract?: SessionExtractStep;
@@ -186,7 +186,7 @@ async function buildRelay(
     });
 
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", transcriber),
     sessionExtract,
     sessionWrite,
@@ -208,16 +208,16 @@ async function buildRelay(
   });
 
   // Reuse an existing session (two-tabs tests build two harnesses from the
-  // same outbox) or create one on the first call.
-  let session = await outbox.sessions.get(SESSION_ID);
+  // same storage) or create one on the first call.
+  let session = await storage.sessions.get(SESSION_ID);
   if (!session)
-    session = await outbox.sessions.open({
+    session = await storage.sessions.open({
       id: SESSION_ID,
       ctx: { jobId: "job-7" },
       ref: "job-7",
     });
 
-  return { outbox, relay, transcriber, session, extractCalls, writeCalls };
+  return { storage, relay, transcriber, session, extractCalls, writeCalls };
 }
 
 // ---------------------------------------------------------------------------
@@ -241,7 +241,7 @@ async function buildRelay(
  */
 const drainToReview = async (harness: Harness): Promise<void> => {
   await harness.relay.syncNow();
-  await harness.outbox.sessions.close(harness.session.id);
+  await harness.storage.sessions.close(harness.session.id);
   await harness.relay.syncNow();
 };
 
@@ -249,17 +249,17 @@ const drainToReview = async (harness: Harness): Promise<void> => {
  * Accept a parked session's fields, making it eligible to write.
  *
  * A thin alias for `submitSessionReview` with an accepted outcome, kept named
- * because the call sites read as what a human did rather than as an outbox
+ * because the call sites read as what a human did rather than as storage
  * write. It is also the only door: `submitSessionReview` refuses any status
  * but `awaiting-review`, so a test that wants a writable session has to park
  * it first — which is the production path, not a shortcut around it.
  */
 const acceptReview = async (
-  outbox: Storage,
+  storage: Storage,
   sessionId: string,
   fields: ExtractedFieldMap = { atticInsulation: "the attic is R-19" },
 ): Promise<SessionItem> =>
-  await outbox.sessions.submitReview(sessionId, { status: "accepted", fields });
+  await storage.sessions.submitReview(sessionId, { status: "accepted", fields });
 
 /**
  * Open a session, enqueue a recording, transcribe it, close the session,
@@ -277,32 +277,32 @@ const acceptReview = async (
  * review outcome rather than from the model's map.
  */
 async function seedReviewedWriting(
-  outbox: Storage,
+  storage: Storage,
   options: { recording?: Recording; fields?: ExtractedFieldMap } = {},
 ): Promise<{ session: SessionItem; recordingItem: Capture }> {
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
   const rec = options.recording ?? recording;
-  const recordingItem = await outbox.captures.enqueue({
+  const recordingItem = await storage.captures.enqueue({
     recording: rec,
     audio: audio(),
     sessionId: session.id,
   });
 
   // Transcribe the recording.
-  await outbox.captures.patch(recordingItem.id, {
+  await storage.captures.patch(recordingItem.id, {
     transcript: { recordingId: rec.id, text: "the attic is R-19", engine: "fake" },
     status: "transcribed",
   });
 
   // Close the session and patch it to `awaiting-review` with extracted data,
   // then accept the review to move it to `writing`.
-  await outbox.sessions.close(session.id);
-  await outbox.sessions.patch(session.id, {
+  await storage.sessions.close(session.id);
+  await storage.sessions.patch(session.id, {
     extracted: { atticInsulation: "the attic is R-19" },
     extractedFromRecordingIds: [rec.id],
     status: "awaiting-review",
   });
-  const accepted = await acceptReview(outbox, session.id, options.fields);
+  const accepted = await acceptReview(storage, session.id, options.fields);
   return { session: accepted, recordingItem };
 }
 
@@ -324,9 +324,9 @@ test("drives an item from queued through review to done", async () => {
   // extract → park → a human accepts → write → done. Everything else in this file
   // covers a slice of it; this is the only test that walks the whole thing, and
   // it takes two drains because a human stands between them.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  const item = await outbox.captures.enqueue({
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -334,17 +334,17 @@ test("drives an item from queued through review to done", async () => {
 
   await drainToReview(harness);
 
-  const parked = await outbox.sessions.get(harness.session.id);
+  const parked = await storage.sessions.get(harness.session.id);
   expect(parked?.status).toBe("awaiting-review");
   expect(parked?.writeResult).toBeUndefined();
   expect(harness.writeCalls).toHaveLength(0);
 
-  await acceptReview(outbox, harness.session.id);
+  await acceptReview(storage, harness.session.id);
   await harness.relay.syncNow();
 
-  const doneSession = await outbox.sessions.get(harness.session.id);
+  const doneSession = await storage.sessions.get(harness.session.id);
   expect(doneSession?.status).toBe("done");
-  const doneRecording = await outbox.captures.get(item.id);
+  const doneRecording = await storage.captures.get(item.id);
   expect(doneRecording?.transcript).toEqual({
     recordingId: "rec-1",
     text: "the attic is R-19",
@@ -357,9 +357,9 @@ test("drives an item from queued through review to done", async () => {
 });
 
 test("hands the transcriber the recording metadata and the attachment bytes", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await harness.relay.syncNow();
 
@@ -373,8 +373,8 @@ test("a document round-trips the relay — queued → transcribing → transcrib
   // Proves Task 1's queue changes compose with the relay. The harness wraps
   // audio transcribers with `restrictToKind("audio", …)`, so this test builds
   // a relay directly with a `Transcriber<CapturePayload>` that accepts documents.
-  const outbox = await openTestOutbox(uniqueName());
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const storage = await openTestOutbox(uniqueName());
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
 
   const docTranscriber: Transcriber<CapturePayload> = {
     engine: "fake-doc",
@@ -387,7 +387,7 @@ test("a document round-trips the relay — queued → transcribing → transcrib
   };
 
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: docTranscriber,
     sessionExtract: async ({ transcript }) => ({ fields: { result: transcript.text } }),
     sessionWrite: () => Promise.resolve({ fields: {} }),
@@ -405,7 +405,7 @@ test("a document round-trips the relay — queued → transcribing → transcrib
     mimeType: "application/pdf",
     ctx: { jobId: "job-7" },
   };
-  await outbox.captures.enqueue({
+  await storage.captures.enqueue({
     recording: doc,
     audio: new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])], { type: "application/pdf" }),
     sessionId: session.id,
@@ -413,7 +413,7 @@ test("a document round-trips the relay — queued → transcribing → transcrib
 
   await relay.syncNow();
 
-  const item = (await outbox.captures.list())[0]!;
+  const item = (await storage.captures.list())[0]!;
   expect(item.status).toBe("transcribed");
   expect(item.recording.kind).toBe("document");
   if (item.recording.kind === "document") {
@@ -424,19 +424,19 @@ test("a document round-trips the relay — queued → transcribing → transcrib
 });
 
 test("passes through the statuses of the 09 state machine, in order", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const seenRecording: string[] = [];
   const seenSession: string[] = [];
-  const recSub = outbox.captures.items$.subscribe((items) => {
+  const recSub = storage.captures.items$.subscribe((items) => {
     const status = items[0]?.status;
     if (status && status !== seenRecording.at(-1)) seenRecording.push(status);
   });
-  const harness = await buildRelay(outbox);
-  const sessionSub = outbox.sessions.watch().subscribe((sessions) => {
+  const harness = await buildRelay(storage);
+  const sessionSub = storage.sessions.watch().subscribe((sessions) => {
     const status = sessions[0]?.status;
     if (status && status !== seenSession.at(-1)) seenSession.push(status);
   });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await drainToReview(harness);
   await vi.waitFor(() => expect(seenSession.at(-1)).toBe("awaiting-review"));
@@ -447,7 +447,7 @@ test("passes through the statuses of the 09 state machine, in order", async () =
   expect(seenRecording).toEqual(["queued", "transcribing", "transcribed"]);
   expect(seenSession).toEqual(["open", "extracting", "awaiting-review"]);
 
-  await acceptReview(outbox, harness.session.id);
+  await acceptReview(storage, harness.session.id);
   await harness.relay.syncNow();
   await vi.waitFor(() => expect(seenSession.at(-1)).toBe("done"));
   recSub.unsubscribe();
@@ -469,13 +469,13 @@ test("passes through the statuses of the 09 state machine, in order", async () =
 // `write`, and every `awaiting-review` assertion here would see `dead` instead.
 
 test("a successful extraction parks the item for review instead of writing it", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await drainToReview(harness);
 
-  const parked = await outbox.sessions.get(harness.session.id);
+  const parked = await storage.sessions.get(harness.session.id);
   expect(parked?.status).toBe("awaiting-review");
   expect(parked?.extracted).toEqual({ atticInsulation: "the attic is R-19" });
   expect(parked?.reviewOutcome).toBeUndefined();
@@ -493,18 +493,18 @@ test("a successful extraction parks the item for review instead of writing it", 
 // ---------------------------------------------------------------------------
 
 test("the engine an extract step reports is persisted on the item", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     sessionExtract: async ({ transcript }) => ({
       fields: { atticInsulation: transcript.text },
       engine: "ondevice-prompt-api",
     }),
   });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await drainToReview(harness);
 
-  const parked = await outbox.sessions.get(harness.session.id);
+  const parked = await storage.sessions.get(harness.session.id);
   expect(parked?.extractedBy).toBe("ondevice-prompt-api");
 });
 
@@ -512,15 +512,15 @@ test("an extract step that reports no engine leaves the column absent", async ()
   // The managed path and every single-transport extractor land here. An absent
   // column must stay absent rather than becoming a persisted `undefined`, since
   // `patch` is incremental and cannot delete a key once written.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     sessionExtract: async ({ transcript }) => ({ fields: { atticInsulation: transcript.text } }),
   });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await drainToReview(harness);
 
-  const parked = await outbox.sessions.get(harness.session.id);
+  const parked = await storage.sessions.get(harness.session.id);
   expect(parked?.extracted).toEqual({ atticInsulation: "the attic is R-19" });
   expect(parked?.extractedBy).toBeUndefined();
 });
@@ -530,11 +530,11 @@ test("a combiner with markCaptures reaches the joined transcript through the rel
   // primary path until the combiner was injectable through the relay. The only
   // way to prove the option is wired through is to see the marker in the
   // transcript the extractor receives.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     combineTranscripts: createDefaultTranscriptCombiner({ markCaptures: true }),
   });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await drainToReview(harness);
 
@@ -546,13 +546,13 @@ test("a custom combiner injected through the relay is the one that runs", async 
   // The contract is `(parts) => AnnotatedTranscript`. A combiner that does
   // something the default never would proves the relay calls the injected
   // combiner, not its own.
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const custom: TranscriptCombiner = (parts) => ({
     text: parts.map((p) => `[${String(p.annotations["capture.seq"])}] ${p.text}`).join("\n---\n"),
     annotations: {},
   });
-  const harness = await buildRelay(outbox, { combineTranscripts: custom });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const harness = await buildRelay(storage, { combineTranscripts: custom });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await drainToReview(harness);
 
@@ -563,16 +563,16 @@ test("a custom combiner injected through the relay is the one that runs", async 
 test("parts reach the combiner sorted by seq, not in database order", async () => {
   // Enqueue three recordings; the combiner sees them in seq-ascending order
   // regardless of what order the database returns them in.
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const seenSeqs: number[] = [];
   const capturing: TranscriptCombiner = (parts) => {
     seenSeqs.push(...parts.map((p) => Number(p.annotations["capture.seq"])));
     return { text: parts.map((p) => p.text).join(" "), annotations: {} };
   };
-  const harness = await buildRelay(outbox, { combineTranscripts: capturing });
+  const harness = await buildRelay(storage, { combineTranscripts: capturing });
 
   for (const id of ["c", "a", "b"]) {
-    await outbox.captures.enqueue({
+    await storage.captures.enqueue({
       recording: { ...recording, id },
       audio: audio(),
       sessionId: harness.session.id,
@@ -590,10 +590,10 @@ test("a parked item does not block the recordings behind it", async () => {
   // first recording must not stop the second from transcribing. Both recordings
   // are in the same session, so both get transcribed, then the session is
   // extracted once.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
   for (const id of ["first", "second"]) {
-    await outbox.captures.enqueue({
+    await storage.captures.enqueue({
       recording: { ...recording, id },
       audio: audio(),
       sessionId: harness.session.id,
@@ -602,19 +602,19 @@ test("a parked item does not block the recordings behind it", async () => {
 
   await drainToReview(harness);
 
-  const items = await outbox.captures.list();
+  const items = await storage.captures.list();
   expect(items.map((entry) => entry.status)).toEqual(["transcribed", "transcribed"]);
   expect(harness.extractCalls).toHaveLength(1);
   expect(harness.writeCalls).toHaveLength(0);
 });
 
 test("the write step receives the human's reviewed values, not the model's", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
   await drainToReview(harness);
 
-  await outbox.sessions.submitReview(harness.session.id, {
+  await storage.sessions.submitReview(harness.session.id, {
     status: "edited",
     fields: { atticRValue: 30 },
     editedFields: ["atticRValue"],
@@ -639,12 +639,12 @@ test("an item reviewed with every field rejected is never written", async () => 
   // throw away. So the refusal has to be here, and it has to be the relay's own:
   // `sessionWrite` is host-supplied, so "the adapter's schema would reject it" is a
   // guarantee nothing in this package enforces.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
   await drainToReview(harness);
 
-  const unparked = await outbox.sessions.submitReview(harness.session.id, {
+  const unparked = await storage.sessions.submitReview(harness.session.id, {
     status: "edited",
     fields: {},
     editedFields: [],
@@ -658,7 +658,7 @@ test("an item reviewed with every field rejected is never written", async () => 
   await harness.relay.syncNow();
 
   expect(harness.writeCalls).toHaveLength(0);
-  const dead = await outbox.sessions.get(harness.session.id);
+  const dead = await storage.sessions.get(harness.session.id);
   // `dead`, not `failed`: re-running the write would reach the same conclusion
   // eight more times, and the row is a "needs attention" one a UI should surface.
   expect(dead?.status).toBe("dead");
@@ -679,16 +679,16 @@ test("an accepted review of an extraction that found nothing says so, not that f
   // i.e. the extractor found nothing at all. Both end `dead`, but an operator
   // reading "the review rejected every field" off this row would go looking for a
   // reviewer who never saw a field to reject.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, { sessionExtract: async () => ({ fields: {} }) });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, { sessionExtract: async () => ({ fields: {} }) });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
   await drainToReview(harness);
 
-  await outbox.sessions.submitReview(harness.session.id, { status: "accepted", fields: {} });
+  await storage.sessions.submitReview(harness.session.id, { status: "accepted", fields: {} });
   await harness.relay.syncNow();
 
   expect(harness.writeCalls).toHaveLength(0);
-  const dead = await outbox.sessions.get(harness.session.id);
+  const dead = await storage.sessions.get(harness.session.id);
   expect(dead?.status).toBe("dead");
   expect(dead?.lastError).toMatch(/extraction produced no fields/i);
   expect(dead?.lastError).not.toMatch(/rejected/i);
@@ -697,22 +697,22 @@ test("an accepted review of an extraction that found nothing says so, not that f
 test("an item that reaches writing with no review outcome fails terminally", async () => {
   // Defence in depth for the one invariant whose violation is invisible: reaching
   // a write unreviewed is a state-machine bug, so it must not silently write.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
   await drainToReview(harness);
   // Asserted, not assumed: without this the test passes even when the relay never
   // parked the item at all, because a `dead` item is `dead` whichever way it got
   // there. This is the line that makes the hand-patch below a *jump over the gate*
   // rather than an incidental status change.
-  expect((await outbox.sessions.get(harness.session.id))?.status).toBe("awaiting-review");
+  expect((await storage.sessions.get(harness.session.id))?.status).toBe("awaiting-review");
 
   // The gate jumped by hand — exactly the shape a bug in it would take.
-  await outbox.sessions.patch(harness.session.id, { status: "writing" });
+  await storage.sessions.patch(harness.session.id, { status: "writing" });
   await harness.relay.syncNow();
 
   expect(harness.writeCalls).toHaveLength(0);
-  const dead = await outbox.sessions.get(harness.session.id);
+  const dead = await storage.sessions.get(harness.session.id);
   // `dead`, not `failed`: retrying an item whose review is missing would just
   // reach the same conclusion eight more times.
   expect(dead?.status).toBe("dead");
@@ -724,22 +724,22 @@ test("an item whose review discarded the draft never reaches the tool", async ()
   // `discarded` and never to `writing`, so a `writing` row carrying a discarded
   // outcome is a broken invariant too — and the one where writing anyway would
   // record values a human explicitly threw away.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
   await drainToReview(harness);
   // Same reason as the test above: the park has to be asserted, or a relay that
   // never parked would satisfy every assertion below it.
-  expect((await outbox.sessions.get(harness.session.id))?.status).toBe("awaiting-review");
+  expect((await storage.sessions.get(harness.session.id))?.status).toBe("awaiting-review");
 
-  await outbox.sessions.patch(harness.session.id, {
+  await storage.sessions.patch(harness.session.id, {
     status: "writing",
     reviewOutcome: reviewOutcomeSchema.parse({ status: "discarded", reason: "wrong property" }),
   });
   await harness.relay.syncNow();
 
   expect(harness.writeCalls).toHaveLength(0);
-  const dead = await outbox.sessions.get(harness.session.id);
+  const dead = await storage.sessions.get(harness.session.id);
   expect(dead?.status).toBe("dead");
   expect(dead?.lastError).toMatch(/review/i);
 });
@@ -794,13 +794,13 @@ test("resumes at the next step after a reload rather than re-recording or re-tra
 });
 
 test("resumes at the write step when extraction and review already succeeded", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   // Reviewed with a field the extractor never produced, so a regression that read
   // `item.extracted` back out at write time could not pass this test.
-  const { session: item } = await seedReviewedWriting(outbox, { fields: { atticRValue: 30 } });
+  const { session: item } = await seedReviewedWriting(storage, { fields: { atticRValue: 30 } });
 
   const transcriber = new FakeTranscriber().failWith(new Error("must not transcribe"));
-  const harness = await buildRelay(outbox, {
+  const harness = await buildRelay(storage, {
     transcriber,
     sessionExtract: async () => {
       throw new Error("must not extract");
@@ -808,7 +808,7 @@ test("resumes at the write step when extraction and review already succeeded", a
   });
   await harness.relay.syncNow();
 
-  expect((await outbox.sessions.get(item.id))?.status).toBe("done");
+  expect((await storage.sessions.get(item.id))?.status).toBe("done");
   expect(harness.writeCalls).toHaveLength(1);
   expect(harness.writeCalls[0]?.reviewed).toEqual({ atticRValue: 30 });
   // The model's raw map is still reachable on the item, for provenance.
@@ -828,9 +828,9 @@ test("resumes at the write step when extraction and review already succeeded", a
 // joined transcript.
 
 test("an empty transcript transcribes and the session extracts normally", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, { transcriber: new FakeTranscriber({ text: "" }) });
-  const item = await outbox.captures.enqueue({
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, { transcriber: new FakeTranscriber({ text: "" }) });
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -838,8 +838,8 @@ test("an empty transcript transcribes and the session extracts normally", async 
 
   await drainToReview(harness);
 
-  const parked = await outbox.captures.get(item.id);
-  const parkedSession = await outbox.sessions.get(harness.session.id);
+  const parked = await storage.captures.get(item.id);
+  const parkedSession = await storage.sessions.get(harness.session.id);
   expect(parked?.status).toBe("transcribed");
   expect(parkedSession?.status).toBe("awaiting-review");
   expect(harness.extractCalls).toHaveLength(1);
@@ -853,9 +853,9 @@ test("an empty transcript transcribes and the session extracts normally", async 
 });
 
 test("a near-empty transcript transcribes and the session extracts normally", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, { transcriber: new FakeTranscriber({ text: "um" }) });
-  const item = await outbox.captures.enqueue({
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, { transcriber: new FakeTranscriber({ text: "um" }) });
+  const item = await storage.captures.enqueue({
     recording: { ...recording, durationMs: 240_000 },
     audio: audio(),
     sessionId: harness.session.id,
@@ -863,10 +863,10 @@ test("a near-empty transcript transcribes and the session extracts normally", as
 
   await drainToReview(harness);
 
-  const parked = await outbox.captures.get(item.id);
+  const parked = await storage.captures.get(item.id);
   expect(parked?.status).toBe("transcribed");
   expect(parked?.transcript?.text).toBe("um");
-  const parkedSession = await outbox.sessions.get(harness.session.id);
+  const parkedSession = await storage.sessions.get(harness.session.id);
   expect(parkedSession?.status).toBe("awaiting-review");
   expect(harness.extractCalls).toHaveLength(1);
 });
@@ -875,11 +875,11 @@ test("a short but plausible transcript still advances to extraction", async () =
   // "the attic" (9 chars) for a 4-second recording is 2.25 chars/s — above the
   // 0.5 threshold, so the guard does not fire. Extraction runs normally and the
   // item parks at the review gate the usual way.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     transcriber: new FakeTranscriber({ text: "the attic" }),
   });
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording: { ...recording, durationMs: 4_000 },
     audio: audio(),
     sessionId: harness.session.id,
@@ -887,8 +887,8 @@ test("a short but plausible transcript still advances to extraction", async () =
 
   await drainToReview(harness);
 
-  const parked = await outbox.captures.get(item.id);
-  const parkedSession = await outbox.sessions.get(harness.session.id);
+  const parked = await storage.captures.get(item.id);
+  const parkedSession = await storage.sessions.get(harness.session.id);
   // Extraction ran: the item has extracted data and went through the normal
   // review gate, not the guard's park.
   expect(parkedSession?.status).toBe("awaiting-review");
@@ -902,18 +902,18 @@ test("an empty transcript does not block the recordings behind it", async () => 
   // Both recordings are in the same session. Both transcribe (one to an empty
   // string, one to real text), then the session is closed and extracted once
   // on the joined transcript. The empty recording does not block anything.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     transcriber: new FakeTranscriber({
       responses: { empty: "", real: "the attic is R-19" },
     }),
   });
-  await outbox.captures.enqueue({
+  await storage.captures.enqueue({
     recording: { ...recording, id: "empty" },
     audio: audio(),
     sessionId: harness.session.id,
   });
-  await outbox.captures.enqueue({
+  await storage.captures.enqueue({
     recording: { ...recording, id: "real" },
     audio: audio(),
     sessionId: harness.session.id,
@@ -921,12 +921,12 @@ test("an empty transcript does not block the recordings behind it", async () => 
 
   await drainToReview(harness);
 
-  const items = await outbox.captures.list();
+  const items = await storage.captures.list();
   expect(items.map((entry) => [entry.recording.id, entry.status])).toEqual([
     ["empty", "transcribed"],
     ["real", "transcribed"],
   ]);
-  const session = await outbox.sessions.get(harness.session.id);
+  const session = await storage.sessions.get(harness.session.id);
   expect(session?.status).toBe("awaiting-review");
   expect(session?.extracted).toEqual({ atticInsulation: " the attic is R-19" });
 });
@@ -936,10 +936,10 @@ test("an empty transcript does not block the recordings behind it", async () => 
 // ---------------------------------------------------------------------------
 
 test("reuses the enqueue-time idempotency key on every retry, never regenerating it", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const keys: string[] = [];
   let attempt = 0;
-  const harness = await buildRelay(outbox, {
+  const harness = await buildRelay(storage, {
     sessionWrite: async ({ idempotencyKey }) => {
       keys.push(idempotencyKey);
       attempt += 1;
@@ -949,7 +949,7 @@ test("reuses the enqueue-time idempotency key on every retry, never regenerating
   });
   // Seeded past the gate: the key has to survive three *write* attempts, and a
   // fresh capture would park before the first one.
-  const { session: item } = await seedReviewedWriting(outbox);
+  const { session: item } = await seedReviewedWriting(storage);
 
   for (let i = 0; i < 3; i += 1) {
     await harness.relay.syncNow();
@@ -959,7 +959,7 @@ test("reuses the enqueue-time idempotency key on every retry, never regenerating
   expect(keys).toHaveLength(3);
   expect(new Set(keys).size).toBe(1);
   expect(keys[0]).toBe(item.idempotencyKey);
-  expect((await outbox.sessions.get(item.id))?.status).toBe("done");
+  expect((await storage.sessions.get(item.id))?.status).toBe("done");
 });
 
 // ---------------------------------------------------------------------------
@@ -967,17 +967,17 @@ test("reuses the enqueue-time idempotency key on every retry, never regenerating
 // ---------------------------------------------------------------------------
 
 test("a transient failure parks the item with a persisted future nextAttemptAt", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     sessionWrite: async () => {
       throw Object.assign(new Error("gateway"), { status: 502 });
     },
   });
-  const { session: item } = await seedReviewedWriting(outbox);
+  const { session: item } = await seedReviewedWriting(storage);
 
   await harness.relay.syncNow();
 
-  const failed = await outbox.sessions.get(item.id);
+  const failed = await storage.sessions.get(item.id);
   expect(failed?.status).toBe("failed");
   expect(failed?.attempts).toBe(1);
   expect(failed?.lastError).toContain("gateway");
@@ -1020,18 +1020,18 @@ test("does not retry before nextAttemptAt, and does after — with the schedule 
 });
 
 test("the backoff window doubles with each attempt", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     sessionWrite: async () => {
       throw Object.assign(new Error("gateway"), { status: 502 });
     },
   });
-  const { session: item } = await seedReviewedWriting(outbox);
+  const { session: item } = await seedReviewedWriting(storage);
 
   const windows: number[] = [];
   for (let i = 0; i < 4; i += 1) {
     await harness.relay.syncNow();
-    const current = await outbox.sessions.get(item.id);
+    const current = await storage.sessions.get(item.id);
     windows.push(Date.parse(current!.nextAttemptAt) - clock.now());
     clock.advance(windows.at(-1)! + 1);
   }
@@ -1044,19 +1044,19 @@ test("the backoff window doubles with each attempt", async () => {
 // ---------------------------------------------------------------------------
 
 test("a 4xx-equivalent failure goes straight to dead without a retry", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     sessionWrite: async () => {
       throw Object.assign(new Error("unprocessable"), { status: 422 });
     },
   });
-  const { session: item } = await seedReviewedWriting(outbox);
+  const { session: item } = await seedReviewedWriting(storage);
 
   await harness.relay.syncNow();
   clock.advance(600_000);
   await harness.relay.syncNow();
 
-  const dead = await outbox.sessions.get(item.id);
+  const dead = await storage.sessions.get(item.id);
   expect(dead?.status).toBe("dead");
   expect(dead?.attempts).toBe(1);
   expect(dead?.lastError).toContain("unprocessable");
@@ -1064,54 +1064,54 @@ test("a 4xx-equivalent failure goes straight to dead without a retry", async () 
 });
 
 test("an explicit TerminalError is terminal too", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     sessionExtract: async () => {
       throw new TerminalError("this transcript can never be extracted");
     },
   });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await harness.relay.syncNow();
-  await outbox.sessions.close(harness.session.id);
+  await storage.sessions.close(harness.session.id);
   await harness.relay.syncNow();
-  expect((await outbox.sessions.get(harness.session.id))?.status).toBe("dead");
+  expect((await storage.sessions.get(harness.session.id))?.status).toBe("dead");
 });
 
 test("missing audio is terminal, not an infinite retry loop", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  const item = await outbox.captures.enqueue({
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
   });
-  await outbox.captures.dropAudio(item.id);
+  await storage.captures.dropAudio(item.id);
 
   await harness.relay.syncNow();
 
-  const dead = await outbox.captures.get(item.id);
+  const dead = await storage.captures.get(item.id);
   expect(dead?.status).toBe("dead");
   expect(dead?.lastError).toMatch(/audio/i);
   expect(fake(harness).calls).toHaveLength(0);
 });
 
 test("gives up and goes dead once maxAttempts transient failures have accumulated", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     maxAttempts: 3,
     sessionWrite: async () => {
       throw Object.assign(new Error("gateway"), { status: 502 });
     },
   });
-  const { session: item } = await seedReviewedWriting(outbox);
+  const { session: item } = await seedReviewedWriting(storage);
 
   for (let i = 0; i < 5; i += 1) {
     await harness.relay.syncNow();
     clock.advance(600_000);
   }
 
-  const dead = await outbox.sessions.get(item.id);
+  const dead = await storage.sessions.get(item.id);
   expect(dead?.status).toBe("dead");
   expect(dead?.attempts).toBe(3);
 });
@@ -1127,18 +1127,18 @@ test("gives up and goes dead once maxAttempts transient failures have accumulate
 // with no cast. Nothing is persisted: the discriminant lives at the callback
 // boundary only (design §0.6).
 
-test("onError receives kind 'recording' and the outbox item when transcription fails", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+test("onError receives kind 'recording' and the storage item when transcription fails", async () => {
+  const storage = await openTestOutbox(uniqueName());
   const errorCalls: Array<{ error: unknown; subject: RelaySubject }> = [];
-  const harness = await buildRelay(outbox, {
+  const harness = await buildRelay(storage, {
     onError: (error, subject) => errorCalls.push({ error, subject }),
   });
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
   });
-  await outbox.captures.dropAudio(item.id);
+  await storage.captures.dropAudio(item.id);
 
   await harness.relay.syncNow();
 
@@ -1147,22 +1147,22 @@ test("onError receives kind 'recording' and the outbox item when transcription f
   if (errorCalls[0]?.subject.kind === "recording") {
     expect(errorCalls[0].subject.item.id).toBe(item.id);
   }
-  expect((await outbox.captures.get(item.id))?.status).toBe("dead");
+  expect((await storage.captures.get(item.id))?.status).toBe("dead");
 });
 
 test("onError receives kind 'session' and the session document when extraction fails", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const errorCalls: Array<{ error: unknown; subject: RelaySubject }> = [];
-  const harness = await buildRelay(outbox, {
+  const harness = await buildRelay(storage, {
     sessionExtract: async () => {
       throw new TerminalError("extraction failed");
     },
     onError: (error, subject) => errorCalls.push({ error, subject }),
   });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await harness.relay.syncNow();
-  await outbox.sessions.close(harness.session.id);
+  await storage.sessions.close(harness.session.id);
   await harness.relay.syncNow();
 
   expect(errorCalls).toHaveLength(1);
@@ -1170,19 +1170,19 @@ test("onError receives kind 'session' and the session document when extraction f
   if (errorCalls[0]?.subject.kind === "session") {
     expect(errorCalls[0].subject.session.id).toBe(harness.session.id);
   }
-  expect((await outbox.sessions.get(harness.session.id))?.status).toBe("dead");
+  expect((await storage.sessions.get(harness.session.id))?.status).toBe("dead");
 });
 
 test("onError receives kind 'session' and the session document when the write fails", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const errorCalls: Array<{ error: unknown; subject: RelaySubject }> = [];
-  const harness = await buildRelay(outbox, {
+  const harness = await buildRelay(storage, {
     sessionWrite: async () => {
       throw Object.assign(new Error("unprocessable"), { status: 422 });
     },
     onError: (error, subject) => errorCalls.push({ error, subject }),
   });
-  const { session } = await seedReviewedWriting(outbox);
+  const { session } = await seedReviewedWriting(storage);
 
   await harness.relay.syncNow();
 
@@ -1191,7 +1191,7 @@ test("onError receives kind 'session' and the session document when the write fa
   if (errorCalls[0]?.subject.kind === "session") {
     expect(errorCalls[0].subject.session.id).toBe(session.id);
   }
-  expect((await outbox.sessions.get(session.id))?.status).toBe("dead");
+  expect((await storage.sessions.get(session.id))?.status).toBe("dead");
 });
 
 // Type-level: the `@ts-expect-error` IS the assertion. If the directive flips to
@@ -1228,11 +1228,11 @@ test("reaching for subject.session in the recording arm is a compile error", () 
 // ---------------------------------------------------------------------------
 
 test("processes serially, lowest seq first", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const order: string[] = [];
   let concurrent = 0;
   let maxConcurrent = 0;
-  const harness = await buildRelay(outbox, {
+  const harness = await buildRelay(storage, {
     sessionWrite: async ({ session }) => {
       concurrent += 1;
       maxConcurrent = Math.max(maxConcurrent, concurrent);
@@ -1248,7 +1248,7 @@ test("processes serially, lowest seq first", async () => {
   // sessions' `openedAt` order — which matches the seeding order here.
   const sessionToRecording: Record<string, string> = {};
   for (const id of ["c", "a", "b"]) {
-    const { session } = await seedReviewedWriting(outbox, { recording: { ...recording, id } });
+    const { session } = await seedReviewedWriting(storage, { recording: { ...recording, id } });
     sessionToRecording[session.id] = id;
     clock.advance(1);
   }
@@ -1264,17 +1264,17 @@ test("writes follow review order, not capture order", async () => {
   // session first means it writes first. Enforcing capture order here would let
   // one un-reviewed session block every write behind it — the exact stall the
   // parked design exists to avoid.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
 
-  const sessionA = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  const sessionB = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  await outbox.captures.enqueue({
+  const sessionA = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const sessionB = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  await storage.captures.enqueue({
     recording: { ...recording, id: "first" },
     audio: audio(),
     sessionId: sessionA.id,
   });
-  await outbox.captures.enqueue({
+  await storage.captures.enqueue({
     recording: { ...recording, id: "second" },
     audio: audio(),
     sessionId: sessionB.id,
@@ -1282,12 +1282,12 @@ test("writes follow review order, not capture order", async () => {
 
   // Both transcribe, both close, both extract — both park at awaiting-review.
   await harness.relay.syncNow();
-  await outbox.sessions.close(sessionA.id);
-  await outbox.sessions.close(sessionB.id);
+  await storage.sessions.close(sessionA.id);
+  await storage.sessions.close(sessionB.id);
   await harness.relay.syncNow();
 
   // Review the second session first, so it is the one that writes.
-  await outbox.sessions.submitReview(sessionB.id, {
+  await storage.sessions.submitReview(sessionB.id, {
     status: "accepted",
     fields: { atticRValue: 30 },
   });
@@ -1297,23 +1297,23 @@ test("writes follow review order, not capture order", async () => {
   expect(harness.writeCalls[0]?.session.id).toBe(sessionB.id);
   // The first session is untouched and still waiting on its human. It did not
   // block the write, and the write did not disturb it.
-  expect((await outbox.sessions.get(sessionA.id))?.status).toBe("awaiting-review");
+  expect((await storage.sessions.get(sessionA.id))?.status).toBe("awaiting-review");
 });
 
 test("a parked head-of-queue item holds the queue, preserving capture order", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   let firstSessionId = "";
-  const harness = await buildRelay(outbox, {
+  const harness = await buildRelay(storage, {
     sessionWrite: async ({ session }) => {
       if (session.id === firstSessionId) throw Object.assign(new Error("gw"), { status: 502 });
       return {};
     },
   });
-  const { session: first } = await seedReviewedWriting(outbox, {
+  const { session: first } = await seedReviewedWriting(storage, {
     recording: { ...recording, id: "first" },
   });
   firstSessionId = first.id;
-  const second = await outbox.captures.enqueue({
+  const second = await storage.captures.enqueue({
     recording: { ...recording, id: "second" },
     audio: audio(),
     sessionId: harness.session.id,
@@ -1323,24 +1323,24 @@ test("a parked head-of-queue item holds the queue, preserving capture order", as
 
   // The first session's write fails (transient), but the second recording still
   // transcribes — recordings are independent of session write status.
-  expect((await outbox.sessions.get(first.id))?.status).toBe("failed");
-  expect((await outbox.captures.get(second.id))?.status).toBe("transcribed");
+  expect((await storage.sessions.get(first.id))?.status).toBe("failed");
+  expect((await storage.captures.get(second.id))?.status).toBe("transcribed");
 });
 
 test("a dead item does not block the queue behind it", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   let firstSessionId = "";
-  const harness = await buildRelay(outbox, {
+  const harness = await buildRelay(storage, {
     sessionWrite: async ({ session }) => {
       if (session.id === firstSessionId) throw Object.assign(new Error("bad"), { status: 400 });
       return {};
     },
   });
-  const { session: first } = await seedReviewedWriting(outbox, {
+  const { session: first } = await seedReviewedWriting(storage, {
     recording: { ...recording, id: "first" },
   });
   firstSessionId = first.id;
-  const second = await outbox.captures.enqueue({
+  const second = await storage.captures.enqueue({
     recording: { ...recording, id: "second" },
     audio: audio(),
     sessionId: harness.session.id,
@@ -1348,10 +1348,10 @@ test("a dead item does not block the queue behind it", async () => {
 
   await harness.relay.syncNow();
 
-  expect((await outbox.sessions.get(first.id))?.status).toBe("dead");
+  expect((await storage.sessions.get(first.id))?.status).toBe("dead");
   // `second` got transcribed — the relay is done with the recording. That it
   // moved at all is the point: blocking behind a dead session would strand it.
-  expect((await outbox.captures.get(second.id))?.status).toBe("transcribed");
+  expect((await storage.captures.get(second.id))?.status).toBe("transcribed");
 });
 
 // ---------------------------------------------------------------------------
@@ -1359,9 +1359,9 @@ test("a dead item does not block the queue behind it", async () => {
 // ---------------------------------------------------------------------------
 
 test("drains once at start, which is the app-start trigger", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  const item = await outbox.captures.enqueue({
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -1371,17 +1371,17 @@ test("drains once at start, which is the app-start trigger", async () => {
 
   // A drain happened, which is what this test is about; where it ends is the
   // review gate's business, not the trigger's.
-  expect((await outbox.captures.get(item.id))?.status).toBe("transcribed");
+  expect((await storage.captures.get(item.id))?.status).toBe("transcribed");
   harness.relay.stop();
 });
 
 /**
  * Wires a relay to a real {@link createConnectivity} model over hand-driven
  * fakes. Returns the pieces a test drives: the source it flaps, the timers it
- * advances, and the relay/outbox.
+ * advances, and the relay/storage.
  */
 async function wireConnectivity(
-  outbox: Storage,
+  storage: Storage,
   overrides: { probe?: (signal: AbortSignal) => Promise<Response> } = {},
 ): Promise<{
   harness: Harness;
@@ -1389,7 +1389,7 @@ async function wireConnectivity(
   timers: ManualTimers;
   connectivity: ReturnType<typeof createConnectivity>;
 }> {
-  const harness = await buildRelay(outbox);
+  const harness = await buildRelay(storage);
   const source = new FakeSource();
   const timers = new ManualTimers();
   const connectivity = createConnectivity({
@@ -1405,11 +1405,11 @@ async function wireConnectivity(
 }
 
 test("drains on the connectivity model's stably-online edge", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const { harness, source, timers, connectivity } = await wireConnectivity(outbox);
+  const storage = await openTestOutbox(uniqueName());
+  const { harness, source, timers, connectivity } = await wireConnectivity(storage);
   await harness.relay.start(connectivity);
 
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -1418,21 +1418,21 @@ test("drains on the connectivity model's stably-online edge", async () => {
   // Link comes up: probe → healthy → still `probing`, so nothing drains yet.
   source.flip(true);
   await settle();
-  expect((await outbox.captures.get(item.id))?.status).toBe("queued");
+  expect((await storage.captures.get(item.id))?.status).toBe("queued");
 
   // The stability window elapses → the `online` edge → the relay drains, which
   // transcribes the recording.
   timers.advance(1_000);
   await harness.relay.settled();
-  expect((await outbox.captures.get(item.id))?.status).toBe("transcribed");
+  expect((await storage.captures.get(item.id))?.status).toBe("transcribed");
 
   harness.relay.stop();
   connectivity.stop();
 });
 
 test("does not thrash when connectivity flaps — one stable edge, one drain", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const { harness, source, timers, connectivity } = await wireConnectivity(outbox);
+  const storage = await openTestOutbox(uniqueName());
+  const { harness, source, timers, connectivity } = await wireConnectivity(storage);
   await harness.relay.start(connectivity); // app-start drain runs on the empty queue
 
   // Count every drain the relay *initiates* from here on. Overriding the
@@ -1446,7 +1446,7 @@ test("does not thrash when connectivity flaps — one stable edge, one drain", a
     return realSyncNow();
   };
 
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -1466,19 +1466,19 @@ test("does not thrash when connectivity flaps — one stable edge, one drain", a
   // The flap crossed the online edge exactly once, so the relay drained once —
   // no runaway drain/fail/backoff loop.
   expect(drains).toBe(1);
-  expect((await outbox.captures.get(item.id))?.status).toBe("transcribed");
+  expect((await storage.captures.get(item.id))?.status).toBe("transcribed");
 
   harness.relay.stop();
   connectivity.stop();
 });
 
 test("syncNow bypasses hysteresis — a human pressing 'Sync now' drains even while offline", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   // The connectivity model never leaves `offline`: the link stays down.
-  const { harness, connectivity } = await wireConnectivity(outbox);
+  const { harness, connectivity } = await wireConnectivity(storage);
   await harness.relay.start(connectivity);
 
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -1488,19 +1488,19 @@ test("syncNow bypasses hysteresis — a human pressing 'Sync now' drains even wh
   // regardless" is the whole point of the button.
   await harness.relay.syncNow();
 
-  expect((await outbox.captures.get(item.id))?.status).toBe("transcribed");
+  expect((await storage.captures.get(item.id))?.status).toBe("transcribed");
 
   harness.relay.stop();
   connectivity.stop();
 });
 
 test("stop detaches the connectivity subscription", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const { harness, source, timers, connectivity } = await wireConnectivity(outbox);
+  const storage = await openTestOutbox(uniqueName());
+  const { harness, source, timers, connectivity } = await wireConnectivity(storage);
   await harness.relay.start(connectivity);
   harness.relay.stop();
 
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -1511,20 +1511,20 @@ test("stop detaches the connectivity subscription", async () => {
   await harness.relay.settled();
 
   // ...but the relay is no longer listening, so nothing drained.
-  expect((await outbox.captures.get(item.id))?.status).toBe("queued");
+  expect((await storage.captures.get(item.id))?.status).toBe("queued");
 
   connectivity.stop();
 });
 
 test("overlapping syncNow calls do not process an item twice", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
   // Two rows, because the duplications that would actually hurt sit at opposite
   // ends of the pipeline: a second transcription costs money, and a second write
   // hits a customer's tool. A fresh capture covers the first; a seeded reviewed row
   // is the only way to still cover the second now that a write needs a human.
-  await seedReviewedWriting(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await seedReviewedWriting(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
 
   await Promise.all([
     harness.relay.syncNow(),
@@ -1538,8 +1538,8 @@ test("overlapping syncNow calls do not process an item twice", async () => {
 });
 
 test("an empty queue is a no-op", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
   await expect(harness.relay.syncNow()).resolves.toBeUndefined();
   expect(fake(harness).calls).toHaveLength(0);
 });
@@ -1553,34 +1553,34 @@ test("an empty queue is a no-op", async () => {
 // file exercises the delete. That is precisely why it is tested here: the
 // failure mode is a field auditor's recording gone for good, and the moment a
 // later phase flips the default is the worst possible moment to discover a bug
-// in it. `Storage.dropAudio` has its own coverage in `outbox.browser.test.ts`;
+// in it. `Storage.dropAudio` has its own coverage in `storage.browser.test.ts`;
 // what these tests pin is the *relay's decision* to call it — when, and just as
 // importantly when not.
 
 test("with dropAudioAfterTranscription, the audio is deleted once transcription succeeds", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, { dropAudioAfterTranscription: true });
-  const item = await outbox.captures.enqueue({
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, { dropAudioAfterTranscription: true });
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
   });
-  expect(await outbox.captures.getAudio(item.id)).toBeDefined();
+  expect(await storage.captures.getAudio(item.id)).toBeDefined();
 
   await harness.relay.syncNow();
 
-  expect(await outbox.captures.getAudio(item.id)).toBeUndefined();
+  expect(await storage.captures.getAudio(item.id)).toBeUndefined();
   // Dropping the bytes must not strand the item: extract, review and write all
   // consume the transcript, not the audio, so the item still finishes the pipeline.
-  expect((await outbox.captures.get(item.id))?.status).toBe("transcribed");
-  await outbox.sessions.close(harness.session.id);
+  expect((await storage.captures.get(item.id))?.status).toBe("transcribed");
+  await storage.sessions.close(harness.session.id);
   await harness.relay.syncNow();
-  await acceptReview(outbox, harness.session.id);
+  await acceptReview(storage, harness.session.id);
   await harness.relay.syncNow();
 
-  const done = await outbox.sessions.get(harness.session.id);
+  const done = await storage.sessions.get(harness.session.id);
   expect(done?.status).toBe("done");
-  const doneRecording = await outbox.captures.get(item.id);
+  const doneRecording = await storage.captures.get(item.id);
   expect(doneRecording?.transcript).toEqual({
     recordingId: "rec-1",
     text: "the attic is R-19",
@@ -1609,11 +1609,11 @@ test("the delete survives a reload — it is a real attachment removal, not a ca
 });
 
 test("with dropAudioAfterTranscription, a FAILED transcription retains the audio so the retry can work", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const transcriber = new FakeTranscriber({ text: "the attic is R-19" });
   transcriber.failNextWith(Object.assign(new Error("gateway"), { status: 503 }));
-  const harness = await buildRelay(outbox, { transcriber, dropAudioAfterTranscription: true });
-  const item = await outbox.captures.enqueue({
+  const harness = await buildRelay(storage, { transcriber, dropAudioAfterTranscription: true });
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -1625,10 +1625,10 @@ test("with dropAudioAfterTranscription, a FAILED transcription retains the audio
   // audio on a failed transcription would make the retry structurally
   // impossible: `#transcribe` treats missing audio as terminal, so the item
   // would go straight to `dead` and the recording would be unrecoverable.
-  const parked = await outbox.captures.get(item.id);
+  const parked = await storage.captures.get(item.id);
   expect(parked?.status).toBe("failed");
   expect(parked?.transcript).toBeUndefined();
-  const retained = await outbox.captures.getAudio(item.id);
+  const retained = await storage.captures.getAudio(item.id);
   expect(retained).toBeDefined();
   expect(new Uint8Array(await retained!.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
 
@@ -1636,13 +1636,13 @@ test("with dropAudioAfterTranscription, a FAILED transcription retains the audio
   clock.advance(600_000);
   await harness.relay.syncNow();
 
-  expect((await outbox.captures.get(item.id))?.status).toBe("transcribed");
+  expect((await storage.captures.get(item.id))?.status).toBe("transcribed");
   expect(fake(harness).calls).toHaveLength(2);
   expect(new Uint8Array(await fake(harness).calls[1]!.bytes.arrayBuffer())).toEqual(
     new Uint8Array([1, 2, 3, 4]),
   );
   // Only now, after the successful attempt, is it gone.
-  expect(await outbox.captures.getAudio(item.id)).toBeUndefined();
+  expect(await storage.captures.getAudio(item.id)).toBeUndefined();
 });
 
 test("with dropAudioAfterTranscription, audio is retained when a LATER step fails", async () => {
@@ -1650,30 +1650,30 @@ test("with dropAudioAfterTranscription, audio is retained when a LATER step fail
   // so an extraction failure must not take the audio with it — but neither
   // should a successful transcription hold the bytes hostage to the rest of the
   // pipeline. Transcription won, so the bytes go; the session is merely parked.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     dropAudioAfterTranscription: true,
     sessionExtract: async () => {
       throw Object.assign(new Error("gateway"), { status: 502 });
     },
   });
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
   });
 
   await harness.relay.syncNow();
-  await outbox.sessions.close(harness.session.id);
+  await storage.sessions.close(harness.session.id);
   await harness.relay.syncNow();
 
-  const parked = await outbox.captures.get(item.id);
+  const parked = await storage.captures.get(item.id);
   expect(parked?.status).toBe("transcribed");
   // The transcript is persisted, so the retry resumes at `extract` and never
   // needs the audio again.
   expect(parked?.transcript?.text).toBe("the attic is R-19");
-  expect(await outbox.captures.getAudio(item.id)).toBeUndefined();
-  const failedSession = await outbox.sessions.get(harness.session.id);
+  expect(await storage.captures.getAudio(item.id)).toBeUndefined();
+  const failedSession = await storage.sessions.get(harness.session.id);
   expect(failedSession?.status).toBe("failed");
   expect(failedSession?.lastError).toContain("gateway");
 });
@@ -1706,9 +1706,9 @@ test("by default the audio survives transcription — Phase 2's visible durabili
 });
 
 test("explicitly false behaves the same as omitting the flag", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, { dropAudioAfterTranscription: false });
-  const item = await outbox.captures.enqueue({
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, { dropAudioAfterTranscription: false });
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -1716,8 +1716,8 @@ test("explicitly false behaves the same as omitting the flag", async () => {
 
   await harness.relay.syncNow();
 
-  expect((await outbox.captures.get(item.id))?.status).toBe("transcribed");
-  expect(await outbox.captures.getAudio(item.id)).toBeDefined();
+  expect((await storage.captures.get(item.id))?.status).toBe("transcribed");
+  expect(await storage.captures.getAudio(item.id)).toBeDefined();
 });
 
 // ---------------------------------------------------------------------------
@@ -1730,11 +1730,11 @@ test("explicitly false behaves the same as omitting the flag", async () => {
 // ---------------------------------------------------------------------------
 
 test("the engine that produced a transcript is persisted on the item", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     transcriber: new FakeTranscriber({ engine: "ondevice-whisper", text: "the attic is R-19" }),
   });
-  const item = await outbox.captures.enqueue({
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -1742,7 +1742,7 @@ test("the engine that produced a transcript is persisted on the item", async () 
 
   await harness.relay.syncNow();
 
-  expect((await outbox.captures.get(item.id))?.transcript?.engine).toBe("ondevice-whisper");
+  expect((await storage.captures.get(item.id))?.transcript?.engine).toBe("ondevice-whisper");
 });
 
 test("the engine survives a close and reopen, so the mix is inspectable later", async () => {
@@ -1756,7 +1756,7 @@ test("the engine survives a close and reopen, so the mix is inspectable later", 
     new FakeTranscriber({ engine: "managed-azure", text: "the attic is R-19" }),
   ]);
   const harness = await buildRelay(first, { transcriber: composite });
-  const item = await harness.outbox.captures.enqueue({
+  const item = await harness.storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -1774,7 +1774,7 @@ test("the engine survives a close and reopen, so the mix is inspectable later", 
 });
 
 test("a transcript with no engine never reaches storage", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   // A hand-rolled transcriber that forgot its provenance. The relay parses the
   // step's output before persisting it, so this dies at the boundary rather
   // than leaving an unattributable row behind.
@@ -1783,8 +1783,8 @@ test("a transcript with no engine never reaches storage", async () => {
     capability: () => Promise.resolve({ status: "ready" } as const),
     transcribe: () => Promise.resolve({ recordingId: "rec-1", text: "no provenance" } as never),
   };
-  const harness = await buildRelay(outbox, { transcriber: anonymous, maxAttempts: 1 });
-  const item = await outbox.captures.enqueue({
+  const harness = await buildRelay(storage, { transcriber: anonymous, maxAttempts: 1 });
+  const item = await storage.captures.enqueue({
     recording,
     audio: audio(),
     sessionId: harness.session.id,
@@ -1792,7 +1792,7 @@ test("a transcript with no engine never reaches storage", async () => {
 
   await harness.relay.syncNow();
 
-  const dead = await outbox.captures.get(item.id);
+  const dead = await storage.captures.get(item.id);
   expect(dead?.status).toBe("dead");
   expect(dead?.transcript).toBeUndefined();
 });
@@ -1802,17 +1802,21 @@ test("a step that never settles fails the attempt instead of stalling the queue"
   // item — it stops the queue, and every capture behind it waits with no `failed`, no
   // backoff and nothing surfaced. This is the worst outcome the machinery can produce and
   // it is reachable from a hung worker or a managed service that goes quiet.
-  const outbox = await openTestOutbox(uniqueName());
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  const first = await outbox.captures.enqueue({ recording, audio: audio(), sessionId: session.id });
-  const second = await outbox.captures.enqueue({
+  const storage = await openTestOutbox(uniqueName());
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const first = await storage.captures.enqueue({
+    recording,
+    audio: audio(),
+    sessionId: session.id,
+  });
+  const second = await storage.captures.enqueue({
     recording: { ...recording, id: "rec-2" },
     audio: audio(),
     sessionId: session.id,
   });
 
   const relay = createRelay({
-    outbox,
+    storage,
     // Never settles — an out-of-memory worker kill looks exactly like this.
     transcriber: {
       engine: "hung",
@@ -1828,13 +1832,13 @@ test("a step that never settles fails the attempt instead of stalling the queue"
   await relay.syncNow();
 
   // The hung item failed as an ordinary attempt...
-  const stalled = await outbox.captures.get(first.id);
+  const stalled = await storage.captures.get(first.id);
   expect(stalled?.lastError).toMatch(/did not settle/i);
   // ...and the queue is no longer blocked behind it: the SECOND item was reached.
-  const behind = await outbox.captures.get(second.id);
+  const behind = await storage.captures.get(second.id);
   expect(behind?.status).not.toBe("queued");
 
-  await outbox.close();
+  await storage.close();
 });
 
 test("a session extract that outlives the step timeout aborts the extractor's signal, not just the relay's await", async () => {
@@ -1844,7 +1848,7 @@ test("a session extract that outlives the step timeout aborts the extractor's si
   // what the STEP received and whether that signal was actually ABORTED, not
   // merely on the relay moving on; a test that only checked the park would
   // pass against an implementation that forwards nothing.
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const receivedSignals: (AbortSignal | undefined)[] = [];
   const sessionExtract: SessionExtractStep = async (_input, options) => {
     receivedSignals.push(options?.signal);
@@ -1853,7 +1857,7 @@ test("a session extract that outlives the step timeout aborts the extractor's si
   };
 
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", new FakeTranscriber({ text: "the attic is R-19" })),
     sessionExtract,
     sessionWrite: async () => undefined,
@@ -1861,14 +1865,14 @@ test("a session extract that outlives the step timeout aborts the extractor's si
     maxAttempts: 1,
   });
 
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: session.id });
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: session.id });
   await relay.syncNow(); // transcribes the recording
-  await outbox.sessions.close(session.id);
+  await storage.sessions.close(session.id);
   await relay.syncNow(); // extracts — and exceeds the step timeout
 
   // The timed-out attempt failed as an ordinary attempt...
-  const parked = await outbox.sessions.get(session.id);
+  const parked = await storage.sessions.get(session.id);
   expect(parked?.lastError).toMatch(/did not settle/i);
 
   // ...but the load-bearing assertion: the transport observed an ABORT, not
@@ -1879,7 +1883,7 @@ test("a session extract that outlives the step timeout aborts the extractor's si
   ).toBeDefined();
   expect(receivedSignals[0]?.aborted).toBe(true);
 
-  await outbox.close();
+  await storage.close();
 });
 
 test("a transcribe that outlives the step timeout aborts the transcriber's signal, not just the relay's await", async () => {
@@ -1889,7 +1893,7 @@ test("a transcribe that outlives the step timeout aborts the transcriber's signa
   // assertion is on what the TRANSCRIBER received and whether that signal was
   // actually ABORTED — a test that only checked the park would pass against an
   // implementation that forwards nothing.
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const receivedSignals: (AbortSignal | undefined)[] = [];
   const hung: Transcriber<CapturePayload> = {
     engine: "hung",
@@ -1902,7 +1906,7 @@ test("a transcribe that outlives the step timeout aborts the transcriber's signa
   };
 
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: hung,
     sessionExtract: async () => ({ fields: {}, usage: { calls: 1 } }),
     sessionWrite: async () => undefined,
@@ -1910,13 +1914,13 @@ test("a transcribe that outlives the step timeout aborts the transcriber's signa
     maxAttempts: 1,
   });
 
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: session.id });
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: session.id });
   await relay.syncNow(); // transcribes — and exceeds the step timeout
 
   // The timed-out attempt failed as an ordinary attempt (maxAttempts: 1, so it
   // rests at `dead` — the error is recorded either way)...
-  const parked = await outbox.captures.list();
+  const parked = await storage.captures.list();
   expect(parked[0]?.lastError).toMatch(/did not settle/i);
 
   // ...but the load-bearing assertion: the transport observed an ABORT, not
@@ -1924,20 +1928,20 @@ test("a transcribe that outlives the step timeout aborts the transcriber's signa
   expect(receivedSignals[0], "the transcriber received an options bag with a signal").toBeDefined();
   expect(receivedSignals[0]?.aborted).toBe(true);
 
-  await outbox.close();
+  await storage.close();
 });
 
 // ---------------------------------------------------------------------------
 // Two tabs, one queue
 // ---------------------------------------------------------------------------
 
-test("two relays over one outbox run each step ONCE, not twice", async () => {
+test("two relays over one storage run each step ONCE, not twice", async () => {
   // `nextPending()` selects on status alone, and `ACTIVE_CAPTURE_STATUSES` deliberately includes the
   // in-flight statuses so a step interrupted by a dead tab resumes rather than stranding. The
   // consequence, before the per-item claim, was not a narrow race: a second tab selected work the
   // first was actively performing, in the steady state, and both ran it. Two transcriptions, two
   // extractions, and — past the review gate — two writes into someone's audit.
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
 
   // Both relays share these, so the assertion is about total work done across tabs rather than about
   // either tab's own bookkeeping.
@@ -1971,10 +1975,10 @@ test("two relays over one outbox run each step ONCE, not twice", async () => {
     return { fields: { atticInsulation: transcript.text } };
   };
 
-  const a = await buildRelay(outbox, { transcriber: slowTranscriber, sessionExtract: extract });
-  const b = await buildRelay(outbox, { transcriber: slowTranscriber, sessionExtract: extract });
+  const a = await buildRelay(storage, { transcriber: slowTranscriber, sessionExtract: extract });
+  const b = await buildRelay(storage, { transcriber: slowTranscriber, sessionExtract: extract });
 
-  await outbox.captures.enqueue({
+  await storage.captures.enqueue({
     recording: {
       id: "rec-claim",
       capturedAt: new Date(clock.now()).toISOString(),
@@ -1987,7 +1991,7 @@ test("two relays over one outbox run each step ONCE, not twice", async () => {
     sessionId: a.session.id,
   });
   // Close the session so the relay can process it through extraction.
-  await outbox.sessions.close(a.session.id);
+  await storage.sessions.close(a.session.id);
 
   // Both tabs drain at once, which is exactly what two open tabs on the stably-online edge do.
   await Promise.all([a.relay.syncNow(), b.relay.syncNow()]);
@@ -2008,7 +2012,7 @@ test("a relay that acquires the lock AFTER another finished does not re-run the 
   //
   // Verified by mutation: deleting the re-read leaves the concurrent test above GREEN, because there
   // the loser never gets in at all. This is the case that catches it.
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   const extractCalls: AnnotatedTranscript[] = [];
   const extract: SessionExtractStep = async ({ transcript }) => {
     extractCalls.push(transcript);
@@ -2038,10 +2042,10 @@ test("a relay that acquires the lock AFTER another finished does not re-run the 
     },
   } as unknown as LockManager;
 
-  const first = await buildRelay(outbox, { sessionExtract: extract });
-  const second = await buildRelay(outbox, { sessionExtract: extract, locks: gatedLocks });
+  const first = await buildRelay(storage, { sessionExtract: extract });
+  const second = await buildRelay(storage, { sessionExtract: extract, locks: gatedLocks });
 
-  await outbox.captures.enqueue({
+  await storage.captures.enqueue({
     recording: {
       id: "rec-handoff",
       capturedAt: new Date(clock.now()).toISOString(),
@@ -2054,7 +2058,7 @@ test("a relay that acquires the lock AFTER another finished does not re-run the 
     sessionId: first.session.id,
   });
   // Close the session so the relay can process it through extraction.
-  await outbox.sessions.close(first.session.id);
+  await storage.sessions.close(first.session.id);
 
   // The second relay selects the item, then blocks at the lock holding a `queued` copy.
 
@@ -2065,7 +2069,7 @@ test("a relay that acquires the lock AFTER another finished does not re-run the 
   await first.relay.syncNow();
   expect(extractCalls).toHaveLength(1);
 
-  const parked = await outbox.sessions.get(first.session.id);
+  const parked = await storage.sessions.get(first.session.id);
   expect(parked?.status).toBe("awaiting-review");
 
   // Now let the loser in. Its `item` still says `queued`; storage says otherwise.
@@ -2082,7 +2086,7 @@ test("a relay that acquires the lock AFTER another finished does not re-run the 
   // Measured, not reasoned: with the re-read deleted this assertion reads `dead`. `extractCalls` does
   // NOT move, because the drain's second iteration re-reads through `nextPending()` on its own — which
   // is why the obvious assertion here passes against the bug.
-  const after = await outbox.sessions.get(first.session.id);
+  const after = await storage.sessions.get(first.session.id);
   expect(after?.status).toBe("awaiting-review");
   expect(extractCalls).toHaveLength(1);
 });
@@ -2092,34 +2096,34 @@ test("a relay that acquires the lock AFTER another finished does not re-run the 
 // ---------------------------------------------------------------------------
 
 test("the write step receives the session's ctx, not a recording's", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const session = await outbox.sessions.open({
+  const storage = await openTestOutbox(uniqueName());
+  const session = await storage.sessions.open({
     ctx: { jobId: "session-ctx" },
     ref: "job-7",
   });
-  await outbox.captures.enqueue({
+  await storage.captures.enqueue({
     recording: { ...recording, ctx: { jobId: "recording-ctx" } },
     audio: audio(),
     sessionId: session.id,
   });
 
   // Transcribe manually, then drive the session through review to write.
-  const [item] = await outbox.captures.list();
-  await outbox.captures.patch(item!.id, {
+  const [item] = await storage.captures.list();
+  await storage.captures.patch(item!.id, {
     transcript: { recordingId: item!.recording.id, text: "the attic is R-19", engine: "fake" },
     status: "transcribed",
   });
-  await outbox.sessions.close(session.id);
-  await outbox.sessions.patch(session.id, {
+  await storage.sessions.close(session.id);
+  await storage.sessions.patch(session.id, {
     extracted: { atticInsulation: "the attic is R-19" },
     extractedFromRecordingIds: [item!.recording.id],
     status: "awaiting-review",
   });
-  await acceptReview(outbox, session.id);
+  await acceptReview(storage, session.id);
 
   const writeCalls: SessionWriteInput[] = [];
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: async () => {
       throw new Error("must not extract");
@@ -2137,24 +2141,24 @@ test("the write step receives the session's ctx, not a recording's", async () =>
 });
 
 test("a session with no transcribed recordings still reaches the write step", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const session = await outbox.sessions.open({
+  const storage = await openTestOutbox(uniqueName());
+  const session = await storage.sessions.open({
     ctx: { jobId: "job-7" },
     ref: "job-7",
   });
 
   // No recordings at all — patch straight to the review gate and accept.
-  await outbox.sessions.close(session.id);
-  await outbox.sessions.patch(session.id, {
+  await storage.sessions.close(session.id);
+  await storage.sessions.patch(session.id, {
     extracted: { atticInsulation: "the attic is R-19" },
     extractedFromRecordingIds: [],
     status: "awaiting-review",
   });
-  await acceptReview(outbox, session.id);
+  await acceptReview(storage, session.id);
 
   const writeCalls: SessionWriteInput[] = [];
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: async () => {
       throw new Error("must not extract");
@@ -2168,7 +2172,7 @@ test("a session with no transcribed recordings still reaches the write step", as
   await relay.syncNow();
 
   expect(writeCalls).toHaveLength(1);
-  const done = await outbox.sessions.get(session.id);
+  const done = await storage.sessions.get(session.id);
   expect(done?.status).toBe("done");
 });
 
@@ -2177,25 +2181,25 @@ test("a session with no transcribed recordings still reaches the write step", as
 // ---------------------------------------------------------------------------
 
 test("a done session can be reopened for review and a second review reaches the write step", async () => {
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
   await drainToReview(harness);
-  await acceptReview(outbox, harness.session.id);
+  await acceptReview(storage, harness.session.id);
   await harness.relay.syncNow();
 
   // The session reached done.
-  const done = await outbox.sessions.get(harness.session.id);
+  const done = await storage.sessions.get(harness.session.id);
   expect(done?.status).toBe("done");
 
   // Reopen from done, submit a second review, and write again.
-  await outbox.sessions.reopenForReview(harness.session.id);
-  await acceptReview(outbox, harness.session.id, { atticRValue: 30 });
+  await storage.sessions.reopenForReview(harness.session.id);
+  await acceptReview(storage, harness.session.id, { atticRValue: 30 });
   await harness.relay.syncNow();
 
   expect(harness.writeCalls).toHaveLength(2);
   expect(harness.writeCalls[1]?.reviewed).toEqual({ atticRValue: 30 });
-  const redone = await outbox.sessions.get(harness.session.id);
+  const redone = await storage.sessions.get(harness.session.id);
   expect(redone?.status).toBe("done");
 });
 
@@ -2209,30 +2213,30 @@ test("a recording added while the session is parked at awaiting-review can still
   // make: `closeSession` throws unless the status is exactly `open`, and
   // `reopenSessionForReview` took only `done` or `dead`. The reviewer would open
   // a draft with the second clip missing and nothing saying so.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
   await drainToReview(harness);
 
-  const parked = await outbox.sessions.get(harness.session.id);
+  const parked = await storage.sessions.get(harness.session.id);
   expect(parked?.status).toBe("awaiting-review");
   expect(harness.extractCalls).toHaveLength(1);
   expect(parked?.extractedFromRecordingIds).toHaveLength(1);
 
   // The second clip, added while the review sits parked.
-  await outbox.captures.enqueue({
+  await storage.captures.enqueue({
     recording: { ...recording, id: "rec-second" },
     audio: audio(),
     sessionId: harness.session.id,
   });
 
-  const reopened = await outbox.sessions.reopenForReview(harness.session.id);
+  const reopened = await storage.sessions.reopenForReview(harness.session.id);
   expect(reopened.status).toBe("extracting");
 
   await harness.relay.syncNow();
 
   expect(harness.extractCalls).toHaveLength(2);
-  const refreshed = await outbox.sessions.get(harness.session.id);
+  const refreshed = await storage.sessions.get(harness.session.id);
   expect(refreshed?.status).toBe("awaiting-review");
   expect(refreshed?.extractedFromRecordingIds).toHaveLength(2);
 });
@@ -2243,20 +2247,20 @@ test("re-parking an awaiting-review session with no new recording is refused, no
   // same draft — and, more importantly, accepting it would break the cross-tab
   // guarantee: two tabs racing to rescue one session must settle as one winner
   // and one refusal, which only holds while an already-parked, unchanged session
-  // is refused. See `outbox-reopen-cross-tab.browser.test.ts`.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  // is refused. See `storage-reopen-cross-tab.browser.test.ts`.
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
   await drainToReview(harness);
   expect(harness.extractCalls).toHaveLength(1);
 
-  await expect(outbox.sessions.reopenForReview(harness.session.id)).rejects.toThrow(
+  await expect(storage.sessions.reopenForReview(harness.session.id)).rejects.toThrow(
     /nothing to re-park/,
   );
 
   await harness.relay.syncNow();
   expect(harness.extractCalls).toHaveLength(1);
-  expect((await outbox.sessions.get(harness.session.id))?.status).toBe("awaiting-review");
+  expect((await storage.sessions.get(harness.session.id))?.status).toBe("awaiting-review");
 });
 
 test("reopening a done session with a new recording re-extracts over all of them", async () => {
@@ -2265,28 +2269,28 @@ test("reopening a done session with a new recording re-extracts over all of them
   // clip. Reopening must not re-present a draft computed before that clip
   // existed — the auditor would review a document with no attic in it and
   // nothing anywhere would say so.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox, {
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage, {
     transcriber: new FakeTranscriber({ text: "the attic is R-19" }),
   });
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
   await drainToReview(harness);
-  await acceptReview(outbox, harness.session.id);
+  await acceptReview(storage, harness.session.id);
   await harness.relay.syncNow();
-  expect((await outbox.sessions.get(harness.session.id))?.status).toBe("done");
+  expect((await storage.sessions.get(harness.session.id))?.status).toBe("done");
   expect(harness.extractCalls).toHaveLength(1);
 
   // The remembered clip. Enqueued but NOT yet transcribed — this is the race
   // that makes a transcribed-set comparison wrong: at the moment of reopen the
   // transcribed ids are unchanged, so a check that only looked at those would
   // find nothing new and re-present the stale draft, silently.
-  await outbox.captures.enqueue({
+  await storage.captures.enqueue({
     recording: { ...recording, id: "rec-attic" },
     audio: audio(),
     sessionId: harness.session.id,
   });
 
-  const reopened = await outbox.sessions.reopenForReview(harness.session.id);
+  const reopened = await storage.sessions.reopenForReview(harness.session.id);
   expect(reopened.status).toBe("extracting");
 
   // The relay drains recordings before sessions, so the new clip transcribes
@@ -2294,7 +2298,7 @@ test("reopening a done session with a new recording re-extracts over all of them
   await harness.relay.syncNow();
 
   expect(harness.extractCalls).toHaveLength(2);
-  const parked = await outbox.sessions.get(harness.session.id);
+  const parked = await storage.sessions.get(harness.session.id);
   expect(parked?.status).toBe("awaiting-review");
   expect(parked?.extractedFromRecordingIds).toHaveLength(2);
 });
@@ -2303,41 +2307,41 @@ test("reopening a done session with no new recording does not re-extract", async
   // The correction case: a typo, not a missed room. Re-extraction costs a model
   // call over the full field set, so an unchanged recording set must go straight
   // back to the review gate.
-  const outbox = await openTestOutbox(uniqueName());
-  const harness = await buildRelay(outbox);
-  await outbox.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
+  const storage = await openTestOutbox(uniqueName());
+  const harness = await buildRelay(storage);
+  await storage.captures.enqueue({ recording, audio: audio(), sessionId: harness.session.id });
   await drainToReview(harness);
-  await acceptReview(outbox, harness.session.id);
+  await acceptReview(storage, harness.session.id);
   await harness.relay.syncNow();
   expect(harness.extractCalls).toHaveLength(1);
 
-  const reopened = await outbox.sessions.reopenForReview(harness.session.id);
+  const reopened = await storage.sessions.reopenForReview(harness.session.id);
   expect(reopened.status).toBe("awaiting-review");
 
   await harness.relay.syncNow();
   expect(harness.extractCalls).toHaveLength(1);
   // And the relay left it alone: `awaiting-review` is not an active status.
-  expect((await outbox.sessions.get(harness.session.id))?.status).toBe("awaiting-review");
+  expect((await storage.sessions.get(harness.session.id))?.status).toBe("awaiting-review");
 });
 
 test("a session that failed a write, then succeeded, reaches done with no lastError", async () => {
-  const outbox = await openTestOutbox(uniqueName());
+  const storage = await openTestOutbox(uniqueName());
   let attempt = 0;
-  const harness = await buildRelay(outbox, {
+  const harness = await buildRelay(storage, {
     sessionWrite: async () => {
       attempt += 1;
       if (attempt < 3) throw Object.assign(new Error("gateway"), { status: 503 });
       return { fields: { remoteId: "snugg-1" } };
     },
   });
-  const { session: item } = await seedReviewedWriting(outbox);
+  const { session: item } = await seedReviewedWriting(storage);
 
   for (let i = 0; i < 3; i += 1) {
     await harness.relay.syncNow();
     clock.advance(120_000);
   }
 
-  const done = await outbox.sessions.get(item.id);
+  const done = await storage.sessions.get(item.id);
   expect(done?.status).toBe("done");
   // lastError was set on the transient failures and must be cleared on success.
   expect(done?.lastError).toBeUndefined();

@@ -1,5 +1,11 @@
 import { CaptureStore } from "./captures.js";
-import { createScopedStore, createStore, type CaptureScopedStore, type Store } from "./entries.js";
+import {
+  createCaptureStore,
+  createScopedStore,
+  createStore,
+  type CaptureStorageScope,
+  type Store,
+} from "./entries.js";
 import { SessionStore } from "./sessions.js";
 import type { PluginStorage } from "./plugin-storage.js";
 import type { StorageBackend } from "./port.js";
@@ -99,8 +105,8 @@ export class Storage {
    * the capture is fixed here and the owner is supplied by the transcriber — its
    * own `engine` id being the natural choice.
    */
-  captureStore(captureId: string): CaptureScopedStore {
-    return { forPlugin: (owner) => createScopedStore(this.#backend, captureId, owner) };
+  captureStore(captureId: string): CaptureStorageScope {
+    return createCaptureStore(this.#backend, captureId);
   }
 
   /**

@@ -4,7 +4,7 @@ import type { SampleTapOptions, SampleTapTeardown } from "@azx/ribo-core";
 import workletUrl from "./pcm-worklet.ts?worker&url";
 
 import { closeLiveSession, feedFrame, openLiveForCapture } from "./live-handle.js";
-import { getOutbox } from "./outbox-handle.js";
+import { getOutbox } from "./storage-handle.js";
 
 /**
  * The sample rate the live path operates at — Silero VAD's frame rate. The
@@ -81,10 +81,10 @@ const createSampleTap = async ({
 /**
  * @file One {@link Recorder} per page load, shared by every component.
  *
- * It is a module singleton for the same reason the outbox is
- * (`outbox-handle.ts`) — StrictMode's double mount and Vite's module
+ * It is a module singleton for the same reason the storage is
+ * (`storage-handle.ts`) — StrictMode's double mount and Vite's module
  * replacement both otherwise produce a second instance holding a second
- * microphone stream — and for one reason the outbox does not have:
+ * microphone stream — and for one reason the storage does not have:
  *
  * **The update prompt needs to know whether a recording is in progress.**
  * "In progress" is `recorder.phase !== "idle"`, and that state lives in the
@@ -119,17 +119,17 @@ let handle: Recorder | undefined = hotData?.recorder;
  *
  * The factory is `async` and is called at `start()`, which is what dissolves the
  * apparent ordering problem: this handle is a *synchronous* singleton, but the
- * outbox opens asynchronously. Nothing here has to await anything — `getOutbox()`
- * hands back a promise the factory can await at the one moment an outbox is
+ * storage opens asynchronously. Nothing here has to await anything — `getOutbox()`
+ * hands back a promise the factory can await at the one moment storage is
  * actually needed, long after it has resolved in practice.
  */
 export function getRecorder(): Recorder {
   handle ??= new Recorder({
     captureSession: async ({ recording, sourceId, mimeType }) => {
-      const outbox = await getOutbox();
-      const session = await outbox.sessions.open({ ctx: recording.ctx, ref: "playground" });
+      const storage = await getOutbox();
+      const session = await storage.sessions.open({ ctx: recording.ctx, ref: "playground" });
       const captureSession = await openCaptureSession({
-        outbox,
+        storage,
         recording,
         sourceId,
         mimeType,

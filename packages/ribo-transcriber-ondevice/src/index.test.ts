@@ -86,7 +86,7 @@ test("is a ribo-core Transcriber substitutable for FakeTranscriber", () => {
 test("the engine id names the model that actually ran", () => {
   // The defect this replaced: the id was the constant "ondevice-whisper" while the default
   // model has been Moonshine since the live-transcription work, so every Moonshine transcript
-  // in the outbox was stamped as Whisper and could not be attributed to its configuration.
+  // in the storage was stamped as Whisper and could not be attributed to its configuration.
   const transcriber = new OnDeviceTranscriber({ wasmPaths: WASM_PATHS });
   expect(transcriber.engine).toContain("moonshine");
   expect(transcriber.engine).not.toContain("whisper");

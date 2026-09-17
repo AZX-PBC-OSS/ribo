@@ -126,7 +126,7 @@ test("the projection's extra keys do not leak back into a document parse", () =>
 });
 
 test("every status is active, finished, or recording", () => {
-  // With the session split, no outbox status is "parked for a human" —
+  // With the session split, no storage status is "parked for a human" —
   // `awaiting-review` moved to the session. Every recording status is in
   // exactly one of the three categories.
   expect(
@@ -162,7 +162,7 @@ test("the RxDB recording property is exactly { type: 'object' } — no nested va
   expect(captureRxSchema.properties.recording).toEqual({ type: "object" });
 });
 
-test("an outbox document whose recording is a document capture parses", () => {
+test("a capture document whose recording is a document capture parses", () => {
   const doc = validDocument();
   const parsed = captureDocumentSchema.safeParse({
     ...doc,
@@ -178,7 +178,7 @@ test("an outbox document whose recording is a document capture parses", () => {
   expect(parsed.success).toBe(true);
 });
 
-test("an outbox document whose recording predates the discriminant parses as audio", () => {
+test("a capture document whose recording predates the discriminant parses as audio", () => {
   const doc = validDocument();
   const { kind: _kind, ...legacyRecording } = doc.recording;
   const parsed = captureDocumentSchema.safeParse({

@@ -20,7 +20,7 @@ import { markerSupported, readMarker, writeMarker, type StorageMarker } from "./
  *
  * ## Ordering matters
  *
- * The check runs against `outbox.captures.list()` *before* the marker watch starts. If
+ * The check runs against `storage.captures.list()` *before* the marker watch starts. If
  * the watch ran first it would write `items: 0` on its first emission and erase
  * the very evidence being checked — the detector would then be permanently
  * incapable of firing, while looking completely correct.
@@ -29,7 +29,7 @@ import { markerSupported, readMarker, writeMarker, type StorageMarker } from "./
  */
 
 export type EvictionPhase =
-  /** The comparison has not run yet — the outbox is still opening. */
+  /** The comparison has not run yet — the storage is still opening. */
   | "checking"
   /** No marker on this device. A first run, **or** a wipe that took the marker too. */
   | "first-run"
@@ -88,10 +88,10 @@ let started = false;
  * Run the check, then keep the marker current for the rest of the session.
  *
  * Idempotent: StrictMode's double mount checks once. Takes the already-open
- * outbox rather than opening its own — a second handle over the same IndexedDB
- * name is the error `outbox-handle.ts` exists to prevent.
+ * storage rather than opening its own — a second handle over the same IndexedDB
+ * name is the error `storage-handle.ts` exists to prevent.
  */
-export function startEvictionWatch(outbox: Storage): () => void {
+export function startEvictionWatch(storage: Storage): () => void {
   if (started) return () => undefined;
   started = true;
 
@@ -104,13 +104,13 @@ export function startEvictionWatch(outbox: Storage): () => void {
   let subscription: { unsubscribe: () => void } | undefined;
   let cancelled = false;
 
-  void outbox.captures
+  void storage.captures
     .list()
     .then((items) => {
       if (cancelled) return;
       setState(decide(marker, items.length));
       // Only now is it safe to let the watch overwrite the marker.
-      subscription = outbox.captures.items$.subscribe({
+      subscription = storage.captures.items$.subscribe({
         next: (live) => {
           writeMarker(live.length, marker);
         },
@@ -120,7 +120,7 @@ export function startEvictionWatch(outbox: Storage): () => void {
       });
     })
     .catch(() => {
-      // The outbox failing to list is `App`'s error to report, not this
+      // The storage failing to list is `App`'s error to report, not this
       // module's to reinterpret.
       if (!cancelled) setState({ phase: "checking" });
     });

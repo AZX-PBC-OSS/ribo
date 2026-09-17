@@ -43,5 +43,5 @@ await relay.start();
 
 ## Learn more
 
-- Guide: [Offline & the Outbox](../../docs/guide/offline-and-the-outbox.md)
+- Guide: [Offline & Storage](../../docs/guide/offline-and-storage.md)
 - [Repo root](../../README.md)

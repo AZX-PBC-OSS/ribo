@@ -24,7 +24,7 @@ const STALL_AFTER_MS = 30_000;
 const MAX_CHUNK_BYTES = 10_000_000;
 
 export interface CaptureSessionOptions {
-  outbox: Storage;
+  storage: Storage;
   recording: Recording;
   sourceId: string;
   mimeType: string;
@@ -59,12 +59,12 @@ export interface CaptureSession {
  * that ingests `dataavailable` events and finalises at `stop()`.
  */
 export async function openCaptureSession(options: CaptureSessionOptions): Promise<CaptureSession> {
-  const outbox = options.outbox;
+  const storage = options.storage;
   const sourceId = options.sourceId;
   const now = options.now ?? (() => Date.now());
   const decode = options.decode ?? decodeAudioDuration;
 
-  const item = await outbox.captures.beginRecording({
+  const item = await storage.captures.beginRecording({
     recording: options.recording,
     sourceId,
     sessionId: options.sessionId,
@@ -76,14 +76,14 @@ export async function openCaptureSession(options: CaptureSessionOptions): Promis
   // emission and any stall latched before the subscription.
   const health$ = new BehaviorSubject<CaptureHealth>("flushing");
 
-  return new CaptureSessionImpl(item.id, sourceId, options.mimeType, outbox, now, decode, health$);
+  return new CaptureSessionImpl(item.id, sourceId, options.mimeType, storage, now, decode, health$);
 }
 
 class CaptureSessionImpl implements CaptureSession {
   readonly #itemId: string;
   readonly #sourceId: string;
   readonly #mimeType: string;
-  readonly #outbox: Storage;
+  readonly #storage: Storage;
   readonly #now: () => number;
   readonly #decode: (blob: Blob) => Promise<number>;
   readonly #health$: BehaviorSubject<CaptureHealth>;
@@ -112,7 +112,7 @@ class CaptureSessionImpl implements CaptureSession {
     itemId: string,
     sourceId: string,
     mimeType: string,
-    outbox: Storage,
+    storage: Storage,
     now: () => number,
     decode: (blob: Blob) => Promise<number>,
     health$: BehaviorSubject<CaptureHealth>,
@@ -120,7 +120,7 @@ class CaptureSessionImpl implements CaptureSession {
     this.#itemId = itemId;
     this.#sourceId = sourceId;
     this.#mimeType = mimeType;
-    this.#outbox = outbox;
+    this.#storage = storage;
     this.#now = now;
     this.#decode = decode;
     this.#health$ = health$;
@@ -186,9 +186,9 @@ class CaptureSessionImpl implements CaptureSession {
     clearInterval(this.#watchdog);
     // Await the drain of everything ingested before finalize was called.
     await this.#drained;
-    const audio = await this.#outbox.captures.mergeChunks(this.#itemId);
+    const audio = await this.#storage.captures.mergeChunks(this.#itemId);
     const durationMs = await this.#decode(audio);
-    const item = await this.#outbox.captures.commitRecording(this.#itemId, audio, durationMs);
+    const item = await this.#storage.captures.commitRecording(this.#itemId, audio, durationMs);
     this.#health$.complete();
     return { audio, durationMs, item };
   }
@@ -198,7 +198,7 @@ class CaptureSessionImpl implements CaptureSession {
     clearInterval(this.#watchdog);
     this.#health$.complete();
     // Fire-and-forget: if the removal fails, startup recovery collects the row.
-    void this.#outbox.captures.remove(this.#itemId).catch(() => undefined);
+    void this.#storage.captures.remove(this.#itemId).catch(() => undefined);
   }
 
   #latchStalled(): void {
@@ -243,7 +243,7 @@ class CaptureSessionImpl implements CaptureSession {
             return;
           }
           try {
-            await this.#outbox.captures.appendChunk(this.#itemId, name, slice);
+            await this.#storage.captures.appendChunk(this.#itemId, name, slice);
           } catch {
             // A failed chunk write latches stalled. The session continues —
             // finalize will still try to merge what did land.

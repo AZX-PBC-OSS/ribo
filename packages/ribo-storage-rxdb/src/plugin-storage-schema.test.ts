@@ -37,9 +37,9 @@ test("the compound [captureId, pluginId] index serves per-plugin reads", () => {
   expect(pluginStorageRxSchema.indexes).toContainEqual(["captureId", "pluginId"]);
 });
 
-test("the collection name is distinct from the outbox and sessions", () => {
+test("the collection name is distinct from the storage and sessions", () => {
   expect(PLUGIN_STORAGE_COLLECTION_NAME).toBe("pluginStorage");
-  expect(PLUGIN_STORAGE_COLLECTION_NAME).not.toBe("outbox");
+  expect(PLUGIN_STORAGE_COLLECTION_NAME).not.toBe("storage");
   expect(PLUGIN_STORAGE_COLLECTION_NAME).not.toBe("sessions");
 });
 

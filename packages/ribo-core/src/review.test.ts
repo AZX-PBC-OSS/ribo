@@ -508,7 +508,7 @@ describe("resolveReview — validation at submit", () => {
 
   test("an accepted value is validated too — the model is not trusted either", () => {
     // A value that never passed an extraction-schema parse: an item read back from an
-    // outbox row written by an older, looser build would look exactly like this.
+    // storage row written by an older, looser build would look exactly like this.
     const bad = { ...draft, rValue: { value: "R-19", confidence: 1, sourceSpan: null } };
 
     expect(() =>
@@ -668,10 +668,10 @@ describe("field names that would break the dotted-path model", () => {
 });
 
 describe("the persisted outcome needs no migration for nested values or dotted paths", () => {
-  // Design §4 claims R1.5 needs no outbox document version bump: `fields` is
+  // Design §4 claims R1.5 needs no storage document version bump: `fields` is
   // `z.record(z.string(), z.unknown())`, which accepts a nested object, and the
   // touched-field lists are `z.array(z.string())`, which accept dotted paths. This is
-  // that claim, checked against real `resolveReview` output. (`queue/outbox-memory.test.ts`
+  // that claim, checked against real `resolveReview` output. (`queue/storage-memory.test.ts`
   // checks the round trip through real storage and the RxDB document schema.)
   test("reviewOutcomeSchema accepts what resolveReview now produces, all three branches", () => {
     const accepted = resolveReview(requestFor(draft), {

@@ -42,7 +42,7 @@ describe("summarizeWork", () => {
     });
   });
 
-  test("an empty outbox is all zeros", () => {
+  test("an empty storage is all zeros", () => {
     expect(summarizeWork([])).toEqual({
       pending: 0,
       dead: 0,

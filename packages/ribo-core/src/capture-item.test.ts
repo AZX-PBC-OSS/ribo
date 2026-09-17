@@ -112,13 +112,13 @@ describe("capturePayloadSchema", () => {
   });
 });
 
-describe("capturePayloadSchema — outbox document integration", () => {
-  test("an outbox document whose recording is a document capture parses", () => {
+describe("capturePayloadSchema — storage document integration", () => {
+  test("a capture document whose recording is a document capture parses", () => {
     // basePayloadSchema is what captureDocumentSchema uses for `recording`.
     expect(basePayloadSchema.safeParse(documentValid).success).toBe(true);
   });
 
-  test("an outbox document whose recording predates the discriminant parses and reports kind === audio", () => {
+  test("a capture document whose recording predates the discriminant parses and reports kind === audio", () => {
     const legacyRecording = {
       id: "rec_legacy",
       capturedAt: "2026-07-23T10:00:00.000Z",

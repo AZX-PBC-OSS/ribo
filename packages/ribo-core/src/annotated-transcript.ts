@@ -46,7 +46,7 @@ export interface AnnotatedTranscript<P = Readonly<Record<string, unknown>>> {
    * `isSpanGrounded` reads `text` only.
    *
    * **Two sources merge into the bag.** The relay fills `capture.seq`,
-   * `capture.kind`, and `capture.id` from outbox row metadata, so a combiner
+   * `capture.kind`, and `capture.id` from storage row metadata, so a combiner
    * that builds per-capture markers has what it needs without reaching back into
    * the database. A `Transcriber` that produces its own annotations (page
    * boundaries, table structure, a provider's own structured response) spreads

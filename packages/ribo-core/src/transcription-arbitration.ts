@@ -189,7 +189,7 @@ export function unsupportedFallsThrough(
  *
  * No result stamping: `Transcript.engine` is already required and set by the
  * implementation that ran, so "which engine produced this?" is answerable off
- * `Storage.list()` for free. A second copy of that truth is a defect.
+ * `storage.captures.list()` for free. A second copy of that truth is a defect.
  */
 export function applyTranscriptionVerdict(
   verdict: TranscriptionArbiterVerdict,

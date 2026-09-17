@@ -69,7 +69,7 @@ An engine that needs storage must handle its absence rather than assume it.
 ## Reading: the extractor side
 
 An extractor receives a plugin-scoped `PluginStorageScope` at **construction**, from
-`Storage.pluginStorageScope(pluginId)`. The timing is forced by the contract's shape: the `Extractor`
+`storage.store(pluginId)`. The timing is forced by the contract's shape: the `Extractor`
 seam has no engine id on it — `engine` appears on the result, after the call — so the relay cannot
 scope a handle for the plugin it invokes. The host building the extractor knows which plugin it is
 building, so the pluginId is baked in there, and the capture dimension is addressed per call:

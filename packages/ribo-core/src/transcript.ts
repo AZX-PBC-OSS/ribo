@@ -14,13 +14,13 @@ import { z } from "zod";
  *
  * Annotations are an optional field on this type. When a transcriber produces them (page
  * boundaries, table structure, a provider's own structured response), they travel alongside
- * the text into the outbox document and are merged into the {@link AnnotatedTranscript}
+ * the text into the storage document and are merged into the {@link AnnotatedTranscript}
  * annotations bag by `listSessionTranscriptParts`. The relay also supplies capture metadata
  * (`capture.seq`, `capture.kind`, `capture.id`) into the same bag; the `capture.` prefix is a
  * reserved namespace so a transcriber's own `seq` or `id` cannot collide with it. A transcriber
  * that produces no annotations simply omits the field — existing documents have no annotations,
- * which is the correct state for them. Because this object is persisted inside the outbox
- * document, adding the field required an outbox version bump (v6 → v7) and a migration strategy;
+ * which is the correct state for them. Because this object is persisted inside the storage
+ * document, adding the field required a schema version bump (v6 → v7) and a migration strategy;
  * the strategy is identity, since the field is optional and absent on existing documents.
  *
  * **Confidence here is the transcriber's overall score for the utterance, and it is not
@@ -47,8 +47,8 @@ export const transcriptSchema = z.strictObject({
    * An optional field would be omitted by exactly the implementation whose fallbacks you most
    * need to see, and "what is the engine mix across the queue?" would be unanswerable.
    *
-   * It rides into the outbox document inside this object (`queue/schema.ts`), so the mix is
-   * readable straight off `Storage.list()` without a second, denormalized copy of the same truth.
+   * It rides into the storage document inside this object (`queue/schema.ts`), so the mix is
+   * readable straight off `storage.captures.list()` without a second, denormalized copy of the same truth.
    *
    * The value is an opaque id owned by the implementation — `ribo-core` deliberately does not
    * enumerate engines, because the engines ship in other packages. `"fake"`,
@@ -67,8 +67,8 @@ export const transcriptSchema = z.strictObject({
    * annotations bag that an extractor receives.
    *
    * Optional because not every transcriber produces annotations; absent is the correct
-   * state for a transcript that carries none. Persisted inside the outbox document, so
-   * adding this field required outbox schema version 7 and a migration strategy (identity,
+   * state for a transcript that carries none. Persisted inside the storage document, so
+   * adding this field required storage schema version 7 and a migration strategy (identity,
    * since the field is optional).
    *
    * The relay populates the annotations bag with capture metadata under a reserved

@@ -23,7 +23,7 @@ export { createRxdbBackend, type RxdbStorageBackend } from "./backend.js";
 
 /** Options for {@link openRxdbBackend}. */
 export interface OpenRxdbBackendOptions {
-  /** Database name. Defaults to `ribo-outbox` — the name already on disk. */
+  /** Database name. Defaults to `ribo-storage` — the name already on disk. */
   name?: string;
   /**
    * The `RxStorage` to persist to. Defaults to Dexie (IndexedDB), which is what

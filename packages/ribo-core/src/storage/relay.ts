@@ -145,7 +145,7 @@ export type RelaySubject =
   | { readonly kind: "session"; readonly session: SessionItem };
 
 export interface RelayOptions extends BackoffOptions {
-  outbox: Storage;
+  storage: Storage;
   /**
    * The transcriber draining the queue. Widened to `Transcriber<CapturePayload>`
    * because `Capture.recording` is now the union — an audio-only
@@ -360,20 +360,20 @@ class QueueRelay implements Relay {
   async #drain(): Promise<void> {
     for (;;) {
       // 1. Live needs the worker: do not admit new items while anything is recording.
-      const [recording] = await this.#options.outbox.captures.list({
+      const [recording] = await this.#options.storage.captures.list({
         status: ["recording"],
         limit: 1,
       });
       if (recording) return;
 
       // 2. Drain recordings: transcribe the next pending one.
-      const item = await this.#options.outbox.captures.nextPending();
+      const item = await this.#options.storage.captures.nextPending();
       if (item) {
         if (Date.parse(item.nextAttemptAt) > this.#now()) return;
         const held = await holdLock(
           relayItemLock(item.id),
           async () => {
-            const fresh = await this.#options.outbox.captures.get(item.id);
+            const fresh = await this.#options.storage.captures.get(item.id);
             if (!fresh) return false;
             if (!isActiveStatus(fresh.status)) return false;
             if (Date.parse(fresh.nextAttemptAt) > this.#now()) return false;
@@ -396,13 +396,13 @@ class QueueRelay implements Relay {
       }
 
       // 3. Drain sessions: extract or write the next pending one.
-      const session = await this.#options.outbox.sessions.nextPending();
+      const session = await this.#options.storage.sessions.nextPending();
       if (session) {
         if (Date.parse(session.nextAttemptAt) > this.#now()) return;
         const held = await holdLock(
           relaySessionLock(session.id),
           async () => {
-            const fresh = await this.#options.outbox.sessions.get(session.id);
+            const fresh = await this.#options.storage.sessions.get(session.id);
             if (!fresh) return false;
             if (!isSessionActive(fresh.status)) return false;
             if (Date.parse(fresh.nextAttemptAt) > this.#now()) return false;
@@ -445,7 +445,7 @@ class QueueRelay implements Relay {
   }
 
   async #transcribe(item: Capture): Promise<void> {
-    const audio = await this.#options.outbox.captures.getAudio(item.id);
+    const audio = await this.#options.storage.captures.getAudio(item.id);
     if (!audio) {
       throw new TerminalError(`audio attachment is missing for item ${item.id}`);
     }
@@ -464,9 +464,9 @@ class QueueRelay implements Relay {
           // `forPlugin` — the relay cannot know which engine a selection
           // combinator will pick, so it scopes what it knows and the engine
           // supplies the identity it knows. An extractor from the same plugin
-          // reads these entries back through `Storage.pluginStorageScope`,
+          // reads these entries back through `storage.store`,
           // minted at that extractor's construction.
-          storage: this.#options.outbox.captureStore(item.id),
+          storage: this.#options.storage.captureStore(item.id),
         }),
         this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
         "transcribe",
@@ -475,12 +475,12 @@ class QueueRelay implements Relay {
     );
     // Transitions to `transcribed` — extraction and write are session-level now.
     // Routed through `writeTranscript` so `preview` is deleted in the same revision.
-    await this.#options.outbox.captures.writeTranscript(item.id, transcript, {
+    await this.#options.storage.captures.writeTranscript(item.id, transcript, {
       status: "transcribed",
       attempts: 0,
     });
     if (this.#options.dropAudioAfterTranscription) {
-      await this.#options.outbox.captures.dropAudio(item.id);
+      await this.#options.storage.captures.dropAudio(item.id);
     }
   }
 
@@ -529,7 +529,7 @@ class QueueRelay implements Relay {
 
   async #sessionExtract(session: SessionItem): Promise<void> {
     const { parts, recordingIds } = await listSessionTranscriptParts(
-      this.#options.outbox,
+      this.#options.storage,
       session.id,
     );
     const combine = this.#options.combineTranscripts ?? createDefaultTranscriptCombiner();
@@ -576,7 +576,7 @@ class QueueRelay implements Relay {
     if (outcome === undefined || outcome.status === "discarded") {
       throw new TerminalError(
         `session ${session.id} reached the write step with no review outcome. ` +
-          "Nothing is written that a human has not reviewed; move sessions forward with Storage.submitSessionReview.",
+          "Nothing is written that a human has not reviewed; move sessions forward with storage.sessions.submitReview.",
       );
     }
 
@@ -642,10 +642,10 @@ class QueueRelay implements Relay {
   // -----------------------------------------------------------------------
 
   async #patch(id: string, patch: CapturePatch): Promise<void> {
-    await this.#options.outbox.captures.patch(id, patch);
+    await this.#options.storage.captures.patch(id, patch);
   }
 
   async #patchSession(id: string, patch: SessionPatch): Promise<void> {
-    await this.#options.outbox.sessions.patch(id, patch);
+    await this.#options.storage.sessions.patch(id, patch);
   }
 }

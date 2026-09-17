@@ -8,7 +8,7 @@ import type {
 } from "@azx/ribo-core";
 import { FakeTranscriber, createRelay, restrictToKind } from "@azx/ribo-core";
 
-import { getOutbox } from "./outbox-handle.js";
+import { getOutbox } from "./storage-handle.js";
 import { getRecorder } from "./recorder-handle.js";
 import { closeLiveSession, setLiveTranscriber } from "./live-handle.js";
 
@@ -26,14 +26,14 @@ import { closeLiveSession, setLiveTranscriber } from "./live-handle.js";
  * in the `captureSession` factory) and the assertions below fail; nothing else
  * in the repo would notice.
  *
- * It uses the real default outbox (`ribo-outbox`) for the same reason: naming a
+ * It uses the real default storage (`ribo-storage`) for the same reason: naming a
  * test-only database here would test a wiring the app does not have.
  *
  * The `LiveTranscriber` is faked — the real `OnDeviceLiveTranscriber` needs
  * ~250 MB of model weights that no test should download. The fake's session
  * emits one segment so the preview wiring can be verified end to end: capture
  * session factory → `openLiveForCapture` → `segments$` subscription →
- * `outbox.commitPreview`.
+ * `storage.commitPreview`.
  */
 
 /** Delay from subscription to segment emission — mirrors real inference latency. */
@@ -308,8 +308,8 @@ test("a preview segment appears during recording and is gone once the transcript
   };
   setLiveTranscriber(fakeLiveTranscriber);
 
-  const outbox = await getOutbox();
-  await outbox.captures.clear();
+  const storage = await getOutbox();
+  await storage.captures.clear();
   const recorder = getRecorder();
 
   await recorder.start(crypto.randomUUID());
@@ -317,10 +317,10 @@ test("a preview segment appears during recording and is gone once the transcript
   // Wait for the preview segment to appear on the recording row. This is the
   // whole claim: `openLiveForCapture` (fire-and-forget from the capture session
   // factory) opened a session, subscribed to `segments$`, and the fake emitted
-  // a segment that landed on `outbox.commitPreview`. Delete the
+  // a segment that landed on `storage.commitPreview`. Delete the
   // `openLiveForCapture` call or the `onSamples` wiring and this wait times out.
   const withPreview = await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     if (item?.preview?.committed?.length) return item;
     return undefined;
   }, "a preview segment");
@@ -333,7 +333,7 @@ test("a preview segment appears during recording and is gone once the transcript
   // subscriber ever sees both. A FakeTranscriber is sufficient — the test
   // verifies the handoff, not the batch transcript's quality.
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.resolve({ fields: {} }),
     sessionWrite: () => Promise.resolve(),
@@ -341,13 +341,13 @@ test("a preview segment appears during recording and is gone once the transcript
   await relay.syncNow();
 
   const settled = await until(async () => {
-    const [item] = await outbox.captures.list({});
+    const [item] = await storage.captures.list({});
     return item?.transcript ? item : undefined;
   }, "the transcript to land");
   expect(settled.transcript).toBeDefined();
   expect(settled.preview).toBeUndefined();
 
-  await outbox.captures.clear();
+  await storage.captures.clear();
   setLiveTranscriber(undefined);
 });
 
@@ -366,8 +366,8 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
   };
   setLiveTranscriber(fakeLiveTranscriber);
 
-  const outbox = await getOutbox();
-  await outbox.captures.clear();
+  const storage = await getOutbox();
+  await storage.captures.clear();
   const recorder = getRecorder();
 
   await recorder.start(crypto.randomUUID());
@@ -377,7 +377,7 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
   // replaces wholesale, never appends. If tails were routed to commitPreview
   // instead, preview.tail would never exist and this wait would time out.
   const withTail = await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     return item?.preview?.tail === "the attic is R-19" ? item : undefined;
   }, "the second tail to replace the first");
   expect(withTail.preview!.tail).toBe("the attic is R-19");
@@ -390,7 +390,7 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
   // commitPreview appends to committed and clears tail in one modification,
   // so no subscriber sees the text in both places or in neither.
   const withCommit = await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     return item?.preview?.committed?.length ? item : undefined;
   }, "the commit to move text into committed");
   expect(withCommit.preview!.committed).toContain("the attic is R-19");
@@ -401,7 +401,7 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
   // Run the relay to produce a transcript. The transcript handoff deletes
   // preview in the same committed revision that writes transcript.
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.resolve({ fields: {} }),
     sessionWrite: () => Promise.resolve(),
@@ -409,13 +409,13 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
   await relay.syncNow();
 
   const settled = await until(async () => {
-    const [item] = await outbox.captures.list({});
+    const [item] = await storage.captures.list({});
     return item?.transcript ? item : undefined;
   }, "the transcript to land");
   expect(settled.transcript).toBeDefined();
   expect(settled.preview).toBeUndefined();
 
-  await outbox.captures.clear();
+  await storage.captures.clear();
   setLiveTranscriber(undefined);
 });
 
@@ -428,7 +428,7 @@ test("a tail appears in preview.tail, a second tail replaces it, a commit moves 
 // silently lost on every recording. The fix: close first, stay subscribed, and
 // tear down when the worker posts `liveClosed` (which completes the `Subject`).
 
-test("a segment posted after close() still reaches the outbox — the flushed final region is not dropped", async () => {
+test("a segment posted after close() still reaches the storage — the flushed final region is not dropped", async () => {
   // A fake session that emits a flush segment AFTER close() — the exact
   // scenario the bug fix targets. The flush arrives after `closeLiveSession`
   // → `session.close()`.
@@ -439,8 +439,8 @@ test("a segment posted after close() still reaches the outbox — the flushed fi
   };
   setLiveTranscriber(fakeLiveTranscriber);
 
-  const outbox = await getOutbox();
-  await outbox.captures.clear();
+  const storage = await getOutbox();
+  await storage.captures.clear();
   const recorder = getRecorder();
 
   await recorder.start(crypto.randomUUID());
@@ -450,7 +450,7 @@ test("a segment posted after close() still reaches the outbox — the flushed fi
   // emits nothing during recording, so wait for the recording row plus a
   // small delay for the subscribe to complete.
   await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     return item ? item : undefined;
   }, "a recording row");
   await new Promise((resolve) => setTimeout(resolve, 50));
@@ -466,9 +466,9 @@ test("a segment posted after close() still reaches the outbox — the flushed fi
   // (unsubscribe-before-close) this wait times out — the segment was posted
   // but nobody was subscribed to receive it.
   const withFlush = await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     return item?.preview?.committed?.includes("the final words") ? item : undefined;
-  }, "the flushed final region to reach the outbox");
+  }, "the flushed final region to reach the storage");
   expect(withFlush.preview!.committed).toContain("the final words");
 
   // The session completed and the subscription was torn down — the
@@ -484,7 +484,7 @@ test("a segment posted after close() still reaches the outbox — the flushed fi
     /* short recording, decode fails — the flush already landed */
   }
 
-  await outbox.captures.clear();
+  await storage.captures.clear();
   setLiveTranscriber(undefined);
 });
 
@@ -497,8 +497,8 @@ test("the subscription is eventually torn down — no leak across successive rec
   // callback would not clear `segmentSubscription` because it would not
   // match `sub` from the first cycle.
 
-  const outbox = await getOutbox();
-  await outbox.captures.clear();
+  const storage = await getOutbox();
+  await storage.captures.clear();
   const recorder = getRecorder();
 
   // First cycle.
@@ -510,7 +510,7 @@ test("the subscription is eventually torn down — no leak across successive rec
 
   await recorder.start(crypto.randomUUID());
   await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     return item ? item : undefined;
   }, "a recording row (cycle 1)");
   await new Promise((resolve) => setTimeout(resolve, 50));
@@ -519,9 +519,9 @@ test("the subscription is eventually torn down — no leak across successive rec
 
   // Wait for the flush segment AND the completion signal.
   await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     return item?.preview?.committed?.includes("first flush") ? item : undefined;
-  }, "the first flush to reach the outbox");
+  }, "the first flush to reach the storage");
   await until(async () => session1.completed, "the first session to complete");
   expect(session1.completed).toBe(true);
   expect(session1.unsubscribed).toBe(true);
@@ -531,7 +531,7 @@ test("the subscription is eventually torn down — no leak across successive rec
   } catch {
     /* short recording, decode fails */
   }
-  await outbox.captures.clear();
+  await storage.captures.clear();
 
   // Second cycle — a fresh session. If the first cycle's subscription leaked,
   // the host's `segmentSubscription` would still point at the old subscription,
@@ -546,7 +546,7 @@ test("the subscription is eventually torn down — no leak across successive rec
 
   await recorder.start(crypto.randomUUID());
   await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     return item ? item : undefined;
   }, "a recording row (cycle 2)");
   await new Promise((resolve) => setTimeout(resolve, 50));
@@ -554,9 +554,9 @@ test("the subscription is eventually torn down — no leak across successive rec
   closeLiveSession();
 
   await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     return item?.preview?.committed?.includes("second flush") ? item : undefined;
-  }, "the second flush to reach the outbox");
+  }, "the second flush to reach the storage");
   await until(async () => session2.completed, "the second session to complete");
   expect(session2.completed).toBe(true);
   expect(session2.unsubscribed).toBe(true);
@@ -567,7 +567,7 @@ test("the subscription is eventually torn down — no leak across successive rec
     /* short recording, decode fails */
   }
 
-  await outbox.captures.clear();
+  await storage.captures.clear();
   setLiveTranscriber(undefined);
 });
 
@@ -585,13 +585,13 @@ test("closeLiveSession is idempotent and safe with no session open", async () =>
   };
   setLiveTranscriber(fakeLiveTranscriber);
 
-  const outbox = await getOutbox();
-  await outbox.captures.clear();
+  const storage = await getOutbox();
+  await storage.captures.clear();
   const recorder = getRecorder();
 
   await recorder.start(crypto.randomUUID());
   await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     return item ? item : undefined;
   }, "a recording row");
 
@@ -604,9 +604,9 @@ test("closeLiveSession is idempotent and safe with no session open", async () =>
   closeLiveSession();
 
   const withFlush = await until(async () => {
-    const [item] = await outbox.captures.list({ status: ["recording"] });
+    const [item] = await storage.captures.list({ status: ["recording"] });
     return item?.preview?.committed?.includes("idempotent flush") ? item : undefined;
-  }, "the flush to reach the outbox after an extra closeLiveSession call");
+  }, "the flush to reach the storage after an extra closeLiveSession call");
   expect(withFlush.preview!.committed).toContain("idempotent flush");
 
   // And one more close for good measure.
@@ -618,6 +618,6 @@ test("closeLiveSession is idempotent and safe with no session open", async () =>
     /* short recording, decode fails */
   }
 
-  await outbox.captures.clear();
+  await storage.captures.clear();
   setLiveTranscriber(undefined);
 });

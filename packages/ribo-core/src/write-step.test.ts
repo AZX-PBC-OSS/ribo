@@ -18,14 +18,14 @@ import { toWriteStep } from "./write-step.js";
  * The composition under test is three lines long, and every one of them is here
  * because something else would have been silently wrong:
  *
- *   - `ctxSchema.parse(input.ctx)` **per session**, because the outbox holds
+ *   - `ctxSchema.parse(input.ctx)` **per session**, because the storage holds
  *     recordings from more than one job at a time. The two-contexts test below is the
  *     regression guard for a composition that captured one `ctx` at construction.
  *   - `schema.parse(reviewed)`, because `RelayOptions.sessionWrite` is host-supplied and
  *     nothing else in this package runs it — the "adapter's schema is the trust
  *     boundary" reasoning described a boundary that was not installed anywhere.
  *   - `TerminalError` on either failure, because both are deterministic. The last
- *     test drives the REAL relay over an in-memory outbox rather than asserting the
+ *     test drives the REAL relay over an in-memory storage rather than asserting the
  *     error class alone: what matters is the session landing at `dead` on the first
  *     attempt, and that is a claim about `isTransientFailure` and `#recordSessionFailure`
  *     together, not about the type of the throw.
@@ -227,7 +227,7 @@ test("a session ctx the adapter's ctxSchema rejects is terminal, and write is ne
 
   expect(thrown).toBeInstanceOf(TerminalError);
   expect((thrown as Error).message).toContain("jobId");
-  expect((thrown as Error).message).toContain("Storage.openSession");
+  expect((thrown as Error).message).toContain("storage.sessions.open");
   expect(isTransientFailure(thrown)).toBe(false);
   expect(written).toEqual([]);
 });
@@ -250,7 +250,7 @@ test("the ctx is parsed first: a session wrong in both ways reports the ctx", as
     (error: unknown) => error,
   );
 
-  expect((thrown as Error).message).toContain("Storage.openSession");
+  expect((thrown as Error).message).toContain("storage.sessions.open");
   expect((thrown as Error).message).not.toContain("not a valid patch");
   expect(written).toEqual([]);
 });
@@ -287,11 +287,11 @@ test("a failing write propagates unchanged — the relay's retry contract is not
 
 // --- The classification, as the relay actually applies it -------------------
 
-const opened: { outbox: Storage; name: string }[] = [];
+const opened: { storage: Storage; name: string }[] = [];
 
 afterEach(async () => {
-  for (const { outbox, name } of opened.splice(0)) {
-    if (!outbox.closed) await outbox.close();
+  for (const { storage, name } of opened.splice(0)) {
+    if (!storage.closed) await storage.close();
     // A memory database outlives its handle, as an IndexedDB one does.
     removeMemoryDatabase(name);
   }
@@ -299,9 +299,9 @@ afterEach(async () => {
 
 const openMemoryOutbox = async (): Promise<Storage> => {
   const name = `ribo-write-step-${crypto.randomUUID()}`;
-  const outbox = await openStorage({ backend: createMemoryBackend(name) });
-  opened.push({ outbox, name });
-  return outbox;
+  const storage = await openStorage({ backend: createMemoryBackend(name) });
+  opened.push({ storage, name });
+  return storage;
 };
 
 test("the relay records a terminal write failure as dead on the first attempt, not failed", async () => {
@@ -310,11 +310,11 @@ test("the relay records a terminal write failure as dead on the first attempt, n
   // `#recordSessionFailure` takes the `dead` branch, and the session is out of the queue
   // after ONE attempt rather than resting in `failed` for eight backoff windows.
   // Asserting the error class alone would prove none of that.
-  const outbox = await openMemoryOutbox();
+  const storage = await openMemoryOutbox();
   const written: Write[] = [];
 
-  const session = await outbox.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
-  const enqueued = await outbox.captures.enqueue({
+  const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  const enqueued = await storage.captures.enqueue({
     recording: {
       id: "rec-1",
       capturedAt: "2026-07-23T14:02:00.000Z",
@@ -330,16 +330,16 @@ test("the relay records a terminal write failure as dead on the first attempt, n
   // Transcribe the recording, then set up the session for write: extracted +
   // awaiting-review. The reviewed patch is the invalid one — non-empty, so the
   // relay's own empty-outcome guard is not what refuses it.
-  await outbox.captures.patch(enqueued.id, {
+  await storage.captures.patch(enqueued.id, {
     transcript: { recordingId: "rec-1", text: "the attic is R-19", engine: "fake" },
     status: "transcribed",
   });
-  await outbox.sessions.patch(session.id, {
+  await storage.sessions.patch(session.id, {
     extracted: { rValue: { value: 19, confidence: 1, sourceSpan: "the attic is R-19" } },
     extractedFromRecordingIds: [enqueued.id],
     status: "awaiting-review",
   });
-  await outbox.sessions.submitReview(session.id, {
+  await storage.sessions.submitReview(session.id, {
     status: "edited",
     fields: { rValue: "thirty" },
     editedFields: ["rValue"],
@@ -347,14 +347,14 @@ test("the relay records a terminal write failure as dead on the first attempt, n
   });
 
   const relay = createRelay({
-    outbox,
+    storage,
     transcriber: restrictToKind("audio", new FakeTranscriber()),
     sessionExtract: () => Promise.reject(new Error("extraction should not run")),
     sessionWrite: toWriteStep(makeAdapter(written)),
   });
   await relay.syncNow();
 
-  const dead = await outbox.sessions.get(session.id);
+  const dead = await storage.sessions.get(session.id);
   expect(dead?.status).toBe("dead");
   expect(dead?.attempts).toBe(1);
   expect(dead?.lastError).toContain("not a valid patch");

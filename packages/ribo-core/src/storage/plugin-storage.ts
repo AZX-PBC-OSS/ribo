@@ -35,7 +35,7 @@ export interface PluginStorage {
 /**
  * Create a {@link PluginStorage} handle scoped to one capture and one plugin.
  *
- * Called by {@link Storage.pluginStorage}; not intended for direct construction
+ * Called by {@link storage.scopedStore}; not intended for direct construction
  * by plugins. The handle holds no state beyond the scoping ids and the
  * collection reference, so a fresh handle over the same database sees the same
  * entries — durability comes from the storage, not from the handle.
@@ -58,9 +58,9 @@ export function createPluginStorage(
  * transcriber — its own `engine` id is the natural choice, and two transcribers
  * that name themselves differently cannot read or clobber each other's keys.
  *
- * Like every handle over plugin storage this is a view over the outbox's own
- * RxDB database: durable, visible to other tabs, and bound to the outbox
- * instance that minted it — a closed outbox's handles are dead; reopen and
+ * Like every handle over plugin storage this is a view over the storage's own
+ * RxDB database: durable, visible to other tabs, and bound to the storage
+ * instance that minted it — a closed storage's handles are dead; reopen and
  * re-mint (a fresh handle over the same database reads what a prior one wrote).
  */
 export interface CaptureStorageScope {
@@ -115,7 +115,7 @@ export interface PluginStorageScope {
   captures: () => Promise<string[]>;
 }
 
-/** Create a {@link CaptureStorageScope} over one capture. Called by {@link Storage.captureStorage}. */
+/** Create a {@link CaptureStorageScope} over one capture. Called by {@link storage.captureStore}. */
 export function createCaptureStorageScope(
   backend: StorageBackend,
   captureId: string,
@@ -125,7 +125,7 @@ export function createCaptureStorageScope(
   };
 }
 
-/** Create a {@link PluginStorageScope} over one plugin. Called by {@link Storage.pluginStorageScope}. */
+/** Create a {@link PluginStorageScope} over one plugin. Called by {@link storage.store}. */
 export function createPluginStorageScope(
   backend: StorageBackend,
   pluginId: string,

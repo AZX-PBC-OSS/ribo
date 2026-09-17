@@ -134,25 +134,25 @@ const recording = () => ({
 async function openTestOutbox(): Promise<Storage> {
   // Default storage (Dexie/IndexedDB) — real Chromium via the `browser`
   // project provides it. The backend is the memory one rather than production's
-  // RxDB: what this test exercises is the real `Storage.watch`/`submitReview`
+  // RxDB: what this test exercises is the real `storage.captures.watch`/`submitReview`
   // path, and which backend is underneath it is the conformance kit's question,
   // not this file's.
   return openStorage({ backend: createMemoryBackend(`review-panel-${crypto.randomUUID()}`) });
 }
 
 async function parkedItem(
-  outbox: Storage,
+  storage: Storage,
   overrides: Readonly<Record<string, Envelope>>,
   instances: Readonly<Record<string, number>> = {},
   statedEmptyGroups?: Readonly<Record<string, string>>,
 ): Promise<string> {
-  const session = await outbox.sessions.open({ ctx: {}, ref: "job-7" });
-  const item = await outbox.captures.enqueue({
+  const session = await storage.sessions.open({ ctx: {}, ref: "job-7" });
+  const item = await storage.captures.enqueue({
     recording: recording(),
     audio: new Blob(["x"], { type: "audio/webm" }),
     sessionId: session.id,
   });
-  await outbox.captures.patch(item.id, {
+  await storage.captures.patch(item.id, {
     status: "transcribed",
     transcript: {
       recordingId: item.recording.id,
@@ -160,7 +160,7 @@ async function parkedItem(
       engine: "fake",
     },
   });
-  await outbox.sessions.patch(session.id, {
+  await storage.sessions.patch(session.id, {
     status: "awaiting-review",
     extracted: fullExtraction(overrides, instances),
     extractedFromRecordingIds: [item.id],
@@ -169,22 +169,22 @@ async function parkedItem(
   return session.id;
 }
 
-async function renderReviewPanel(outbox: Storage) {
+async function renderReviewPanel(storage: Storage) {
   return render(
-    <RiboProvider value={{ outbox }}>
+    <RiboProvider value={{ storage }}>
       <ReviewPanel />
     </RiboProvider>,
   );
 }
 
 test("the submit gate blocks while an ungrounded leaf is untouched, and releases once it is actioned", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   const targetPath = "hvac[k1].hvacSystemEquipmentType";
-  await parkedItem(outbox, {
+  await parkedItem(storage, {
     [targetPath]: { value: "Boiler", confidence: 1, sourceSpan: "definitely not said aloud" },
   });
 
-  const screen = await renderReviewPanel(outbox);
+  const screen = await renderReviewPanel(storage);
   const submit = screen.getByRole("button", { name: "Accept all and queue" });
 
   // Blocked: the target leaf's quote is not a substring of the transcript, and
@@ -199,7 +199,7 @@ test("the submit gate blocks while an ungrounded leaf is untouched, and releases
   // leaf was already grounded.
   await expect.element(submit).toBeEnabled();
 
-  await outbox.close();
+  await storage.close();
 });
 
 test("a leaf named in requiredOnCreate renders the required marker, and an ordinary leaf does not", async () => {
@@ -214,10 +214,10 @@ test("a leaf named in requiredOnCreate renders the required marker, and an ordin
   const otherRequiredPath = "hvac[k1].hvacUpgradeAction";
   const ordinaryPath = "basedata.yearBuilt";
 
-  const outbox = await openTestOutbox();
-  await parkedItem(outbox, {});
+  const storage = await openTestOutbox();
+  await parkedItem(storage, {});
 
-  const screen = await renderReviewPanel(outbox);
+  const screen = await renderReviewPanel(storage);
 
   await expect
     .element(
@@ -237,18 +237,18 @@ test("a leaf named in requiredOnCreate renders the required marker, and an ordin
     )
     .not.toBeInTheDocument();
 
-  await outbox.close();
+  await storage.close();
 });
 
 test("Accept, Edit and Reject each record the decision they claim, and reach submitReview correctly", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
 
   const acceptPath = "hvac[k1].hvacSystemEquipmentType";
   const editPath = "basedata.yearBuilt";
   const rejectPath = "attic[k1].atticInsulationType";
   const acceptNullPath = "wall[k1].wallCavityInsulation";
 
-  await parkedItem(outbox, {
+  await parkedItem(storage, {
     // Ungrounded, so each also participates in the gate test above's property
     // (blocked-until-actioned) — accepting the extracted value as-is.
     [acceptPath]: { value: "Boiler", confidence: 1, sourceSpan: "not in the transcript" },
@@ -262,9 +262,9 @@ test("Accept, Edit and Reject each record the decision they claim, and reach sub
     [acceptNullPath]: { value: null, confidence: 0, sourceSpan: null },
   });
 
-  const screen = await renderReviewPanel(outbox);
+  const screen = await renderReviewPanel(storage);
 
-  const submitReviewSpy = vi.spyOn(outbox.sessions, "submitReview");
+  const submitReviewSpy = vi.spyOn(storage.sessions, "submitReview");
 
   // Accept: take the extracted value as-is.
   await screen.getByTestId(`review-field-${acceptPath}`).getByTestId("accept-field").click();
@@ -310,13 +310,13 @@ test("Accept, Edit and Reject each record the decision they claim, and reach sub
   expect(Object.hasOwn(wall?.[0] ?? {}, "wallCavityInsulation")).toBe(true);
   expect(wall?.[0]?.wallCavityInsulation).toBeNull();
 
-  await outbox.close();
+  await storage.close();
 });
 
 test("a two-instance group renders two labelled instance sections, and a leaf edit in the second lands on the second", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   await parkedItem(
-    outbox,
+    storage,
     {
       "hvac[k2].hvacHeatingSystemModel": {
         value: "Furnace model",
@@ -327,8 +327,8 @@ test("a two-instance group renders two labelled instance sections, and a leaf ed
     { hvac: 2 },
   );
 
-  const screen = await renderReviewPanel(outbox);
-  const submitReviewSpy = vi.spyOn(outbox.sessions, "submitReview");
+  const screen = await renderReviewPanel(storage);
+  const submitReviewSpy = vi.spyOn(storage.sessions, "submitReview");
 
   await expect.element(screen.getByTestId("review-instance-hvac[k1]")).toBeInTheDocument();
   await expect.element(screen.getByTestId("review-instance-hvac[k2]")).toBeInTheDocument();
@@ -354,14 +354,14 @@ test("a two-instance group renders two labelled instance sections, and a leaf ed
   expect(hvac?.[0]?.hvacHeatingSystemModel).toBeNull();
   expect(hvac?.[1]?.hvacHeatingSystemModel).toBe("Heat Pump model");
 
-  await outbox.close();
+  await storage.close();
 });
 
 test("a present-but-empty collection renders the group with an add affordance, not nothing", async () => {
-  const outbox = await openTestOutbox();
-  await parkedItem(outbox, {}, { hvac: 0 });
+  const storage = await openTestOutbox();
+  await parkedItem(storage, {}, { hvac: 0 });
 
-  const screen = await renderReviewPanel(outbox);
+  const screen = await renderReviewPanel(storage);
   const group = screen.getByTestId("review-group-hvac");
   await expect.element(group).toBeInTheDocument();
   await expect.element(group.getByText("none described")).toBeInTheDocument();
@@ -376,13 +376,13 @@ test("a present-but-empty collection renders the group with an add affordance, n
     .element(screen.getByTestId("review-field-hvac[k1].hvacSystemEquipmentType"))
     .toBeInTheDocument();
 
-  await outbox.close();
+  await storage.close();
 });
 
 test("removing the first instance leaves the second instance's entered value intact", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   await parkedItem(
-    outbox,
+    storage,
     {
       "hvac[k2].hvacHeatingSystemModel": {
         value: "Furnace model",
@@ -393,8 +393,8 @@ test("removing the first instance leaves the second instance's entered value int
     { hvac: 2 },
   );
 
-  const screen = await renderReviewPanel(outbox);
-  const submitReviewSpy = vi.spyOn(outbox.sessions, "submitReview");
+  const screen = await renderReviewPanel(storage);
+  const submitReviewSpy = vi.spyOn(storage.sessions, "submitReview");
 
   // Edit the second instance before removing the first.
   await screen
@@ -422,20 +422,20 @@ test("removing the first instance leaves the second instance's entered value int
   expect(hvac).toHaveLength(1);
   expect(hvac?.[0]?.hvacHeatingSystemModel).toBe("Heat Pump model");
 
-  await outbox.close();
+  await storage.close();
 });
 
 test("the submit gate blocks on an unactioned required leaf in the second instance", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   await parkedItem(
-    outbox,
+    storage,
     {
       "hvac[k2].hvacUpgradeAction": { value: null, confidence: 0, sourceSpan: null },
     },
     { hvac: 2 },
   );
 
-  const screen = await renderReviewPanel(outbox);
+  const screen = await renderReviewPanel(storage);
   const submit = screen.getByRole("button", { name: "Accept all and queue" });
   await expect.element(submit).toBeDisabled();
 
@@ -446,13 +446,13 @@ test("the submit gate blocks on an unactioned required leaf in the second instan
     .click();
 
   await expect.element(submit).toBeEnabled();
-  await outbox.close();
+  await storage.close();
 });
 
 test("the submit gate blocks on an ungrounded leaf in the second instance, not just the first", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   await parkedItem(
-    outbox,
+    storage,
     {
       "hvac[k2].hvacDuctLocation": {
         value: "basement",
@@ -463,7 +463,7 @@ test("the submit gate blocks on an ungrounded leaf in the second instance, not j
     { hvac: 2 },
   );
 
-  const screen = await renderReviewPanel(outbox);
+  const screen = await renderReviewPanel(storage);
   const submit = screen.getByRole("button", { name: "Accept all and queue" });
   await expect.element(submit).toBeDisabled();
 
@@ -474,15 +474,15 @@ test("the submit gate blocks on an ungrounded leaf in the second instance, not j
     .click();
 
   await expect.element(submit).toBeEnabled();
-  await outbox.close();
+  await storage.close();
 });
 
 test("a stated-empty group renders the verbatim quote instead of 'none described'", async () => {
-  const outbox = await openTestOutbox();
+  const storage = await openTestOutbox();
   const quote = "there's no attic access at all";
-  await parkedItem(outbox, {}, { hvac: 0 }, { hvac: quote });
+  await parkedItem(storage, {}, { hvac: 0 }, { hvac: quote });
 
-  const screen = await renderReviewPanel(outbox);
+  const screen = await renderReviewPanel(storage);
   const group = screen.getByTestId("review-group-hvac");
 
   // The quote text should appear in the group's section.
@@ -492,5 +492,5 @@ test("a stated-empty group renders the verbatim quote instead of 'none described
   // if the stated-none turns out to be wrong.
   await expect.element(screen.getByTestId("add-instance-hvac")).toBeInTheDocument();
 
-  await outbox.close();
+  await storage.close();
 });

@@ -25,15 +25,15 @@ import { openRxdbBackend } from "@azx/ribo-storage-rxdb";
  */
 
 interface HotData {
-  outbox?: Promise<Storage>;
+  storage?: Promise<Storage>;
 }
 
 const hotData = import.meta.hot?.data as HotData | undefined;
 
-let handle: Promise<Storage> | undefined = hotData?.outbox;
+let handle: Promise<Storage> | undefined = hotData?.storage;
 
 /**
- * The shared outbox, opening it on first call.
+ * The shared storage, opening it on first call.
  *
  * Returns the *promise* rather than awaiting it here so that two callers racing
  * during StrictMode's double mount share one open, and so this module has no
@@ -43,6 +43,6 @@ export function getOutbox(): Promise<Storage> {
   // The production path: core owns the contracts, the backend package owns
   // RxDB. One import, Dexie already wired.
   handle ??= openRxdbBackend().then((backend) => openStorage({ backend }));
-  if (hotData) hotData.outbox = handle;
+  if (hotData) hotData.storage = handle;
   return handle;
 }
