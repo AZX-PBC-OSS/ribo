@@ -1141,7 +1141,10 @@ describe("phasedExtractor — usage carries engine and strategy", () => {
   test("two phases reporting different engines yield the FIRST one", async () => {
     const extractor = phasedExtractor<TestValues>({
       target,
-      phases: [usagePhase("a", { calls: 1, engine: "a" }), usagePhase("b", { calls: 1, engine: "b" })],
+      phases: [
+        usagePhase("a", { calls: 1, engine: "a" }),
+        usagePhase("b", { calls: 1, engine: "b" }),
+      ],
     });
 
     const result = await extractor.extract(transcript);

@@ -1,4 +1,11 @@
-import { enveloped, extractorPhase, FakeExtractor, isTransientFailure, phasedExtractor, SchemaParseError } from "@azx/ribo-core";
+import {
+  enveloped,
+  extractorPhase,
+  FakeExtractor,
+  isTransientFailure,
+  phasedExtractor,
+  SchemaParseError,
+} from "@azx/ribo-core";
 import type { Enveloped, ExtractionTarget, Extractor, PhaseUnit } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
@@ -425,10 +432,7 @@ describe("gapFillExtractor — regression pins from the port", () => {
         roof: followUpResponse["envelope.roof"],
         wall: abstainingFields.envelope.wall,
       },
-      hvac: [
-        abstainingFields.hvac[0],
-        { systemType: followUpResponse["hvac[1].systemType"] },
-      ],
+      hvac: [abstainingFields.hvac[0], { systemType: followUpResponse["hvac[1].systemType"] }],
     });
   });
 
@@ -884,8 +888,7 @@ describe("gapFillExtractor — the composition claim", () => {
     // phase is pinned to `maxRetries: 0` at the run level, as the preset does —
     // `extractorPhase` declares no retries of its own.
     const transcript = { text: "t", annotations: {} };
-    const base = () =>
-      new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } });
+    const base = () => new FakeExtractor<GapExtraction>(abstainingFields, { usage: { calls: 1 } });
     const followUp = () => fakeChat(JSON.stringify(followUpResponse)).chat;
 
     const handAssembled = await phasedExtractor<GapValues>({

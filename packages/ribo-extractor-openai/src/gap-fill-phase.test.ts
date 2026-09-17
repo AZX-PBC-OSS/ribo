@@ -124,7 +124,11 @@ const candidatesOf = (item: unknown): readonly AbstainedLeaf[] =>
 
 describe("gapFillPhase — plan", () => {
   test("returns one item when abstained candidates exist and none when they do not", () => {
-    const phase = gapFillPhase<GapValues>({ target: gapTarget, chat: {} as ChatClient, model: "m" });
+    const phase = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat: {} as ChatClient,
+      model: "m",
+    });
     phase.with((def) => {
       expect(def.plan(draftWith(abstainingFields), ctx)).toHaveLength(1);
       expect(def.plan(draftWith(committedFields), ctx)).toHaveLength(0);
@@ -132,7 +136,11 @@ describe("gapFillPhase — plan", () => {
   });
 
   test("respects targets — the default ignores ungrounded-only drafts", () => {
-    const phase = gapFillPhase<GapValues>({ target: gapTarget, chat: {} as ChatClient, model: "m" });
+    const phase = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat: {} as ChatClient,
+      model: "m",
+    });
     phase.with((def) => {
       expect(def.plan(draftWith(fabricatedFields), ctx)).toHaveLength(0);
     });
@@ -204,7 +212,11 @@ describe("gapFillPhase — run", () => {
     // The scoped schema requires an entry for every candidate leaf, so the canned
     // response answers both the abstained roof and the ungrounded wall.
     const bothAnswer = {
-      "envelope.roof": { value: "asphalt_shingle", confidence: 0.93, sourceSpan: "asphalt shingles" },
+      "envelope.roof": {
+        value: "asphalt_shingle",
+        confidence: 0.93,
+        sourceSpan: "asphalt shingles",
+      },
       "envelope.wall": { value: "brick", confidence: 0.9, sourceSpan: "the walls are brick" },
     };
     const { chat, requests } = fakeChat(JSON.stringify(bothAnswer));
@@ -238,7 +250,11 @@ describe("gapFillPhase — merge", () => {
     return gapFillPhase<GapValues>({ ...phaseOptions, chat, ...overrides }).with(async (def) => {
       const outcomes = [];
       for (const item of def.plan(draft, ctx)) {
-        outcomes.push({ outcome: "result" as const, item, output: await def.run(item, draft, ctx) });
+        outcomes.push({
+          outcome: "result" as const,
+          item,
+          output: await def.run(item, draft, ctx),
+        });
       }
       return def.merge(draft, outcomes);
     });

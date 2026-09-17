@@ -64,10 +64,7 @@ import {
 } from "./gap-fill.js";
 
 /** Options for {@link gapFillPhase} — the gap-fill preset's follow-up half. */
-export interface GapFillPhaseOptions<
-  V extends Record<string, unknown>,
-  P = NoProvenance,
-> {
+export interface GapFillPhaseOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /**
    * The field knowledge: the follow-up reads its scoped schema from
    * `extractionSchema` and builds on `instructions`. Few-shot `examples` are NOT
@@ -158,9 +155,7 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
       const fields = draft.fields as Enveloped<V, P>;
       const candidates = [
         ...(wanted.has("abstained") ? findAbstainedLeaves(fields) : []),
-        ...(wanted.has("ungrounded")
-          ? findUngroundedLeaves(fields, ctx.transcript.text)
-          : []),
+        ...(wanted.has("ungrounded") ? findUngroundedLeaves(fields, ctx.transcript.text) : []),
       ];
       // No candidates: the whole passthrough behaviour — the engine treats an
       // empty plan as a no-op (no call, no event, no usage change, no merge).
