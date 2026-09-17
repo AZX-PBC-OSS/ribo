@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 
 import type { CaptureItem, DocumentCapture } from "../capture-item.js";
 import type { AnnotatedTranscript } from "../annotated-transcript.js";
+import type { ExtractOptions } from "../extractor.js";
 import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
 import type { TranscriptCombiner } from "../transcript-combiner.js";
 import type { Recording } from "../recording.js";
@@ -1851,6 +1852,58 @@ test("a transcribe that outlives the step timeout aborts the transcriber's signa
   // abandonment.
   expect(receivedSignals[0], "the transcriber received an options bag with a signal").toBeDefined();
   expect(receivedSignals[0]?.aborted).toBe(true);
+
+  await outbox.close();
+});
+
+test("the extract step's options carry a deadline minted from real time, sized by stepTimeoutMs", async () => {
+  // The deadline makes the step budget visible to the extraction tree: the
+  // relay owns `stepTimeoutMs` and aborts a step signal on timeout, so it is
+  // the one thing that can mint an initial value — without it every
+  // `deadline` in the tree would be `undefined` and the whole mechanism
+  // would be inert in production while passing its unit tests.
+  //
+  // The injected clock STAYS INJECTED — that is what makes this test
+  // discriminate. The TestClock reads 2026-07-23, weeks from real time, and
+  // never drifts on its own; a deadline minted from `#now` would land nowhere
+  // near the real-time window asserted below. But the thing that actually
+  // aborts the step — `withTimeout`'s bare `setTimeout` — runs on the real
+  // clock and cannot be injected, so the deadline must be minted from
+  // `Date.now()` too: a step that believed it had time after the relay had
+  // already aborted it is exactly the drift this test exists to prevent.
+  const outbox = await openTestOutbox(uniqueName());
+  const receivedOptions: (ExtractOptions | undefined)[] = [];
+  const sessionExtract: SessionExtractStep = async (_input, options) => {
+    receivedOptions.push(options);
+    return { fields: {}, usage: { calls: 1 } };
+  };
+
+  // Distinctly small, so the deadline visibly moves with it.
+  const stepTimeoutMs = 7_500;
+  const relay = createRelay({
+    outbox,
+    transcriber: restrictToKind("audio", new FakeTranscriber({ text: "the attic is R-19" })),
+    sessionExtract,
+    sessionWrite: async () => undefined,
+    stepTimeoutMs,
+    now: clock.now,
+    maxAttempts: 1,
+  });
+
+  const session = await outbox.openSession({ ctx: { jobId: "job-7" }, ref: "job-7" });
+  await outbox.enqueue({ recording, audio: audio(), sessionId: session.id });
+  await relay.syncNow(); // transcribes the recording
+  await outbox.closeSession(session.id);
+  const before = Date.now();
+  await relay.syncNow(); // extracts
+  const after = Date.now();
+
+  const deadline = receivedOptions[0]?.deadline;
+  expect(deadline, "the extract step received an options bag with a deadline").toBeDefined();
+  // The window is measured against REAL time — never the test clock, which a
+  // `#now`-based implementation would satisfy.
+  expect(deadline!).toBeGreaterThanOrEqual(before + stepTimeoutMs);
+  expect(deadline!).toBeLessThanOrEqual(after + stepTimeoutMs);
 
   await outbox.close();
 });
