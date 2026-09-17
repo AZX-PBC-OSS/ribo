@@ -340,9 +340,11 @@ Extracted<unknown>[] }) => { accept: number } | { contested: number }` — an IN
 - **`majorityValues` has the unsafe version of the same problem.** With samples `[A,B,C]`, `[A,C]`
   and `[A,B,C]`, the path `hvac.1.fuel` exists in all three, so it is compared — B, C, B — and the
   majority accepts **B**, a value for an entity the second sample does not have, carrying a
-  citation from a sample that was quoting a different unit. The whole-collection contest on length
-  disagreement (the implementation contests every leaf under an array whose length any survivor
-  disagrees about) closes this particular case — the lengths differ — but an equal-length
+  citation from a sample that was quoting a different unit. The whole-collection contest closes
+  this particular case — the second sample falls short of the first survivor's length at
+  `hvac`, so every leaf under the collection is contested without consulting the arbiter. (A
+  survivor LONGER than the first is not contested: the shared indices still pair like-for-like,
+  and the extra instances never enter a walk that is over the first survivor.) But an equal-length
   reordering defeats it, and no rule here fixes that. `unanimousValues` fails safe under any
   reordering and is the default for this reason; a host pointing `majorityValues` at unordered
   collections has accepted that hole. The real fix is content-addressed instance matching — a
