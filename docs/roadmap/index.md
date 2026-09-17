@@ -100,6 +100,16 @@ unions rather than leaf count — the two units coincide exactly while every lea
 existing partition boundary moved — because a leaf count would split a 15-leaf row group for no
 gain. → [design](design/group-provenance-granularity-design.md)
 
+**Phased extraction** made a multi-pass strategy a value instead of a bespoke loop: a phase is
+`plan`/`run`/`merge` over a shared draft, and the `phasedExtractor` engine owns the scheduling,
+per-item retry, cancellation, deadline, unit stream and closing parse that every one of them had
+hand-rolled — the on-device monolith carried four retry loops, `instance-fill.ts` a fifth, and the
+copies had drifted. All three multi-pass strategies (`gapFillExtractor`, `scopedInstanceExtractor`,
+`threePhaseExtractor`) are now presets over the engine, their option names held; `retryExtractor`
+and `timeoutExtractor` landed alongside as wrappers over any `Extractor`. The program's one
+outstanding item is the manual acceptance-gate run. →
+[design](design/phased-extraction-design.md) · [acceptance gate](design/phased-extraction-acceptance.md)
+
 ## What is next
 
 The post-Phase-4 work is organized as tasks **R1–R5** and **F1**, defined in a Voice-to-Text MVP
