@@ -266,16 +266,29 @@ describe("validateExtractor — delegating discipline", () => {
     await expect(extractor.extract(transcript)).rejects.toBe(sentinel);
   });
 
-  test("the observer sees the validated run start and settle", async () => {
-    const phases: string[] = [];
-    const extractor = validateExtractor(new FakeExtractor(groundedFields), {
+  test("it emits no progress unit of its own — the inner extractor's events are the run's events", async () => {
+    // A judging wrapper makes no model call, so it has no work to report. An
+    // earlier implementation emitted a `WholeUnit`, which is the unit
+    // `singleShotExtractor` emits for its one call — so validating a single-shot
+    // strategy produced TWO of them per run and a consumer counting units
+    // double-counted. The informative event here is the rejection, and that is
+    // an error an arbiter already acts on, not a progress tick.
+    //
+    // The rule this pins, for the judging combinators still to come: a wrapper
+    // that delegates and judges stays silent; a combinator that runs candidates
+    // of its own reports them.
+    const inner = new FakeExtractor(groundedFields);
+    const extractor = validateExtractor(inner, {
       target,
-      onUnit: (event) => {
-        phases.push(event.phase);
-      },
+      // @ts-expect-error — the options bag has no observer: this combinator
+      // reports nothing, and the type is what enforces it. Deleting this
+      // directive is the only way to reintroduce the double-count.
+      onUnit: () => undefined,
     });
+
     await extractor.extract(transcript);
-    expect(phases).toEqual(["start", "done"]);
+
+    expect(inner.calls).toHaveLength(1);
   });
 });
 

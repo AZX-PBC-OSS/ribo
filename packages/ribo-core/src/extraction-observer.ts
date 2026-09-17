@@ -25,7 +25,7 @@ interface UnitBase {
   readonly error?: unknown;
 }
 
-/** `singleShotExtractor`: the document in one call. `validateExtractor` reports its delegated run — one inner call plus the judgement — the same way. */
+/** `singleShotExtractor`: the document in one call. */
 export type WholeUnit = UnitBase & { readonly unit: "whole" };
 
 /** `perGroupExtractor`: one group, or one part of a partitioned group. */

@@ -2,8 +2,6 @@ import { assertLeafGranularity } from "./assert-leaf-granularity.js";
 import { groundingCensus } from "./grounding-census.js";
 import type { GroundingCensus } from "./grounding-census.js";
 import type { LeafPath } from "./extracted-leaves.js";
-import { nextUnitId } from "./extraction-observer.js";
-import type { ExtractionObserver, WholeUnit } from "./extraction-observer.js";
 import type { ExtractOptions, Extractor, ExtractionResult, ExtractionTarget } from "./extractor.js";
 import type { NoProvenance } from "./enveloped.js";
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
@@ -120,10 +118,7 @@ export const rejectUngroundedCommitments = (census: GroundingCensus): Validation
 };
 
 /** What a caller supplies to {@link validateExtractor}. */
-export interface ValidateExtractorOptions<
-  V extends Record<string, unknown>,
-  P = NoProvenance,
-> extends ExtractionObserver<WholeUnit> {
+export interface ValidateExtractorOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /**
    * The field knowledge the inner extractor was built against. Only
    * `extractionSchema` is read here — the transcript for the census comes from
@@ -169,32 +164,25 @@ export function validateExtractor<F, V extends Record<string, unknown>, P = NoPr
   assertLeafGranularity(options.target.extractionSchema, { combinator: "validateExtractor" });
 
   const policy = options.policy ?? rejectUngroundedCommitments;
-  const onUnit = options.onUnit;
 
   return {
     extract: async (
       transcript: AnnotatedTranscript,
       callerOptions?: ExtractOptions,
     ): Promise<ExtractionResult<F>> => {
-      const id = nextUnitId();
-      onUnit?.({ id, unit: "whole", phase: "start", attempt: 1 });
-      let result: ExtractionResult<F>;
-      try {
-        result = await extractor.extract(transcript, callerOptions);
-      } catch (error) {
-        // Propagate unchanged — not converted, not swallowed. A transient inner
-        // failure must stay transient; a cancellation must stay a cancellation.
-        onUnit?.({ id, unit: "whole", phase: "error", attempt: 1, error });
-        throw error;
-      }
+      // No try/catch: an inner failure propagates unchanged, which is the
+      // behaviour that matters and is pinned by a test. A transient inner
+      // failure must stay transient so an arbiter gives up rather than trying
+      // the next rung on the same downed transport, and a cancellation must
+      // stay a cancellation. Catching to re-throw would add nothing but a place
+      // for a future edit to convert one.
+      const result = await extractor.extract(transcript, callerOptions);
       const census = groundingCensus(result.fields, result.statedEmptyGroups, transcript.text);
       const verdict = policy(census);
       if ("reject" in verdict) {
         const rejected = new ValidationRejectedError(census, verdict.reject);
-        onUnit?.({ id, unit: "whole", phase: "error", attempt: 1, error: rejected });
         throw rejected;
       }
-      onUnit?.({ id, unit: "whole", phase: "done", attempt: 1 });
       return result;
     },
   };
