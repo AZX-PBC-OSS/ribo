@@ -425,3 +425,11 @@ export type {
   PhaseUnit,
   WholeUnit,
 } from "./extraction-observer.js";
+
+// Phased extraction, wave 3a — the phase vocabulary, with no engine yet. A phase becomes a
+// value a caller can construct, inspect and validate; nothing runs one (the engine is a
+// later wave). Branded note keys and the immutable bag they address: the cross-phase
+// channel whose keys are typed so two phases cannot silently clobber or misread, while the
+// keys stay plain strings at runtime for `requires`/`produces` and a model-emitted plan.
+export { emptyNotes, noteKey } from "./phase-notes.js";
+export type { NoteKey, Notes } from "./phase-notes.js";
