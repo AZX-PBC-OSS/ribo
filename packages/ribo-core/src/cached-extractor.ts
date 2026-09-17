@@ -11,7 +11,7 @@ import type {
 
 /**
  * @file `cachedExtractor` — memoisation over the `Extractor` seam
- * (`sp2-judging-combinators-design.md` §4.4, wave-3 plan Task 2). It wraps any
+ * (`sp2-judging-combinators-design.md` §4.4, ADR 0005). It wraps any
  * {@link Extractor}, derives a key from the transcript and the WHOLE extraction
  * target, and serves a repeat call from the injected store instead of the model.
  *

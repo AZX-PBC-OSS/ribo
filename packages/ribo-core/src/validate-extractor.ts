@@ -9,7 +9,7 @@ import { TerminalError } from "./storage/backoff.js";
 
 /**
  * @file `validateExtractor` — the first judging combinator
- * (`sp2-judging-combinators-design.md` §4.2, wave-2 plan Task 2). It wraps any
+ * (`sp2-judging-combinators-design.md` §4.2, ADR 0002). It wraps any
  * {@link Extractor}, tallies how well the result is cited ({@link groundingCensus}),
  * hands that tally to a caller-supplied policy, and either returns the result
  * untouched or throws an error an arbitration ladder falls through on.

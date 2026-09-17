@@ -3,7 +3,7 @@ import type { Extracted } from "./provenance.js";
 
 /**
  * @file `ConsensusArbiter` — the leaf-level decision `consensusExtractor` hands
- * every leaf to (`sp2-judging-combinators-design.md` §4.1, wave-4 plan Task 1),
+ * every leaf to (`sp2-judging-combinators-design.md` §4.1, ADR 0001),
  * plus the two shipped policies.
  *
  * The signature is the decision this sub-project argues about: **a policy

@@ -15,7 +15,7 @@ import type { Extracted } from "./provenance.js";
 
 /**
  * @file `consensusExtractor` — the substantial judging combinator
- * (`sp2-judging-combinators-design.md` §4.1, wave-4 plan Task 2). It runs a list
+ * (`sp2-judging-combinators-design.md` §4.1, ADR 0007). It runs a list
  * of candidate extractors over the same transcript, compares the survivors leaf
  * by leaf, and nulls the value of every leaf they disagree about while keeping
  * a citation — producing exactly the shape `gapFillExtractor` already re-asks
@@ -108,7 +108,7 @@ export class ConsensusFailedError extends Error {
  *
  * Deliberately NOT an `ExtractionObserver`: it has no unit vocabulary, adds
  * nothing to the `ExtractionUnit` union, and so cannot double-count an inner
- * extractor's stream — which is what the wave-2 rule (a wrapper that delegates
+ * extractor's stream — which is what ADR 0004 (a wrapper that delegates
  * and judges stays silent) protects. It escapes that rule because it reports
  * consensus's OWN verdicts, new vocabulary no inner extractor emits.
  *

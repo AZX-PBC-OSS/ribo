@@ -10,7 +10,7 @@ import { BudgetExceededError, budgetExtractor } from "./budget-extractor.js";
 
 /**
  * Tests for `budgetExtractor` — the spend-ceiling detector
- * (`sp2-judging-combinators-design.md` §4.3, wave-3 plan Task 1).
+ * (`sp2-judging-combinators-design.md` §4.3, ADR 0006).
  *
  * Two pins matter more than the rest:
  *
@@ -219,7 +219,7 @@ describe("budgetExtractor — delegating discipline", () => {
   });
 
   test("it emits no progress unit of its own — the options bag has no observer", async () => {
-    // The wave-2 rule, pinned the same way `validate-extractor.test.ts` pins it:
+    // The no-observer rule (ADR 0004), pinned the same way `validate-extractor.test.ts` pins it:
     // a wrapper that delegates and judges makes no model call of its own, so it
     // has nothing to report — and reusing an existing unit type would make a
     // consumer double-count.

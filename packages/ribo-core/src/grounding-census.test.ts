@@ -5,7 +5,7 @@ import type { Extracted } from "./provenance.js";
 
 /**
  * Tests for the pure grounding census — the tally `validateExtractor`'s policy
- * decides from (`sp2-judging-combinators-design.md` §4.2, wave-2 plan Task 1).
+ * decides from (`sp2-judging-combinators-design.md` §4.2).
  *
  * Every fixture is hand-built enveloped data: `{ value, confidence, sourceSpan }`
  * leaves in plain object/array structure, the shape `enveloped()` derives and

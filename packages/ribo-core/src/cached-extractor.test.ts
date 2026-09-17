@@ -10,7 +10,7 @@ import type { ExtractionCache } from "./cached-extractor.js";
 
 /**
  * Tests for `cachedExtractor` — the memoisation combinator
- * (`sp2-judging-combinators-design.md` §4.4, wave-3 plan Task 2).
+ * (`sp2-judging-combinators-design.md` §4.4, ADR 0005).
  *
  * The key covers the whole prompt — transcript text, target name, instructions,
  * examples and the extraction schema — because instructions and examples ARE the
@@ -417,7 +417,7 @@ describe("cachedExtractor — delegating discipline", () => {
   });
 
   test("it emits no progress unit of its own — the options bag has no observer", async () => {
-    // The wave-2 rule: a wrapper that delegates and judges makes no model call
+    // ADR 0004: a wrapper that delegates and judges makes no model call
     // of its own, so it has nothing to report.
     const inner = new FakeExtractor(FIELDS);
     const extractor = cachedExtractor(inner, {

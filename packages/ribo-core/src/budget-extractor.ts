@@ -4,7 +4,7 @@ import { TerminalError } from "./storage/backoff.js";
 
 /**
  * @file `budgetExtractor` — the spend-ceiling detector over the `Extractor` seam
- * (`sp2-judging-combinators-design.md` §4.3, wave-3 plan Task 1). It wraps any
+ * (`sp2-judging-combinators-design.md` §4.3, ADR 0006). It wraps any
  * {@link Extractor}, reads the returned result's `usage` against the caller's
  * ceilings, and either returns the result untouched or throws an error an
  * arbitration ladder falls through on.

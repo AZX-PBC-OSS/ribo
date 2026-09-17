@@ -89,7 +89,7 @@ export type {
 // through on (sp2-judging-combinators-design.md §4.3). A detector, not a
 // governor — it reports a spend it cannot prevent, and is honest around one
 // strategy rather than around a ladder. No options-bag observer: a wrapper that
-// delegates and judges reports nothing (the wave-2 rule).
+// delegates and judges reports nothing (ADR 0004).
 export { BudgetExceededError, budgetExtractor } from "./budget-extractor.js";
 export type { BudgetExtractorOptions } from "./budget-extractor.js";
 
@@ -129,7 +129,7 @@ export type { ConsensusArbiter, ConsensusVerdict } from "./consensus-arbiter.js"
 // usually means the transport is down and the next rung shares it. The first
 // survivor is structurally authoritative: put the most trusted candidate
 // first. The `onContested` notification is the only channel for the contested
-// count, and escapes the wave-2 no-observer rule because it is new vocabulary
+// count, and escapes ADR 0004's no-observer rule because it is new vocabulary
 // no inner extractor emits.
 export { ConsensusFailedError, consensusExtractor } from "./consensus-extractor.js";
 export type { ConsensusExtractorOptions, OnContested } from "./consensus-extractor.js";

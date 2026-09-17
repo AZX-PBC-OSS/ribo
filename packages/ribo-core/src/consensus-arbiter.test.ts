@@ -5,7 +5,7 @@ import { majorityValues, unanimousValues } from "./consensus-arbiter.js";
 
 /**
  * Tests for the `ConsensusArbiter` contract and the two shipped policies
- * (`sp2-judging-combinators-design.md` §4.1, wave-4 plan Task 1).
+ * (`sp2-judging-combinators-design.md` §4.1, ADR 0001).
  *
  * The pin that matters most replaces the design's first draft's two type-level
  * ones: a policy returns an INDEX, not an envelope, so there is no fabricated

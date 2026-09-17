@@ -1,7 +1,9 @@
 # SP2 — Judging and bounding: four combinators that do not produce a result
 
 **Date:** 2026-09-17
-**Status:** Draft — revised after review. No implementation plan written yet.
+**Status:** Implemented. The decisions this design argues are recorded as
+[ADRs 0001–0007](../../adr/index.md); the implementation plans were execution scaffolding and are
+deliberately not committed.
 **Question answered:** "What are the generally useful meta-extractors?" — SP2 of four, the combinators
 that judge or bound a result rather than produce one.
 **Depends on:** `phased-extraction-design.md` (SP1), `extractor-arbitration-design.md` (the arbiter

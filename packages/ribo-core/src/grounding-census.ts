@@ -1,6 +1,6 @@
 /**
  * @file The pure grounding census — a tally of how well an extraction result is
- * cited (`sp2-judging-combinators-design.md` §4.2, wave-2 plan Task 1). The
+ * cited (`sp2-judging-combinators-design.md` §4.2). The
  * first judging combinator (`validateExtractor`) hands this tally to a
  * caller-supplied policy, but the tally is useful alone — a host debugging why a
  * result was rejected, or writing a policy of its own, reads the same shape — so

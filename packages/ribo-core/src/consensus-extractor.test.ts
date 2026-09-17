@@ -22,7 +22,7 @@ import { TerminalError } from "./storage/backoff.js";
 
 /**
  * Tests for `consensusExtractor` — the substantial judging combinator
- * (`sp2-judging-combinators-design.md` §4.1, wave-4 plan Task 2).
+ * (`sp2-judging-combinators-design.md` §4.1, ADR 0007).
  *
  * The pins that matter most:
  *

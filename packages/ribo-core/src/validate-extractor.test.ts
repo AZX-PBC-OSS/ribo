@@ -13,7 +13,7 @@ import { ValidationRejectedError, validateExtractor } from "./validate-extractor
 
 /**
  * Tests for `validateExtractor` — the first judging combinator
- * (`sp2-judging-combinators-design.md` §4.2, wave-2 plan Task 2).
+ * (`sp2-judging-combinators-design.md` §4.2, ADR 0002).
  *
  * The test that matters most is not the unit assertions on the error class but
  * the end-to-end one: a real `fallbackExtractor` with `terminalFallsThrough`, a
