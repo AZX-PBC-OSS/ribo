@@ -1,14 +1,21 @@
-import { createMemoryBackend, removeMemoryDatabase } from "../storage/memory-backend.js";
+import { removeOutboxDatabase } from "./database.js";
+import { openRxdbBackend } from "./open.js";
 import { afterEach, expect, test } from "vitest";
 
-import type { Recording } from "../recording.js";
-import { openOutbox } from "./outbox.js";
+import type { Recording } from "@azx/ribo-core";
+import { openOutbox } from "@azx/ribo-core";
 
-// Browser-mode, not jsdom, for the same reason `outbox.browser.test.ts` is:
-// the durability test closes one handle and opens another over the same named
-// IndexedDB database, and only Chromium's real IndexedDB carries bytes between
-// them. Memory storage would fake that property, which is why the isolation and
-// sweep tests live in the node `unit` file instead.
+// Browser-mode, not jsdom, for the same reason `outbox-durability.browser.test.ts`
+// is: the durability test closes one handle and opens another over the same
+// named IndexedDB database, and this asserts that Chromium's real IndexedDB
+// carries bytes between them. The isolation and sweep tests live in core's node
+// `unit` file instead, since those are domain behaviour and need no engine.
+//
+// It lives in THIS package rather than in core for the same reason: what it
+// pins is that the RxDB backend genuinely round-trips through IndexedDB, which
+// is a claim about a backend and not about the outbox. Core's memory backend is
+// durable across a close-and-reopen too -- obligation 2 requires it -- so
+// running this there would pass while proving something else entirely.
 
 const usedNames: string[] = [];
 
@@ -19,7 +26,7 @@ function uniqueName(): string {
 }
 
 afterEach(async () => {
-  for (const name of usedNames.splice(0)) removeMemoryDatabase(name);
+  for (const name of usedNames.splice(0)) await removeOutboxDatabase(name);
 });
 
 const recording: Recording = {
@@ -40,7 +47,7 @@ test("a value survives a fresh handle — durability, not memory", async () => {
   const name = uniqueName();
 
   // Write with the first handle.
-  const first = await openOutbox({ backend: createMemoryBackend(name) });
+  const first = await openOutbox({ backend: await openRxdbBackend({ name }) });
   const session = await first.openSession({ ctx: { jobId: "job-1" }, ref: "job-1" });
   const item = await first.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
 
@@ -51,7 +58,7 @@ test("a value survives a fresh handle — durability, not memory", async () => {
   await first.close();
 
   // Open a fresh handle over the same named database — no in-memory carry-over.
-  const second = await openOutbox({ backend: createMemoryBackend(name) });
+  const second = await openOutbox({ backend: await openRxdbBackend({ name }) });
   const fresh = second.pluginStorage(item.id, "plugin-A");
 
   expect(await fresh.get("document-id")).toEqual({ providerId: "doc-xyz", pages: 3 });
@@ -64,7 +71,7 @@ test("a value survives a fresh handle — durability, not memory", async () => {
 test("durability survives a sweep on a different capture — only the swept capture's entries are removed", async () => {
   const name = uniqueName();
 
-  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  const outbox = await openOutbox({ backend: await openRxdbBackend({ name }) });
   const session = await outbox.openSession({ ctx: { jobId: "job-1" }, ref: "job-1" });
   const item1 = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
   const item2 = await outbox.enqueue({ recording, audio: audioBlob(), sessionId: session.id });
@@ -75,7 +82,7 @@ test("durability survives a sweep on a different capture — only the swept capt
   await outbox.remove(item2.id);
   await outbox.close();
 
-  const reopened = await openOutbox({ backend: createMemoryBackend(name) });
+  const reopened = await openOutbox({ backend: await openRxdbBackend({ name }) });
   expect(await reopened.pluginStorage(item1.id, "plugin-A").get("k")).toBe("keep");
   expect(await reopened.pluginStorage(item2.id, "plugin-A").get("k")).toBeUndefined();
   await reopened.close();

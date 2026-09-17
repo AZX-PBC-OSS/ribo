@@ -1,16 +1,17 @@
-import { createMemoryBackend, removeMemoryDatabase } from "../storage/memory-backend.js";
+import { removeOutboxDatabase } from "./database.js";
+import { openRxdbBackend } from "./open.js";
 import { afterEach, expect, test } from "vitest";
 
-import { FakeTranscriber } from "../fake-transcriber.js";
-import type { CaptureItem } from "../capture-item.js";
-import type { Recording } from "../recording.js";
-import { openOutbox } from "./outbox.js";
-import { createRelay } from "./relay.js";
-import { toSessionExtractStep } from "../extractor.js";
-import type { Extractor } from "../extractor.js";
-import type { Transcriber } from "../transcriber.js";
-import type { OutboxItem } from "./schema.js";
-import type { SessionItem } from "./session-schema.js";
+import { FakeTranscriber } from "@azx/ribo-core";
+import type { CaptureItem } from "@azx/ribo-core";
+import type { Recording } from "@azx/ribo-core";
+import { openOutbox } from "@azx/ribo-core";
+import { createRelay } from "@azx/ribo-core";
+import { toSessionExtractStep } from "@azx/ribo-core";
+import type { Extractor } from "@azx/ribo-core";
+import type { Transcriber } from "@azx/ribo-core";
+import type { OutboxItem } from "@azx/ribo-core";
+import type { SessionItem } from "@azx/ribo-core";
 
 // The plugin-storage DELIVERY, end to end: a transcriber writes through the
 // handle the relay supplied in `TranscribeOptions.storage`, and an extractor —
@@ -30,7 +31,7 @@ function uniqueName(): string {
 }
 
 afterEach(async () => {
-  for (const name of usedNames.splice(0)) removeMemoryDatabase(name);
+  for (const name of usedNames.splice(0)) await removeOutboxDatabase(name);
 });
 
 const recording: Recording = {
@@ -87,7 +88,7 @@ test("a transcriber writes through its relay-supplied handle and an extractor re
   const name = uniqueName();
 
   // --- Tab 1: the transcriber half, through the relay's delivery ------------
-  const first = await openOutbox({ backend: createMemoryBackend(name) });
+  const first = await openOutbox({ backend: await openRxdbBackend({ name }) });
   const { session, item } = await openSessionWithCapture(first);
   const relay1 = await buildRelay(first, {
     transcriber: storageWritingTranscriber("plugin-docs"),
@@ -105,7 +106,7 @@ test("a transcriber writes through its relay-supplied handle and an extractor re
   await first.close();
 
   // --- Tab 2, minutes later: the extractor half, over a REOPENED database ---
-  const second = await openOutbox({ backend: createMemoryBackend(name) });
+  const second = await openOutbox({ backend: await openRxdbBackend({ name }) });
   // The construction-time handle: the host knows which plugin it is building,
   // so the scope bakes in the pluginId and leaves the capture dimension to be
   // addressed per call. It is minted from the REOPENED outbox — a handle from
@@ -145,7 +146,7 @@ test("a transcriber writes through its relay-supplied handle and an extractor re
 
 test("two plugins cannot read each other's keys through the handles they are supplied", async () => {
   const name = uniqueName();
-  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  const outbox = await openOutbox({ backend: await openRxdbBackend({ name }) });
   const { item } = await openSessionWithCapture(outbox);
 
   // The construction-time handles: one per plugin, baked to their pluginId.
@@ -171,7 +172,7 @@ test("two plugins cannot read each other's keys through the handles they are sup
 
 test("dropping a capture sweeps what the transcriber wrote for it — the extractor reads no stale view", async () => {
   const name = uniqueName();
-  const outbox = await openOutbox({ backend: createMemoryBackend(name) });
+  const outbox = await openOutbox({ backend: await openRxdbBackend({ name }) });
   const { item } = await openSessionWithCapture(outbox);
 
   const relay = await buildRelay(outbox, {
@@ -194,7 +195,7 @@ test("dropping a capture sweeps what the transcriber wrote for it — the extrac
 
   // And the sweep is durable: a fresh handle over a REOPENED database agrees.
   await outbox.close();
-  const reopened = await openOutbox({ backend: createMemoryBackend(name) });
+  const reopened = await openOutbox({ backend: await openRxdbBackend({ name }) });
   const fresh = reopened.pluginStorageScope("plugin-docs");
   expect(await fresh.captures()).toEqual([]);
   expect(await fresh.capture(item.id).get("upload-handle")).toBeUndefined();
