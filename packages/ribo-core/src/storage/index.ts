@@ -78,6 +78,7 @@ export type {
 } from "./session-schema.js";
 
 export {
+  ENTRY_SCOPE_KINDS,
   PLUGIN_STORAGE_COLLECTION_NAME,
   pluginStorageDocumentSchema,
   pluginStorageEntryId,
