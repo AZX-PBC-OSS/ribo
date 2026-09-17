@@ -81,7 +81,7 @@ The fix is one line; the pins exist so the next member added to the bag does not
 
   Expected: PASS.
 
-- [ ] **Step 5: Pin the other five forwarders**
+- [ ] **Step 5: Pin the other seven forwarders**
 
   Add one assertion to each of the named suites: with a `deadline` in the caller's options, the wrapped/candidate extractor receives it. These pass immediately — they are regression pins, not fixes, and Step 6's commit message should say so rather than implying they were broken.
 
