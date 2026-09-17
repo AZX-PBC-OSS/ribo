@@ -18,7 +18,7 @@
 ## Global Constraints
 
 - **This is not `mapWithPool`.** That helper (`map-with-pool.ts`) rejects on the first failure **and calls `abort.abort()`, cancelling every sibling** — verified, not assumed. It is the exact opposite of what consensus needs. Candidates settle independently.
-- **A cancellation stays a cancellation.** This is the first combinator in the repo that *must* catch, because `allSettled` catches for it. Every sibling gets the house rule for free by not catching (`validate-extractor.ts`, `budget-extractor.ts` both record it); this one has to implement it deliberately, and the way it fails is silent.
+- **A cancellation stays a cancellation.** This is the first combinator in the repo that _must_ catch, because `allSettled` catches for it. Every sibling gets the house rule for free by not catching (`validate-extractor.ts`, `budget-extractor.ts` both record it); this one has to implement it deliberately, and the way it fails is silent.
 - **`assertLeafGranularity` runs at construction.** This walks per-leaf envelopes; a `"row"` or `"none"` target would be compared not at all while returning a result that looks judged.
 - **Absent is not zero.** `ExtractionUsage`'s token members are optional and `cachedPromptTokens` documents the distinction as one that is "never collapsed." A `?? 0` sum breaks that.
 - **It costs N times a single extraction**, and the file header says so in its first paragraph. A combinator that triples a bill without announcing it is a trap.
@@ -41,7 +41,7 @@ stale option. Fix them first so the spec and the plan agree before anything is b
   `inner.nullable()`), so `null` is in the union for every `T`, and `sourceSpan` and `confidence`
   never mention `T` at all. Under the repo's own tsconfig, a cast-free conforming policy returning
   `{ value: null, confidence: 1, sourceSpan: null }` compiles clean, and so does
-  `{ ...samples[0], sourceSpan: "a sentence nobody said" }`. Only the fabricated *non-null literal*
+  `{ ...samples[0], sourceSpan: "a sentence nobody said" }`. Only the fabricated _non-null literal_
   is refused. Replace the claim with the index-returning signature Task 1 builds, and say plainly
   that the envelope-returning encoding bought one guarantee out of three.
 
@@ -121,7 +121,7 @@ unsound over reordered collections and the design must say so.
   Every returned index is in range for the samples given.
 
   **The pin that replaces the deleted type-level ones:** a policy cannot return anything that is
-  not an index — assert on the *returned* index resolving to an envelope drawn from `samples`
+  not an index — assert on the _returned_ index resolving to an envelope drawn from `samples`
   (identity, not equality). There is no `@ts-expect-error` pin in this task any more; the first
   draft's two were one false and one redundant.
 
@@ -159,8 +159,8 @@ rejection unchanged. `phased-extractor.ts` shows the mechanism.
 
 **Below quorum throws `ConsensusFailedError`, and it is TRANSIENT** — i.e. it does **not** extend
 `TerminalError`. Note this is the opposite of `ValidationRejectedError`, deliberately: validation
-rejects because the *model* hallucinated, which the next rung might not, so the ladder should
-continue. Consensus falls below quorum because *candidates failed*, which usually means the
+rejects because the _model_ hallucinated, which the next rung might not, so the ladder should
+continue. Consensus falls below quorum because _candidates failed_, which usually means the
 transport is down — and `terminalFallsThrough` gives up on transient, which is the right answer
 when the next rung shares that transport. Put both halves of that contrast in the class's doc
 comment; a reader who knows only the validate precedent will think it is a mistake.
@@ -187,14 +187,14 @@ output. The alternative — enumerating the union of paths — would materialise
 instance into the result as a nulled row, which is worse: it puts a phantom in front of a
 reviewer. The cost is that the first candidate is structurally authoritative, so **a caller
 should put their most trusted candidate first**; say so in the options doc. Rule 1 means the
-disagreement is still *reported* whenever it changes a count, so the drop is silent only when it
+disagreement is still _reported_ whenever it changes a count, so the drop is silent only when it
 changes nothing a reviewer would act on.
 
 **`onContested` is a notification, not a progress unit.** It fires once per contested leaf with
 the path and the samples. It is deliberately not an `ExtractionObserver`: it has no unit
 vocabulary, adds nothing to the `ExtractionUnit` union, and cannot double-count an inner
 extractor's stream — which is what the wave-2 rule was protecting. Like every observer it must
-not change behaviour, and **a throwing handler must not fail the run**. It is also the *only*
+not change behaviour, and **a throwing handler must not fail the run**. It is also the _only_
 channel for the contested count: the design calls that the headline signal, and a host gets it by
 counting callbacks. Say so in the doc comment rather than leaving a reader hunting for a tally.
 
@@ -217,13 +217,13 @@ consensus result asserting an un-agreed claim. Dropping is the defensible choice
 
   With `FakeExtractor`s returning hand-built enveloped results: three agreeing candidates produce
   their agreed values and a citation; a leaf they disagree on comes back `value: null,
-  confidence: 0` with the span from the sample the policy named; a candidate that rejects
+confidence: 0` with the span from the sample the policy named; a candidate that rejects
   contributes nothing and the run still succeeds while two survive; **a rejecting candidate does
   not prevent the others from settling** — the pin that this is not `mapWithPool`; the caller's
   `signal` and `deadline` reach every candidate.
 
   **The cancellation pin:** abort the caller's signal so every candidate rejects, and assert the
-  rejection `isCancellation` — *not* a `ConsensusFailedError`. This is the test that catches the
+  rejection `isCancellation` — _not_ a `ConsensusFailedError`. This is the test that catches the
   bug this plan's first draft would have shipped.
 
   **The instance-count pin:** three candidates where one produces a fourth `hvac` instance the
@@ -271,7 +271,7 @@ consensus result asserting an un-agreed claim. Dropping is the defensible choice
 
 - Routing disagreements to review as a new contested state. A new envelope member, a new `ReviewField` state, a session-schema migration and playground UI. Nulling-with-citation reaches review through the existing null-leaf path.
 - Order-insensitive collection comparison — matching instances by content rather than index. This is the real fix for the limitation Task 0 Step 3 records, and it is a design question (what identifies an instance?) rather than an implementation one.
-- Exposing a contested *count* on `ExtractionResult`. That is a seam change; `onContested` carries it.
+- Exposing a contested _count_ on `ExtractionResult`. That is a seam change; `onContested` carries it.
 - Extending the comparison to row-provenance groups. The guard refuses those targets.
 - Any measurement of whether agreement actually discriminates — the design's §8 names this as what would prove the whole combinator wrong, and it needs the corpus harness.
 - Guide updates — the last SP2 wave.

@@ -129,7 +129,7 @@ fewer than all survivors is contested before the arbiter is consulted.
 handed**:
 
 - Written `(input: { path: readonly (string | number)[]; samples: readonly Extracted<unknown>[] })
-  => { accept: number } | { contested: number }`. An index closes every fabrication hole at once
+=> { accept: number } | { contested: number }`. An index closes every fabrication hole at once
   and needs no rank-2 generic: the policy never constructs an `Extracted` at all, so whatever
   comes back is provably one of the envelopes it was handed. §3's "never synthesises a value no
   sample returned" becomes the signature. It is also far easier to author against, and `samples`
@@ -294,7 +294,7 @@ the shipped default arbiter, and a retry loop at the relay.
   the leaves the samples fought over — so there is nothing in an inner stream for it to be counted
   twice against.
 - `ConsensusArbiter` — `(input: { path: readonly (string | number)[]; samples: readonly
-  Extracted<unknown>[] }) => { accept: number } | { contested: number }` — an INDEX into `samples`
+Extracted<unknown>[] }) => { accept: number } | { contested: number }` — an INDEX into `samples`
   (§4.1), so a policy cannot fabricate: whatever it names is an envelope it was handed. Two arms,
   untagged, following `arbitration.ts`'s recorded reasoning that distinct required key names narrow
   under `in`. The call site resolves the index at runtime; the guarantee is that the named sample

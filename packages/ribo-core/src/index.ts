@@ -104,6 +104,19 @@ export type { BudgetExtractorOptions } from "./budget-extractor.js";
 export { cachedExtractor } from "./cached-extractor.js";
 export type { CachedExtractorOptions, ExtractionCache } from "./cached-extractor.js";
 
+// The consensus arbiter contract and the two shipped policies. A policy returns
+// an INDEX into the samples it was handed — not an envelope — so it cannot
+// fabricate a value, a confidence or a citation; it can only point at evidence
+// it was given (sp2-judging-combinators-design.md §4.1). The envelope-returning
+// encoding the design's first draft specified bought one guarantee out of
+// three: `Extracted<T>`'s `value` is `T | null` and its other two members never
+// mention `T`, so only the fabricated non-null literal was a compile error.
+// `unanimousValues` is the default because it fails safe under any reordering
+// of collection instances; `majorityValues` is unsound over reordered
+// collections and says so.
+export { majorityValues, unanimousValues } from "./consensus-arbiter.js";
+export type { ConsensusArbiter, ConsensusVerdict } from "./consensus-arbiter.js";
+
 // Deriving the extraction schema from a writable patch schema — every leaf
 // enveloped, nested objects recursed rather than swallowed whole, closed and
 // fully required throughout. `ToolAdapter.extractionSchema` is declared against
