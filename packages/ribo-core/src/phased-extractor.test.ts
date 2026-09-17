@@ -805,3 +805,324 @@ describe("phasedExtractor — the running deadline and the per-phase retry budge
     expect(events.at(-1)?.derived).toBe(0);
   });
 });
+
+describe("phasedExtractor — the unit stream and the produces check", () => {
+  function transient503(): Error {
+    return Object.assign(new Error("service unavailable"), { status: 503 });
+  }
+
+  test("a four-phase list reports pass 3 on the last phase's events", async () => {
+    const phases = ["p0", "p1", "p2", "p3"].map((id, i) =>
+      build({
+        id,
+        plan: () => [1],
+        run: async () => ({ value: i }),
+        merge: (draft) => (id === "p3" ? { ...draft, fields: noteFields("done") } : draft),
+      }),
+    );
+    const { events, onUnit } = collectEvents();
+    const extractor = phasedExtractor<TestValues>({ target, phases, onUnit });
+
+    await extractor.extract(transcript);
+
+    const lastPasses = events.filter((e) => e.phaseId === "p3").map((e) => e.pass);
+    expect(lastPasses).toEqual([3, 3]);
+    // And every phase's events carry its own phaseId.
+    expect(new Set(events.map((e) => e.phaseId))).toEqual(new Set(["p0", "p1", "p2", "p3"]));
+  });
+
+  test("attempt is 1 on an item's first try and increments per engine retry", async () => {
+    const { events, onUnit } = collectEvents();
+    let flakyCalls = 0;
+    const flaky = build({
+      id: "flaky",
+      plan: () => [1],
+      run: async () => {
+        flakyCalls += 1;
+        if (flakyCalls === 1) throw transient503();
+        return { value: 1 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [flaky],
+      maxRetries: 2,
+      delay: () => Promise.resolve(),
+      onUnit,
+    });
+
+    await extractor.extract(transcript);
+
+    const attempts = events.map((e) => [e.phase, e.attempt]);
+    expect(attempts).toEqual([
+      ["start", 1],
+      ["error", 1],
+      ["start", 2],
+      ["done", 2],
+    ]);
+  });
+
+  test("attempt does not move for calls a run makes internally", async () => {
+    const { events, onUnit } = collectEvents();
+    let internalCalls = 0;
+    const doubleRun = build({
+      id: "double-run",
+      plan: () => [1],
+      run: async () => {
+        // Two internal "model calls" inside one run — the engine did not make them
+        // and cannot bound them, so they are not attempts.
+        internalCalls += 1;
+        internalCalls += 1;
+        return { value: internalCalls };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [doubleRun],
+      onUnit,
+    });
+
+    await extractor.extract(transcript);
+
+    expect(internalCalls).toBe(2);
+    // Exactly one start, attempt 1 — the internals did not become attempts.
+    expect(events.map((e) => [e.phase, e.attempt])).toEqual([
+      ["start", 1],
+      ["done", 1],
+    ]);
+  });
+
+  test("key and leaf come from describeItem, and default to an empty key with no leaf", async () => {
+    const { events, onUnit } = collectEvents();
+    const described = build({
+      id: "described",
+      plan: () => ["g1"],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+      describeItem: (item) => ({ key: item, leaf: "note" }),
+    });
+    const bare = build({
+      id: "bare",
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => draft,
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [described, bare],
+      onUnit,
+    });
+
+    await extractor.extract(transcript);
+
+    const describedEvents = events.filter((e) => e.phaseId === "described");
+    expect(describedEvents.map((e) => ({ key: e.key, leaf: e.leaf }))).toEqual([
+      { key: "g1", leaf: "note" },
+      { key: "g1", leaf: "note" },
+    ]);
+    const bareEvents = events.filter((e) => e.phaseId === "bare");
+    expect(bareEvents.map((e) => ({ key: e.key, leaf: e.leaf }))).toEqual([
+      { key: "", leaf: undefined },
+      { key: "", leaf: undefined },
+    ]);
+  });
+
+  test("an aborted sibling emits no start event for an attempt that never began", async () => {
+    const { events, onUnit } = collectEvents();
+    const terminal = new TerminalQueueError("deterministic failure");
+    const boom = transient503();
+    // Item "zero" fails transiently and sleeps in its backoff on this gate; item
+    // "one" fails terminally on its first attempt, which aborts the pool. When the
+    // gate releases, "zero"'s loop reaches its pre-attempt check — prevented.
+    let releaseBackoff: () => void = () => {};
+    const backoffGate = new Promise<void>((resolve) => {
+      releaseBackoff = resolve;
+    });
+    const phase = build({
+      id: "mixed",
+      concurrency: 2,
+      maxRetries: 2,
+      plan: () => ["zero", "one"],
+      describeItem: (item) => ({ key: item }),
+      run: async (item) => {
+        if (item === "zero") throw boom; // transient — retries into the gate
+        throw terminal; // terminal — aborts the pool on its first attempt
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [phase],
+      delay: () => backoffGate,
+      onUnit,
+    });
+
+    await expect(extractor.extract(transcript)).rejects.toBe(terminal);
+    releaseBackoff();
+    // Let "zero"'s worker settle past the pre-attempt check.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Both items started attempt 1; nothing announced an attempt 2 for "zero" —
+    // the pre-attempt abort check prevented it before onAttempt could fire.
+    const starts = events.filter((e) => e.phase === "start");
+    expect(starts.map((e) => [e.key, e.attempt])).toEqual([
+      ["zero", 1],
+      ["one", 1],
+    ]);
+    // And no error event announces an attempt that never began either — "zero"'s
+    // error names the attempt that actually ran.
+    const errors = events.filter((e) => e.phase === "error");
+    expect(errors.map((e) => [e.key, e.attempt]).sort()).toEqual([
+      ["one", 1],
+      ["zero", 1],
+    ]);
+  });
+
+  test("id is stable across a retried item's attempts", async () => {
+    const { events, onUnit } = collectEvents();
+    let calls = 0;
+    const flaky = build({
+      id: "flaky",
+      plan: () => [1],
+      run: async () => {
+        calls += 1;
+        if (calls === 1) throw transient503();
+        return { value: 1 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [flaky],
+      maxRetries: 2,
+      delay: () => Promise.resolve(),
+      onUnit,
+    });
+
+    await extractor.extract(transcript);
+
+    // start(a1), error(a1), start(a2), done(a2) — one id across all four, minted
+    // before the retry loop, so a consumer correlates the unit's whole life.
+    expect(events.map((e) => [e.phase, e.attempt, e.id])).toEqual([
+      ["start", 1, events[0]!.id],
+      ["error", 1, events[0]!.id],
+      ["start", 2, events[0]!.id],
+      ["done", 2, events[0]!.id],
+    ]);
+  });
+
+  test("usage reaches done from the item's PhaseOutput, and is omitted when the output reported none", async () => {
+    const { events, onUnit } = collectEvents();
+    const withTokens = build({
+      id: "with-tokens",
+      plan: () => [1],
+      run: async () => ({
+        value: 1,
+        usage: { calls: 1, promptTokens: 120, completionTokens: 30 },
+      }),
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const withoutTokens = build({
+      id: "without-tokens",
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => draft,
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [withTokens, withoutTokens],
+      onUnit,
+    });
+
+    await extractor.extract(transcript);
+
+    const doneEvents = events.filter((e) => e.phase === "done");
+    expect(doneEvents.map((e) => e.usage)).toEqual([
+      { inputTokens: 120, outputTokens: 30 },
+      undefined,
+    ]);
+    // Omitted, not zeroed — the member is absent when nothing reported it.
+    expect("usage" in doneEvents[1]!).toBe(false);
+  });
+
+  test("token totals sum across phases, not just calls", async () => {
+    const a = build({
+      id: "a",
+      plan: () => [1],
+      run: async () => ({
+        value: 1,
+        usage: { calls: 1, promptTokens: 100, completionTokens: 10 },
+      }),
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const b = build({
+      id: "b",
+      plan: () => [1],
+      run: async () => ({
+        value: 1,
+        usage: { calls: 1, promptTokens: 50, completionTokens: 5 },
+      }),
+      merge: (draft) => draft,
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [a, b] });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.usage.calls).toBe(2);
+    expect(result.usage.promptTokens).toBe(150);
+    expect(result.usage.completionTokens).toBe(15);
+  });
+
+  test("a phase declaring produces whose merge does not write it throws at that boundary, naming phase and key", async () => {
+    let secondRan = false;
+    const liar = build({
+      id: "liar",
+      produces: ["roster"],
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => draft, // declares "roster", writes nothing
+    });
+    const second = build({
+      id: "second",
+      requires: ["roster"],
+      plan: () => [1],
+      run: async () => {
+        secondRan = true;
+        return { value: 1 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [liar, second] });
+
+    const rejection = await extractor.extract(transcript).catch((cause: unknown) => cause);
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toContain("liar");
+    expect((rejection as Error).message).toContain("roster");
+    // Thrown at THAT phase's boundary — the next phase never ran.
+    expect(secondRan).toBe(false);
+  });
+
+  test("a phase declaring produces and actually writing it passes the check", async () => {
+    const honest = build({
+      id: "honest",
+      produces: ["roster"],
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => ({ ...draft, notes: draft.notes.set(noteKey<unknown>("roster"), true) }),
+    });
+    const consumer = build({
+      id: "consumer",
+      requires: ["roster"],
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [honest, consumer] });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.fields.note?.value).toBe("done");
+  });
+});

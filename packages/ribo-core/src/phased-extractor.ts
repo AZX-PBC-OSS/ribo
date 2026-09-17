@@ -263,18 +263,26 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
             limit,
             async (item): Promise<Outcome<I, C>> => {
               // Mint one id per item, before any attempt — stable across the item's
-              // retries once they exist, so a consumer correlates start/done/error.
+              // retries, so a consumer correlates start/done/error without
+              // bookkeeping. Minting per attempt would satisfy every other
+              // assertion while breaking correlation for exactly the runs a
+              // consumer most wants to follow.
               const id = nextUnitId();
-              onUnit?.({
-                id,
-                unit: "phase",
-                phase: "start",
-                // No retries yet — the attempt is fixed at 1 until the retry task.
-                attempt: 1,
-                pass,
-                phaseId: def.id,
-                key: "",
-              });
+              // key and leaf come from the phase's describeItem — the scheduler has
+              // no other way to learn what an opaque item belongs to. Defaulting to
+              // key "" matches groupedExtractor's GroupMap convention for a
+              // whole-schema entry.
+              const described = def.describeItem?.(item) ?? { key: "" };
+              const unitKey = {
+                key: described.key,
+                ...(described.leaf !== undefined ? { leaf: described.leaf } : {}),
+              };
+              // The attempt that most recently BEGAN — 0 until onAttempt first
+              // fires, so the done event names the attempt that actually settled,
+              // and an attempt the pre-attempt abort check prevented emits
+              // nothing at all: announcing it would invent a retry that did not
+              // happen, and `attempt` is the only way a retry is observable.
+              let beganAttempt = 0;
               try {
                 // The item's retry loop is `retryAsync` — the policy extracted from
                 // `retryExtractor` in the retry task, composed here rather than
@@ -283,35 +291,74 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
                 // (mapWithPool's doc: the retry loops do not retry an aborted call).
                 // The budget is this phase's own derived share — a declared per-phase
                 // value is what was REQUESTED; the derivation is what fits.
-                const output = await retryAsync(() => def.run(item, draft, ctx), {
-                  maxRetries: shareBudget.derived,
-                  signal: effectiveSignal,
-                  delay,
-                  baseMs,
-                  capMs,
-                  random,
-                });
+                const output = await retryAsync(
+                  async (attempt) => {
+                    try {
+                      return await def.run(item, draft, ctx);
+                    } catch (cause) {
+                      // One error event per failed ATTEMPT, emitted where the
+                      // attempt's own failure is observed and its number is in
+                      // scope — a failure that a retry then recovers from is still
+                      // announced.
+                      onUnit?.({
+                        id,
+                        unit: "phase",
+                        phase: "error",
+                        attempt,
+                        pass,
+                        phaseId: def.id,
+                        ...unitKey,
+                        error: cause,
+                      });
+                      throw cause;
+                    }
+                  },
+                  {
+                    maxRetries: shareBudget.derived,
+                    signal: effectiveSignal,
+                    delay,
+                    baseMs,
+                    capMs,
+                    random,
+                    // One start event per item ATTEMPT, immediately before it runs —
+                    // the hook the retry task put on retryAsync for exactly this.
+                    onAttempt: (attempt) => {
+                      beganAttempt = attempt;
+                      onUnit?.({
+                        id,
+                        unit: "phase",
+                        phase: "start",
+                        attempt,
+                        pass,
+                        phaseId: def.id,
+                        ...unitKey,
+                      });
+                    },
+                  },
+                );
                 onUnit?.({
                   id,
                   unit: "phase",
                   phase: "done",
-                  attempt: 1,
+                  attempt: beganAttempt,
                   pass,
                   phaseId: def.id,
-                  key: "",
+                  ...unitKey,
+                  // Usage from the item's own PhaseOutput, omitted rather than
+                  // zeroed when it reported none — absent means "not reported",
+                  // and this repo keeps that distinction load-bearing.
+                  ...(output.usage?.promptTokens !== undefined &&
+                  output.usage?.completionTokens !== undefined
+                    ? {
+                        usage: {
+                          inputTokens: output.usage.promptTokens,
+                          outputTokens: output.usage.completionTokens,
+                        },
+                      }
+                    : {}),
                 });
                 return { outcome: "result", item, output };
               } catch (cause) {
-                onUnit?.({
-                  id,
-                  unit: "phase",
-                  phase: "error",
-                  attempt: 1,
-                  pass,
-                  phaseId: def.id,
-                  key: "",
-                  error: cause,
-                });
                 // Cancellation is the exception to every failure policy: a caller
                 // cancellation — signalled, or thrown as a branded error by the run
                 // itself — rejects the whole run, whatever this phase declared. A
@@ -338,7 +385,23 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
               addPhaseOutputUsage(acc, outcome.output.usage);
             }
           }
-          return def.merge(draft, outcomes);
+          const merged = def.merge(draft, outcomes);
+          // The runtime half of the construction-time check: every key the phase
+          // declared in `produces` must now be present in the merged draft's notes.
+          // A phase that declares a key and writes it only conditionally is a
+          // silent liar, and a roster-driven contribution is exactly that shape —
+          // this is what makes `requires`/`produces` an actual guarantee rather
+          // than a declaration.
+          for (const key of def.produces ?? []) {
+            if (!merged.notes.keys.includes(key)) {
+              throw new Error(
+                `phasedExtractor: phase "${def.id}" declared it produces note key ` +
+                  `"${key}", but its merge did not write it — a phase that declares a ` +
+                  `key and writes it only conditionally is a silent liar`,
+              );
+            }
+          }
+          return merged;
         });
       }
 
