@@ -268,10 +268,18 @@ shows is currently strategy-private and already broken in one place. The canonic
 `ctx.signal.aborted`, checked before an item is started and after an item fails. A transport that
 rejects with its own `aborted` error while the caller's signal has *not* fired is a transport bug —
 every implementation in the tree observes the signal on the way out — and core cannot see
-`ChatError`, which lives in `ribo-extractor-openai`. So core exports a `CancellationError` marker
-that transport errors of that kind carry, `isTransientFailure` returns false for it, and the design
-claims exactly that and no more. Wording matters here: the earlier draft promised core would honour
-"a transport's contractual aborted error," which core could not see.
+`ChatError`, which lives in `ribo-extractor-openai`. So core exports a `CANCELLATION` symbol brand
+that a transport error of that kind carries, plus `isCancellation`, and claims exactly that and no
+more. Wording matters here: the earlier draft promised core would honour "a transport's contractual
+aborted error," which core could not see.
+
+**`isTransientFailure` does not change, and an earlier draft of this section was wrong to say it
+should.** A cancellation stops the *in-run* retry loop immediately — retrying after the caller asked
+to stop is the bug. But the *step* stays retryable by the relay, which is a deliberate documented
+decision: `extraction-common.ts:246` ("`aborted` is deliberately left retryable") and
+`docs/guide/extraction.md:46` record that the abort is caller-initiated on a deadline, so a later
+attempt with a fresh one may well succeed. Two layers, two answers; `retryExtractor` consults
+`isCancellation` separately rather than reaching for the classifier that governs the other one.
 
 **On the constructor-not-flag rule.** The earlier draft defended `onItemFailure` against
 `race-extractor.ts`'s "concurrency is opt-in by name, not a boolean somebody can flip" and skipped
