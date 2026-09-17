@@ -105,6 +105,27 @@ different strategy might avoid, and falls through to the next candidate rather t
 same request shape. Both are true of the same error: nondeterministic enough to retry, specific
 enough to hand to a different strategy. That is why it is its own class, not a generic `Error`.
 
+## Within one strategy: phases, retries, timeouts
+
+Arbitration chooses **between** strategies — that is everything above. A multi-pass strategy also
+has an **inside**, and the inside is a composition now too: the successive passes are a list of
+phases over a shared draft, run by `phasedExtractor`. The split is exactly the two axes of this
+page's opening: arbitration picks one strategy from several; phases are the steps within one.
+[Extraction](/guide/extraction#phased-composition-a-multi-pass-strategy-is-a-list-of-phases) covers
+that layer; this page stays between strategies.
+
+Two wrappers landed alongside it and are independently useful over any `Extractor`:
+
+- **`retryExtractor(extractor, options)`** wraps one extractor with the attempt loop — transient
+  failures retried with full-jitter backoff, terminal errors and cancellations rethrown untouched.
+- **`timeoutExtractor(extractor, options)`** races one extractor against a deadline, with an
+  `AbortSignal` the inner extractor can honour. Its `ExtractionTimeoutError` is deliberately **not**
+  cancellation-branded — a deadline elapsing and a caller cancelling are different events, and the
+  missing brand is what makes `isTransientFailure` treat a timeout as transient, so an **outer**
+  `retryExtractor` retries it: a per-attempt deadline with retries around it, which is the
+  composition worth having. A cancellation-branded timeout would make that composition silently do
+  nothing.
+
 ## The transcriber siblings
 
 Transcription has the same composition problem, solved with a parallel vocabulary, not a shared
@@ -141,7 +162,8 @@ vocabulary (`UnsupportedItemError`, `TranscriberUnavailableError`) is not the ex
 
 ## Next
 
-[Extraction](/guide/extraction) covers the single-strategy seam these combinators compose.
+[Extraction](/guide/extraction) covers the single-strategy seam these combinators compose, and the
+phased composition inside one.
 [Schema at Scale](/guide/schema-at-scale) covers `instanceLadder`, the concrete `fallbackExtractor`
 ladder that turns a partitioned schema into real per-instance data. [Captures & Sources](/guide/captures-and-sources)
 covers `firstCapable`, `fallbackTranscriber`, and `hedged` from the transcription side, composing
