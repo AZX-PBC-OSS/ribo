@@ -37,11 +37,17 @@
 
 **Why `onAttempt` exists.** The engine must emit a `PhaseUnit` `start` event per attempt, and the attempt number is the only way a retry is observable at all. Without this hook the engine would have to own the loop to own the events, which is the duplication this task removes.
 
-**The policy, unchanged from `retryExtractor`.** Before each attempt: if the signal has already aborted, throw a `CancellationError` without starting or counting the attempt. After a failure: rethrow a `TerminalQueueError` untouched; rethrow a cancellation untouched; rethrow anything `isTransientFailure` rejects; otherwise retry until `maxRetries` is exhausted, then rethrow the last error.
+**The policy, ported verbatim — including the part that is easy to paraphrase wrongly.** Before each attempt, if the signal has already aborted: **rethrow the previous attempt's error when there is one and it is an `Error`, and only otherwise throw a fresh `CancellationError`.** Do not simplify this to "throw a `CancellationError`". The two diverge in exactly one case — a transient failure followed by a caller abort during the backoff sleep — where today the caller receives the original failure (the 503 that actually happened) and the paraphrase would hand them a cancellation instead. Both stay relay-retryable, so the relay cannot tell the difference and neither can any existing test: `retry-extractor.test.ts` has no abort-during-backoff case, so this wave's "the suite passes unmodified" gate would hold while the behaviour changed underneath it. Port `retry-extractor.ts`'s pre-attempt block line for line.
+
+After a failure: rethrow a `TerminalQueueError` untouched; rethrow a cancellation untouched; rethrow anything `isTransientFailure` rejects; otherwise retry until `maxRetries` is exhausted, then rethrow the last error.
+
+**`onAttempt`'s argument is 1-based.** `extraction-observer.ts` documents `attempt` as "1 on the first try", and the engine forwards this number straight onto the event, so a 0-based index would violate the observability contract silently.
 
 - [ ] **Step 1: Write the failing tests**
 
-  Port the behavioural assertions from `retry-extractor.test.ts` down to this level, driving a scripted `work` function rather than an extractor: first-attempt success calls once; transient-then-success calls twice and returns the second value; exhaustion rethrows the **last** error; `TerminalQueueError`, a cancellation, and a 400-status error each rethrow after one call; a `SchemaParseError` is retried; `delay` is called once per retry and never before the first attempt; an already-aborted signal throws `CancellationError` with zero calls; and `onAttempt` fires once per started attempt with the attempt index, and **not** for an attempt the pre-attempt abort check prevented.
+  Port the behavioural assertions from `retry-extractor.test.ts` down to this level, driving a scripted `work` function rather than an extractor: first-attempt success calls once; transient-then-success calls twice and returns the second value; exhaustion rethrows the **last** error; `TerminalQueueError`, a cancellation, and a 400-status error each rethrow after one call; a `SchemaParseError` is retried; `delay` is called once per retry and never before the first attempt; an already-aborted signal throws `CancellationError` with zero calls; `onAttempt` fires once per started attempt, receiving **1** for the first, and **not** for an attempt the pre-attempt abort check prevented.
+
+  **Add the case the existing suite is missing**, which is the whole reason this extraction is risky: a transient failure, then the signal aborts during the backoff, then the loop reaches its pre-attempt check. The original 503 must surface — not a `CancellationError`. This test pins the divergence described above; without it, the extraction's own gate is blind to the one behaviour most likely to be paraphrased away.
 
 - [ ] **Step 2: Run to verify they fail** — Expected: FAIL, module does not exist.
 
@@ -74,6 +80,12 @@
 **This task deliberately omits retry, the deadline and the failure policy.** They land in Tasks 3 and 4. Build the spine first: validate at construction, run phases in order, fan each phase's items out through `mapWithPool`, thread the draft through `merge`, then normalize once and parse once.
 
 **Shape notes.** Call `validatePhases` at construction, before returning the extractor — a mis-wired list must fail before any call. Each phase's work happens inside one `phase.with(def => …)` callback (the Rank-2 constraint). `plan` is synchronous; call it with the draft as the previous `merge` returned it. Fan out with `mapWithPool(items, limit, fn, abort)`, where `limit` is the phase's `concurrency` or the run default. Build a `PhaseItemOutcome` per item and hand the whole batch to `merge`.
+
+**The signal each `run` receives is the caller's combined with the pool's**, never one or the other: `effectiveSignal = callerSignal ? AbortSignal.any([callerSignal, abort.signal]) : abort.signal`, threaded onto `PhaseContext.signal`. `grouped-extractor.ts` does exactly this and documents the trap. It matters because both halves are load-bearing and each hides the other's absence: with only the caller's signal, a sibling abort is invisible to an in-flight `run`, so Task 3's sibling test cannot pass; with only the pool's, a caller cancelling mid-phase never reaches the `run`s, and **Task 3's sibling test still passes** — which is why this is specified here rather than left to be inferred from a test.
+
+**Per-phase event emission starts here, not in Task 5.** The spine emits a `PhaseUnit` `start` and a `done`/`error` per item, with `phaseId` from the phase's metadata, `pass` from its position, `id` from `nextUnitId()`, and `attempt` fixed at 1 (there are no retries yet). Task 5 refines the rest. Without this, Task 2's "a phase with an empty plan emits no event" assertion passes against an engine that emits nothing at all, and the `ExtractionObserver<PhaseUnit>` option this task declares would be dead until Task 5.
+
+**Defaults, all matching `groupedExtractor`:** `concurrency` 4, `maxRetries` 2, `stepTimeoutMs` 900_000, `perCallCeilingMs` from `PER_CALL_CEILING_MS`. Add `now?: () => number` defaulting to `Date.now`, matching `compositeExtractor` and `hedged` — Task 4's tests need a clock seam and there is otherwise nothing to inject.
 
 **The closing sequence, in this order:** run `normalize` on the merged fields if supplied, then parse against `target.extractionSchema` (the trust boundary), then assemble the `ExtractionResult` — `fields` from the parse, `usage` summed from every `PhaseOutput`, `raw` from the draft if present, and `statedEmptyGroups` **omitted entirely when empty** rather than emitted as `{}`, because `extractor.ts` documents its absence as meaning "this extractor ran no roster pass".
 
@@ -137,6 +149,10 @@
 
 **A deadline-caused zero is not a configuration error.** Today `derived === 0` with `requested > 0` means the caller asked for retries that cannot fit any run of this shape, which is why `requireRetryBudget` throws `TerminalQueueError` and kills the session. Under a running deadline the same zero can come from elapsed wall-clock at a late phase boundary, which is transient. Distinguish them: a budget that would be zero against the **full** step timeout is the configuration error and still throws; a budget zero only against the **remaining** time runs with no retries and reports it. Conflating them kills sessions on a timing blip.
 
+**How to compute it.** `deriveRetryBudget` is pure and takes `stepTimeoutMs` as a parameter, so derive **twice** at each boundary with identical `requested`, `batches`, ceiling and backoff — once against the phase's share, once against the full step timeout. The effective deadline is `Math.min`'d, so the share never exceeds the full budget and the two derivations cannot disagree in the other direction.
+
+Both derivations use **this phase's own item count** for `batches`. That means the configuration error surfaces **mid-run**, at the boundary of whichever phase is too expensive, rather than at construction as `groupedExtractor`'s equivalent does. That is inherent — item counts do not exist until `plan` runs — but it should be stated rather than discovered, and the throw test should use a **single-phase** list so the pin is about the rule and not about which phase happened to trip it. `TerminalQueueError` is the right type here, matching `instance-fill.ts`'s extract-time precedent rather than `groupedExtractor`'s construction-time plain `Error`.
+
 - [ ] **Step 1: Write the failing tests**
 
   With an injected clock: each phase's derived budget is computed from the time remaining at its own boundary, not at construction — a run whose first phase consumes most of the deadline yields a smaller budget for the second, and the emitted events show it; `onRetryBudget` fires only for phases whose budget was reduced; an inherited `options.deadline` earlier than `now + stepTimeoutMs` wins; each item's `run` receives the effective deadline in its context; a budget that is zero against the full step timeout throws `TerminalQueueError` when `requireRetryBudget` is set, and a budget zero only against the remaining time does **not** throw.
@@ -165,7 +181,13 @@
 
 - [ ] **Step 1: Write the failing tests**
 
-  Events carry `phaseId` and the positional `pass`; a four-phase list reports `pass: 3`, which was impossible before Wave 2 widened the type; `attempt` increments per engine retry and does not move for calls a `run` makes internally (drive a `run` that calls a fake twice); `key` and `leaf` come from `describeItem`, and default to `""` when the phase declares none; an aborted sibling emits no `start` event for an attempt that never began; and a phase declaring `produces: ["roster"]` whose `merge` does not write it throws at that phase's boundary, naming both.
+  Events carry `phaseId` and the positional `pass`; a four-phase list reports `pass: 3`, which was impossible before Wave 2 widened the type; `attempt` is **1** on an item's first try and increments per engine retry, and does not move for calls a `run` makes internally (drive a `run` that calls a fake twice); `key` and `leaf` come from `describeItem`, and default to `""` when the phase declares none; an aborted sibling emits no `start` event for an attempt that never began; and a phase declaring `produces: ["roster"]` whose `merge` does not write it throws at that phase's boundary, naming both.
+
+  Three more, each pinning something the prose asserts and the obvious test set misses:
+
+  - **`id` is stable across a retried item's attempts.** `extraction-observer.ts` documents `id` as the thing correlating a `start` with its `done`, and `grouped-extractor.ts` mints it once per entry _before_ the retry loop. Minting per attempt satisfies every other assertion here while breaking correlation for exactly the runs a consumer most wants to follow.
+  - **`usage` reaches `done` from the item's `PhaseOutput`**, mapped to `PhaseUnit.usage`'s `{ inputTokens, outputTokens }`, and is **omitted** when the output reported none — matching how `grouped-extractor.ts` handles an unreported usage rather than emitting zeroes, which would be a claim the phase never made.
+  - **Token totals sum, not just `calls`.** `ExtractionUsage`'s optional token members are summed across phases the same way `grouped-extractor.ts` sums them across entries; a run whose phases report prompt and completion tokens reports their totals.
 
 - [ ] **Step 2: Run to verify they fail**
 
@@ -206,3 +228,37 @@
 ## Notes for the reviewer
 
 Three things most worth adversarial attention. First, Task 1: whether `retryAsync` genuinely preserves `retryExtractor`'s behaviour, given its suite must pass unmodified — and whether `onAttempt` fires in exactly the places the engine needs to emit honest events. Second, Task 4's two-kinds-of-zero rule: whether the distinction between a configuration zero and a deadline zero is computable at the phase boundary with the information the engine actually has. Third, Task 3's skip policy: whether catching inside the pool's worker genuinely leaves `mapWithPool`'s sibling-abort behaviour intact for the abort-policy phases in the same run.
+
+## Reviewed
+
+Reviewed by OpenCode (`glm-5p3-flash`, run c949) before implementation. All findings applied.
+
+The one that would have shipped a silent behaviour change: this plan originally paraphrased the
+pre-attempt abort as "throw a `CancellationError`", where `retryExtractor` actually rethrows the
+previous attempt's error when there is one. They diverge on abort-during-backoff — today the caller
+sees the 503 that really happened — and `retry-extractor.test.ts` has no case for it, so Task 1's
+"the suite passes unmodified" gate would have held while the behaviour changed underneath it. The
+policy is now specified verbatim and the missing case is a required test.
+
+Two specification holes where a test could pass for the wrong reason. The signal handed to each
+`run` must be the caller's combined with the pool's controller, and Task 3's sibling-abort test
+passes under a pool-only implementation that has silently disabled caller cancellation — so the
+combination is specified in Task 2 rather than inferred. And Task 2's "an empty plan emits no
+event" assertion passed against an engine emitting nothing at all, because event emission was only
+described in Task 5; the spine now emits trivially and Task 5 refines.
+
+Task 5 gained three pins the prose asserted and no test covered: `id` stability across a retried
+item's attempts (a per-attempt mint satisfies everything else while breaking the one thing `id` is
+for), the 1-based attempt contract, and usage reaching `done` with the omit-when-unreported rule
+plus token-total summing.
+
+Task 4's two-kinds-of-zero rule was confirmed computable — `deriveRetryBudget` is pure and takes the
+timeout as a parameter, so the engine derives twice per boundary — with two gaps now closed: both
+derivations use the phase's own item count, so the configuration error surfaces mid-run rather than
+at construction, and the options bag gains the `now` seam the tests assumed.
+
+The review independently confirmed the Rank-2 constraint is satisfiable (`with` admits an async
+callback, and `def` extends `PhaseMeta` so `produces` and `describeItem` are in scope inside it),
+and that the skip policy leaves `mapWithPool`'s sibling-abort intact — each phase is a separate pool
+invocation with its own controller, so a skip phase never engages the abort path an abort phase in
+the same run depends on.
