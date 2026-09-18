@@ -32,7 +32,10 @@ import {
   splitOnBudget,
   isExtractedLeaf,
 } from "../../packages/ribo-core/dist/index.js";
-import { helixChat, singleShotExtractor } from "../../packages/ribo-extractor-openai/dist/index.js";
+import {
+  openAiChat,
+  singleShotExtractor,
+} from "../../packages/ribo-extractor-openai/dist/index.js";
 import { enveloped } from "../../packages/ribo-core/dist/index.js";
 import {
   snuggValuesSchema,
@@ -56,21 +59,39 @@ const env = Object.fromEntries(
     }),
 );
 
-// The Helix dev gateway, the same route `spikes/managed-three-phase` uses. The
-// Azure OpenAI endpoint in .env.local authenticates but has no chat deployment
-// on it, so this is the only working extraction transport here.
-const chat = helixChat({
-  token: env.HELIX_DEV_TOKEN,
-  baseUrl: env.HELIX_BASE_URL ?? "https://dev-api.azx.helix.azxlabs.io/ribo-docs",
-  origin: env.HELIX_ORIGIN ?? "http://localhost:5173",
+// The platform's OPENAI-COMPATIBLE surface (`/_api/openai/v1`), not the
+// provider-neutral `/_api/llm/chat` route. Both exist; only this one works here,
+// which `franklin-field-app` demonstrates and which cost an afternoon to find.
+//
+// `openAiChat` has no `origin` option — `helixChat` does — and the dev gateway
+// requires an origin registered against the token, so a fetch wrapper adds it.
+//
+// The model list is the gateway's own: `GET /_api/openai/v1/models` is the only
+// introspection this surface offers (no capabilities/manifest endpoint exists),
+// and the names are platform-specific — no `gpt-4o`/`gpt-4.1` here. The Claude
+// models are ALLOWED but their upstream rejects every request on this tenant,
+// including a bare chat with no schema, so the gpt-5.6 family is the working set.
+const withOrigin = (url, init = {}) =>
+  fetch(url, {
+    ...init,
+    headers: {
+      ...init.headers,
+      accept: "application/json",
+      origin: env.HELIX_ORIGIN ?? "http://localhost:5173",
+    },
+  });
+
+const chat = openAiChat({
+  apiKey: env.HELIX_DEV_TOKEN,
+  baseUrl: env.HELIX_BASE_URL ?? "https://dev-api.azx.helix.azxlabs.io/ribo-docs/_api/openai/v1",
+  fetchImpl: withOrigin,
 });
 
 // ONE group, not the whole adapter. The full extraction schema serialises to
 // ~303KB — nearly 10x the repo's own SCHEMA_SERIALIZED_CHAR_CAP (32_768) — and
-// the gateway rejects it outright, which is exactly why per-group extraction
-// exists. `hvac` is the right single group here: it is a COLLECTION, so it
-// exercises the cross-chunk instance question that motivated the design, which
-// a singleton group would not.
+// the gateway rejects it outright, which is why per-group extraction exists.
+// `hvac` is the right single group here: it is a COLLECTION, so it exercises the
+// cross-chunk instance question that motivated the design.
 const GROUP = process.env.SPIKE_GROUP ?? "hvac";
 const groupSchema = z.object({ [GROUP]: snuggValuesSchema.shape[GROUP] }).strict();
 
@@ -88,7 +109,7 @@ if (schemaBytes > 32_768) {
   throw new Error(`over SCHEMA_SERIALIZED_CHAR_CAP (32768)`);
 }
 
-const MODEL = env.SPIKE_MODEL ?? "claude-haiku-4-5";
+const MODEL = env.SPIKE_MODEL ?? "gpt-5.6-luna";
 const single = singleShotExtractor({ target, chat, model: MODEL });
 const chunked = chunkedExtractor(single, { target, chunk: splitOnBudget(MAX_CHARS) });
 
