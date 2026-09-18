@@ -228,7 +228,7 @@ the whole combinator cheap: a span a model quotes from a chunk is a verbatim quo
 whole transcript, so `isSpanGrounded` keeps working with no span rewriting and no offset
 arithmetic (F7's honest half — grounding is verbatim presence; which occurrence a repeated
 span came from is not claimed). It is also what makes the stated-empty rule honest: "every
-chunk said none" is only a claim about the document if the chunks *are* the document.
+chunk said none" is only a claim about the document if the chunks _are_ the document.
 
 **The partition check is the load-bearing part, not the splitter** (F6). An earlier draft
 verified chunks with a per-chunk `text.includes(chunk)` — a membership test that says nothing
@@ -277,7 +277,7 @@ rooms, in document order. Optional cross-chunk instance alignment (`alignInstanc
 `InstanceMatcher` vocabulary instance identity landed: an incoming instance is compared
 against instances accepted from **earlier chunks only** and merges into the first the matcher
 calls `"same"`, which keeps its position; `"different"` and `"unknown"` both append; instances
-from the *same* chunk are never compared — the model saw both in one region and distinguished
+from the _same_ chunk are never compared — the model saw both in one region and distinguished
 them. Greedy, not transitive clustering: one wrong `"same"` under union-find collapses three
 instances and makes the outcome depend on comparison order, while greedy's worst case is a
 duplicate review can see and remove. **No shipped matcher can exercise the align path, and
@@ -295,7 +295,7 @@ as `consensusExtractor`. Token members sum only across chunks that reported them
 omitted entirely if any chunk omitted one, per ADR 0005's absent-is-not-zero discipline. `raw`
 is dropped: it describes one producer's run, and here there are N. `statedEmptyGroups` is
 merged by two rules, in order: a group **any** chunk populated loses the claim entirely
-("there are none of these" meant none *in that region*); otherwise the **earliest** chunk's
+("there are none of these" meant none _in that region_); otherwise the **earliest** chunk's
 stated span is kept — not unanimity, which would lose a true claim the moment one chunk is a
 single-shot extractor emitting no roster at all.
 
@@ -304,7 +304,7 @@ single-shot extractor emitting no roster at all.
 three samples of the same thing, so two are still evidence. Chunks are **disjoint**: a failed
 chunk means a region of the document was never read, and returning a result that silently
 omits whatever was in it is the worst available outcome. The rejection propagates the inner
-error **unchanged — not wrapped** (F9): ADR 0002 classifies by *who failed*, and the inner
+error **unchanged — not wrapped** (F9): ADR 0002 classifies by _who failed_, and the inner
 error already encodes that. A `ChunkFailedError` wrapper would erase the classification every
 `isTransientFailure` and `TerminalError` check downstream depends on, and turn a terminal
 failure into a relay retry loop. The cost — the error does not say which chunk failed — is
