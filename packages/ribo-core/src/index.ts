@@ -325,6 +325,7 @@ export * from "./storage/index.js";
 // field shapes (the writable patch and the derived extraction schema) and the
 // per-attempt write metadata that carries the idempotency key.
 export type {
+  IdentifyingFields,
   RequiredOnCreate,
   ToolAdapter,
   ToolAdapterExample,

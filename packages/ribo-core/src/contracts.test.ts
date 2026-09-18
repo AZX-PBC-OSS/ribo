@@ -13,6 +13,7 @@ import {
 } from "./index.js";
 import type {
   FieldDecisions,
+  IdentifyingFields,
   IdentifyingFieldsMap,
   InstanceEvidence,
   InstanceFacts,
@@ -348,4 +349,20 @@ test("the sameness vocabulary is public through the barrel and composes as typed
 
   // Two identical leaves never satisfy the matcher — it refuses to say "same".
   expect(verdict).toBe("unknown");
+});
+
+test("`IdentifyingFields` is public through the barrel and typed per group", () => {
+  // The adapter-declaration twin of the map above, pinned through the same entry
+  // point: a group declares the leaves that identify its instances, and the typed
+  // form must resolve through the barrel for an adapter author. The nested group's
+  // leaves are the declaration's real case; a flat leaf names itself.
+  const identifying: IdentifyingFields<AtticValues> = {
+    healthSafety: ["ambientCo", "gasLeak"],
+    notes: ["notes"],
+  };
+
+  // Structurally the widened map the matcher consumes — the seam a host's
+  // declaration crosses at composition time, with no import between the two forms.
+  const map: IdentifyingFieldsMap = identifying;
+  expect(Object.keys(map)).toEqual(["healthSafety", "notes"]);
 });

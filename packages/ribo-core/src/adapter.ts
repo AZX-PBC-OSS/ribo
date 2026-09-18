@@ -36,6 +36,25 @@ type GroupLeafKey<G, K extends string> = G extends readonly (infer E)[]
 export type RequiredOnCreateMap = Readonly<Record<string, readonly string[]>>;
 
 /**
+ * Identifying-fields declarations per group, typed against the adapter's value schema
+ * so a typo in a group or leaf name is a compile error — the same shape, and the same
+ * reason, as {@link RequiredOnCreate} beside which it lives: tool-specific knowledge,
+ * declared per group, consumed generically. Per group rather than per instance path
+ * for the reason that one gives — a collection group has N instances, the same leaves
+ * identify every one, and full paths need instance keys that only exist after
+ * extraction.
+ *
+ * The **typed** form lives here because it is what an adapter *declares*; the **widened**
+ * `IdentifyingFieldsMap` lives in `instance-identity.ts` because it is what the matcher
+ * *consumes* and that file is the declared home for identity vocabulary. No import is
+ * needed between them — structural assignability carries it, the same move
+ * {@link RequiredOnCreate} → {@link RequiredOnCreateMap} makes in `review.ts`.
+ */
+export type IdentifyingFields<V extends Record<string, unknown>> = Readonly<{
+  [K in keyof V & string]?: readonly GroupLeafKey<V[K], K>[];
+}>;
+
+/**
  * An object schema that is both **walkable** and **binding**: it has a `shape`, so
  * `enveloped()` and `buildReviewRequest` can enumerate its leaves, and it parses to
  * exactly `V`, so the adapter's field type is still checked at the boundary.
@@ -248,6 +267,24 @@ export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvena
    * as review builds the request.
    */
   readonly requiredOnCreate?: RequiredOnCreate<V>;
+  /**
+   * Leaf names, grouped by collection group, that can make two descriptions certainly
+   * *different* real-world things: the fields an instance of that group is identified
+   * by well enough for a sameness judgement.
+   *
+   * Exactly the {@link RequiredOnCreate} precedent, and per group for the same reason
+   * (see {@link IdentifyingFields}). Consumed through core's `contradictionMatcher` —
+   * which vetoes on a committed disagreement and refuses to judge otherwise. It NEVER
+   * merges on agreement: what makes two descriptions *the same* thing is host
+   * judgement, because agreement is not identity (two identical furnaces in one house
+   * agree on every field declared here and are two records). A wrong create is visible
+   * at review and removable; a wrong merge is invisible and permanent.
+   *
+   * The same parallel-declaration caveat as `requiredOnCreate` applies, and the same
+   * drift guard answers it: pin every named group and leaf against the schema in a
+   * test, so a rename fails loudly instead of silently identifying nothing.
+   */
+  readonly identifyingFields?: IdentifyingFields<V>;
   readonly instructions: string;
   /** Optional few-shot examples, in the enveloped shape the model emits. */
   readonly examples?: readonly ToolAdapterExample<Enveloped<V, P>>[];

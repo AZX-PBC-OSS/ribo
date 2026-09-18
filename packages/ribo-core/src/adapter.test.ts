@@ -1,7 +1,13 @@
-import { expect, test } from "vitest";
+import { expect, expectTypeOf, test } from "vitest";
 import { z } from "zod";
 import { enveloped } from "./enveloped.js";
-import type { ToolAdapter, ToolAdapterExample, ValuesSchema, WriteMetadata } from "./adapter.js";
+import type {
+  IdentifyingFields,
+  ToolAdapter,
+  ToolAdapterExample,
+  ValuesSchema,
+  WriteMetadata,
+} from "./adapter.js";
 
 // The fields one adapter writes, and the host context it needs to write them.
 // `atticSchema` is the PATCH — the source of truth for `V` — and the extraction
@@ -383,4 +389,35 @@ test("an adapter declared for one context is not assignable to another", () => {
   const misdeclared: ToolAdapter<AtticFields, OtherContext> = makeAdapter([]);
 
   expect(misdeclared.name).toBe("attic-insulation");
+});
+
+// --- Identifying fields -----------------------------------------------------
+// Host knowledge of which leaves can make two descriptions certainly different —
+// declared per group, typed against the values schema exactly like
+// `requiredOnCreate`. The runtime consumer is `contradictionMatcher`; these pins
+// are the declaration side.
+
+test("`identifyingFields` accepts a valid per-group declaration", () => {
+  // `atticSchema` is flat, so a top-level leaf's group-leaf key is the group key
+  // itself — the same name the runtime matches against.
+  const adapter: ToolAdapter<AtticFields, JobContext> = {
+    ...makeAdapter([]),
+    identifyingFields: { rValue: ["rValue"] },
+  };
+
+  expect(adapter.identifyingFields).toEqual({ rValue: ["rValue"] });
+});
+
+test("`identifyingFields` is typed against the values schema — a misspelled leaf does not compile", () => {
+  expectTypeOf({ rValue: ["rValue"] } as const).toMatchTypeOf<IdentifyingFields<AtticFields>>();
+
+  // @ts-expect-error - "notAGroup" is not a top-level key of the values schema.
+  const _badGroup: IdentifyingFields<AtticFields> = { notAGroup: ["rValue"] };
+
+  // @ts-expect-error - "notRValue" is not a leaf of the rValue group.
+  const _badLeaf: IdentifyingFields<AtticFields> = { rValue: ["notRValue"] };
+
+  // Satisfy the no-unused-vars rule for the intentionally failing declarations.
+  void _badGroup;
+  void _badLeaf;
 });

@@ -8,8 +8,16 @@
  */
 
 // The adapter: both field schemas + the ctx schema + instructions + examples +
-// write, as a `ToolAdapter`.
-export { SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
+// write, as a `ToolAdapter`. `rankCandidates` and `HVAC_IDENTIFYING_FIELDS` are
+// public too — the R1.6 Task 11 changeset states this package provides
+// `rankCandidates`, and a consumer ranking existing records for a dictated
+// instance needs both through the barrel, not by reaching into the module.
+export {
+  HVAC_IDENTIFYING_FIELDS,
+  SNUGGPRO_ADAPTER_NAME,
+  rankCandidates,
+  snuggProAdapter,
+} from "./adapter.js";
 
 // The two field schemas, the per-endpoint groups they nest, and the enums
 // they are built from. `snuggValuesSchema` is the hand-written writable patch and

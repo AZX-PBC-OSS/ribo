@@ -55,4 +55,10 @@ test("re-exports the adapter, both schemas, the ctx schema, instructions, exampl
   // cap test and any consumer can guard against the vendor's HTTP 400.
   expect(api.SCHEMA_SERIALIZED_CHAR_CAP).toBe(32_768);
   expect(api.SCHEMA_NESTING_DEPTH_CAP).toBe(12);
+  // The candidate-ranking pass is public: a consumer ranking existing records for a
+  // dictated instance calls it through the barrel, not by reaching into the module.
+  expect(typeof api.rankCandidates).toBe("function");
+  // And the identifying fields with it, as data — the declaration a host without the
+  // adapter object still needs to name the same fields the ranking vetoes on.
+  expect(api.HVAC_IDENTIFYING_FIELDS).toContain("hvacSystemEquipmentType");
 });
