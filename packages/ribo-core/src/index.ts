@@ -589,3 +589,14 @@ export type { PhasedExtractorOptions } from "./phased-extractor.js";
 // lets through.
 export { assertExactPartition, splitOnBudget } from "./chunk-policy.js";
 export type { ChunkPolicy } from "./chunk-policy.js";
+
+// The chunk merge: which chunk's envelope wins for a scalar leaf (an INDEX into the
+// samples, per ADR 0001 — a policy that cannot construct an envelope cannot fabricate
+// a value, a confidence or a citation), and the walk that puts the chunks back
+// together. Collections concatenate — never pair by index — because chunks read
+// disjoint regions; the optional `InstanceMatcher` is host knowledge, and no shipped
+// matcher merges anything.
+export { firstCommitted, lastCommitted } from "./merge-policy.js";
+export type { MergePolicy } from "./merge-policy.js";
+export { mergeChunkResults } from "./merge-chunk-results.js";
+export type { MergeChunkOptions } from "./merge-chunk-results.js";

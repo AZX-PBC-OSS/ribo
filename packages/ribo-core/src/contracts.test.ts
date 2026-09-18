@@ -9,6 +9,8 @@ import {
   extractedSchema,
   FakeTranscriber,
   firstCapable,
+  firstCommitted,
+  mergeChunkResults,
   recordingSchema,
   resolveReview,
   splitOnBudget,
@@ -23,6 +25,7 @@ import type {
   InstanceFacts,
   InstanceMatcher,
   InstanceSameness,
+  MergePolicy,
   Recording,
   ReviewRequest,
   ToolAdapter,
@@ -389,4 +392,34 @@ test("the chunking vocabulary is public through the barrel and composes as typed
   // `chunkedExtractor` enforces on every caller-supplied policy.
   expect(() => assertExactPartition(transcript.text, chunks)).not.toThrow();
   expect(chunks).toEqual([transcript.text]);
+});
+
+test("the chunk merge vocabulary is public through the barrel and composes as typed", () => {
+  const policy: MergePolicy = firstCommitted;
+  const merged = mergeChunkResults<AtticValues>([
+    atticExtractionSchema.parse({
+      rValue: { value: 19, confidence: 1, sourceSpan: "The attic is R-19" },
+      area: { value: null, confidence: 1, sourceSpan: null },
+      notes: { value: null, confidence: 1, sourceSpan: null },
+      healthSafety: {
+        ambientCo: { value: "passed", confidence: 1, sourceSpan: "ambient CO came back clean" },
+        gasLeak: { value: null, confidence: 1, sourceSpan: null },
+      },
+    }),
+    atticExtractionSchema.parse({
+      rValue: { value: null, confidence: 1, sourceSpan: null },
+      area: { value: 400, confidence: 1, sourceSpan: "about four hundred square feet" },
+      notes: { value: null, confidence: 1, sourceSpan: null },
+      healthSafety: {
+        ambientCo: { value: "passed", confidence: 1, sourceSpan: "ambient CO came back clean" },
+        gasLeak: { value: null, confidence: 1, sourceSpan: null },
+      },
+    }),
+  ]);
+
+  // The policy named chunk 0's committed envelope; chunk 0's abstention on `area` took
+  // chunk 1's committed one.
+  expect(merged.rValue.value).toBe(19);
+  expect(merged.area.value).toBe(400);
+  expect(policy).toBe(firstCommitted);
 });
