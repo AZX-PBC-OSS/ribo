@@ -2,27 +2,19 @@ import { expect, test } from "vitest";
 import { z } from "zod";
 
 import {
-  assertExactPartition,
   buildReviewRequest,
-  chunkedExtractor,
   contradictionMatcher,
   enveloped,
   extractedSchema,
   FakeExtractor,
   FakeTranscriber,
   firstCapable,
-  firstCommitted,
   hedgedExtractor,
-  mergeChunkResults,
   recordingSchema,
   resolveReview,
-  splitOnBudget,
 } from "./index.js";
 import type {
-  AnnotatedTranscript,
-  ChunkPolicy,
   ExtractionHedgeEvent,
-  ExtractionTarget,
   Extractor,
   FieldDecisions,
   HedgeDelay,
@@ -33,7 +25,6 @@ import type {
   InstanceFacts,
   InstanceMatcher,
   InstanceSameness,
-  MergePolicy,
   Recording,
   ReviewRequest,
   ToolAdapter,
@@ -382,56 +373,6 @@ test("`IdentifyingFields` is public through the barrel and typed per group", () 
   expect(Object.keys(map)).toEqual(["healthSafety", "notes"]);
 });
 
-// --- The chunking vocabulary -------------------------------------------------
-//
-// The same kind of type-level pin as the sameness block above: the names are public
-// and must resolve through the barrel with this shape. Runtime behaviour is
-// `chunk-policy.test.ts`'s.
-
-test("the chunking vocabulary is public through the barrel and composes as typed", () => {
-  const policy: ChunkPolicy = splitOnBudget(2_000);
-  const transcript: AnnotatedTranscript = {
-    text: "The attic is R-19.\n\nThe furnace is gas.",
-    annotations: {},
-  };
-
-  const chunks = policy(transcript);
-  // The shipped splitter's output satisfies the check by construction — the invariant
-  // `chunkedExtractor` enforces on every caller-supplied policy.
-  expect(() => assertExactPartition(transcript.text, chunks)).not.toThrow();
-  expect(chunks).toEqual([transcript.text]);
-});
-
-test("the chunk merge vocabulary is public through the barrel and composes as typed", () => {
-  const policy: MergePolicy = firstCommitted;
-  const merged = mergeChunkResults<AtticValues>([
-    atticExtractionSchema.parse({
-      rValue: { value: 19, confidence: 1, sourceSpan: "The attic is R-19" },
-      area: { value: null, confidence: 1, sourceSpan: null },
-      notes: { value: null, confidence: 1, sourceSpan: null },
-      healthSafety: {
-        ambientCo: { value: "passed", confidence: 1, sourceSpan: "ambient CO came back clean" },
-        gasLeak: { value: null, confidence: 1, sourceSpan: null },
-      },
-    }),
-    atticExtractionSchema.parse({
-      rValue: { value: null, confidence: 1, sourceSpan: null },
-      area: { value: 400, confidence: 1, sourceSpan: "about four hundred square feet" },
-      notes: { value: null, confidence: 1, sourceSpan: null },
-      healthSafety: {
-        ambientCo: { value: "passed", confidence: 1, sourceSpan: "ambient CO came back clean" },
-        gasLeak: { value: null, confidence: 1, sourceSpan: null },
-      },
-    }),
-  ]);
-
-  // The policy named chunk 0's committed envelope; chunk 0's abstention on `area` took
-  // chunk 1's committed one.
-  expect(merged.rValue.value).toBe(19);
-  expect(merged.area.value).toBe(400);
-  expect(policy).toBe(firstCommitted);
-});
-
 test("the hedged extractor vocabulary is public through the barrel and composes as typed", async () => {
   const events: ExtractionHedgeEvent[] = [];
   const delay: HedgeDelay = (transcript) => transcript.text.length;
@@ -449,41 +390,4 @@ test("the hedged extractor vocabulary is public through the barrel and composes 
   expect(result.fields.rValue).toBe(19);
   expect(inner.calls).toHaveLength(1);
   expect(events).toHaveLength(0);
-});
-
-test("chunkedExtractor is public through the barrel and composes as typed", async () => {
-  // End to end through the public entry point, with the derived extraction schema the
-  // adapter carries: two chunks partitioning the text, the inner extractor seeing each
-  // one, the merge concatenating the collection. The wall-clock composition check the
-  // unit tests do not do — this is the wiring a host performs.
-  const policy: ChunkPolicy = (t) => [t.text.slice(0, 32), t.text.slice(32)];
-  const inner = new FakeExtractor<z.infer<typeof atticExtractionSchema>>(
-    atticExtractionSchema.parse({
-      rValue: { value: 19, confidence: 1, sourceSpan: "The attic is R-19" },
-      area: { value: null, confidence: 1, sourceSpan: null },
-      notes: { value: null, confidence: 1, sourceSpan: null },
-      healthSafety: {
-        ambientCo: { value: "passed", confidence: 1, sourceSpan: "ambient CO came back clean" },
-        gasLeak: { value: null, confidence: 1, sourceSpan: null },
-      },
-    }),
-  );
-  // The target is a type-ANNOTATED const, so `V` anchors on it — inference from an
-  // inner carrying an already-enveloped shape would otherwise produce a double
-  // envelope.
-  const atticChunkTarget: ExtractionTarget<AtticValues> = {
-    name: "attic",
-    extractionSchema: atticExtractionSchema,
-    instructions: "extract the attic fields",
-  };
-  const chunked = chunkedExtractor(inner, { target: atticChunkTarget, chunk: policy });
-
-  const result = await chunked.extract({
-    text: TRANSCRIPT_TEXT,
-    annotations: {},
-  });
-
-  expect(result.fields.rValue.value).toBe(19);
-  expect(inner.calls).toHaveLength(2);
-  expect(inner.calls[0]!.text).toBe(TRANSCRIPT_TEXT.slice(0, 32));
 });

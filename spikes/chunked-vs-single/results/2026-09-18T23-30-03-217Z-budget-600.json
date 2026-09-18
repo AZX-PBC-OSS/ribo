@@ -1,0 +1,75 @@
+{
+  "maxChars": 600,
+  "model": "gpt-5.6-luna",
+  "rows": [
+    {
+      "file": "01-attic-r-value-shell.txt",
+      "chars": 1213,
+      "chunks": 3,
+      "committedSingle": 6,
+      "committedChunked": 6,
+      "callsSingle": 1,
+      "callsChunked": 3,
+      "countDiffs": [
+        {
+          "group": "hvac",
+          "single": 1,
+          "chunked": 3
+        }
+      ],
+      "lost": [
+        {
+          "path": "hvac.0.hvacSystemEquipmentType",
+          "was": "Furnace with standalone ducts"
+        },
+        {
+          "path": "hvac.0.hvacHeatingEnergySource",
+          "was": "Natural Gas"
+        },
+        {
+          "path": "hvac.0.hvacHeatingSystemManufacturer",
+          "was": "Trane"
+        },
+        {
+          "path": "hvac.0.hvacHeatingSystemModel",
+          "was": "TUD100"
+        },
+        {
+          "path": "hvac.0.hvacHeatingSystemModelYear",
+          "was": 2017
+        },
+        {
+          "path": "hvac.0.hvacHeatingCapacity",
+          "was": 100000
+        }
+      ],
+      "found": [
+        {
+          "path": "hvac.1.hvacSystemEquipmentType",
+          "now": "Furnace with standalone ducts"
+        },
+        {
+          "path": "hvac.1.hvacHeatingEnergySource",
+          "now": "Natural Gas"
+        },
+        {
+          "path": "hvac.1.hvacHeatingSystemManufacturer",
+          "now": "Trane"
+        },
+        {
+          "path": "hvac.1.hvacHeatingSystemModel",
+          "now": "TUD100"
+        },
+        {
+          "path": "hvac.1.hvacHeatingSystemModelYear",
+          "now": 2017
+        },
+        {
+          "path": "hvac.1.hvacHeatingCapacity",
+          "now": 100000
+        }
+      ],
+      "changed": []
+    }
+  ]
+}

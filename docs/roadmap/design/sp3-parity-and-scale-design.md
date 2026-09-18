@@ -251,119 +251,46 @@ is the more expensive seam; a race that cannot cancel is worse here than for ext
 **No deadline option**, per §2.2 as corrected by F5: `TranscribeOptions` has no such member, so
 offering one would be an option no transport honours.
 
-### 4.3 `chunkedExtractor`
+### 4.3 `chunkedExtractor` — BUILT, MEASURED, REMOVED
 
-> **Status: BUILT** — this section describes the shape as implemented
-> (`chunk-policy.ts`, `merge-policy.ts`, `merge-chunk-results.ts`, `chunked-extractor.ts`),
-> rewritten after the findings in §10 were filed; it is no longer the draft F2, F6, F7, F9
-> and F14 were found against. §4.1, §4.2 and §4.4 remain the draft.
+Split a transcript past a context window, extract from each piece, merge. It was designed, built,
+measured against the real corpus, and deleted. The reason is an asymmetry worth stating once,
+because it is the thing to check before anyone proposes this again.
 
-**Shape.** `chunkedExtractor(inner, options): Extractor<Enveloped<V, P>>`, with `target`, a
-`chunk` policy, an optional `merge` policy, and an optional `alignInstances` matcher.
+**Chunking splits the wrong axis.** There are two ways an extraction can be too big, and they are
+nothing like the same size here:
 
-**Chunks are an exact partition of the canonical text** — contiguous, non-overlapping,
-covering every character, in order. This is the load-bearing constraint, and it is what makes
-the whole combinator cheap: a span a model quotes from a chunk is a verbatim quote from the
-whole transcript, so `isSpanGrounded` keeps working with no span rewriting and no offset
-arithmetic (F7's honest half — grounding is verbatim presence; which occurrence a repeated
-span came from is not claimed). It is also what makes the stated-empty rule honest: "every
-chunk said none" is only a claim about the document if the chunks _are_ the document.
+|                   | Actual                                                    | Limit                               | Headroom      |
+| ----------------- | --------------------------------------------------------- | ----------------------------------- | ------------- |
+| Transcript text   | ~1–2KB each; **21KB for the entire 14-transcript corpus** | a context window, hundreds of KB    | ~100×         |
+| Extraction schema | **303KB** for the full adapter                            | `SCHEMA_SERIALIZED_CHAR_CAP` = 32KB | **~10× over** |
 
-**The partition check is the load-bearing part, not the splitter** (F6). An earlier draft
-verified chunks with a per-chunk `text.includes(chunk)` — a membership test that says nothing
-about **coverage**: a chunker that drops a paragraph, repeats a chunk, or skips a region
-passes it on every chunk while silently losing whatever was in the gap, and `text.includes("")`
-is true, so an empty chunk passes and dispatches a model call on empty text. The built check
-(`assertExactPartition`) walks a cursor instead: each chunk must equal
-`text.slice(cursor, cursor + chunk.length)`, and at the end the cursor must equal
-`text.length` — one pass rejecting gaps, overlaps, reordering, duplication, chunks that stop
-short, and (by a dedicated check the walk cannot make on empty text) empty chunks, each
-rejection naming the offending index. The check runs on every `extract`, before any model
-call. Overlapping chunks are deliberately NOT allowed in this wave: they would duplicate
-instances, which only an identity matcher can clean up, and that combination wants its own
-measurement before it ships.
+The transcript is nowhere near binding. The schema is an order of magnitude past its limit today —
+and that is already solved, by per-group extraction, which splits the **schema** rather than the
+text. Chunking spends N× the calls to relieve the one pressure this product does not have.
 
-**The chunk policy is caller-supplied**, taking the transcript and returning an ordered list
-of chunks; the shipped `splitOnBudget(maxChars)` splits on a character budget at paragraph
-then sentence boundaries, then — only when a single sentence exceeds the budget — at a word
-boundary, never mid-word, with separators staying with the preceding chunk so the pieces
-concatenate back to exactly the text. Core does not know the model's context window, so the
-budget is a required argument rather than a guess inside a default. `maxChars` is a target,
-not a guarantee: a single token longer than the budget has no word boundary to split at and
-splitting mid-word is forbidden, so it comes back as one over-budget chunk — better than
-throwing, which would make a legitimate document entirely unextractable over one long word.
-Empty text yields zero chunks from the splitter, and the combinator answers that by delegating
-to the inner extractor once, on the empty text — zero calls and a merge over nothing would
-invent a result, and whatever the inner extractor does with empty input is its decision to
-make.
+Nothing in the repo records anyone hitting a context limit with a transcript.
 
-**The merge follows ADR 0001 exactly.** For each scalar leaf path, the policy receives the
-path and the envelopes the chunks produced for it, and returns an **index** — so a merge
-policy cannot fabricate a value, a confidence, or a citation. One arm, not two: unlike a
-consensus arbiter there is no `contested` state, because chunks are sequential passages of one
-document rather than competing samples of one question. Two policies ship: `firstCommitted`
-(the default — earlier text is usually the primary description, a later mention a passing
-reference) and `lastCommitted` (right when later text supersedes earlier, such as a correction
-dictated after the fact). Both land on sample 0 when no chunk committed — the first null
-envelope, its citation preserved.
+**And on the axis it does split, it damages collections.** Measured on all 14 transcripts, it
+inflated the `hvac` instance count in 13 of them, tracking the chunk count — each chunk sees a
+fragment of one furnace, reports a furnace, and the merge concatenates them. One unit becomes one
+instance per chunk that mentions it.
 
-**Collections concatenate; they are never merged by index** (F2). `rooms[0]` in chunk 0 and
-`rooms[0]` in chunk 5 are different rooms, and a positional merge splices different entities
-into one — a room that was never described, with two verbatim citations from different parts
-of the document, passing every downstream check. The built walk (`mergeChunkResults`)
-concatenates arrays in chunk order instead: three chunks describing five rooms produce five
-rooms, in document order. Optional cross-chunk instance alignment (`alignInstances`) uses the
-`InstanceMatcher` vocabulary instance identity landed: an incoming instance is compared
-against instances accepted from **earlier chunks only** and merges into the first the matcher
-calls `"same"`, which keeps its position; `"different"` and `"unknown"` both append; instances
-from the _same_ chunk are never compared — the model saw both in one region and distinguished
-them. Greedy, not transitive clustering: one wrong `"same"` under union-find collapses three
-instances and makes the outcome depend on comparison order, while greedy's worst case is a
-duplicate review can see and remove. **No shipped matcher can exercise the align path, and
-that is structural rather than a gap**: `contradictionMatcher` never returns `"same"` by
-design, and with chunks an exact partition two chunks can never quote the same span — the one
-piece of positive evidence core could read does not exist across disjoint regions. Sameness
-here is host knowledge, always.
+That failure was the _expected_ cost of concatenating rather than merging by index, and
+concatenation remains the right choice of the two: this failure arrives at review as several
+suspiciously partial units, where index-wise merging splices two units into one plausible record
+that never existed. But "visibly wrong on 13 of 14 real inputs" is not a shippable default, and the
+fix — a host-supplied instance matcher — is real work to relieve a pressure that is not there.
 
-**Leaf granularity is refused at construction**, per ADR 0003, for the same reason: the merge
-walks per-leaf envelopes and a `"row"` group would merge nothing while returning a result that
-looks merged.
+**What would bring it back.** A transcript source that actually produces long text. Document
+transcription is the candidate: a long PDF through `ribo-transcriber-pdfjs` could plausibly reach
+the scale dictation never will. If that happens, chunking is the right shape — but it needs the
+instance matcher first, and by then there is a real document to measure against instead of an
+artificially small budget.
 
-**Usage sums across chunks, and `engine`/`strategy` are omitted** — same rule and same reason
-as `consensusExtractor`. Token members sum only across chunks that reported them and are
-omitted entirely if any chunk omitted one, per ADR 0005's absent-is-not-zero discipline. `raw`
-is dropped: it describes one producer's run, and here there are N. `statedEmptyGroups` is
-merged by two rules, in order: a group **any** chunk populated loses the claim entirely
-("there are none of these" meant none _in that region_); otherwise the **earliest** chunk's
-stated span is kept — not unanimity, which would lose a true claim the moment one chunk is a
-single-shot extractor emitting no roster at all.
-
-**A chunk that fails is a failed run, not a missing sample** — the opposite of
-`consensusExtractor`, and the contrast is worth stating. Consensus's candidates are redundant:
-three samples of the same thing, so two are still evidence. Chunks are **disjoint**: a failed
-chunk means a region of the document was never read, and returning a result that silently
-omits whatever was in it is the worst available outcome. The rejection propagates the inner
-error **unchanged — not wrapped** (F9): ADR 0002 classifies by _who failed_, and the inner
-error already encodes that. A `ChunkFailedError` wrapper would erase the classification every
-`isTransientFailure` and `TerminalError` check downstream depends on, and turn a terminal
-failure into a relay retry loop. The cost — the error does not say which chunk failed — is
-accepted and documented rather than traded away quietly. A caller who wants partial results
-composes `retryExtractor` per chunk, which is exactly what that combinator is for.
-
-**Chunks run sequentially, and there is no concurrency option.** They are not redundant
-samples racing to be first; they are N× the calls of one pass (§5.3), and firing forty at a
-rate-limited transport at once is how a caller discovers their quota. A bounded pool would
-also need a sibling-abort policy on failure — `consensusExtractor` deliberately does not abort
-siblings, `groupedExtractor` deliberately does — and an option with no test and no stated
-abort semantics is worse than none. The caller's whole options bag is forwarded to every
-chunk, deadline unnarrowed: the deadline is absolute epoch milliseconds precisely so it
-survives composition, and a chunk that starts after it has passed is the inner extractor's to
-reject. Each chunk carries the original `annotations` bag unchanged — annotations describe the
-capture, not the region.
-
-**Known limit, recorded rather than fixed (F14):** no per-chunk resumption. One transient
-failure at chunk 40 discards 39 paid successes and the relay re-runs all 40. Real, and not
-solved here.
+**What survives.** Instance identity (`instance-identity.ts`), which chunking motivated but does
+not own: review-time candidate ranking uses it today, consensus's equal-length reordering hole
+wants it, and preserving review decisions across a re-extraction is the case that most needs it.
 
 ### 4.4 `annotatingCombiner`
 

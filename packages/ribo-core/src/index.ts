@@ -616,30 +616,11 @@ export { extractorPhase } from "./extractor-phase.js";
 export { phasedExtractor } from "./phased-extractor.js";
 export type { PhasedExtractorOptions } from "./phased-extractor.js";
 
-// Long transcripts: the chunking vocabulary `chunkedExtractor` composes. The exact-
-// partition check is the load-bearing half — a per-chunk membership test cannot see a
-// dropped paragraph, and the shipped splitter's contract is defined by what the check
-// lets through.
-export { assertExactPartition, splitOnBudget } from "./chunk-policy.js";
-export type { ChunkPolicy } from "./chunk-policy.js";
-
-// The chunk merge: which chunk's envelope wins for a scalar leaf (an INDEX into the
-// samples, per ADR 0001 — a policy that cannot construct an envelope cannot fabricate
-// a value, a confidence or a citation), and the walk that puts the chunks back
-// together. Collections concatenate — never pair by index — because chunks read
-// disjoint regions; the optional `InstanceMatcher` is host knowledge, and no shipped
-// matcher merges anything.
-export { firstCommitted, lastCommitted } from "./merge-policy.js";
-export type { MergePolicy } from "./merge-policy.js";
-export { mergeChunkResults } from "./merge-chunk-results.js";
-export type { MergeChunkOptions } from "./merge-chunk-results.js";
-
-// The long-input combinator over the seam above: split a transcript past a context
-// window into an exact partition, extract from each chunk sequentially, and merge.
-// A chunk failure propagates the inner error UNCHANGED — ADR 0002 classifies by who
-// failed, and the inner error already encodes that — which is the opposite of
-// consensusExtractor, whose candidates are redundant. Chunks are disjoint: a failed
-// chunk means a region of the document was never read. Costs N× the calls of one
-// pass, and says so first.
-export { chunkedExtractor } from "./chunked-extractor.js";
-export type { ChunkedExtractorOptions } from "./chunked-extractor.js";
+// Chunking was built here and REMOVED after measurement. `chunkedExtractor` split a
+// transcript past a context window, extracted each piece and merged. Measured against
+// the real corpus it inflated a collection group's instance count in 13 of 14
+// transcripts — one phantom instance per chunk, because each chunk sees a fragment of
+// one unit and reports a unit. And the problem it solved does not occur here: the whole
+// corpus is 21KB of text, while the constraint that actually binds is SCHEMA size, which
+// per-group extraction already handles. See
+// `spikes/chunked-vs-single/FINDINGS.md` and the SP3 design's §4.3.
