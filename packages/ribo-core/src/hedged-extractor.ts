@@ -94,8 +94,12 @@ const defaultScheduleTimer: ScheduleTimer = (fn, delayMs) => {
  *    the caller's own signal is aborted, the caller's abort reason is the
  *    honest error and the primary's inner error never surfaces — the same
  *    precedence `timeout-extractor.ts` states (misreporting a user's cancel
- *    hides a user action). A cancellation rejection also never dispatches the
- *    hedge, whatever fired it.
+ *    hides a user action). **A cancellation never CAUSES a hedge dispatch** —
+ *    which is the precise claim, and weaker than it first reads. If the timer
+ *    has already fired, the hedge is running before any cancellation is
+ *    observed, so a cancel on that path aborts a hedge that was already
+ *    dispatched and `onHedge` reports it with no winner. What rule 0
+ *    guarantees is that no cancellation ever starts one.
  * 1. Primary settles before the timer → **primary**. The hedge is never
  *    invoked — the case the combinator exists for.
  * 2. Timer fired, primary settles first → **primary**, and the hedge is
@@ -174,6 +178,10 @@ export function hedgedExtractor<F>(
       const atStart = now();
       const effectiveDeadline = callerOptions?.deadline;
       if (effectiveDeadline !== undefined && effectiveDeadline <= atStart) {
+        // A plain Error, not ExtractionTimeoutError: that class names the budget
+        // that elapsed, and this combinator mints none — the delay is a latency
+        // policy, not a wall. `ExtractionTimeoutError(undefined)` would be a typed
+        // lie. Classification is unaffected (both are transient by default).
         throw new Error(
           `hedgedExtractor: the caller's deadline had already passed (${effectiveDeadline} ` +
             `is not after ${atStart}) — no budget remains, so neither lane was called`,
