@@ -134,4 +134,25 @@ describe("contradictionMatcher", () => {
     expect(() => matcher(a, b)).toThrow(/model/);
     expect(() => matcher(a, b)).toThrow(/flatten/i);
   });
+
+  test("a DOUBLE-WRAPPED envelope throws too — the case the obvious check misses", () => {
+    // `isExtractedLeaf` is false for `{ value: envelope, sourceSpan: null }`, because
+    // the outer object has no numeric `confidence`. So a guard that checks only the
+    // evidence object lets this through — and then both sides compare as envelope
+    // OBJECTS, which are never `Object.is`-equal, so every pair vetoes. A matcher that
+    // reports "different" for two identical instances, silently, forever.
+    //
+    // This is the dangerous half of the flattening contract; the case above merely
+    // violates it. Reverting the guard to a single level passes that test and fails
+    // this one, which is the whole reason this test exists.
+    const matcher = contradictionMatcher({ hvac: ["model"] });
+    const envelope = { value: "EL296", confidence: 1, sourceSpan: null };
+    const doubleWrapped: InstanceFacts = {
+      group: "hvac",
+      leaves: { model: { value: envelope, sourceSpan: null } },
+    };
+
+    expect(() => matcher(doubleWrapped, doubleWrapped)).toThrow(/model/);
+    expect(() => matcher(doubleWrapped, doubleWrapped)).toThrow(/flatten/i);
+  });
 });

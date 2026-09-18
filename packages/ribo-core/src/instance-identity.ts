@@ -164,13 +164,32 @@ export const contradictionMatcher = (fields?: IdentifyingFieldsMap): InstanceMat
     for (const name of names) {
       const aEvidence = a.leaves[name];
       const bEvidence = b.leaves[name];
-      // The flattening-contract check runs before the values are read: an envelope's
-      // `value` member is not the leaf value, so comparing it would produce a verdict
-      // about the envelope instead of about the world.
-      if (aEvidence !== undefined && isExtractedLeaf(aEvidence)) {
+      // The flattening-contract check runs before the values are read, and it checks
+      // BOTH wrapper levels, because they fail in opposite ways and only one of them
+      // is caught by the obvious check:
+      //
+      //   - `leaves: { model: envelope }` — an `Extracted` is structurally assignable
+      //     to `InstanceEvidence` (both carry `value` and `sourceSpan`), so this
+      //     typechecks. Reading `.value` off it happens to give the right answer, so
+      //     this is a contract violation rather than a bug: `confidence` would ride
+      //     along in a type that deliberately excludes it. Rejected to keep the
+      //     contract meaning one thing.
+      //   - `leaves: { model: { value: envelope, sourceSpan: null } }` — the double
+      //     wrap. `isExtractedLeaf` is FALSE for the outer object (no numeric
+      //     `confidence`), so the obvious check misses it entirely, and then both
+      //     sides compare as envelope objects, which are never `Object.is`-equal:
+      //     every pair vetoes. That is the silent total failure this guard exists for,
+      //     and checking only the outer level leaves it wide open.
+      if (
+        aEvidence !== undefined &&
+        (isExtractedLeaf(aEvidence) || isExtractedLeaf(aEvidence.value))
+      ) {
         throw new TypeError(unflattened(name));
       }
-      if (bEvidence !== undefined && isExtractedLeaf(bEvidence)) {
+      if (
+        bEvidence !== undefined &&
+        (isExtractedLeaf(bEvidence) || isExtractedLeaf(bEvidence.value))
+      ) {
         throw new TypeError(unflattened(name));
       }
       const aValue = aEvidence?.value;
