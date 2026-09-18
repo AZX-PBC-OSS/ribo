@@ -5,6 +5,7 @@ import { TranscriberUnavailableError } from "./transcriber.js";
 import { UnsupportedItemError } from "./unsupported-item.js";
 import type { Transcript } from "./transcript.js";
 import {
+  preferEngineOrder,
   unsupportedFallsThrough,
   type TranscriptionArbiterInput,
   type TranscriptionArbiterVerdict,
@@ -174,5 +175,157 @@ describe("unsupportedFallsThrough", () => {
     // At exhaustion with only an UnsupportedItemError, rule 2 fires (give up),
     // not rule 3 (continue).
     expectGiveUp(unsupportedFallsThrough(makeInput([{ candidate: "pdfjs", error }], true)), error);
+  });
+});
+
+describe("preferEngineOrder", () => {
+  // The whole reason this arbiter exists: under a sequential ladder settlement
+  // order IS preference order, but a race breaks that identity — a worse engine
+  // can settle first, and the first success is then not the best one.
+  test("accepts the best-ranked success when a worse one settled first", () => {
+    const worse = makeTranscript("b");
+    const better = makeTranscript("a");
+
+    // `c` is unranked and still pending, so the engine is not exhausted: the
+    // accept must happen mid-run, not wait for exhaustion.
+    expectAccept(
+      preferEngineOrder(["a", "b"])(
+        makeInput([
+          { candidate: "b", result: worse },
+          { candidate: "a", result: better },
+        ]),
+      ),
+      better,
+    );
+  });
+
+  test("returns continue while a better-ranked candidate is unsettled", () => {
+    const worse = makeTranscript("b");
+
+    expectContinue(preferEngineOrder(["a", "b"])(makeInput([{ candidate: "b", result: worse }])));
+  });
+
+  test("accepts once no better-ranked candidate can still arrive", () => {
+    const transcript = makeTranscript("b");
+    const aFailed = unsupported("a");
+
+    // `a` outranks `b` but has already settled with an error, so nothing ranked
+    // above `b` is outstanding (`c` is unranked and ranks below both).
+    expectAccept(
+      preferEngineOrder(["a", "b"])(
+        makeInput([
+          { candidate: "a", error: aFailed },
+          { candidate: "b", result: transcript },
+        ]),
+      ),
+      transcript,
+    );
+  });
+
+  test("accepts a top-ranked success immediately — nothing can beat it", () => {
+    const transcript = makeTranscript("a");
+
+    expectAccept(
+      preferEngineOrder(["a", "b"])(makeInput([{ candidate: "a", result: transcript }])),
+      transcript,
+    );
+  });
+
+  test("a first error before exhaustion does not give up — the race may still succeed", () => {
+    const aFailed = unsupported("a");
+
+    expectContinue(preferEngineOrder(["a", "b"])(makeInput([{ candidate: "a", error: aFailed }])));
+  });
+
+  test("at exhaustion accepts the best-ranked success", () => {
+    const unranked = makeTranscript("c");
+    const mid = makeTranscript("b");
+    const best = makeTranscript("a");
+
+    expectAccept(
+      preferEngineOrder(["a", "b"])(
+        makeInput(
+          [
+            { candidate: "c", result: unranked },
+            { candidate: "b", result: mid },
+            { candidate: "a", result: best },
+          ],
+          true,
+        ),
+      ),
+      best,
+    );
+  });
+
+  test("at exhaustion with no success gives up with the first error", () => {
+    const first = unsupported("a");
+    const second = unavailable("b");
+
+    // Settlement order, not rank order: `b`'s error settled first.
+    expectGiveUp(
+      preferEngineOrder(["a", "b"])(
+        makeInput(
+          [
+            { candidate: "b", error: second },
+            { candidate: "a", error: first },
+          ],
+          true,
+        ),
+      ),
+      second,
+    );
+  });
+
+  // The pin that the ordering is right: `continue` is illegal at exhaustion —
+  // the engine rejects it as a caller bug — so every exhaustion input the
+  // engine can produce must resolve to accept or give up.
+  test("never returns continue at exhaustion", () => {
+    const arbiter = preferEngineOrder(["a", "b"]);
+    const success = makeTranscript("a");
+    const cases: TranscriptionArbiterInput[] = [
+      makeInput([{ candidate: "a", result: success }], true),
+      makeInput(
+        [
+          { candidate: "b", result: makeTranscript("b") },
+          { candidate: "a", error: unsupported("a") },
+        ],
+        true,
+      ),
+      makeInput([{ candidate: "a", error: unsupported("a") }], true),
+      makeInput(
+        [
+          { candidate: "b", error: unavailable("b") },
+          { candidate: "a", error: unsupported("a") },
+        ],
+        true,
+      ),
+    ];
+
+    for (const input of cases) {
+      expect("continue" in arbiter(input)).toBe(false);
+    }
+  });
+
+  test("an unranked engine sorts after every named one", () => {
+    const unranked = makeTranscript("c");
+    const named = makeTranscript("b");
+
+    // `c` settled first but is named nowhere, so `b` outranks it even though
+    // `b` is the lowest-ranked named engine.
+    expectAccept(
+      preferEngineOrder(["a", "b"])(
+        makeInput(
+          [
+            { candidate: "c", result: unranked },
+            { candidate: "b", result: named },
+          ],
+          true,
+        ),
+      ),
+      named,
+    );
+
+    // And an unranked success must wait for every named engine to settle.
+    expectContinue(preferEngineOrder(["a"])(makeInput([{ candidate: "c", result: unranked }])));
   });
 });

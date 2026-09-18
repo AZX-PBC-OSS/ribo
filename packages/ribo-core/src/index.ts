@@ -243,7 +243,11 @@ export type {
 // arbiter (unsupportedFallsThrough) accepts the first success, continues past
 // UnsupportedItemError and TranscriberUnavailableError, and at exhaustion gives
 // up with the first retryable error if there is one (D7 rule 2).
-export { unsupportedFallsThrough } from "./transcription-arbitration.js";
+// The default stays unsupportedFallsThrough (first success wins — right for a
+// ladder, where settlement order IS preference order). preferEngineOrder is the
+// alternative a concurrent combinator wants: a race breaks that identity, so it
+// accepts the best-ranked success instead of the fastest one.
+export { preferEngineOrder, unsupportedFallsThrough } from "./transcription-arbitration.js";
 export type {
   TranscriptionArbiter,
   TranscriptionArbiterInput,
@@ -251,12 +255,28 @@ export type {
   TranscriptionOutcome,
 } from "./transcription-arbitration.js";
 
+// The TTL-keyed capability cache the transcription combinators share, extracted
+// when `raceTranscriber` became the third copy of the shape. `firstCapable` and
+// `hedged` still carry their own copies — a deliberate, unfinished migration
+// (see capability-cache.ts's header).
+export { CapabilityCache } from "./capability-cache.js";
+export type { CapabilityCacheOptions } from "./capability-cache.js";
+
 // Transcriber fallback: try transcribers in order without consulting
 // capability(), letting an arbiter decide whether each outcome is acceptable.
 // The per-item sibling of firstCapable — a reader who thinks it is
 // "firstCapable with retries" will wire it wrongly.
 export { fallbackTranscriber } from "./fallback-transcriber.js";
 export type { FallbackTranscriberOptions } from "./fallback-transcriber.js";
+
+// Transcriber race: start every capable engine at once and let an arbiter
+// accept a transcript as it settles, wait for more, or give up. The
+// transcription-side counterpart of raceExtractor — a separate constructor so
+// concurrency is opt-in by name, not a scheduling flag. Dispatches to every
+// capable engine, so a race that includes a managed engine sends the audio
+// every time; a deployment that will not pay for that composes firstCapable.
+export { raceTranscriber } from "./race-transcriber.js";
+export type { RaceTranscriberOptions } from "./race-transcriber.js";
 
 // The fake that lets later phases run the pipeline — and drive every capability
 // state and all three failure kinds — without a model.
