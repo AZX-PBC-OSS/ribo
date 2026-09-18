@@ -136,81 +136,120 @@ the joined text. An input's own bag is still not a channel through combination (
 
 ## 4. Design
 
-### 4.1 `hedgedExtractor`
+### 4.1 `hedgedExtractor` — REVISED
 
-**Shape.** `hedgedExtractor(primary, hedge, options): Extractor<F>`, with `delay` (required — a
-number of milliseconds, or a function of the transcript returning one), an injectable
-`scheduleTimer`, and an `onHedge` notification that fires once when the hedge is dispatched, win or
-lose.
+> Rewritten after review. Resolves F3, F4, F8, F12 and F16; the draft this replaces got the rule
+> count, the cancellation mechanism and the instrument all wrong.
 
-**What it does NOT carry, compared to `hedged`.** No capability probe, no TTL, no capability cache,
-no `now`. `Transcriber` has a `capability()` contract and `hedged` caches it; `Extractor` is
-documented as "a plain builder, not a capability contract — strategy choice here is configuration."
-Nothing to probe, so nothing to cache. It returns a plain `Extractor<F>`, not a composite with a
-roster.
+**Shape.** `hedgedExtractor(primary, hedge, options): Extractor<F>` with a required `delay` (ms, or a
+function of the transcript returning ms), an injectable `scheduleTimer`, and `onHedge`.
 
-**The delay is a function of the transcript, not of a recording.** `hedged`'s
-`HedgeDelayPolicy` reads a `Recording`'s duration and a host-supplied real-time factor. The
-extraction analogue is transcript length, which the combinator _can_ see — but core has no model of
-how long an extraction takes, exactly as it has no model of what a real-time factor is. So the
-policy is a caller-supplied function and core ships no default delay. A required option with no
-default is the honest encoding of "we cannot know this for you."
+**What it does not carry, against `hedged`.** No capability probe, no TTL, no cache, no `now` for
+capabilities. `Transcriber` has a `capability()` contract; `Extractor` is documented as "a plain
+builder, not a capability contract". Nothing to probe. It returns a plain `Extractor<F>`.
 
-**Resolution rules.** Four, and the numbering deliberately does not match `hedged`'s five:
+**All eight of `hedged`'s rules, mapped — the draft inventoried five.** `hedged.ts` documents eight,
+and three were never considered for whether they transfer:
 
-1. Primary settles before the timer fires → **primary**. The hedge is never dispatched and never
-   billed. This is the case the combinator exists for.
-2. Timer fired, primary settles first → **primary**, and the hedge is **cancelled**.
-3. Timer fired, hedge settles first → **hedge**, the primary is **cancelled**, `onHedge` has
-   already fired.
-4. Primary rejects → the hedge takes over, dispatched immediately if the timer has not yet fired.
-   A primary rejection is not a reason to wait out the remaining delay.
+| `hedged`                                                            | Transfers?                 | Here                                                                                                                                                                                  |
+| ------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Primary settles before the timer → primary, hedge never invoked  | yes                        | Rule 1, unchanged. The case the combinator exists for                                                                                                                                 |
+| 2. Timer fired, primary first → primary, hedge discarded            | yes, **strengthened**      | Rule 2 — and the hedge is **cancelled**, not merely discarded                                                                                                                         |
+| 3. Timer fired, hedge first → hedge                                 | yes, strengthened          | Rule 3 — the primary is cancelled                                                                                                                                                     |
+| 4. Both already resolved → primary (privacy tie-break)              | outcome yes, **reason no** | Rule 4. Nothing analogous to "audio left the device" applies; the primary wins because the caller named it first and a tie-break must be deterministic. Deterministic, not principled |
+| 5. Primary throws `TranscriberUnavailableError` → hedge immediately | **narrowed**               | Rule 5. There is no extractor analogue of "this engine cannot serve this item". Only a **non-cancellation** primary rejection dispatches the hedge early                              |
+| 6. Ordinary primary error after hedge succeeded → hedge's result    | yes                        | Rule 6                                                                                                                                                                                |
+| 7. Both throw → primary's error propagates                          | yes                        | Rule 7. The primary's is the more actionable                                                                                                                                          |
+| 8. Primary not `ready` → no race, straight delegation               | **no analogue**            | Dropped. Readiness is a capability concept and `Extractor` has none                                                                                                                   |
 
-**Cancellation is the design, not a detail.** This combinator constructs its own `AbortController`,
-passes its signal to both lanes (composed with the caller's, so a caller abort still reaches both),
-and aborts the loser the moment a winner is known. Without that, rule 2 and rule 3 each bill two
-extractions and the hedge is a pure cost multiplier — which is what building it on
-`createConcurrentExtractor` would produce, since that engine forwards the caller's options unchanged
-and constructs no controller (§2, verified). `hedgedExtractor` therefore does **not** reuse the
-shared concurrent engine; it is a bespoke two-lane object, and the reason is exactly this.
+**Rule 0, which the draft lacked entirely: a cancellation is not a rejection.** The relay aborts the
+extract step's signal on timeout, so a caller abort arrives as a primary rejection — and the draft's
+"any primary rejection dispatches the hedge" would have fired a hedge into an already-aborted signal.
+`isCancellation(reason, callerSignal)` is consulted first and the cancellation propagates untouched,
+with no hedge dispatched. `timeout-extractor.ts` states the same precedence: the caller's
+cancellation wins, and misreporting a user's cancel would be a lie in the direction that hides a
+user action.
 
-**The tie-break is toward the primary, and the justification is weaker than `hedged`'s.** State it
-plainly: `hedged` breaks a tie toward the primary because the alternative sent audio off the device,
-a real and asymmetric harm. Nothing analogous holds here — both lanes see the same transcript. The
-primary wins a tie because it is the lane the caller named first and because a tie-break must be
-deterministic, not because it is better. A caller who wants the other order swaps the arguments.
+**Cancellation needs a controller PER LANE.** The draft said the combinator "constructs its own
+`AbortController`… and aborts the loser" — one controller can only abort _both_. Each lane gets its
+own, composed with the caller's signal via **`AbortSignal.any`, never `??`** — the trap
+`grouped-extractor.ts` documents and `timeout-extractor.ts` names. The winner's controller is left
+alone; the loser's is aborted.
 
-**Usage.** The winner's usage is returned with `strategy` unset by this combinator — it does not
-stamp, because it has no strategy ids to stamp with (`raceExtractor` takes them as part of each
-candidate; this takes two bare extractors). Whether the _loser's_ usage is added is the one open
-question in this section: a cancelled lane made real calls and a caller may well want to know. §8
-records it.
+**Every discarded promise gets a rejection handler**, or a losing failure surfaces as an unhandled
+rejection — `hedged.ts` states this and the draft omitted it. And a loser's abort rejection must
+never surface as the run's result: `isCancellation` answers true for anything named `AbortError`
+even while the caller's signal is intact, so a leaked loser rejection would report a **successful**
+run as cancelled and the relay would re-queue and re-bill it.
 
-### 4.2 `raceTranscriber`
+**Deadline narrowing, which the draft never mentioned.** `timeoutExtractor` already implements the
+discipline: the effective deadline is `Math.min` of any inherited one and the combinator's own, an
+inherited deadline already past rejects immediately without calling the inner extractor, and the
+effective deadline — not the caller's — is what reaches the inner extractor. A hedge is never
+dispatched past the effective deadline: a call that cannot finish in time is pure cost.
 
-**Shape.** `raceTranscriber(transcribers, options): CompositeTranscriber`. It returns a composite,
-not a bare `Transcriber`, because `hedged` and `firstCapable` both do and a host's download screen
-renders from `capabilities()`.
+**`onHedge` fires at SETTLEMENT and carries the winner.** The draft fired it at dispatch "win or
+lose", at which point win-or-lose is unknowable — so the instrument §5.1 relies on to decide whether
+this combinator earns its cost could not answer that question. `ExtractionHedgeEvent` carries
+`winner: "primary" | "hedge" | undefined` (undefined when both failed). Positional rather than
+engine ids, because this combinator takes two bare extractors and has no ids to name — which
+separates fire rate from win rate just as well.
 
-**Its policy type is its own.** `TranscriptionArbiter` — a function from the settled outcomes so
-far, plus an `exhausted` flag, to accept / continue / give up. Structurally parallel to
-`ExtractionArbiter` and deliberately a separate type, per §3. Two defaults ship:
-`acceptFirstTranscript` (take the first success; give up with the first error at exhaustion) and
-`preferEngineOrder` (wait for a better-ranked engine to settle even after a worse one succeeded, up
-to exhaustion).
+**Usage.** The winner's usage is returned; `strategy` is not stamped, there being no ids to stamp
+with. **The loser's usage is not added**, resolving F16: `usage` describes the result that was
+returned, as it does in every other combinator, and a cancelled lane's partial usage would make the
+number mean something different here than everywhere else. The true cost of hedging is measured by
+counting `onHedge` fires, which is what that event is for.
 
-**No deadline option**, per §2.2. `TranscribeOptions` has no such member, so offering one would be
-an option no transport honours. The caller's `signal` reaches every lane.
+### 4.2 `raceTranscriber` — REVISED
 
-**Capability gating happens first.** An `unavailable` transcriber is not raced — it is excluded
-before the race starts, using the same cached probe `firstCapable` uses, so a race of three
-engines on a device where two are unavailable is a race of one rather than two guaranteed
-rejections. This is the one piece of `firstCapable`'s machinery that `raceTranscriber` does reuse,
-and it is reused rather than reimplemented.
+> Rewritten after review. Resolves F1, F13 and F15. The draft proposed building a vocabulary that
+> already exists.
 
-**Losers are cancelled**, via the same controller-composition as §4.1. Transcription is the more
-expensive of the two seams — a managed transcription of a long recording is a real bill and a real
-upload — so a race that cannot cancel is worse here than it is for extraction.
+**The policy vocabulary is NOT new, and the draft was backwards about it.**
+`transcription-arbitration.ts` already ships `TranscriptionArbiter`, `TranscriptionArbiterInput`,
+`TranscriptionArbiterVerdict`, `TranscriptionOutcome`, `applyTranscriptionVerdict` and the default
+`unsupportedFallsThrough`; `fallbackTranscriber` composes them. That file's own doc says `outcomes`
+is in settlement order "so a future concurrent combinator would not need to change the vocabulary" —
+it was shaped for exactly this. §3's claim that `raceTranscriber` "needs its own small policy type"
+is withdrawn, and §2.1's table should list `fallbackTranscriber` in the transcription column.
+
+**Shape.** `raceTranscriber(transcribers, options): CompositeTranscriber` — a composite, like
+`hedged` and `firstCapable`, because a host's download screen renders from `capabilities()`.
+
+**One new default, not two.** `acceptFirstTranscript` is withdrawn: `unsupportedFallsThrough`
+already accepts the first success and, at exhaustion, prefers a retryable error over a terminal one
+— a refinement worth keeping rather than reimplementing. It stays the default.
+
+`preferEngineOrder(ranking)` is the one addition, and it earns its place because **a race breaks an
+assumption the ladder relies on**. Under a sequential ladder, settlement order _is_ preference
+order, so "first success" means "best success". In a race a worse engine can settle first, so the
+existing default would accept whichever engine happened to be fastest. A factory closing over the
+ranking, because `TranscriptionArbiterInput` carries outcomes and `exhausted` and no preference
+order.
+
+**Mid-run behaviour, which the draft left to the implementer (F15).** `preferEngineOrder` returns
+`continue` while any better-ranked candidate is unsettled, accepts the best-ranked success once no
+better one can arrive, and at exhaustion accepts the best-ranked success or gives up with the first
+error. Every "keep going" branch must sit **after** the exhaustion check —
+`transcription-arbitration.ts` carries a comment about the version that got this backwards and died
+with a `TypeError` instead of the real error.
+
+**Capability gating before the race.** An `unavailable` transcriber is excluded rather than raced to
+a rejection. This matters beyond cost: dispatching to a managed engine means uploading the audio,
+and an engine that cannot serve the item should not receive it.
+
+**The capability cache is the one honest cost (F13).** It is a private member of
+`FirstCapableTranscriber`, and `hedged` already had to duplicate it. `raceTranscriber` makes three,
+so this wave extracts it into a shared module and uses it — leaving `firstCapable` and `hedged` on
+their own copies, which changes no shipped behaviour and leaves the duplication declining rather
+than growing.
+
+**Losers are cancelled**, via the same per-lane `AbortSignal.any` composition as §4.1. Transcription
+is the more expensive seam; a race that cannot cancel is worse here than for extraction.
+
+**No deadline option**, per §2.2 as corrected by F5: `TranscribeOptions` has no such member, so
+offering one would be an option no transport honours.
 
 ### 4.3 `chunkedExtractor`
 
