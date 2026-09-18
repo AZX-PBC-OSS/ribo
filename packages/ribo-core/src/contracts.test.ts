@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import { z } from "zod";
 
 import {
+  assertExactPartition,
   buildReviewRequest,
   contradictionMatcher,
   enveloped,
@@ -10,8 +11,11 @@ import {
   firstCapable,
   recordingSchema,
   resolveReview,
+  splitOnBudget,
 } from "./index.js";
 import type {
+  AnnotatedTranscript,
+  ChunkPolicy,
   FieldDecisions,
   IdentifyingFields,
   IdentifyingFieldsMap,
@@ -365,4 +369,24 @@ test("`IdentifyingFields` is public through the barrel and typed per group", () 
   // declaration crosses at composition time, with no import between the two forms.
   const map: IdentifyingFieldsMap = identifying;
   expect(Object.keys(map)).toEqual(["healthSafety", "notes"]);
+});
+
+// --- The chunking vocabulary -------------------------------------------------
+//
+// The same kind of type-level pin as the sameness block above: the names are public
+// and must resolve through the barrel with this shape. Runtime behaviour is
+// `chunk-policy.test.ts`'s.
+
+test("the chunking vocabulary is public through the barrel and composes as typed", () => {
+  const policy: ChunkPolicy = splitOnBudget(2_000);
+  const transcript: AnnotatedTranscript = {
+    text: "The attic is R-19.\n\nThe furnace is gas.",
+    annotations: {},
+  };
+
+  const chunks = policy(transcript);
+  // The shipped splitter's output satisfies the check by construction — the invariant
+  // `chunkedExtractor` enforces on every caller-supplied policy.
+  expect(() => assertExactPartition(transcript.text, chunks)).not.toThrow();
+  expect(chunks).toEqual([transcript.text]);
 });

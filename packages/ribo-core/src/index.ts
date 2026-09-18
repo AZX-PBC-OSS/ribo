@@ -582,3 +582,10 @@ export { extractorPhase } from "./extractor-phase.js";
 // narrowing steps rather than a bespoke loop.
 export { phasedExtractor } from "./phased-extractor.js";
 export type { PhasedExtractorOptions } from "./phased-extractor.js";
+
+// Long transcripts: the chunking vocabulary `chunkedExtractor` composes. The exact-
+// partition check is the load-bearing half — a per-chunk membership test cannot see a
+// dropped paragraph, and the shipped splitter's contract is defined by what the check
+// lets through.
+export { assertExactPartition, splitOnBudget } from "./chunk-policy.js";
+export type { ChunkPolicy } from "./chunk-policy.js";
