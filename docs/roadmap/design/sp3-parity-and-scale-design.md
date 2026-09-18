@@ -1,7 +1,11 @@
 # SP3 — Parity and scale: two lifts across the seam, and one long-input story
 
 **Date:** 2026-09-17
-**Status:** Draft — not reviewed, no implementation started.
+**Status:** **REVISION REQUIRED — do not build from this document as written.** Two adversarial
+reviews found 21 defects, several of which invalidate a section rather than correct it. They are
+enumerated in §10 at the bottom, with the section each one breaks. Nothing here has been
+implemented. §10 is the current state of this design; the sections above it are the draft those
+findings were filed against, kept unedited so the findings can be read against what they refer to.
 **Question answered:** "What are the generally useful meta-extractors?" — SP3 of four: the
 combinators that exist on one side of the transcribe/extract seam and not the other, plus the ones
 that make a long input tractable.
@@ -401,3 +405,136 @@ in wave 5.
 - `annotatingCombiner`'s ranges **slice back to the parts**: for every part, the joined text sliced
   by its recorded range contains that part's text. With `markCaptures` on and off.
 - Construction against a `"row"` target throws for `chunkedExtractor`.
+
+---
+
+## 10. Review findings — what is wrong with everything above
+
+Two adversarial reviews, one unguided and one directed, against the draft in §1–§9. Every factual
+claim below was verified against source. Ordered by how much of the design each one invalidates.
+
+### 10.1 Findings that invalidate a section
+
+**F1 — §4.2 and §6 propose building types that already exist.** `transcription-arbitration.ts`
+already defines `TranscriptionArbiter`, `TranscriptionArbiterInput`, `TranscriptionArbiterVerdict`,
+`TranscriptionOutcome`, `applyTranscriptionVerdict` and the default `unsupportedFallsThrough`;
+`fallbackTranscriber` composes them. That file's own doc says `outcomes` is in settlement order
+"so a future concurrent combinator would not need to change the vocabulary" — the vocabulary was
+built _for_ `raceTranscriber`. §3's claim that it "needs its own small policy type" is backwards,
+§6's "New:" row is wrong, and §2.1's table omits `fallbackTranscriber` from the transcription
+column entirely. **`raceTranscriber` is much smaller than §4.2 describes**: reuse the arbiter and
+`applyTranscriptionVerdict`, add concurrent scheduling, capability gating and loser cancellation.
+The proposed `acceptFirstTranscript` is redundant with `unsupportedFallsThrough`, which also
+prefers a retryable error over a terminal one at exhaustion. Only `preferEngineOrder` earns a new
+default, and it earns it precisely because a race breaks the ladder's settlement-order ==
+preference-order identity.
+
+**F2 — §4.3's index-based leaf merge is unsound for any schema with a collection.** ADR 0001's
+index encoding is sound for consensus because every candidate samples the same document, so
+`rooms[2]` means the same room in each. Chunks sample **disjoint regions**, so `rooms[0]` in chunk 0
+and `rooms[0]` in chunk 5 are different rooms. Demonstrated by running the repo's own
+`mapExtractedLeaves` over three chunks describing five rooms: `firstCommitted` returns two rooms
+and silently discards three. Worse, where one chunk abstains on a leaf, the merge **splices two
+rooms into one** — "living room / 200 sqft", with both citations verbatim and grounded, so
+`isSpanGrounded` passes, `validateExtractor` accepts, and a reviewer sees a plausible room that was
+never described. **Resolved after this draft**: instance identity is now a first-class core concept
+(`instance-identity.ts` — `InstanceFacts`, `InstanceMatcher`, `contradictionMatcher`), and the
+chunk merge becomes align-then-merge: collections concatenate by default, an optional matcher merges
+across chunks, anchors keep first-accepted position. §4.3 must be rewritten against it.
+
+**F3 — §4.1's resolution rules are incomplete, and the source has eight, not five.** `hedged.ts`
+documents rules 1–8; this draft inventoried five and never decided whether 6 (primary errors after
+the hedge succeeded), 7 (both throw → primary's error) or 8 (primary not ready → straight
+delegation) transfer. The source also states a requirement this draft omits: "every discarded
+promise has a rejection handler attached, or a losing failure surfaces as an unhandled rejection."
+Separately, §4.1's rule 4 fires the hedge on _any_ primary rejection where `hedged`'s rule 5 fires
+only on `TranscriberUnavailableError` — a real divergence, stated nowhere. **A caller abort is a
+primary rejection**, so as written an aborted run dispatches a hedge into an already-aborted signal.
+
+**F4 — §4.1's cancellation mechanism cannot do what its own rules require.** One `AbortController`
+shared by both lanes can only abort _both_; selective loser cancellation needs a controller per
+lane composed with the caller's signal via `AbortSignal.any`, which `timeout-extractor.ts` already
+settled. Compounding: `isCancellation` returns true for any error named `AbortError` even while the
+caller's signal is intact, so a leaked loser rejection would report a **successful** run as
+cancelled, and the relay's "aborted is deliberately left retryable" posture would re-queue and
+re-bill it.
+
+### 10.2 Findings that correct a claim
+
+**F5 — §2.2 overclaims the deadline asymmetry.** `ExtractOptions.deadline` is a whole-run absolute
+deadline forwarded identically to every lane, not a per-lane one. The real asymmetry is narrower:
+`TranscribeOptions` has no deadline member at all.
+
+**F6 — §4.3's substring check verifies membership, not coverage.** `text.includes(chunk)` says
+nothing about whether the chunks _cover_ the document. A chunker that drops a paragraph, repeats a
+chunk, or skips a region passes every check and silently loses data. Also `text.includes("")` is
+true, so an empty chunk passes the gate and dispatches a model call on empty text. The invariant
+must be positional: chunks in order, each at or after the previous chunk's start, jointly covering
+`[0, text.length)`.
+
+**F7 — §2.3's "span-safe for free" is true for grounding and overclaims attribution.** A span
+quoted from a substring chunk always grounds, because `isSpanGrounded` is a pure `includes` against
+the one canonical text. But a span occurring several times in the document grounds while saying
+nothing about _which_ occurrence, and a chunked run is more likely to have quoted it from a chunk
+lacking the disambiguating context. Grounding is verbatim presence, not occurrence identity.
+
+**F8 — §4.1's `onHedge` fires at dispatch, so it cannot report a winner.** §5.1 and §8 both lean on
+separating hedge fire rate from hedge win rate to decide whether the combinator is worth keeping.
+As specified the instrument cannot answer the question it exists for. `hedged` fires at settlement
+with a `winner` field for exactly this reason.
+
+**F9 — §4.3 never classifies a chunk failure as terminal or transient.** It says a chunk rejection
+propagates and stops. ADR 0002's rule ("classify by who failed") makes this a real fork: always
+transient turns one chunk's blip into a full-price retry of the whole run; always terminal stops a
+run whose transport is fine. Undecided in the draft, and it walks directly into the lesson that ADR
+records.
+
+**F10 — §4.4 denies and performs the same reversal.** The argument that offsets are a new fact the
+combination computes is sound. But the design also copies each part's `capture.` keys into the
+output bag, which is exactly what `annotated-transcript.ts` forbids and what
+`TranscriptCombiner<In, Out>`'s second type parameter exists to prevent. Own it as an ADR or drop
+it. Separately: with `markCaptures` off the default joins with `" "`, and those separators belong
+to no part, so coverage is non-contiguous; an empty part has no defensible range; and §9's
+slice-back test passes even when a range points at the wrong copy of two identical parts.
+
+**F11 — §4.5's justification for keeping `annotatingCombiner` is a rationalisation.**
+`Transcriber.transcribe` returns **one** `Transcript` per call, so a windowed transcriber reassembles
+internally and never presents windows as parts to a `TranscriptCombiner`. The codec argument for
+deferring `chunkedTranscriber` is sound; the claim that "the useful half of this story does land
+here" is not. Justify `annotatingCombiner` on attribution alone, or defer it alongside.
+
+**F12 — §4.1 never mentions `ExtractOptions.deadline`.** `timeoutExtractor` already implements the
+narrowing discipline (take `Math.min`, reject immediately if already past). A hedge delay that
+outlives the caller's deadline dispatches a call that cannot succeed.
+
+### 10.3 Findings worth recording but not blocking
+
+**F13** — §4.2's "reused rather than reimplemented" has no mechanism: the capability TTL cache is a
+private member of `FirstCapableTranscriber`, and `hedged` already had to duplicate it.
+`raceTranscriber` would be copy three unless a shared helper is extracted, which contradicts §6's
+"nothing existing changes behaviour."
+
+**F14** — §5.3 counts the N× chunk multiplier but not its amplification: one transient failure at
+chunk 40 discards 39 paid successes, and the relay's retry re-runs all 40. Record per-chunk
+resumption as future work or state the cost.
+
+**F15** — §4.2's two proposed defaults never specify mid-run behaviour on a first error before
+exhaustion. Three readings are defensible and one makes the new default indistinguishable from the
+existing one.
+
+**F16** — §4.1 does not say whether a cancelled loser's usage is reported. Reporting it makes a
+hedge's true cost visible; omitting it keeps `usage` describing the returned result, as every other
+combinator does. Genuinely undecided.
+
+### 10.4 Found during this review, unrelated to SP3
+
+Two wiring gaps in the shipped R1.6 Task 11 instance-identity feature, both pre-existing:
+
+- **`rankCandidates` and `HVAC_IDENTIFYING_FIELDS` were absent from the
+  `@azx/ribo-adapter-snuggpro` barrel**, so no consumer outside the package could call either,
+  while that feature's changeset states the package "provides `rankCandidates`". **Fixed** as part
+  of the instance-identity work on this branch.
+- **`linkTargets` is computed, validated, persisted and never read by any write step.**
+  `instance-write-step.ts` reads `outcome.instanceKeys` and never `outcome.linkTargets`, so the uuid
+  a human chose has no path into `adapter.write` and every instance is written as a create. **Not
+  fixed** — it wants its own change.
