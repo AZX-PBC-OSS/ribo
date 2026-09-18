@@ -223,6 +223,18 @@ export function preferEngineOrder(ranking: readonly string[]): TranscriptionArbi
     if (input.exhausted) {
       const best = bestRankedSuccess(input.outcomes, rankOf);
       if (best) return { accept: best.result };
+      // Prefer a RETRYABLE error over a terminal one — `unsupportedFallsThrough`'s
+      // rule 2, and the reasoning transfers to a race unchanged. A race where one
+      // engine fails terminally (pdf.js: no text layer) and another transiently (OCR:
+      // dropped uplink) must be retried, not buried in `dead`; giving up with
+      // whichever happened to settle first decides that by timing. The ranking
+      // orders SUCCESSES, and has nothing to say about which failure is the more
+      // useful one to report.
+      const firstRetryable = input.outcomes.find(
+        (outcome): outcome is TranscriptionErrorOutcome =>
+          isErrorOutcome(outcome) && isTransientFailure(outcome.error),
+      );
+      if (firstRetryable) return { giveUp: firstRetryable.error };
       const firstError = input.outcomes.find(isErrorOutcome);
       if (firstError) return { giveUp: firstError.error };
       // Exhausted with zero outcomes cannot come from an engine (exhaustion

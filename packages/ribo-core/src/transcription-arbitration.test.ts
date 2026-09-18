@@ -329,3 +329,45 @@ describe("preferEngineOrder", () => {
     expectContinue(preferEngineOrder(["a"])(makeInput([{ candidate: "c", result: unranked }])));
   });
 });
+
+describe("preferEngineOrder prefers a retryable failure at exhaustion", () => {
+  test("gives up with the TRANSIENT error, not whichever settled first", () => {
+    // `unsupportedFallsThrough`'s rule 2, which the first implementation of
+    // `preferEngineOrder` did not carry — it gave up with `outcomes.find(isErrorOutcome)`,
+    // so a race where a terminal failure happened to settle first buried a session that
+    // should have been retried. Whether the queue retries would have been decided by
+    // which engine was faster, which is not a decision anyone chose.
+    //
+    // The ranking orders SUCCESSES; it says nothing about which failure is the more
+    // useful one to report, so it is not consulted here.
+    const terminal = new TerminalError("no text layer");
+    const transient = new Error("dropped uplink");
+    const arbiter = preferEngineOrder(["pdfjs", "ocr"]);
+
+    const verdict = arbiter({
+      outcomes: [
+        { candidate: "pdfjs", error: terminal },
+        { candidate: "ocr", error: transient },
+      ],
+      exhausted: true,
+    });
+
+    expect(verdict).toEqual({ giveUp: transient });
+  });
+
+  test("falls back to the first error when every failure is terminal", () => {
+    const first = new TerminalError("no text layer");
+    const second = new TerminalError("unsupported format");
+    const arbiter = preferEngineOrder(["pdfjs", "ocr"]);
+
+    const verdict = arbiter({
+      outcomes: [
+        { candidate: "pdfjs", error: first },
+        { candidate: "ocr", error: second },
+      ],
+      exhausted: true,
+    });
+
+    expect(verdict).toEqual({ giveUp: first });
+  });
+});
