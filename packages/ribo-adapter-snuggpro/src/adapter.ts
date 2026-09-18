@@ -14,7 +14,13 @@
  * `schema.ts` for the Snugg-specific shape of each.
  */
 
-import type { ExistingRecord, InstanceFacts, RankedCandidate, ToolAdapter, WriteMetadata } from "@azx/ribo-core";
+import type {
+  ExistingRecord,
+  InstanceFacts,
+  RankedCandidate,
+  ToolAdapter,
+  WriteMetadata,
+} from "@azx/ribo-core";
 import { contradictionMatcher } from "@azx/ribo-core";
 import { snuggCtxSchema, type SnuggWriteContext } from "./context.js";
 import { snuggExamples } from "./examples.js";

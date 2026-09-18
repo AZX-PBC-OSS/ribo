@@ -401,10 +401,7 @@ test("rankCandidates reads the adapter's identifyingFields — the wiring, not a
       },
     },
   ];
-  expect(rankCandidates("hvac", instance, records).map((c) => c.contradicts)).toEqual([
-    true,
-    true,
-  ]);
+  expect(rankCandidates("hvac", instance, records).map((c) => c.contradicts)).toEqual([true, true]);
 
   // `identifyingFields` is readonly at the type level; reaching past it with a cast
   // is the point — the test pins what the runtime member is read as. Restored in a
