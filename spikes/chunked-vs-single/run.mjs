@@ -33,10 +33,12 @@ import {
   isExtractedLeaf,
 } from "../../packages/ribo-core/dist/index.js";
 import { helixChat, singleShotExtractor } from "../../packages/ribo-extractor-openai/dist/index.js";
+import { enveloped } from "../../packages/ribo-core/dist/index.js";
 import {
-  snuggProAdapter,
-  snuggProInstructions,
+  snuggValuesSchema,
+  snuggGroupInstructions,
 } from "../../packages/ribo-adapter-snuggpro/dist/index.js";
+import { z } from "zod";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TRANSCRIPTS = join(here, "..", "extraction-snuggpro", "transcripts");
@@ -59,16 +61,32 @@ const env = Object.fromEntries(
 // on it, so this is the only working extraction transport here.
 const chat = helixChat({
   token: env.HELIX_DEV_TOKEN,
-  baseUrl: env.HELIX_BASE_URL ?? "https://dev-api.azx.helix.azxlabs.io/ribo-extraction-spike",
+  baseUrl: env.HELIX_BASE_URL ?? "https://dev-api.azx.helix.azxlabs.io/ribo-docs",
   origin: env.HELIX_ORIGIN ?? "http://localhost:5173",
 });
 
+// ONE group, not the whole adapter. The full extraction schema serialises to
+// ~303KB — nearly 10x the repo's own SCHEMA_SERIALIZED_CHAR_CAP (32_768) — and
+// the gateway rejects it outright, which is exactly why per-group extraction
+// exists. `hvac` is the right single group here: it is a COLLECTION, so it
+// exercises the cross-chunk instance question that motivated the design, which
+// a singleton group would not.
+const GROUP = process.env.SPIKE_GROUP ?? "hvac";
+const groupSchema = z.object({ [GROUP]: snuggValuesSchema.shape[GROUP] }).strict();
+
 const target = {
-  name: "snuggpro",
-  extractionSchema: snuggProAdapter.extractionSchema,
-  instructions: snuggProInstructions,
-  examples: snuggProAdapter.examples,
+  name: `snuggpro-${GROUP}`,
+  extractionSchema: enveloped(groupSchema),
+  instructions: snuggGroupInstructions(GROUP),
 };
+
+const schemaBytes = JSON.stringify(
+  z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" }),
+).length;
+process.stdout.write(`group ${GROUP}: schema ${schemaBytes} chars\n`);
+if (schemaBytes > 32_768) {
+  throw new Error(`over SCHEMA_SERIALIZED_CHAR_CAP (32768)`);
+}
 
 const MODEL = env.SPIKE_MODEL ?? "claude-haiku-4-5";
 const single = singleShotExtractor({ target, chat, model: MODEL });
