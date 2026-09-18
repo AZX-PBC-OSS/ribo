@@ -243,7 +243,11 @@ export type {
 // arbiter (unsupportedFallsThrough) accepts the first success, continues past
 // UnsupportedItemError and TranscriberUnavailableError, and at exhaustion gives
 // up with the first retryable error if there is one (D7 rule 2).
-export { unsupportedFallsThrough } from "./transcription-arbitration.js";
+// The default stays unsupportedFallsThrough (first success wins — right for a
+// ladder, where settlement order IS preference order). preferEngineOrder is the
+// alternative a concurrent combinator wants: a race breaks that identity, so it
+// accepts the best-ranked success instead of the fastest one.
+export { preferEngineOrder, unsupportedFallsThrough } from "./transcription-arbitration.js";
 export type {
   TranscriptionArbiter,
   TranscriptionArbiterInput,
