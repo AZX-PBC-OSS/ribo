@@ -136,6 +136,45 @@ test("the same idempotency key can be replayed — it is stable across a retry, 
   expect(sink.map((w) => w.meta.idempotencyKey)).toEqual(["item-1", "item-1"]);
 });
 
+// --- The link target ---------------------------------------------------------
+// The review's link decision (update an existing record vs create a new one)
+// reaches `write` through `WriteMetadata` — the only channel into the adapter.
+
+test("a linked write carries its target; an unlinked one has no `linkTarget` member at all", async () => {
+  const sink: Written[] = [];
+  const adapter = makeAdapter(sink);
+
+  // A human linked this instance to an existing record at review: the uuid to
+  // UPDATE travels beside the idempotency key.
+  await adapter.write(
+    { rValue: 13 },
+    { jobId: "job-7" },
+    {
+      idempotencyKey: "item-1",
+      linkTarget: "hvac-existing-1",
+    },
+  );
+  // No link was made: absent means create, and the member is OMITTED rather
+  // than passed as `undefined` — absent is not a value.
+  await adapter.write({ rValue: 13 }, { jobId: "job-7" }, { idempotencyKey: "item-2" });
+
+  expect(sink[0]?.meta.linkTarget).toBe("hvac-existing-1");
+  expect("linkTarget" in sink[1]!.meta).toBe(false);
+});
+
+test("`linkTarget` is optional: an adapter written before linking existed still compiles", () => {
+  // The member is optional, not `string | null`, because `WriteMetadata` is a
+  // published contract and an optional member is what keeps every existing
+  // adapter compiling. `LinkTarget`'s own `null` means create too, but a member
+  // that must be present with `null` would break them.
+  const create: WriteMetadata = { idempotencyKey: "item-1" };
+  const update: WriteMetadata = { idempotencyKey: "item-2", linkTarget: "hvac-1" };
+
+  expectTypeOf<WriteMetadata["linkTarget"]>().toEqualTypeOf<string | undefined>();
+  expect(update.linkTarget).toBe("hvac-1");
+  expect("linkTarget" in create).toBe(false);
+});
+
 test("examples are optional", () => {
   const minimal: ToolAdapter<AtticFields, JobContext> = {
     name: "minimal",

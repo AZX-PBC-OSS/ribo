@@ -164,6 +164,17 @@ export interface WriteMetadata {
    * one. Generated once, with the item, by the queue.
    */
   readonly idempotencyKey: string;
+  /**
+   * The existing record this write should UPDATE, when a human linked the instance
+   * at review; absent means create — an optional member rather than `LinkTarget`'s
+   * `string | null`, because an optional member is what keeps every adapter written
+   * before linking existed compiling, and `WriteMetadata` is a published contract.
+   *
+   * The type cannot enforce that an adapter honours this, and it must say so: an
+   * adapter that ignores it will silently create duplicates once a host starts
+   * linking, so honouring it is not optional for an adapter that supports updates.
+   */
+  readonly linkTarget?: string;
 }
 
 /**
