@@ -112,7 +112,7 @@ const mergeNode = (
 
   const first = present[0]!;
   if (Array.isArray(first)) {
-    return concatArrays(present.filter(Array.isArray), path, alignInstances);
+    return concatArrays(present.filter(Array.isArray), path, alignInstances, merge);
   }
   if (isPlainObject(first)) {
     const objects = present.filter(isPlainObject) as readonly Record<string, unknown>[];
@@ -167,6 +167,7 @@ const concatArrays = (
   arrays: readonly unknown[],
   path: LeafPath,
   alignInstances: InstanceMatcher | undefined,
+  merge: MergePolicy,
 ): unknown[] => {
   const accepted: unknown[] = [];
   // Which chunk each accepted element came from — the "earlier chunks only" rule needs
@@ -177,7 +178,7 @@ const concatArrays = (
       if (alignInstances !== undefined && isInstanceElement(element)) {
         const anchor = findAnchor(accepted, sourceChunk, chunkIndex, element, path, alignInstances);
         if (anchor !== undefined) {
-          accepted[anchor] = absorbInstance(accepted[anchor], element);
+          accepted[anchor] = absorbInstance(accepted[anchor], element, path, merge);
           continue;
         }
       }
@@ -212,14 +213,27 @@ const findAnchor = (
 
 /**
  * Merge an incoming instance into an anchor that the matcher judged the same real-world
- * thing. Per member, in order: a committed anchor leaf keeps its value and citation
- * (first mention); the incoming's committed leaf fills an anchor abstention — that is
- * the point of alignment, two partial descriptions of one thing combining; nested arrays
- * concatenate in chunk order, with no per-nested-group matcher (pairing nested arrays by
- * index once their parents matched would reintroduce exactly the splice this walk
- * exists to prevent); nested objects recurse.
+ * thing.
+ *
+ * **Leaves go through the caller's {@link MergePolicy}, exactly as leaves outside a
+ * collection do.** The first implementation hard-coded first-mention-wins here, which is
+ * `firstCommitted`'s rule under another name — so a caller who passed `lastCommitted` got
+ * it for every scalar in the schema and silently did not get it inside a merged instance.
+ * A policy that applies to some leaves and not others is the kind of inconsistency nobody
+ * finds until their data is wrong. The anchor is sample 0 and the incoming is sample 1,
+ * so `firstCommitted` still reproduces the original behaviour.
+ *
+ * Everything else is structural and not the policy's business: nested arrays concatenate
+ * in chunk order with no per-nested-group matcher (pairing them by index once their
+ * parents matched would reintroduce exactly the splice this walk exists to prevent), and
+ * nested objects recurse.
  */
-const absorbInstance = (anchor: unknown, incoming: unknown): unknown => {
+const absorbInstance = (
+  anchor: unknown,
+  incoming: unknown,
+  path: LeafPath,
+  merge: MergePolicy,
+): unknown => {
   const a = anchor as Record<string, unknown>;
   const b = incoming as Record<string, unknown>;
   const merged: Record<string, unknown> = { ...a };
@@ -230,7 +244,7 @@ const absorbInstance = (anchor: unknown, incoming: unknown): unknown => {
       continue;
     }
     if (isExtractedLeaf(anchorValue) && isExtractedLeaf(incomingValue)) {
-      if (anchorValue.value === null && incomingValue.value !== null) merged[key] = incomingValue;
+      merged[key] = chooseLeaf([anchorValue, incomingValue], [...path, key], merge);
       continue;
     }
     if (Array.isArray(anchorValue) && Array.isArray(incomingValue)) {
@@ -242,7 +256,7 @@ const absorbInstance = (anchor: unknown, incoming: unknown): unknown => {
       continue;
     }
     if (isPlainObject(anchorValue) && isPlainObject(incomingValue)) {
-      merged[key] = absorbInstance(anchorValue, incomingValue);
+      merged[key] = absorbInstance(anchorValue, incomingValue, [...path, key], merge);
     }
   }
   return merged;

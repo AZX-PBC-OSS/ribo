@@ -323,3 +323,38 @@ describe("policy misuse", () => {
     expect(rejection).toThrowError(/notes/);
   });
 });
+
+describe("the merge policy reaches inside a merged instance", () => {
+  test("lastCommitted applies to an absorbed instance's leaves, not just to scalars", () => {
+    // The first implementation hard-coded first-mention-wins inside `absorbInstance`,
+    // which is `firstCommitted`'s rule under another name. A caller passing
+    // `lastCommitted` therefore got it for every scalar in the schema and silently did
+    // NOT get it inside a merged instance — a policy applying to some leaves and not
+    // others, which nobody finds until their data is wrong.
+    //
+    // Two chunks describe the same room, both committing a size. Under `lastCommitted`
+    // the later size must win. Reverting the fix returns 200 and fails only this test.
+    const chunk0: Fields = { rooms: [room("Living room", 200)], notes: ABSTAINED, labels: [] };
+    const chunk1: Fields = { rooms: [room("Living room", 260)], notes: ABSTAINED, labels: [] };
+
+    const merged = mergeChunkResults<Values>([chunk0, chunk1], {
+      merge: lastCommitted,
+      alignInstances: matchByName,
+    });
+
+    expect(merged.rooms).toHaveLength(1);
+    expect(merged.rooms?.[0]?.size?.value).toBe(260);
+  });
+
+  test("firstCommitted keeps the earlier description, so the default is unchanged", () => {
+    // The other half of the pin: routing absorption through the policy must not change
+    // what the shipped default does, or this fix would be a silent behaviour change for
+    // every existing caller.
+    const chunk0: Fields = { rooms: [room("Living room", 200)], notes: ABSTAINED, labels: [] };
+    const chunk1: Fields = { rooms: [room("Living room", 260)], notes: ABSTAINED, labels: [] };
+
+    const merged = mergeChunkResults<Values>([chunk0, chunk1], { alignInstances: matchByName });
+
+    expect(merged.rooms?.[0]?.size?.value).toBe(200);
+  });
+});
