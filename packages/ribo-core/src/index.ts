@@ -600,3 +600,13 @@ export { firstCommitted, lastCommitted } from "./merge-policy.js";
 export type { MergePolicy } from "./merge-policy.js";
 export { mergeChunkResults } from "./merge-chunk-results.js";
 export type { MergeChunkOptions } from "./merge-chunk-results.js";
+
+// The long-input combinator over the seam above: split a transcript past a context
+// window into an exact partition, extract from each chunk sequentially, and merge.
+// A chunk failure propagates the inner error UNCHANGED — ADR 0002 classifies by who
+// failed, and the inner error already encodes that — which is the opposite of
+// consensusExtractor, whose candidates are redundant. Chunks are disjoint: a failed
+// chunk means a region of the document was never read. Costs N× the calls of one
+// pass, and says so first.
+export { chunkedExtractor } from "./chunked-extractor.js";
+export type { ChunkedExtractorOptions } from "./chunked-extractor.js";

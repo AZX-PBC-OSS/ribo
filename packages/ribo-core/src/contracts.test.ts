@@ -4,9 +4,11 @@ import { z } from "zod";
 import {
   assertExactPartition,
   buildReviewRequest,
+  chunkedExtractor,
   contradictionMatcher,
   enveloped,
   extractedSchema,
+  FakeExtractor,
   FakeTranscriber,
   firstCapable,
   firstCommitted,
@@ -18,6 +20,7 @@ import {
 import type {
   AnnotatedTranscript,
   ChunkPolicy,
+  ExtractionTarget,
   FieldDecisions,
   IdentifyingFields,
   IdentifyingFieldsMap,
@@ -422,4 +425,41 @@ test("the chunk merge vocabulary is public through the barrel and composes as ty
   expect(merged.rValue.value).toBe(19);
   expect(merged.area.value).toBe(400);
   expect(policy).toBe(firstCommitted);
+});
+
+test("chunkedExtractor is public through the barrel and composes as typed", async () => {
+  // End to end through the public entry point, with the derived extraction schema the
+  // adapter carries: two chunks partitioning the text, the inner extractor seeing each
+  // one, the merge concatenating the collection. The wall-clock composition check the
+  // unit tests do not do — this is the wiring a host performs.
+  const policy: ChunkPolicy = (t) => [t.text.slice(0, 32), t.text.slice(32)];
+  const inner = new FakeExtractor<z.infer<typeof atticExtractionSchema>>(
+    atticExtractionSchema.parse({
+      rValue: { value: 19, confidence: 1, sourceSpan: "The attic is R-19" },
+      area: { value: null, confidence: 1, sourceSpan: null },
+      notes: { value: null, confidence: 1, sourceSpan: null },
+      healthSafety: {
+        ambientCo: { value: "passed", confidence: 1, sourceSpan: "ambient CO came back clean" },
+        gasLeak: { value: null, confidence: 1, sourceSpan: null },
+      },
+    }),
+  );
+  // The target is a type-ANNOTATED const, so `V` anchors on it — inference from an
+  // inner carrying an already-enveloped shape would otherwise produce a double
+  // envelope.
+  const atticChunkTarget: ExtractionTarget<AtticValues> = {
+    name: "attic",
+    extractionSchema: atticExtractionSchema,
+    instructions: "extract the attic fields",
+  };
+  const chunked = chunkedExtractor(inner, { target: atticChunkTarget, chunk: policy });
+
+  const result = await chunked.extract({
+    text: TRANSCRIPT_TEXT,
+    annotations: {},
+  });
+
+  expect(result.fields.rValue.value).toBe(19);
+  expect(inner.calls).toHaveLength(2);
+  expect(inner.calls[0]!.text).toBe(TRANSCRIPT_TEXT.slice(0, 32));
 });
