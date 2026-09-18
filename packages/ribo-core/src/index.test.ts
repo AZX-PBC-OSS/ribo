@@ -139,6 +139,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "pluginStorageEntryId",
     "preferEngineOrder",
     "raceExtractor",
+    "raceTranscriber",
     "recordingSchema",
     "recoverInterrupted",
     "rejectUngroundedCommitments",

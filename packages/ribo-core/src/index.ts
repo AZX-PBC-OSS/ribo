@@ -269,6 +269,15 @@ export type { CapabilityCacheOptions } from "./capability-cache.js";
 export { fallbackTranscriber } from "./fallback-transcriber.js";
 export type { FallbackTranscriberOptions } from "./fallback-transcriber.js";
 
+// Transcriber race: start every capable engine at once and let an arbiter
+// accept a transcript as it settles, wait for more, or give up. The
+// transcription-side counterpart of raceExtractor — a separate constructor so
+// concurrency is opt-in by name, not a scheduling flag. Dispatches to every
+// capable engine, so a race that includes a managed engine sends the audio
+// every time; a deployment that will not pay for that composes firstCapable.
+export { raceTranscriber } from "./race-transcriber.js";
+export type { RaceTranscriberOptions } from "./race-transcriber.js";
+
 // The fake that lets later phases run the pipeline — and drive every capability
 // state and all three failure kinds — without a model.
 export {

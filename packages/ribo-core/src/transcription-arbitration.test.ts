@@ -202,9 +202,7 @@ describe("preferEngineOrder", () => {
   test("returns continue while a better-ranked candidate is unsettled", () => {
     const worse = makeTranscript("b");
 
-    expectContinue(
-      preferEngineOrder(["a", "b"])(makeInput([{ candidate: "b", result: worse }])),
-    );
+    expectContinue(preferEngineOrder(["a", "b"])(makeInput([{ candidate: "b", result: worse }])));
   });
 
   test("accepts once no better-ranked candidate can still arrive", () => {
@@ -236,9 +234,7 @@ describe("preferEngineOrder", () => {
   test("a first error before exhaustion does not give up — the race may still succeed", () => {
     const aFailed = unsupported("a");
 
-    expectContinue(
-      preferEngineOrder(["a", "b"])(makeInput([{ candidate: "a", error: aFailed }])),
-    );
+    expectContinue(preferEngineOrder(["a", "b"])(makeInput([{ candidate: "a", error: aFailed }])));
   });
 
   test("at exhaustion accepts the best-ranked success", () => {
@@ -330,8 +326,6 @@ describe("preferEngineOrder", () => {
     );
 
     // And an unranked success must wait for every named engine to settle.
-    expectContinue(
-      preferEngineOrder(["a"])(makeInput([{ candidate: "c", result: unranked }])),
-    );
+    expectContinue(preferEngineOrder(["a"])(makeInput([{ candidate: "c", result: unranked }])));
   });
 });
