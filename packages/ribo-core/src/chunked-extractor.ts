@@ -57,7 +57,8 @@ import type {
  *   with empty input, which is its decision to make and not this wrapper's.
  *
  * **Usage** sums `calls` across chunks; each token member sums only when every chunk
- * reported it and is omitted entirely otherwise (ADR 0005's absent-is-not-zero);
+ * reported it and is omitted entirely otherwise (absent-is-not-zero — the rule
+ * documented on `ExtractionUsage.cachedPromptTokens`);
  * `engine` and `strategy` are omitted, since they identify one producer. **`raw` is
  * dropped**, for `consensusExtractor`'s reason: it describes one producer's run, and
  * here there are N of them.
@@ -178,7 +179,9 @@ const TOKEN_MEMBERS: readonly (keyof TokenTotals)[] = [
 /**
  * The chunks' combined usage. `calls` sums across every chunk; each token member sums
  * only when every chunk reported it and is omitted entirely otherwise — absent means
- * "not reported", never zero (ADR 0005). `engine` and `strategy` are omitted: they
+ * "not reported", never zero — the distinction `ExtractionUsage.cachedPromptTokens`
+ * documents as "we cannot tell" versus "the cache is not working", which is never
+ * collapsed. `engine` and `strategy` are omitted: they
  * identify one producer, and a chunked run has N. The same rules
  * `consensusExtractor` applies to its survivors.
  */
