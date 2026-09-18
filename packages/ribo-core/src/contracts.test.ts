@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   buildReviewRequest,
+  contradictionMatcher,
   enveloped,
   extractedSchema,
   FakeTranscriber,
@@ -12,6 +13,11 @@ import {
 } from "./index.js";
 import type {
   FieldDecisions,
+  IdentifyingFieldsMap,
+  InstanceEvidence,
+  InstanceFacts,
+  InstanceMatcher,
+  InstanceSameness,
   Recording,
   ReviewRequest,
   ToolAdapter,
@@ -323,4 +329,23 @@ test("the adapter's ctx is typed end to end — a foreign context does not compi
   await adapter.write(fields, { assessmentId: "a-1" }, meta);
 
   expect(adapter.name).toBe("snuggpro-attic-insulation");
+});
+
+// --- The instance-identity vocabulary ---------------------------------------
+//
+// A type-level pin, in the file that index.test.ts defers type-only exports to: each
+// name below is public and must resolve through the barrel with this shape. The
+// runtime behaviour is `instance-identity.test.ts`'s; this exists so a rename or a
+// shape change fails the typecheck rather than a downstream package.
+
+test("the sameness vocabulary is public through the barrel and composes as typed", () => {
+  const yearEvidence: InstanceEvidence = { value: 2019, sourceSpan: null };
+  const facts: InstanceFacts = { group: "hvac", leaves: { modelYear: yearEvidence } };
+  const map: IdentifyingFieldsMap = { hvac: ["modelYear"] };
+
+  const matcher: InstanceMatcher = contradictionMatcher(map);
+  const verdict: InstanceSameness = matcher(facts, facts);
+
+  // Two identical leaves never satisfy the matcher — it refuses to say "same".
+  expect(verdict).toBe("unknown");
 });

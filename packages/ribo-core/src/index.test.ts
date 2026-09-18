@@ -76,6 +76,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "chunkPrefix",
     "compositeExtractor",
     "consensusExtractor",
+    "contradictionMatcher",
     "createCaptureStorageScope",
     "createConcurrentExtractor",
     "createConnectivity",

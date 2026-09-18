@@ -456,9 +456,15 @@ export type { StoragePersistence, WorkOnDevice, WorkSafety } from "./work-safety
 
 // Instance identity: existing records enter at review, and a human decides whether to
 // link each dictated instance to one or create a new record.
+export { contradictionMatcher } from "./instance-identity.js";
 export type {
   ExistingRecord,
+  IdentifyingFieldsMap,
+  InstanceEvidence,
+  InstanceFacts,
   InstanceLinkDecision,
+  InstanceMatcher,
+  InstanceSameness,
   LinkTarget,
   LinkTargets,
   RankedCandidate,
