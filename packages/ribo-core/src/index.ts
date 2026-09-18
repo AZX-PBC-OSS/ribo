@@ -251,6 +251,13 @@ export type {
   TranscriptionOutcome,
 } from "./transcription-arbitration.js";
 
+// The TTL-keyed capability cache the transcription combinators share, extracted
+// when `raceTranscriber` became the third copy of the shape. `firstCapable` and
+// `hedged` still carry their own copies — a deliberate, unfinished migration
+// (see capability-cache.ts's header).
+export { CapabilityCache } from "./capability-cache.js";
+export type { CapabilityCacheOptions } from "./capability-cache.js";
+
 // Transcriber fallback: try transcribers in order without consulting
 // capability(), letting an arbiter decide whether each outcome is acceptable.
 // The per-item sibling of firstCapable — a reader who thinks it is

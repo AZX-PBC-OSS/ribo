@@ -19,6 +19,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "CAPTURE_LOCK",
     "CAPTURE_STATUSES",
     "CancellationError",
+    "CapabilityCache",
     "CaptureStore",
     "ConsensusFailedError",
     "DEFAULT_BACKOFF_BASE_MS",
