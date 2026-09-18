@@ -108,6 +108,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "groupedExtractor",
     "hedgeDelay",
     "hedged",
+    "hedgedExtractor",
     "holdLock",
     "isCancellation",
     "isChunkOf",

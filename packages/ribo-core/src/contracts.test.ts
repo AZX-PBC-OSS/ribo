@@ -12,6 +12,7 @@ import {
   FakeTranscriber,
   firstCapable,
   firstCommitted,
+  hedgedExtractor,
   mergeChunkResults,
   recordingSchema,
   resolveReview,
@@ -20,8 +21,12 @@ import {
 import type {
   AnnotatedTranscript,
   ChunkPolicy,
+  ExtractionHedgeEvent,
   ExtractionTarget,
+  Extractor,
   FieldDecisions,
+  HedgeDelay,
+  HedgedExtractorOptions,
   IdentifyingFields,
   IdentifyingFieldsMap,
   InstanceEvidence,
@@ -425,6 +430,25 @@ test("the chunk merge vocabulary is public through the barrel and composes as ty
   expect(merged.rValue.value).toBe(19);
   expect(merged.area.value).toBe(400);
   expect(policy).toBe(firstCommitted);
+});
+
+test("the hedged extractor vocabulary is public through the barrel and composes as typed", async () => {
+  const events: ExtractionHedgeEvent[] = [];
+  const delay: HedgeDelay = (transcript) => transcript.text.length;
+  const options: HedgedExtractorOptions = {
+    delay,
+    onHedge: (event) => events.push(event),
+  };
+  const inner = new FakeExtractor<AtticValues>({ rValue: 19, area: 400, notes: "" });
+  const hedged: Extractor<AtticValues> = hedgedExtractor(inner, inner, options);
+
+  const result = await hedged.extract({ text: TRANSCRIPT_TEXT, annotations: {} });
+
+  // The primary settles before any timer could fire, so the hedge never ran and
+  // nothing fired — rule 1, the case the combinator exists for.
+  expect(result.fields.rValue).toBe(19);
+  expect(inner.calls).toHaveLength(1);
+  expect(events).toHaveLength(0);
 });
 
 test("chunkedExtractor is public through the barrel and composes as typed", async () => {

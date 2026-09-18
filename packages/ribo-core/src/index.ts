@@ -431,6 +431,19 @@ export type { RetryAsyncOptions } from "./retry-async.js";
 export { ExtractionTimeoutError, timeoutExtractor } from "./timeout-extractor.js";
 export type { TimeoutExtractorOptions } from "./timeout-extractor.js";
 
+// Strategy hedge: start a primary and fire a hedge on a delay, taking whichever
+// settles first and cancelling the loser so the usual case bills for one. The
+// extraction counterpart of `hedged`, keeping `timeoutExtractor`'s signal and
+// deadline discipline; deliberately not built on the concurrent engine, which
+// forwards options unchanged and constructs no controller, so a loser there
+// runs to completion and bills.
+export { hedgedExtractor } from "./hedged-extractor.js";
+export type {
+  ExtractionHedgeEvent,
+  HedgeDelay,
+  HedgedExtractorOptions,
+} from "./hedged-extractor.js";
+
 // The grouped run: take a per-key map of group extractors and own the
 // cross-group work — coverage at construction, a bounded pool, the derived
 // retry budget, sibling abort, the merge, the second trust-boundary parse,
