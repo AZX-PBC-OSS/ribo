@@ -243,9 +243,26 @@ describe("raceTranscriber", () => {
     const handler = (reason: unknown) => unhandled.push(reason);
     process.on("unhandledRejection", handler);
     try {
-      // A lane that does not honour its abort signal, so its eventual rejection
-      // is an ordinary attempt failure arriving after the race is over.
-      const loser = new DeferredTranscriber("slow");
+      // A lane that genuinely IGNORES its abort signal, so its rejection is an
+      // ordinary attempt failure arriving after the race is already over — which is
+      // the path this test's title names.
+      //
+      // `DeferredTranscriber` was used here first and does NOT exercise it: its
+      // constructor attaches an abort listener, so the winner's `abortLanes` rejects
+      // the loser itself and the later manual reject is a no-op on an
+      // already-rejected promise. The test passed, but through the abort path that
+      // other tests already cover — and deleting that listener would not have failed
+      // it. A fixture that ignores the signal is the only way to reach the late
+      // ordinary rejection.
+      let rejectLoser!: (reason: unknown) => void;
+      const loser: Transcriber = {
+        engine: "slow",
+        capability: async () => ({ status: "ready" }),
+        transcribe: () =>
+          new Promise<Transcript>((_resolve, reject) => {
+            rejectLoser = reject;
+          }),
+      };
       const winner = new FakeTranscriber({ engine: "fast", text: "fast text" });
       const composite = raceTranscriber([loser, winner]);
 
@@ -256,7 +273,7 @@ describe("raceTranscriber", () => {
       // combinator must have attached a rejection handler to the slow promise,
       // or this surfaces as an unhandled rejection and the test fails on the
       // assertion below.
-      loser.reject(new Error("slow lost"));
+      rejectLoser(new Error("slow lost"));
 
       // Give Node's unhandled-rejection check a turn to fire if the handler is
       // missing. A bare microtask flush is not enough; the event is emitted on
