@@ -1,7 +1,13 @@
-import { expect, test } from "vitest";
+import { expect, expectTypeOf, test } from "vitest";
 import { z } from "zod";
 import { enveloped } from "./enveloped.js";
-import type { ToolAdapter, ToolAdapterExample, ValuesSchema, WriteMetadata } from "./adapter.js";
+import type {
+  IdentifyingFields,
+  ToolAdapter,
+  ToolAdapterExample,
+  ValuesSchema,
+  WriteMetadata,
+} from "./adapter.js";
 
 // The fields one adapter writes, and the host context it needs to write them.
 // `atticSchema` is the PATCH — the source of truth for `V` — and the extraction
@@ -128,6 +134,45 @@ test("the same idempotency key can be replayed — it is stable across a retry, 
   await adapter.write({ rValue: 13 }, { jobId: "job-7" }, meta);
 
   expect(sink.map((w) => w.meta.idempotencyKey)).toEqual(["item-1", "item-1"]);
+});
+
+// --- The link target ---------------------------------------------------------
+// The review's link decision (update an existing record vs create a new one)
+// reaches `write` through `WriteMetadata` — the only channel into the adapter.
+
+test("a linked write carries its target; an unlinked one has no `linkTarget` member at all", async () => {
+  const sink: Written[] = [];
+  const adapter = makeAdapter(sink);
+
+  // A human linked this instance to an existing record at review: the uuid to
+  // UPDATE travels beside the idempotency key.
+  await adapter.write(
+    { rValue: 13 },
+    { jobId: "job-7" },
+    {
+      idempotencyKey: "item-1",
+      linkTarget: "hvac-existing-1",
+    },
+  );
+  // No link was made: absent means create, and the member is OMITTED rather
+  // than passed as `undefined` — absent is not a value.
+  await adapter.write({ rValue: 13 }, { jobId: "job-7" }, { idempotencyKey: "item-2" });
+
+  expect(sink[0]?.meta.linkTarget).toBe("hvac-existing-1");
+  expect("linkTarget" in sink[1]!.meta).toBe(false);
+});
+
+test("`linkTarget` is optional: an adapter written before linking existed still compiles", () => {
+  // The member is optional, not `string | null`, because `WriteMetadata` is a
+  // published contract and an optional member is what keeps every existing
+  // adapter compiling. `LinkTarget`'s own `null` means create too, but a member
+  // that must be present with `null` would break them.
+  const create: WriteMetadata = { idempotencyKey: "item-1" };
+  const update: WriteMetadata = { idempotencyKey: "item-2", linkTarget: "hvac-1" };
+
+  expectTypeOf<WriteMetadata["linkTarget"]>().toEqualTypeOf<string | undefined>();
+  expect(update.linkTarget).toBe("hvac-1");
+  expect("linkTarget" in create).toBe(false);
 });
 
 test("examples are optional", () => {
@@ -383,4 +428,35 @@ test("an adapter declared for one context is not assignable to another", () => {
   const misdeclared: ToolAdapter<AtticFields, OtherContext> = makeAdapter([]);
 
   expect(misdeclared.name).toBe("attic-insulation");
+});
+
+// --- Identifying fields -----------------------------------------------------
+// Host knowledge of which leaves can make two descriptions certainly different —
+// declared per group, typed against the values schema exactly like
+// `requiredOnCreate`. The runtime consumer is `contradictionMatcher`; these pins
+// are the declaration side.
+
+test("`identifyingFields` accepts a valid per-group declaration", () => {
+  // `atticSchema` is flat, so a top-level leaf's group-leaf key is the group key
+  // itself — the same name the runtime matches against.
+  const adapter: ToolAdapter<AtticFields, JobContext> = {
+    ...makeAdapter([]),
+    identifyingFields: { rValue: ["rValue"] },
+  };
+
+  expect(adapter.identifyingFields).toEqual({ rValue: ["rValue"] });
+});
+
+test("`identifyingFields` is typed against the values schema — a misspelled leaf does not compile", () => {
+  expectTypeOf({ rValue: ["rValue"] } as const).toMatchTypeOf<IdentifyingFields<AtticFields>>();
+
+  // @ts-expect-error - "notAGroup" is not a top-level key of the values schema.
+  const _badGroup: IdentifyingFields<AtticFields> = { notAGroup: ["rValue"] };
+
+  // @ts-expect-error - "notRValue" is not a leaf of the rValue group.
+  const _badLeaf: IdentifyingFields<AtticFields> = { rValue: ["notRValue"] };
+
+  // Satisfy the no-unused-vars rule for the intentionally failing declarations.
+  void _badGroup;
+  void _badLeaf;
 });

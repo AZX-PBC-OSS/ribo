@@ -14,7 +14,14 @@
  * `schema.ts` for the Snugg-specific shape of each.
  */
 
-import type { ExistingRecord, RankedCandidate, ToolAdapter, WriteMetadata } from "@azx/ribo-core";
+import type {
+  ExistingRecord,
+  InstanceFacts,
+  RankedCandidate,
+  ToolAdapter,
+  WriteMetadata,
+} from "@azx/ribo-core";
+import { contradictionMatcher } from "@azx/ribo-core";
 import { snuggCtxSchema, type SnuggWriteContext } from "./context.js";
 import { snuggExamples } from "./examples.js";
 import { snuggProInstructions } from "./instructions.js";
@@ -22,6 +29,21 @@ import { snuggExtractionSchema, snuggValuesSchema, type SnuggValues } from "./sc
 
 /** Stable identifier for this adapter: the bounded Snugg Pro pilot field set. */
 export const SNUGGPRO_ADAPTER_NAME = "snuggpro-bounded";
+
+/**
+ * Fields that identify an HVAC record well enough for the sameness judgement.
+ *
+ * The auto-link draft used these four; a disagreement on any one of them, when both sides
+ * have a captured value, is a veto. Duct leakage, insulation, location and capacities are
+ * intentionally excluded — they describe the wrong-record problem the plan documents
+ * (furnace identity with AC duct data) and must not be allowed to override it.
+ */
+export const HVAC_IDENTIFYING_FIELDS = [
+  "hvacSystemEquipmentType",
+  "hvacHeatingSystemManufacturer",
+  "hvacHeatingSystemModel",
+  "hvacHeatingSystemModelYear",
+] as const;
 
 export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
   name: SNUGGPRO_ADAPTER_NAME,
@@ -82,6 +104,28 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
     ],
   },
 
+  /**
+   * What makes two HVAC descriptions certainly DIFFERENT real-world things — the
+   * fields the sameness judgement may veto on, declared per group exactly like
+   * `requiredOnCreate` beside it (a collection group has N instances and the same
+   * leaves identify every one). Consumed through core's `contradictionMatcher` by
+   * `rankCandidates` below.
+   *
+   * Only `hvac` declares fields: it is the only collection group in the pilot whose
+   * records a dictation can plausibly duplicate (a house has several systems, often
+   * the same model). The singleton groups describe the one job itself, where the
+   * "another instance of the same thing" question cannot arise.
+   *
+   * The declaration names only what can make two records certainly different. It
+   * deliberately cannot make them the same — agreement on all four fields is not
+   * identity (an upstairs and a downstairs unit of the same model year agree on every
+   * one), so the matcher below refuses to judge instead of merging. Saying "same" is
+   * host judgement, and no host has asked for it.
+   */
+  identifyingFields: {
+    hvac: HVAC_IDENTIFYING_FIELDS,
+  },
+
   instructions: snuggProInstructions,
   examples: snuggExamples,
 
@@ -105,58 +149,51 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
 };
 
 /**
- * Fields that identify an HVAC record well enough for the contradiction check.
+ * Flatten plain field values into the core evidence shape `contradictionMatcher` reads.
  *
- * The auto-link draft used these four; a disagreement on any one of them, when both sides
- * have a captured value, demotes the candidate. Duct leakage, insulation, location and
- * capacities are intentionally excluded — they describe the wrong-record problem the plan
- * documents (furnace identity with AC duct data) and must not be allowed to override it.
+ * Both sides of a comparison arrive as plain values: the existing record never entered
+ * extraction, and the dictated instance is already flattened by its caller
+ * (`use-review.ts` reads `field.extracted.value`). This does NOT unwrap provenance
+ * envelopes — a caller who passes one hits the matcher's throw naming the field,
+ * which is the check that keeps the flattening contract honest.
+ *
+ * `sourceSpan` is null on every leaf: there is no producer for spans here yet. If a
+ * caller ever has one (two chunks quoting the identical span is the one kind of
+ * positive evidence a host matcher could read), the type already carries it.
  */
-export const HVAC_IDENTIFYING_FIELDS = [
-  "hvacSystemEquipmentType",
-  "hvacHeatingSystemManufacturer",
-  "hvacHeatingSystemModel",
-  "hvacHeatingSystemModelYear",
-] as const;
-
-const IDENTIFYING_FIELDS: Record<string, readonly string[]> = {
-  hvac: HVAC_IDENTIFYING_FIELDS,
-};
+const toInstanceFacts = (group: string, values: Record<string, unknown>): InstanceFacts => ({
+  group,
+  leaves: Object.fromEntries(
+    Object.entries(values).map(([field, value]) => [field, { value, sourceSpan: null }]),
+  ),
+});
 
 /**
  * Order existing records of a collection group by how strongly they match a dictated instance.
  *
- * A candidate is demoted to the "contradicts" tier if any captured identifying field
- * disagrees with the instance. Within each tier the original order is preserved so the host
- * tool's own ordering (e.g., creation order) survives. The strongest non-contradicting
- * candidate may be pre-highlighted, but it is never linked automatically.
+ * Expressed over core's `contradictionMatcher` with this adapter's `identifyingFields`
+ * declaration — a candidate is demoted to the "contradicts" tier when the matcher says
+ * `"different"`, and its `"unknown"` lands in the non-contradicting tier: a missing or
+ * agreeing identifying field is missing information, not a disagreement, and review's
+ * permissive reading is correct because a human is the backstop. The matcher is the
+ * shared vocabulary, not a shared answer — a future consumer (cross-chunk instance
+ * alignment) will share the evidence shapes and the veto, not this ranking.
+ *
+ * Within each tier the original order is preserved so the host tool's own ordering
+ * (e.g., creation order) survives. The strongest non-contradicting candidate may be
+ * pre-highlighted, but it is never linked automatically.
  */
 export function rankCandidates(
   group: string,
   instance: Record<string, unknown>,
   existing: readonly ExistingRecord[],
 ): RankedCandidate[] {
-  const identifying = IDENTIFYING_FIELDS[group] ?? [];
-  const scored = existing.map((record): RankedCandidate => {
-    let contradicts = false;
-    for (const field of identifying) {
-      const extractedValue = instance[field];
-      const existingValue = record.fields[field];
-      // A captured identifying field on both sides that disagrees is a veto. Null or
-      // undefined on either side is not a disagreement — it is missing information.
-      if (
-        extractedValue !== null &&
-        extractedValue !== undefined &&
-        existingValue !== null &&
-        existingValue !== undefined &&
-        extractedValue !== existingValue
-      ) {
-        contradicts = true;
-        break;
-      }
-    }
-    return { ...record, contradicts };
-  });
+  const matcher = contradictionMatcher(snuggProAdapter.identifyingFields);
+  const dictated = toInstanceFacts(group, instance);
+  const scored = existing.map((record): RankedCandidate => ({
+    ...record,
+    contradicts: matcher(dictated, toInstanceFacts(group, record.fields)) === "different",
+  }));
   return [
     ...scored.filter((candidate) => !candidate.contradicts),
     ...scored.filter((candidate) => candidate.contradicts),

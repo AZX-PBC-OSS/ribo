@@ -1,5 +1,10 @@
 import { isSpanGrounded, stripOptionalNullable } from "@azx/ribo-core";
-import type { ExistingRecord, RequiredOnCreate, Roster as CoreRoster } from "@azx/ribo-core";
+import type {
+  ExistingRecord,
+  IdentifyingFields,
+  RequiredOnCreate,
+  Roster as CoreRoster,
+} from "@azx/ribo-core";
 import { describe, expect, expectTypeOf, test } from "vitest";
 import { z } from "zod";
 import { rankCandidates, SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
@@ -312,6 +317,107 @@ describe("rankCandidates — contradiction check orders existing records", () =>
     expect(ranked.map((c) => c.uuid)).toEqual(["attic-1", "attic-2"]);
     expect(ranked.every((c) => !c.contradicts)).toBe(true);
   });
+});
+
+test("identifyingFields is typed against the values schema", () => {
+  // Valid group and leaves compile — the same shape `requiredOnCreate` pins, because
+  // it is the same kind of per-group declaration.
+  expectTypeOf({
+    hvac: ["hvacSystemEquipmentType", "hvacHeatingSystemModel"],
+  } as const).toMatchTypeOf<IdentifyingFields<SnuggValues>>();
+
+  // @ts-expect-error - "notAGroup" is not a top-level group of the Snugg values schema.
+  const _badGroup: IdentifyingFields<SnuggValues> = { notAGroup: ["leaf"] };
+
+  // @ts-expect-error - "notALeaf" is not a leaf of the hvac group.
+  const _badLeaf: IdentifyingFields<SnuggValues> = { hvac: ["notALeaf"] };
+
+  // Satisfy the no-unused-vars rule for the intentionally failing declarations.
+  void _badGroup;
+  void _badLeaf;
+});
+
+test("the identifying fields are exactly hvac's four, declared on the adapter", () => {
+  // Equipment type, heating manufacturer, heating model and model year — the fields
+  // the auto-link draft used. Duct leakage, insulation, location and capacities are
+  // deliberately absent: they describe the wrong-record problem (furnace identity
+  // with AC duct data) and must never be allowed to override it.
+  expect(snuggProAdapter.identifyingFields).toEqual({
+    hvac: [
+      "hvacSystemEquipmentType",
+      "hvacHeatingSystemManufacturer",
+      "hvacHeatingSystemModel",
+      "hvacHeatingSystemModelYear",
+    ],
+  });
+});
+
+test("every identifyingFields group and leaf is declared in the values schema", () => {
+  // The drift guard requiredOnCreate ships, mirrored: the typed form above can be
+  // bypassed from JavaScript, so a renamed field must fail HERE, loudly, instead of
+  // silently identifying nothing. Walking the values schema directly keeps this
+  // independent of the matcher it exists to pin.
+  const identifying = snuggProAdapter.identifyingFields;
+  if (!identifying) throw new Error("expected the adapter to declare identifyingFields");
+  const groupLeaves = groupLeafNames(snuggValuesSchema);
+  for (const [group, leaves] of Object.entries(identifying)) {
+    const available = groupLeaves[group];
+    expect(available, `group "${group}" is not in the values schema`).toBeDefined();
+    for (const leaf of leaves) {
+      expect(available, `leaf "${leaf}" not in group "${group}"`).toContain(leaf);
+    }
+  }
+});
+
+test("rankCandidates reads the adapter's identifyingFields — the wiring, not an old constant", () => {
+  // Under the shipped declaration both records contradict, so their original order is
+  // preserved. Narrowing the declaration to a field both records agree on flips both
+  // to non-contradicting — and that flip is the proof: if rankCandidates still read a
+  // module-private field list instead of the adapter member, the mutation would
+  // change nothing.
+  const instance = {
+    hvacSystemEquipmentType: "Boiler",
+    hvacHeatingSystemManufacturer: "Lennox",
+    hvacHeatingSystemModel: "EL296",
+    hvacHeatingSystemModelYear: 2019,
+  };
+  const records: ExistingRecord[] = [
+    {
+      uuid: "wrong-model",
+      fields: {
+        hvacSystemEquipmentType: "Boiler",
+        hvacHeatingSystemManufacturer: "Lennox",
+        hvacHeatingSystemModel: "MA58",
+        hvacHeatingSystemModelYear: 2019,
+      },
+    },
+    {
+      uuid: "wrong-year",
+      fields: {
+        hvacSystemEquipmentType: "Boiler",
+        hvacHeatingSystemManufacturer: "Lennox",
+        hvacHeatingSystemModel: "EL296",
+        hvacHeatingSystemModelYear: 2004,
+      },
+    },
+  ];
+  expect(rankCandidates("hvac", instance, records).map((c) => c.contradicts)).toEqual([true, true]);
+
+  // `identifyingFields` is readonly at the type level; reaching past it with a cast
+  // is the point — the test pins what the runtime member is read as. Restored in a
+  // finally so the shared adapter object does not leak the narrowed declaration into
+  // the other tests in this file.
+  const writable = snuggProAdapter as { identifyingFields?: unknown };
+  const original = snuggProAdapter.identifyingFields;
+  writable.identifyingFields = { hvac: ["hvacSystemEquipmentType"] };
+  try {
+    expect(rankCandidates("hvac", instance, records).map((c) => c.contradicts)).toEqual([
+      false,
+      false,
+    ]);
+  } finally {
+    writable.identifyingFields = original;
+  }
 });
 
 test("the adapter's inferred Roster satisfies the core Roster interface", () => {

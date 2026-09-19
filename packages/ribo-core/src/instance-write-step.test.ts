@@ -103,6 +103,7 @@ const seedSession = async (
   ctx: unknown,
   fields: Record<string, unknown>,
   instanceKeys?: Record<string, string[]>,
+  linkTargets?: Record<string, (string | null)[]>,
 ): Promise<{ session: SessionItem; ctx: unknown }> => {
   const session = await storage.sessions.open({ ctx, ref: "job-7" });
   const enqueued = await storage.captures.enqueue({
@@ -134,6 +135,7 @@ const seedSession = async (
     status: "accepted",
     fields,
     ...(instanceKeys ? { instanceKeys } : {}),
+    ...(linkTargets ? { linkTargets } : {}),
   });
   return { session: reviewed, ctx };
 };
@@ -252,6 +254,168 @@ test("a patch with an empty collection group writes nothing for that group", asy
 
   expect(written).toHaveLength(1);
   expect(written[0]!.fields).toEqual({ basedata: { yearBuilt: 2004 } });
+});
+
+// --- The review's link decision ---------------------------------------------
+// A human decides at review whether an instance updates an existing record or
+// creates a new one; the write step carries that decision to the adapter.
+// `linkTargets` is aligned positionally with each group's array in `fields` —
+// the same array this loop walks — and `null` means create.
+
+test("an instance with a link target passes it to write as `meta.linkTarget`", async () => {
+  const storage = await openTestOutbox();
+  const written: Write[] = [];
+  const step = toInstanceWriteStep({
+    adapter: makeAdapter(written),
+    collectionGroups: ["hvac"],
+  });
+
+  const { session, ctx } = await seedSession(
+    storage,
+    { jobId: "job-7" },
+    { hvac: [{ hvacSystemEquipmentType: "Furnace" }] },
+    { hvac: ["k1"] },
+    { hvac: ["uuid-existing-1"] },
+  );
+
+  await step({
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
+  });
+
+  expect(written).toHaveLength(1);
+  expect(written[0]?.meta.linkTarget).toBe("uuid-existing-1");
+});
+
+test("an instance whose decision is `null` gets no `linkTarget` member at all", async () => {
+  // `null` means create, and create is carried by the member's ABSENCE — not by
+  // `linkTarget: undefined`, which would be a value that is not a value.
+  // `"linkTarget" in meta` is the assertion that survives the member vanishing
+  // from both sides; `toBeUndefined` is not.
+  const storage = await openTestOutbox();
+  const written: Write[] = [];
+  const step = toInstanceWriteStep({
+    adapter: makeAdapter(written),
+    collectionGroups: ["hvac"],
+  });
+
+  const { session, ctx } = await seedSession(
+    storage,
+    { jobId: "job-7" },
+    { hvac: [{ hvacSystemEquipmentType: "Furnace" }] },
+    { hvac: ["k1"] },
+    { hvac: [null] },
+  );
+
+  await step({
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
+  });
+
+  expect(written).toHaveLength(1);
+  expect("linkTarget" in written[0]!.meta).toBe(false);
+});
+
+test("a group with no entry in `linkTargets` writes every instance as a create", async () => {
+  const storage = await openTestOutbox();
+  const written: Write[] = [];
+  const step = toInstanceWriteStep({
+    adapter: makeAdapter(written),
+    collectionGroups: ["hvac"],
+  });
+
+  const { session, ctx } = await seedSession(
+    storage,
+    { jobId: "job-7" },
+    {
+      hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
+    },
+    { hvac: ["k1", "k2"] },
+    // No hvac entry: a missing target is the normal case (it means create),
+    // not an error — an implementation that threw here would break every
+    // unlinked instance, which is almost all of them.
+  );
+
+  await step({
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
+  });
+
+  expect(written).toHaveLength(2);
+  expect(written.map((w) => "linkTarget" in w.meta)).toEqual([false, false]);
+});
+
+test("two instances in one group with different decisions each get their own", async () => {
+  // The pin that index alignment is real: instance 0 links and instance 1
+  // creates, each identified by the idempotency key its position derives, so a
+  // crossed or shared decision cannot pass unnoticed in a one-instance fixture.
+  const storage = await openTestOutbox();
+  const written: Write[] = [];
+  const step = toInstanceWriteStep({
+    adapter: makeAdapter(written),
+    collectionGroups: ["hvac"],
+  });
+
+  const { session, ctx } = await seedSession(
+    storage,
+    { jobId: "job-7" },
+    {
+      hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
+    },
+    { hvac: ["k1", "k2"] },
+    { hvac: ["uuid-existing-1", null] },
+  );
+
+  await step({
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
+  });
+
+  expect(written).toHaveLength(2);
+  const byIndex = (index: number): WriteMetadata =>
+    written.find((w) => w.meta.idempotencyKey.endsWith(`:instance:hvac:${index}`))!.meta;
+  expect(byIndex(0).linkTarget).toBe("uuid-existing-1");
+  expect("linkTarget" in byIndex(1)).toBe(false);
+});
+
+test("an outcome with no `linkTargets` at all writes creates and does not throw", async () => {
+  // Every outcome persisted before linking existed has no `linkTargets` member;
+  // the write step must keep writing them as creates.
+  const storage = await openTestOutbox();
+  const written: Write[] = [];
+  const step = toInstanceWriteStep({
+    adapter: makeAdapter(written),
+    collectionGroups: ["hvac"],
+  });
+
+  const { session, ctx } = await seedSession(
+    storage,
+    { jobId: "job-7" },
+    {
+      hvac: [{ hvacSystemEquipmentType: "Furnace" }, { hvacSystemEquipmentType: "AC" }],
+    },
+    { hvac: ["k1", "k2"] },
+  );
+
+  await expect(
+    step({
+      session,
+      reviewed: reviewFields(session),
+      idempotencyKey: session.idempotencyKey,
+      ctx,
+    }),
+  ).resolves.toBeDefined();
+
+  expect(written).toHaveLength(2);
+  expect(written.map((w) => "linkTarget" in w.meta)).toEqual([false, false]);
 });
 
 // --- Relay-driven retry -----------------------------------------------------

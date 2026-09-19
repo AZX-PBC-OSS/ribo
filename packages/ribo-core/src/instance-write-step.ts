@@ -136,9 +136,28 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
               "receipts cannot be safely recorded without a real key.",
           );
         }
-        const { uuid } = await adapter.write(adapter.schema.parse(instancePatch), parsedCtx.data, {
-          idempotencyKey: instanceIdempotencyKey,
-        });
+        // This index is the same positional index `outcome.instanceKeys` and
+        // `outcome.linkTargets` are aligned to: `buildInstancePositions`
+        // establishes first-mention order, review builds both maps against it,
+        // and this loop walks the same array in the same order. If those three
+        // ever disagree, a human's link decision attaches to the wrong physical
+        // record — which is why the alignment is pinned in the tests, not
+        // enforced here.
+        const linkTarget = outcome.linkTargets?.[group]?.[index];
+        const { uuid } = await adapter.write(
+          adapter.schema.parse(instancePatch),
+          parsedCtx.data,
+          // A missing or `null` target means CREATE — the documented default,
+          // and the normal case: unlike `instanceKey` above, whose absence
+          // means receipts cannot be recorded safely, an unlinked instance is
+          // not an error, and throwing here would break every one of them. The
+          // member is omitted rather than passed as `undefined`, because absent
+          // is not a value.
+          {
+            idempotencyKey: instanceIdempotencyKey,
+            ...(typeof linkTarget === "string" ? { linkTarget } : {}),
+          },
+        );
         receipts.instances[group] ??= {};
         receipts.instances[group][instanceKey] = uuid;
       }

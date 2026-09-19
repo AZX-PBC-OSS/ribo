@@ -174,6 +174,110 @@ export function unsupportedFallsThrough(
 }
 
 // ---
+// The preference-order arbiter — the concurrent ladder's default alternative.
+// ---
+
+/**
+ * An arbiter that honours a preference order instead of settlement order —
+ * the default a concurrent combinator wants, and the reason it must exist at
+ * all: under a sequential ladder, settlement order **is** preference order, so
+ * {@link unsupportedFallsThrough}'s "first success wins" means "best success
+ * wins". A race breaks that identity — a worse engine can settle first — and
+ * under the default the race would then accept whichever engine happened to be
+ * fastest.
+ *
+ * A factory closing over the ranking, because `TranscriptionArbiterInput`
+ * carries `outcomes` and `exhausted` and no preference order. An engine absent
+ * from `ranking` sorts after every named one, in settlement order among
+ * themselves.
+ *
+ * Rules, in this order — the ordering is load-bearing, for the same reason as
+ * {@link unsupportedFallsThrough}'s: `continue` is illegal once every candidate
+ * has settled, so every "keep going" branch below must be unreachable at
+ * exhaustion. An earlier version of this pattern (on the extractor side,
+ * arbitration.ts) checked a continue-branch before exhaustion and died with a
+ * TypeError instead of surfacing the real error.
+ *
+ * 1. **Exhausted** → accept the best-ranked success, or give up with the first
+ *    error if there is none. Unlike {@link unsupportedFallsThrough} there is no
+ *    retryable-first preference at exhaustion — the ranking owns the choice, and
+ *    "first" is settlement order.
+ * 2. No success yet → **continue**. A first error before exhaustion does not
+ *    give up: the race's other lanes may still produce a success, which is the
+ *    reading of "continue while a better-ranked candidate is unsettled" that
+ *    keeps this arbiter distinguishable from giving up on first failure.
+ * 3. A success whose every better-ranked engine has settled → **accept** it.
+ *    Only an engine ranked above it could beat it, the ranking names every
+ *    engine that could rank above anything, and each of those has settled — so
+ *    no unsettled candidate can arrive and win.
+ * 4. Otherwise → **continue**, while a better-ranked candidate is unsettled.
+ */
+export function preferEngineOrder(ranking: readonly string[]): TranscriptionArbiter {
+  const rankOf = (engine: string): number => {
+    const at = ranking.indexOf(engine);
+    return at === -1 ? ranking.length : at;
+  };
+
+  return (input) => {
+    // EXHAUSTION IS CHECKED FIRST — see the doc comment above; do not reorder.
+    if (input.exhausted) {
+      const best = bestRankedSuccess(input.outcomes, rankOf);
+      if (best) return { accept: best.result };
+      // Prefer a RETRYABLE error over a terminal one — `unsupportedFallsThrough`'s
+      // rule 2, and the reasoning transfers to a race unchanged. A race where one
+      // engine fails terminally (pdf.js: no text layer) and another transiently (OCR:
+      // dropped uplink) must be retried, not buried in `dead`; giving up with
+      // whichever happened to settle first decides that by timing. The ranking
+      // orders SUCCESSES, and has nothing to say about which failure is the more
+      // useful one to report.
+      const firstRetryable = input.outcomes.find(
+        (outcome): outcome is TranscriptionErrorOutcome =>
+          isErrorOutcome(outcome) && isTransientFailure(outcome.error),
+      );
+      if (firstRetryable) return { giveUp: firstRetryable.error };
+      const firstError = input.outcomes.find(isErrorOutcome);
+      if (firstError) return { giveUp: firstError.error };
+      // Exhausted with zero outcomes cannot come from an engine (exhaustion
+      // means every candidate settled), so this matches
+      // unsupportedFallsThrough's shape for the same degenerate input: continue,
+      // which applyTranscriptionVerdict rejects as a caller bug.
+      return { continue: true };
+    }
+
+    const best = bestRankedSuccess(input.outcomes, rankOf);
+    if (!best) return { continue: true };
+
+    // Could an unsettled better-ranked candidate still beat it? Only engines
+    // ranked above it could, the ranking names all of them, and any that has
+    // not settled is exactly the one this waits for.
+    const settled = new Set(input.outcomes.map((outcome) => outcome.candidate));
+    const betterRanked = ranking.slice(0, rankOf(best.candidate));
+    if (betterRanked.some((engine) => !settled.has(engine))) {
+      return { continue: true };
+    }
+    return { accept: best.result };
+  };
+}
+
+/**
+ * The best-ranked success in settlement order, or `undefined` when none.
+ *
+ * Strict `<` keeps the earlier-settled success on a tie — the only ties are
+ * unranked engines, whose tie-break is settlement order.
+ */
+function bestRankedSuccess(
+  outcomes: readonly TranscriptionOutcome[],
+  rankOf: (engine: string) => number,
+): TranscriptionResultOutcome | undefined {
+  let best: TranscriptionResultOutcome | undefined;
+  for (const outcome of outcomes) {
+    if (!isResultOutcome(outcome)) continue;
+    if (!best || rankOf(outcome.candidate) < rankOf(best.candidate)) best = outcome;
+  }
+  return best;
+}
+
+// ---
 // Verdict validation — carried over from arbitration.ts.
 //
 // `isResultOutcome` first is load-bearing. Comparing `outcome.result ===

@@ -3,15 +3,28 @@ import { z } from "zod";
 
 import {
   buildReviewRequest,
+  contradictionMatcher,
   enveloped,
   extractedSchema,
+  FakeExtractor,
   FakeTranscriber,
   firstCapable,
+  hedgedExtractor,
   recordingSchema,
   resolveReview,
 } from "./index.js";
 import type {
+  ExtractionHedgeEvent,
+  Extractor,
   FieldDecisions,
+  HedgeDelay,
+  HedgedExtractorOptions,
+  IdentifyingFields,
+  IdentifyingFieldsMap,
+  InstanceEvidence,
+  InstanceFacts,
+  InstanceMatcher,
+  InstanceSameness,
   Recording,
   ReviewRequest,
   ToolAdapter,
@@ -323,4 +336,58 @@ test("the adapter's ctx is typed end to end — a foreign context does not compi
   await adapter.write(fields, { assessmentId: "a-1" }, meta);
 
   expect(adapter.name).toBe("snuggpro-attic-insulation");
+});
+
+// --- The instance-identity vocabulary ---------------------------------------
+//
+// A type-level pin, in the file that index.test.ts defers type-only exports to: each
+// name below is public and must resolve through the barrel with this shape. The
+// runtime behaviour is `instance-identity.test.ts`'s; this exists so a rename or a
+// shape change fails the typecheck rather than a downstream package.
+
+test("the sameness vocabulary is public through the barrel and composes as typed", () => {
+  const yearEvidence: InstanceEvidence = { value: 2019, sourceSpan: null };
+  const facts: InstanceFacts = { group: "hvac", leaves: { modelYear: yearEvidence } };
+  const map: IdentifyingFieldsMap = { hvac: ["modelYear"] };
+
+  const matcher: InstanceMatcher = contradictionMatcher(map);
+  const verdict: InstanceSameness = matcher(facts, facts);
+
+  // Two identical leaves never satisfy the matcher — it refuses to say "same".
+  expect(verdict).toBe("unknown");
+});
+
+test("`IdentifyingFields` is public through the barrel and typed per group", () => {
+  // The adapter-declaration twin of the map above, pinned through the same entry
+  // point: a group declares the leaves that identify its instances, and the typed
+  // form must resolve through the barrel for an adapter author. The nested group's
+  // leaves are the declaration's real case; a flat leaf names itself.
+  const identifying: IdentifyingFields<AtticValues> = {
+    healthSafety: ["ambientCo", "gasLeak"],
+    notes: ["notes"],
+  };
+
+  // Structurally the widened map the matcher consumes — the seam a host's
+  // declaration crosses at composition time, with no import between the two forms.
+  const map: IdentifyingFieldsMap = identifying;
+  expect(Object.keys(map)).toEqual(["healthSafety", "notes"]);
+});
+
+test("the hedged extractor vocabulary is public through the barrel and composes as typed", async () => {
+  const events: ExtractionHedgeEvent[] = [];
+  const delay: HedgeDelay = (transcript) => transcript.text.length;
+  const options: HedgedExtractorOptions = {
+    delay,
+    onHedge: (event) => events.push(event),
+  };
+  const inner = new FakeExtractor<AtticValues>({ rValue: 19, area: 400, notes: "" });
+  const hedged: Extractor<AtticValues> = hedgedExtractor(inner, inner, options);
+
+  const result = await hedged.extract({ text: TRANSCRIPT_TEXT, annotations: {} });
+
+  // The primary settles before any timer could fire, so the hedge never ran and
+  // nothing fired — rule 1, the case the combinator exists for.
+  expect(result.fields.rValue).toBe(19);
+  expect(inner.calls).toHaveLength(1);
+  expect(events).toHaveLength(0);
 });

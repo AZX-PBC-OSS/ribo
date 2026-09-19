@@ -243,7 +243,11 @@ export type {
 // arbiter (unsupportedFallsThrough) accepts the first success, continues past
 // UnsupportedItemError and TranscriberUnavailableError, and at exhaustion gives
 // up with the first retryable error if there is one (D7 rule 2).
-export { unsupportedFallsThrough } from "./transcription-arbitration.js";
+// The default stays unsupportedFallsThrough (first success wins — right for a
+// ladder, where settlement order IS preference order). preferEngineOrder is the
+// alternative a concurrent combinator wants: a race breaks that identity, so it
+// accepts the best-ranked success instead of the fastest one.
+export { preferEngineOrder, unsupportedFallsThrough } from "./transcription-arbitration.js";
 export type {
   TranscriptionArbiter,
   TranscriptionArbiterInput,
@@ -251,12 +255,28 @@ export type {
   TranscriptionOutcome,
 } from "./transcription-arbitration.js";
 
+// The TTL-keyed capability cache the transcription combinators share, extracted
+// when `raceTranscriber` became the third copy of the shape. `firstCapable` and
+// `hedged` still carry their own copies — a deliberate, unfinished migration
+// (see capability-cache.ts's header).
+export { CapabilityCache } from "./capability-cache.js";
+export type { CapabilityCacheOptions } from "./capability-cache.js";
+
 // Transcriber fallback: try transcribers in order without consulting
 // capability(), letting an arbiter decide whether each outcome is acceptable.
 // The per-item sibling of firstCapable — a reader who thinks it is
 // "firstCapable with retries" will wire it wrongly.
 export { fallbackTranscriber } from "./fallback-transcriber.js";
 export type { FallbackTranscriberOptions } from "./fallback-transcriber.js";
+
+// Transcriber race: start every capable engine at once and let an arbiter
+// accept a transcript as it settles, wait for more, or give up. The
+// transcription-side counterpart of raceExtractor — a separate constructor so
+// concurrency is opt-in by name, not a scheduling flag. Dispatches to every
+// capable engine, so a race that includes a managed engine sends the audio
+// every time; a deployment that will not pay for that composes firstCapable.
+export { raceTranscriber } from "./race-transcriber.js";
+export type { RaceTranscriberOptions } from "./race-transcriber.js";
 
 // The fake that lets later phases run the pipeline — and drive every capability
 // state and all three failure kinds — without a model.
@@ -325,6 +345,7 @@ export * from "./storage/index.js";
 // field shapes (the writable patch and the derived extraction schema) and the
 // per-attempt write metadata that carries the idempotency key.
 export type {
+  IdentifyingFields,
   RequiredOnCreate,
   ToolAdapter,
   ToolAdapterExample,
@@ -430,6 +451,19 @@ export type { RetryAsyncOptions } from "./retry-async.js";
 export { ExtractionTimeoutError, timeoutExtractor } from "./timeout-extractor.js";
 export type { TimeoutExtractorOptions } from "./timeout-extractor.js";
 
+// Strategy hedge: start a primary and fire a hedge on a delay, taking whichever
+// settles first and cancelling the loser so the usual case bills for one. The
+// extraction counterpart of `hedged`, keeping `timeoutExtractor`'s signal and
+// deadline discipline; deliberately not built on the concurrent engine, which
+// forwards options unchanged and constructs no controller, so a loser there
+// runs to completion and bills.
+export { hedgedExtractor } from "./hedged-extractor.js";
+export type {
+  ExtractionHedgeEvent,
+  HedgeDelay,
+  HedgedExtractorOptions,
+} from "./hedged-extractor.js";
+
 // The grouped run: take a per-key map of group extractors and own the
 // cross-group work — coverage at construction, a bounded pool, the derived
 // retry budget, sibling abort, the merge, the second trust-boundary parse,
@@ -456,9 +490,15 @@ export type { StoragePersistence, WorkOnDevice, WorkSafety } from "./work-safety
 
 // Instance identity: existing records enter at review, and a human decides whether to
 // link each dictated instance to one or create a new record.
+export { contradictionMatcher } from "./instance-identity.js";
 export type {
   ExistingRecord,
+  IdentifyingFieldsMap,
+  InstanceEvidence,
+  InstanceFacts,
   InstanceLinkDecision,
+  InstanceMatcher,
+  InstanceSameness,
   LinkTarget,
   LinkTargets,
   RankedCandidate,
@@ -575,3 +615,12 @@ export { extractorPhase } from "./extractor-phase.js";
 // narrowing steps rather than a bespoke loop.
 export { phasedExtractor } from "./phased-extractor.js";
 export type { PhasedExtractorOptions } from "./phased-extractor.js";
+
+// Chunking was built here and REMOVED after measurement. `chunkedExtractor` split a
+// transcript past a context window, extracted each piece and merged. Measured against
+// the real corpus it inflated a collection group's instance count in 13 of 14
+// transcripts — one phantom instance per chunk, because each chunk sees a fragment of
+// one unit and reports a unit. And the problem it solved does not occur here: the whole
+// corpus is 21KB of text, while the constraint that actually binds is SCHEMA size, which
+// per-group extraction already handles. See
+// `spikes/chunked-vs-single/FINDINGS.md` and the SP3 design's §4.3.
