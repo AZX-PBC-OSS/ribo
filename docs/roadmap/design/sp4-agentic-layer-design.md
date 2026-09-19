@@ -1,7 +1,7 @@
 # SP4 — The agentic layer: a model composes the strategy
 
 **Date:** 2026-09-18
-**Status:** Draft — not reviewed, no implementation started.
+**Status:** **BLOCKED on `sp4a-composable-phases-design.md`. Do not build from this.** Two adversarial reviews found seven defects, enumerated in §10. Four are mechanical; two established that a planner over today's seven phases can express only subsets and repeats of two linear chains — the "router over three fixed strategies" SP1 §8 named as this program's failure mode. Widening the phase vocabulary comes first; the sections below are the draft the findings were filed against, left unedited so each can be read against what it refers to.
 **Question answered:** "What are the generally useful meta-extractors?" — SP4 of four, and the only
 one where a model chooses the composition rather than a person.
 **Depends on:** `phased-extraction-design.md` (SP1 — `Phase`, `validatePhases`, the engine),
@@ -253,3 +253,73 @@ Waves 2 and 3 are where the design risk is; waves 1 and 4 are mechanical.
 - `planOnce` plans exactly once across several `extract` calls; `planPerRun` plans once per call.
 - `planPerRun` passes the transcript to the planner; `planOnce` does not (it has none).
 - A planning failure under `planPerRun` propagates unchanged — it is not a degraded extraction.
+
+---
+
+## 10. Review findings
+
+Two adversarial reviews, both verifying claims against source. Both returned "revise first".
+
+### 10.1 The two that blocked the sub-project
+
+**F1 — the motivating example for `id` ≠ `kind` is factually wrong.** §4.1 justifies separating
+them with "fill, then fill again with what the first pass learned". `fillPhase.plan` reads the
+roster note, `options.prepared` and the transcript — **never `draft.fields`** — so a second fill
+plans identical jobs and its merge overwrites the first. Only `gapfill` re-runs meaningfully. Over
+today's vocabulary a planner can compose subsets and repeats of two linear chains.
+
+**F2 — `[gapfill]` alone is a silent vacuous success.** `gapFillPhase` declares no `requires` and
+no `produces`; its real dependency is the shape of `draft.fields`, which `PhaseMeta` cannot
+express. The plan passes all five gates, no-ops on an empty draft, and `{}` parses clean: a
+successful extraction with zero calls and zero fields. §3 framed bad plans as a _cost_ problem;
+this is a _correctness_ one, and gate 5 is blind to it by construction.
+
+Both are addressed by `sp4a-composable-phases-design.md`.
+
+### 10.2 Mechanical, to fix when this reopens
+
+**F3 — all three plan arguments are dead, and forwarding them would be harmful.** `groups`,
+`maxRetries` and `concurrency` have no consumer: no factory accepts a runtime group filter, and the
+engine reads retries and concurrency off the phase's own metadata. The only way plan values could
+reach it is a spread-override, which would **re-enable retries on `inventoryPhase` and
+`gapFillPhase`, both of which pin `maxRetries: 0` deliberately** — inventory because the engine's
+default of 2 would re-issue whatever calls the caller's inventory function makes. The vocabulary
+should be `kind` + `id` and nothing else.
+
+**F4 — `planOnce`'s `Promise<Extractor>` composes with nothing.** `toSessionExtractStep`,
+`createRelay`'s `sessionExtract`, `compositeExtractor` and the playground's extractor store are all
+synchronous, and the store's comment celebrates that construction does no network work. §4.4
+explicitly rejected lazy planning, which removes the only workaround, then never says where the
+`await` goes. Needs a memoised-promise adapter or an explicit async host seam, and a test.
+
+**F5 — three smaller holes.** The model-chosen `id` is free text reaching the relay's _persisted_
+`lastError` with no charset constraint. §4.3's build order contradicts §9's own pin that
+`maxPhases` rejects before any factory runs. And under `planPerRun` the **transcript is prompt
+input to the planner**, so transcript content can steer which phases run — §3 considers only the
+reverse direction.
+
+**F6 — four of the seven phases are not exported.** `@azx/ribo-extractor-ondevice` exposes only
+`threePhaseExtractor`, so no host can register an on-device phase and the agentic layer would be
+managed-only. §6's change table listed barrel work for neither package. Moved into SP4a wave 4.
+
+**F7 — the `Planner` contract is missing entirely.** No type, no transport, no position on whether
+planning runs under the step deadline and signal, no statement on whether its tokens reach
+`ExtractionResult.usage`, and — the one that blocks Wave 3 — **no per-kind descriptions**. The
+structured-output enum gives the model tokens with no semantics; a planner that does not know what
+"inventory" means cannot compose with it, and `Record<string, PhaseFactory>` has no field to carry
+that.
+
+### 10.3 Raised and rejected
+
+**"The registry cannot carry caller-supplied functions like `inventoryPhase`'s `inventory`."**
+It can: a registry entry is a closure, and closing over the caller's roster function is exactly how
+it is supplied. `(a) => inventoryPhase({ inventory: myRosterFn, prepared, instanceCap, id: a.id })`
+satisfies `(args: PlannedPhase) => Phase`. §4.2's abbreviated example caused this and should show a
+factory with caller-supplied dependencies when this reopens.
+
+### 10.4 Verified clean
+
+The 303KB/32KB citation; that all seven factories hardcode exactly the ids listed; that
+`validatePhases` does everything §2.3 claims including the own-requirement exclusion; that all
+seven factories are pure at construction; and that adding an optional `id` is behaviour-preserving
+— phase ids reach only transient unit events and error text, and nothing persisted carries them.
