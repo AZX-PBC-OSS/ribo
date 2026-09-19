@@ -80,3 +80,53 @@ test("a single-phase list passes", () => {
   const only = phase("only", { produces: ["roster"] });
   expect(() => validatePhases<TestValues>([only])).not.toThrow();
 });
+
+// ---------------------------------------------------------------------------
+// The draft-state axis: a phase declaring `requiresDraft` must be preceded by
+// one declaring `seedsDraft`. Same order-sensitive shape as the note-key check
+// above. The ids are the real phases' — the lists read as the ones the presets
+// construct — but the phases are the helper's, because the real ones live in
+// leaf packages core cannot import, and `fillPhase` carries note requirements
+// of its own that would trip the existing check for the wrong reason.
+// ---------------------------------------------------------------------------
+
+test("a requiresDraft phase after a seedsDraft phase passes", () => {
+  const fill = phase("fill", { seedsDraft: true });
+  const gapfill = phase("gapfill", { requiresDraft: true });
+  expect(() => validatePhases<TestValues>([fill, gapfill])).not.toThrow();
+});
+
+test("a requiresDraft phase with no seeder before it throws, naming the phase and the fix", () => {
+  const inventory = phase("inventory");
+  const gapfill = phase("gapfill", { requiresDraft: true });
+  expect(() => validatePhases<TestValues>([inventory, gapfill])).toThrow(/gapfill/);
+  expect(() => validatePhases<TestValues>([inventory, gapfill])).toThrow(/seedsDraft/);
+});
+
+test("a seedsDraft phase AFTER the requiresDraft one does not satisfy it — order matters", () => {
+  const gapfill = phase("gapfill", { requiresDraft: true });
+  const fill = phase("fill", { seedsDraft: true });
+  expect(() => validatePhases<TestValues>([gapfill, fill])).toThrow(/gapfill/);
+});
+
+test("a phase declaring both members does not satisfy itself and throws when first", () => {
+  const both = phase("both", { seedsDraft: true, requiresDraft: true });
+  expect(() => validatePhases<TestValues>([both])).toThrow(/both/);
+});
+
+test("the three-phase chain validates on its note declarations plus presence's seedsDraft", () => {
+  const presence = phase("presence", { produces: ["presence"], seedsDraft: true });
+  const span = phase("span", { requires: ["presence"], produces: ["spans"] });
+  const classify = phase("classify", { requires: ["spans"], produces: ["unsupported"] });
+  expect(() => validatePhases<TestValues>([presence, span, classify])).not.toThrow();
+});
+
+test("a list where no phase declares either member passes — there is deliberately no list-level seeding rule", () => {
+  // The pin that no "at least one phase must seed" rule was added, and must not be:
+  // `[inventory]` alone is not clearly wrong — its merge writes `fields[key] = []`
+  // for stated-none collection groups, so an all-stated-empty roster legitimately
+  // produces `{hvac: []}` — and such a rule would reject it along with every
+  // `phasedExtractor` fixture that predates the axis (SP4a design §4.1).
+  const inventory = phase("inventory");
+  expect(() => validatePhases<TestValues>([inventory])).not.toThrow();
+});
