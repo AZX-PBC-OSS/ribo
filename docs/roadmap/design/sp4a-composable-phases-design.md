@@ -93,32 +93,48 @@ interface PhaseMeta {
 }
 ```
 
-Both default to `undefined`, read as `false`, so every existing phase list keeps validating. The
-seven shipped phases declare:
+Both default to `undefined`, read as `false`, so every existing phase list keeps validating.
 
-| Phase            | `seedsDraft` | `requiresDraft` | Why                                               |
-| ---------------- | ------------ | --------------- | ------------------------------------------------- |
-| `inventory`      | —            | —               | Writes a note, never touches `fields`             |
-| `fill`           | yes          | —               | Writes envelopes from the roster                  |
-| `gapfill`        | —            | **yes**         | Re-asks about leaves another phase left abstained |
-| `extractorPhase` | yes          | —               | Runs a whole extractor into the draft             |
-| `presence`       | yes          | —               | Seeds every group with null envelopes             |
-| `span`           | —            | **yes**         | Adds spans to leaves that already have values     |
-| `classify`       | —            | **yes**         | Reads present leaves                              |
+**The axis serves exactly one phase today, and the first draft of this section got that wrong.**
+It claimed `span` and `classify` would need `requiresDraft`. They do not: `spanPhase.plan` reads
+`draft.notes.get(presenceNoteKey)` and `classifyPhase.plan` reads `draft.notes.get(spansNoteKey)`,
+and both **already declare those as `requires`**. Six of the seven phases express their
+dependencies correctly through the notes channel:
+
+| Phase              | `requires`           | `produces`           | `seedsDraft` | `requiresDraft` |
+| ------------------ | -------------------- | -------------------- | ------------ | --------------- |
+| `inventory`        | —                    | `rosterNoteKey`      | —            | —               |
+| `fill`             | `rosterNoteKey`      | —                    | **yes**      | —               |
+| `gapfill`          | —                    | —                    | —            | **yes**         |
+| `extractorPhase`   | —                    | —                    | **yes**      | —               |
+| `presence`         | —                    | `presenceNoteKey`    | **yes**      | —               |
+| `span`             | `presenceNoteKey`    | `spansNoteKey`       | —            | —               |
+| `classify`         | `spansNoteKey`       | `unsupportedNoteKey` | —            | —               |
+| `classify-wrapped` | `unsupportedNoteKey` | —                    | —            | —               |
+
+`gapfill` is the only phase whose dependency is on the **shape of `draft.fields`** rather than on a
+note, and that is precisely why `PhaseMeta` cannot express it and why `[gapfill]` alone passes
+every gate.
 
 **`validatePhases` gains two rules**, both the same order-sensitive shape as the existing
 `requires` check, and both rejecting at construction:
 
 1. A phase declaring `requiresDraft` must be preceded by one declaring `seedsDraft`.
-2. At least one phase in the list must declare `seedsDraft` — a list that never populates `fields`
-   can only return an empty extraction, and returning one successfully is worse than refusing.
+2. At least one phase in the list must declare `seedsDraft`.
 
-Rule 2 is what closes §2.1. It is deliberately about the _list_, not a pair, because the failure it
-catches is a whole plan that does nothing.
+**Rule 2 is the one that earns the axis.** Rule 1 alone could have been done with a payload-free
+marker note — a `draftSeededNoteKey` that seeding phases produce and `gapfill` requires — reusing a
+mechanism that already works. Rule 2 cannot: "no phase in this list ever populates `fields`" is a
+property of the whole list, not of a pair, and no `requires`/`produces` arrangement expresses it.
+`[inventory]` alone is a vacuous success for exactly that reason — it produces a roster note and
+writes no fields — and a marker note would not catch it.
 
-**Why booleans rather than declaring which groups or leaves.** Because the useful question is
-"could this list possibly produce data", and that is answered by presence. A finer axis would need
-phases to declare which leaves they write, which none of them knows until `plan` runs.
+Given rule 2 forces a real declaration, `requiresDraft` is one more boolean and is more honest than
+a note carrying no payload.
+
+**Why booleans rather than declaring which groups or leaves.** The useful question is "could this
+list possibly produce data", which presence answers. A finer axis would need phases to declare
+which leaves they write, which none of them knows until `plan` runs.
 
 ### 4.2 Group scoping
 
@@ -210,6 +226,11 @@ Then re-open `sp4-agentic-layer-design.md` with a vocabulary worth planning over
   this sub-project exists.
 - `[inventory, fill]` validates; `[inventory, gapfill]` is rejected (no seeding phase before a
   `requiresDraft` one); `[fill, gapfill]` validates.
+- **`[inventory]` alone is rejected** — it produces a roster note and writes no fields, so it is a
+  vacuous success that rule 1 cannot see and only rule 2 catches.
+- The on-device chain `[presence, span, classify]` validates **unchanged**, on its existing note
+  declarations plus presence's new `seedsDraft` — the pin that the axis did not disturb six phases
+  that were already correct.
 - A list where no phase declares `seedsDraft` is rejected even if every `requires` is satisfied.
 - Every existing phase list in the repo still validates unchanged — the presets are the pin.
 - A scoped `fillPhase` plans jobs for only the named groups; an unknown group key throws at
