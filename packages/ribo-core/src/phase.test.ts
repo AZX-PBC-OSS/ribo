@@ -124,6 +124,41 @@ test("a phase that omits describeItem is still a valid Phase", () => {
   expect(bare.id).toBe("bare");
 });
 
+// The draft-state declarations are asserted through `phaseBuilder`, never an object
+// literal: the builder copies the metadata member-by-member, so a member missing from
+// that copy list reads `undefined` off every real phase (which is every real
+// construction) while a literal-based test would still see it. The validator and the
+// planner read the metadata off the constructed `Phase` — that is why this is the
+// construction that matters.
+test("a builder-constructed phase exposes seedsDraft and requiresDraft as declared", () => {
+  const seeder = build({
+    id: "seeder",
+    seedsDraft: true,
+    plan: () => [],
+    run: async () => ({ value: 1 }),
+    merge: (draft) => draft,
+  });
+  const requirer = build({
+    id: "requirer",
+    requiresDraft: true,
+    plan: () => [],
+    run: async () => ({ value: 1 }),
+    merge: (draft) => draft,
+  });
+  expect(seeder.seedsDraft).toBe(true);
+  expect(requirer.requiresDraft).toBe(true);
+  // Declaring one does not imply the other: each is read off independently.
+  expect(seeder.requiresDraft).toBeUndefined();
+  expect(requirer.seedsDraft).toBeUndefined();
+});
+
+test("a phase declaring neither draft-state member reads undefined for both", () => {
+  // `undefined` reads as false downstream — every fixture written before the axis
+  // declares neither, and every existing list must keep validating unchanged.
+  expect(stringPhase.seedsDraft).toBeUndefined();
+  expect(stringPhase.requiresDraft).toBeUndefined();
+});
+
 // ---------------------------------------------------------------------------
 // Type-level
 // ---------------------------------------------------------------------------
