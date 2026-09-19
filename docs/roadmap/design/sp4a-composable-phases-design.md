@@ -31,16 +31,27 @@ model, and each is independently useful to a human composing a strategy by hand.
 
 ## 2. Evidence, all of it from reading the shipped phases
 
-### 2.1 `[gapfill]` alone is a silent, successful, empty extraction
+### 2.1 A mis-wired list fails late, retryably, after spending the calls
 
-`gapFillPhase` declares no `requires` and no `produces` (`gap-fill-phase.ts`). Its real dependency
-is the **shape of `draft.fields`** — a base phase having populated complete envelopes — and
-`PhaseMeta` cannot express that. So the list passes `validatePhases`, `findAbstainedLeaves` finds
-nothing on an empty draft, the phase plans no items, the engine no-ops, and `{}` parses against the
-optional group schemas. Zero calls, zero fields, `status: ok`.
+**An earlier draft of this section claimed `[gapfill]` alone is a silent, successful, empty
+extraction. That is false and was checked: `{}` does not parse.** `enveloped()` strips top-level
+`.optional()` and rebuilds with `z.strictObject`, so every group key is required, and
+`enveloped.test.ts` pins that a missing top-level key is rejected. The closing trust-boundary parse
+therefore fails.
 
-The source already knows: gap-fill's own comment concedes "nothing enforces that for a
-`gapFillPhase` used standalone."
+The claim came from shipped prose — `presence-phase.ts`'s header says the group schemas are
+`.optional()` so a missing group "succeeds silently". That comment is wrong (its _conclusion_, that
+the seed is load-bearing, survives: without it a document silent on one group fails the whole run).
+Correcting it belongs in this wave.
+
+**What is actually wrong is worse in a different way.** `[gapfill]` alone plans nothing, the engine
+no-ops, and the run dies at the closing parse with a `SchemaParseError` — which is **retryable**. So
+the relay re-runs the whole phase list, spending every earlier phase's calls again, and repeats
+until the item is `dead`. A mis-wired list is not a silent wrong answer; it is a loud, expensive,
+repeating one.
+
+Rejecting at construction is free. That is the justification for the draft-state axis, and it is
+narrower than the one this design first gave.
 
 ### 2.2 A second `fillPhase` is a no-op that overwrites the first
 
@@ -120,7 +131,22 @@ every gate.
 `requires` check, and both rejecting at construction:
 
 1. A phase declaring `requiresDraft` must be preceded by one declaring `seedsDraft`.
-2. At least one phase in the list must declare `seedsDraft`.
+
+**There is no second rule.** An earlier draft added "at least one phase must declare `seedsDraft`",
+to catch `[inventory]` alone. It is dropped for two reasons, both found by review. It would reject
+roughly fifty existing `phasedExtractor` constructions in the test suite — every hand-rolled
+fixture would have to declare `seedsDraft` — which is a large, purely mechanical edit to buy one
+diagnostic. And `[inventory]` alone is not clearly wrong: its merge writes `fields[key] = []` for
+stated-none and zero-current collection groups, so an all-stated-empty roster legitimately produces
+`{hvac: []}`.
+
+Rule 1 costs nothing by comparison: no existing fixture declares `requiresDraft`, so it never fires
+on one, and it still rejects `[gapfill]` alone — the case that motivated the axis.
+
+¹ `inventory` is deliberately **not** marked `seedsDraft` even though its merge can write `[]`
+entries. Those are scaffolding for groups the roster said are empty, not extracted data, and
+marking it would make `[inventory, gapfill]` validate — which is exactly the mis-wiring rule 1
+exists to reject.
 
 **Rule 2 is the one that earns the axis.** Rule 1 alone could have been done with a payload-free
 marker note — a `draftSeededNoteKey` that seeding phases produce and `gapfill` requires — reusing a
@@ -222,17 +248,20 @@ Then re-open `sp4-agentic-layer-design.md` with a vocabulary worth planning over
 
 ## 8. Must-fail tests
 
-- A list of `[gapfill]` alone is **rejected at construction** — the pin for §2.1, and the reason
-  this sub-project exists.
+- A list of `[gapfill]` alone is **rejected at construction** — the pin for §2.1. Without it the
+  run dies at the closing parse with a RETRYABLE error, so the relay re-spends every earlier
+  phase's calls on each retry.
 - `[inventory, fill]` validates; `[inventory, gapfill]` is rejected (no seeding phase before a
   `requiresDraft` one); `[fill, gapfill]` validates.
-- **`[inventory]` alone is rejected** — it produces a roster note and writes no fields, so it is a
-  vacuous success that rule 1 cannot see and only rule 2 catches.
+- **`[inventory]` alone still validates**, and that is deliberate — see §4.1's footnote. Pin it, so
+  a future reader does not re-add the list-level rule.
 - The on-device chain `[presence, span, classify]` validates **unchanged**, on its existing note
   declarations plus presence's new `seedsDraft` — the pin that the axis did not disturb six phases
   that were already correct.
 - A list where no phase declares `seedsDraft` is rejected even if every `requires` is satisfied.
-- Every existing phase list in the repo still validates unchanged — the presets are the pin.
+- Every existing phase list in the repo still validates unchanged — the presets AND the ~50
+  hand-rolled fixtures in `phased-extractor.test.ts`, none of which declares either member. This is
+  the pin that dropping the list-level rule bought.
 - A scoped `fillPhase` plans jobs for only the named groups; an unknown group key throws at
   construction naming the key and the available ones.
 - `narrowToAbstained: true` skips a job whose leaves are committed and keeps one whose leaves are
