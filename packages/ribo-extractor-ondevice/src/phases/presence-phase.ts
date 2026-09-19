@@ -23,11 +23,16 @@
  *   phases overwrite individual leaves; the seed is the floor. Without it, a
  *   group whose presence map is all false has no item in any later phase and no
  *   merge would ever write it: the engine skips `merge` entirely on an empty
- *   plan. Today every path commits a group result, including that all-false
- *   early-out; ported without the seed, the group's key is simply MISSING from
- *   the fields, and because the group schemas are `.optional()` the closing
- *   parse then succeeds silently with the group absent — the failure surfaces
- *   much later as a `TypeError` when something reads a leaf off it.
+ *   plan. Ported without the seed, a document silent on one group leaves that
+ *   group's key MISSING from the fields — and the closing trust-boundary parse
+ *   REJECTS it, because `enveloped()` strips top-level `.optional()` and
+ *   rebuilds with `z.strictObject`, so every group key is required (an earlier
+ *   header here claimed the group schemas are `.optional()` so a missing group
+ *   "succeeds silently"; that mechanism is false — `enveloped.test.ts` pins
+ *   that a missing key is rejected — though its conclusion, that the seed is
+ *   load-bearing, stands). The run would instead die with a retryable
+ *   `SchemaParseError` after every other group's calls were spent, rather than
+ *   extract what was said.
  * - **Every merge that writes a group entry applies the array wrap through one
  *   shared helper** — {@link wrapGroupEntry}. A collection group's value is the
  *   leaf-envelope map wrapped in a one-element array; a flat group's is the map
@@ -250,6 +255,11 @@ export function presencePhase<V extends Record<string, unknown>, P = NoProvenanc
     id: "presence",
     onItemFailure: "skip",
     produces: [presenceNoteKey],
+    // Its merge is THE SEED — the unconditional null-filled floor every later
+    // phase's writes land on. Declared so `validatePhases` knows a list starting
+    // with this phase has a populated draft behind its follow-ups. See the file
+    // header for why the seed is load-bearing.
+    seedsDraft: true,
     describeItem: (item) => ({ key: item.group.key }),
     plan: () => options.groups.map((group) => ({ group })),
     run: async (item, _draft, ctx) => {

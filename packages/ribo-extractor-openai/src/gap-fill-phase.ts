@@ -143,6 +143,13 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
   const def: PhaseDef<V, P, GapFillItem, Record<string, Extracted<unknown>>> = {
     id: "gapfill",
     maxRetries: 0,
+    // Its dependency is the SHAPE of `draft.fields` — re-asking about the leaves
+    // another phase left abstained — not a note key, so the notes channel
+    // (`requires`) cannot express it. Declaring it lets `validatePhases` reject a
+    // list where nothing seeds the draft before this phase at construction,
+    // instead of the run dying at the closing parse with a retryable
+    // `SchemaParseError` that re-spends the earlier phases' calls on every retry.
+    requiresDraft: true,
     describeItem: () => ({ key: "" }),
     plan: (draft, ctx) => {
       // THE CAST, and why it is sound: the pure helpers take `Enveloped<V, P>`;

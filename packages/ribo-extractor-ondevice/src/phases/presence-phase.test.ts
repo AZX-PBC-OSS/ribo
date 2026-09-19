@@ -289,3 +289,12 @@ describe("presencePhase — the construction-time provenance refusal", () => {
     expect(() => walkedGroups(extractionSchema)).not.toThrow();
   });
 });
+
+describe("presencePhase — metadata", () => {
+  test("declares seedsDraft — its merge is the unconditional seed the whole strategy stands on", () => {
+    const { chat } = fakeChat(() => json({}));
+    const phase = presencePhase<Values>({ groups, chat, model: chat.engine });
+    expect(phase.seedsDraft).toBe(true);
+    expect(phase.requiresDraft).toBeUndefined();
+  });
+});

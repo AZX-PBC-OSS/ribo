@@ -29,7 +29,10 @@ import { phaseBuilder } from "./phase.js";
  *
  * What this deliberately does not do: it does not run anything on its own — the phase is
  * inert until an engine calls `plan`/`run`/`merge`. And it declares no `requires` or
- * `produces`: an `Extractor` speaks in fields and results, not in note keys.
+ * `produces`: an `Extractor` speaks in fields and results, not in note keys. It does
+ * declare `seedsDraft` — the fields channel is exactly what it speaks, the merge
+ * shallow-assigning a complete `Enveloped<V, P>` into the draft — so a list with a lifted
+ * base is known to `validatePhases` as one that populates the draft.
  */
 
 /**
@@ -55,6 +58,10 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
     }
   > = {
     id,
+    // The fields channel, declared: the merge shallow-assigns a complete `Enveloped<V, P>`
+    // into the draft, so follow-up phases that read the draft stand on this. See the file
+    // header — note keys it still declares none of.
+    seedsDraft: true,
     plan: () => [WHOLE_DOCUMENT],
     run: async (_item, _draft, ctx) => {
       // Forwarded, not rebuilt: `signal` and `deadline` are the caller's cancellation and

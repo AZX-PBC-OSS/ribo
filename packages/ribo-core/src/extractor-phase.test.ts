@@ -165,3 +165,10 @@ test("a phase built this way passes validatePhases as a single-element list", ()
   const phase = extractorPhase<TestValues>("lift", extractor);
   expect(() => validatePhases<TestValues>([phase])).not.toThrow();
 });
+
+test("a lifted extractor declares seedsDraft — its merge shallow-assigns a complete result into the draft", () => {
+  const extractor = new FakeExtractor<Env>(fieldsFixture);
+  const phase = extractorPhase<TestValues>("lift", extractor);
+  expect(phase.seedsDraft).toBe(true);
+  expect(phase.requiresDraft).toBeUndefined();
+});

@@ -443,3 +443,17 @@ describe("fillPhase — merge", () => {
     });
   });
 });
+
+describe("fillPhase — metadata", () => {
+  test("declares seedsDraft — its merge writes envelopes from the roster into the draft's fields", () => {
+    const phase = fillPhase<DemoValues>({
+      target,
+      chat: {} as ChatClient,
+      model: "m",
+      prepared,
+      buildFillInstructions,
+    });
+    expect(phase.seedsDraft).toBe(true);
+    expect(phase.requiresDraft).toBeUndefined();
+  });
+});

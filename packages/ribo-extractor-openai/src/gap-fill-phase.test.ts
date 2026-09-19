@@ -323,3 +323,14 @@ describe("gapFillPhase — merge", () => {
     });
   });
 });
+
+describe("gapFillPhase — metadata", () => {
+  test("declares requiresDraft — its plan re-asks about leaves another phase left abstained", () => {
+    const chat: ChatClient = {
+      complete: () => Promise.resolve({ content: "{}", finishReason: "stop" }),
+    };
+    const phase = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
+    expect(phase.requiresDraft).toBe(true);
+    expect(phase.seedsDraft).toBeUndefined();
+  });
+});

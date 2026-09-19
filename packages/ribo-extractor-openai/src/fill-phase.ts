@@ -106,6 +106,10 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
   const def: PhaseDef<V, P, FillJob, Record<string, unknown>> = {
     id: "fill",
     requires: [rosterNoteKey],
+    // The merge assembles the roster-derived envelopes into `fields` — so a list
+    // whose follow-up phases read the draft needs this before them. Capability,
+    // not guarantee: an empty roster plans no jobs and writes nothing.
+    seedsDraft: true,
     describeItem: (item) => ({
       key: item.group.key,
       instance: item.instanceIndex + 1,
