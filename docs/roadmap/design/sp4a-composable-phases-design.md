@@ -162,22 +162,30 @@ a note carrying no payload.
 list possibly produce data", which presence answers. A finer axis would need phases to declare
 which leaves they write, which none of them knows until `plan` runs.
 
-### 4.2 Group scoping
+### 4.2 Group scoping — designed, checked, ABANDONED
 
-A new optional member on the factories that walk groups — `fillPhase`, `presencePhase`,
-`classifyPhase`, and `inventoryPhase`:
+Scoping a phase to a subset of groups was the change that would have made _selection_ a real
+decision. It is unsound under this repo's schema, and the reason is worth recording so it is not
+re-proposed.
 
-```ts
-readonly groups?: readonly string[];
-```
+**The closing parse requires every top-level group key.** `enveloped()` strips top-level
+`.optional()` and rebuilds with `z.strictObject`, and `enveloped.test.ts` pins that a missing key
+is rejected. **And a phase's merge writes only the groups it ran jobs for** — `fillPhase.merge`
+starts from `{ ...draft.fields }` and adds entries per outcome. So scoping `fillPhase` to `["hvac"]`
+leaves every other group's key absent, and the run dies at the parse.
 
-Absent means every group, which is today's behaviour. Present means **filter `prepared` to these
-keys** before planning. A key naming no prepared group throws at construction, with the unknown key
-and the available ones named — a silent empty filter is how a scoped phase becomes a no-op nobody
-notices.
+That applies to every _seeding_ phase, which is every phase scoping would have been useful on. The
+phases where scoping is safe are the refiners — `gapfill`, `span` — and those already take their
+scope from what the draft contains, which is why §4 excluded them in the first place.
 
-`gapFillPhase` and `spanPhase` are deliberately **not** scoped: both work from what the draft
-already contains, so their scope is the draft's, not a caller's.
+**A sound version exists and is a bigger design than this sub-project.** Scoping would have to be a
+plan-level property with a coverage invariant: the union of the scoped phases must cover every
+group, checked at construction. That is the group-level dependency system §3 rules out.
+
+**What this costs.** Selection was the strongest of the three widenings — "this dictation is all
+HVAC, do that group and skip the rest" is exactly the decision a planner should be able to make.
+Without it, the remaining widening is repetition (§4.3), and a planner's decision space is
+correspondingly smaller. §7 records what that means for SP4b.
 
 ### 4.3 Fill that narrows from the draft
 
@@ -222,11 +230,12 @@ distinction; nothing in the type does.
 
 1. **Wave 1 — the draft-state axis** and `validatePhases`' two new rules. Declare it on all seven
    phases. This is the one that closes a live hole and is worth doing even if nothing else is.
-2. **Wave 2 — group scoping** on the four group-walking factories.
-3. **Wave 3 — `narrowToAbstained`** on `fillPhase`.
-4. **Wave 4 — the on-device barrel**, plus the optional `id` SP4 needs (moved here from SP4's
-   Wave 1, since it is the same edit to the same factories).
-5. **Wave 5 — guide, ADRs, changeset.**
+2. **Wave 2 — `narrowToAbstained`** on `fillPhase`, plus the optional `id` SP4 needs on all
+   eight factories (the same edit to the same files).
+3. **Wave 3 — the on-device barrel exports.**
+4. **Wave 4 — guide, ADRs, changeset.**
+
+Group scoping was wave 2 and is abandoned (§4.2).
 
 Then re-open `sp4-agentic-layer-design.md` with a vocabulary worth planning over.
 
@@ -241,10 +250,9 @@ Then re-open `sp4-agentic-layer-design.md` with a vocabulary worth planning over
 - **The draft-state axis is declared by hand** on each phase, so it can be declared wrongly, and
   nothing checks the declaration against behaviour. A phase claiming `seedsDraft` that writes no
   fields satisfies rule 2 and produces the empty extraction anyway.
-- **Group scoping might want to be per-plan rather than per-construction**, which is the shape SP4's
-  review rejected — `PlannedPhase.groups` had no consumer. Building it as a construction option
-  now means SP4b must either forward it or leave it out of the plan vocabulary. This design assumes
-  the latter and says so.
+- **Without scoping, the decision space a planner gets is thin.** Repetition and ordering are what
+  remain. That is a materially weaker case for SP4b than this design opened with, and it should be
+  weighed before the planner is built rather than after.
 
 ## 8. Must-fail tests
 
@@ -262,8 +270,6 @@ Then re-open `sp4-agentic-layer-design.md` with a vocabulary worth planning over
 - Every existing phase list in the repo still validates unchanged — the presets AND the ~50
   hand-rolled fixtures in `phased-extractor.test.ts`, none of which declares either member. This is
   the pin that dropping the list-level rule bought.
-- A scoped `fillPhase` plans jobs for only the named groups; an unknown group key throws at
-  construction naming the key and the available ones.
 - `narrowToAbstained: true` skips a job whose leaves are committed and keeps one whose leaves are
   not; `false` (the default) plans both, so the presets are unaffected.
 - The four on-device factories are reachable from the package barrel, pinned the way that package
