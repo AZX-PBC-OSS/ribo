@@ -251,7 +251,8 @@ into a list beside shipped ones. What is public, and from where:
 - **From `@azx/ribo-core`** — `phaseBuilder`; `noteKey`, for keys of your own; `demandNote`, the
   read-site throw; and the three-phase strategy's parts, `presencePhase`, `spanPhase`,
   `classifyPhase` and `classifyWrappedPhase`, with the `extractGroups` walk that feeds them and their
-  note keys `presenceNoteKey`, `spansNoteKey` and `unsupportedNoteKey`.
+  note keys `presenceNoteKey`, `spansNoteKey` and `unsupportedNoteKey` — plus the caller-owned
+  kinds, `askPhase` and `computePhase`, and the `PhaseFold` type their options share.
 - **From `@azx/ribo-extractor-openai`** — `gapFillPhase`, `inventoryPhase`, `fillPhase`, plus the
   `rosterNoteKey` the inventory and fill phases hand off under.
 - **From `@azx/ribo-extractor-ondevice`** — only the `threePhaseExtractor` preset, which tunes those
@@ -356,6 +357,75 @@ Two limits, stated because you will hit them:
 - **A phase that reads a note demands it at the read site.** A list that slips a phase's provider
   past validation — a custom phase named `"span"` that never writes the spans note, say — still
   fails, loudly, from the reader's `plan`, before any call is made.
+
+### Your own ask, and a deterministic step between passes
+
+The kinds above are the shipped strategies' own passes. When the question itself is yours — its own
+schema, its own result type, its own note key — that is `askPhase`; and when you need a deterministic
+step between model passes, that is `computePhase`. Both are ordinary phases: ordered by ids, validated
+at construction, and invisible to the kinds around them.
+
+`askPhase` takes your zod schema, and everything follows its type. The request's structured output is
+rendered from the schema; the response is parsed against it at the same trust boundary the managed
+extractors cross; and the parsed answer goes where you say — under a note key, or folded into the
+draft at the answer's type. The factory is curried, for `phaseBuilder`'s reason (TypeScript fills the
+tail of a partial type-argument list from its default rather than inferring): the outer call fixes
+your draft type, the inner call infers the answer's type — so the schema is written once, and the
+key, the fold and the later read all follow it. A note key is branded and invariant, which is what
+makes a wrong widening a compile error at your call site instead of a runtime surprise; the read back
+through `demandNote` (or a plain `get`) arrives at the answer's own type, no cast.
+
+`computePhase` folds the draft with no model call, no I/O and no usage — one marker item, and your
+fold. That is the mid-list deterministic slot nothing else offers: a phase's own `merge` is bound to
+that phase's interpretation of its outcomes, and the engine's `normalize` runs once, globally, after
+the last merge. A fold must leave the draft completable by the phases after it — the closing parse is
+where that is checked, transiently; there is deliberately no check at the fold itself (ADR 0012).
+And it does no I/O: a callable that calls out belongs in `askPhase`.
+
+```ts
+import { askPhase, computePhase, noteKey, phasedExtractor } from "@azx/ribo-core";
+import { z } from "zod";
+
+// Your adapter's writable patch type, extraction target, transport and model id —
+// in scope, as in the compositions above.
+type Values = { note?: string | null };
+declare const target: ExtractionTarget<Values>;
+declare const chat: CapableChatClient;
+
+// The question: schema, answer type and note key, declared together — yours.
+const hazardSchema = z.object({ hazard: z.string() });
+type Hazard = z.infer<typeof hazardSchema>;
+const hazardNote: NoteKey<Hazard> = noteKey("hazard-scan");
+
+const ask = askPhase<Values>()({
+  schema: hazardSchema,
+  chat,
+  model: "your-model",
+  messages: (_draft, ctx) => [
+    { role: "system", content: "Name the safety hazard this transcript describes, if any." },
+    { role: "user", content: ctx.transcript.text },
+  ],
+  // Or fold the answer in yourself: `fold: (draft, value) => ...`, where `value`
+  // arrives at `Hazard`.
+  noteKey: hazardNote,
+});
+
+const fold = computePhase<Values>({
+  fold: (draft) => {
+    const hazard = draft.notes.get(hazardNote); // reads back at `Hazard` — no cast
+    if (hazard === undefined) return draft;
+    return {
+      ...draft,
+      fields: { note: { value: hazard.hazard, confidence: 1, sourceSpan: null } },
+    };
+  },
+});
+
+const extractor = phasedExtractor({ target, phases: [ask, fold] });
+```
+
+Everything you do not see is still the engine's — the retry, the cancellation forward into the chat
+call, the usage (the ask reports one call; the fold reports none), and the closing parse.
 
 ### Running a phase twice
 

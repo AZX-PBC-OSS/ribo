@@ -84,6 +84,21 @@ export interface PhaseDraft<V, P = NoProvenance> {
 }
 
 /**
+ * A fold: how a phase's `merge` writes a typed value into the draft — the caller's own
+ * whole-draft transform, at the caller's own value type.
+ *
+ * The caller writes the fold and the value type `T` flows into it; the same shape reads
+ * for every kind that folds a value. A phase with no contribution folds with `T` at its
+ * default `void`, where the value position is unwritable without a cast — there is
+ * nothing to hand it. A fold must leave the draft completable by the phases after it;
+ * the closing parse is where that is checked.
+ */
+export type PhaseFold<V, P = NoProvenance, T = void> = (
+  draft: PhaseDraft<V, P>,
+  value: T,
+) => PhaseDraft<V, P>;
+
+/**
  * The draft a phased run starts from: empty fields, an empty stated-empty record, no raw
  * output, and an empty bag of notes.
  */

@@ -54,3 +54,4 @@ receives.
 | [0009](./0009-group-scoping-is-unsound-under-a-required-key-schema.md)         | Group scoping is unsound under a required-key schema                                      | Accepted |
 | [0010](./0010-phases-and-the-chat-seam-belong-in-core.md)                      | The chat seam and the transport-agnostic phases belong in core                            | Accepted |
 | [0011](./0011-the-agentic-layer-waits-for-a-vocabulary-worth-planning-over.md) | The agentic layer waits for a vocabulary worth planning over                              | Accepted |
+| [0012](./0012-a-callers-ask-rides-a-phase-at-the-callers-own-type.md)          | A caller's ask rides a phase at the caller's own type                                     | Accepted |
