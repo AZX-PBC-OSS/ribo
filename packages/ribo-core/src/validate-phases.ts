@@ -20,7 +20,7 @@ import type { Phase } from "./phase.js";
  * rule that some phase must produce `draftSeededNoteKey`: `[inventory]` alone is not
  * clearly wrong (its merge writes `fields[key] = []` for stated-none collection groups),
  * and such a rule would reject every `phasedExtractor` fixture whose phases declare no
- * notes at all — design `sp4a-composable-phases-design.md` §4.1, and the test that pins
+ * notes at all — ADR 0008, and the test that pins
  * it.
  */
 export function validatePhases<V extends Record<string, unknown>, P = NoProvenance>(

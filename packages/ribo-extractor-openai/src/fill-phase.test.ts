@@ -633,7 +633,7 @@ describe("fillPhase — narrowToAbstained", () => {
   test("a job with one committed and one abstained leaf plans the whole job — the granularity is the job, not the leaf", () => {
     // Deliberately job-granular: leaf-level narrowing — re-asking exactly the
     // abstained leaf — is what gapFillPhase does and is a different phase
-    // (design `sp4a-composable-phases-design.md` §7 records the limit). Widget
+    // (ADR 0009 records the limit). Widget
     // 0's color is committed and its size abstained, so its job re-asks about
     // everything in it.
     const phase = fillPhase<DemoValues>({

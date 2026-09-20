@@ -97,7 +97,7 @@ export interface FillPhaseOptions<V extends Record<string, unknown>, P = NoProve
    * with that semantics, and `true` changes behaviour for every existing caller.
    *
    * **Why narrowing is sound where group scoping was not** — design
-   * `sp4a-composable-phases-design.md` §4.3 shipped this and §4.2 abandoned
+   * ADR 0009 shipped this and abandoned
    * scoping, and the distinction is the reason. `merge` starts from
    * `{ ...draft.fields }`, so anything an earlier phase wrote survives a
    * narrowed re-run: narrowing skips work that is ALREADY DONE — the skipped

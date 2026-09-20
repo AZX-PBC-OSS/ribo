@@ -40,7 +40,7 @@
  * arrays are scaffolding for groups the roster said are empty, not extracted data.
  * Producing it would let `[inventory, gapfill]` validate — gap-fill re-asking over a
  * draft of nothing but scaffolding — which is exactly the mis-wiring SP4a's marker
- * check exists to reject (design `sp4a-composable-phases-design.md` §4.1's footnote).
+ * check exists to reject (ADR 0008).
  * The next reader will want to "fix" this; that fix is the bug.
  */
 
