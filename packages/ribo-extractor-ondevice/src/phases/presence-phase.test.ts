@@ -298,3 +298,13 @@ describe("presencePhase — metadata", () => {
     expect(phase.requiresDraft).toBeUndefined();
   });
 });
+
+describe("presencePhase — id", () => {
+  test('defaults to "presence" and honours an explicit id', () => {
+    const { chat } = fakeChat(() => json({}));
+    const defaults = presencePhase<Values>({ groups, chat, model: chat.engine });
+    expect(defaults.id).toBe("presence");
+    const renamed = presencePhase<Values>({ groups, chat, model: chat.engine, id: "presence-2" });
+    expect(renamed.id).toBe("presence-2");
+  });
+});

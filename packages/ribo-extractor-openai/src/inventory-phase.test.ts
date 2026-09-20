@@ -216,3 +216,21 @@ describe("inventoryPhase — merge", () => {
     );
   });
 });
+
+describe("inventoryPhase — id", () => {
+  test('defaults to "inventory" and honours an explicit id', () => {
+    const defaults = inventoryPhase<DemoValues>({
+      inventory: async () => ({}),
+      prepared,
+      instanceCap: 10,
+    });
+    expect(defaults.id).toBe("inventory");
+    const renamed = inventoryPhase<DemoValues>({
+      inventory: async () => ({}),
+      prepared,
+      instanceCap: 10,
+      id: "inventory-cheap",
+    });
+    expect(renamed.id).toBe("inventory-cheap");
+  });
+});

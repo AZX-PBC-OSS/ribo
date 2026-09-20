@@ -63,6 +63,11 @@ export interface SpanPhaseOptions {
   readonly chat: CapableChatClient;
   /** The model id passed through to each request. The transport ignores it. */
   readonly model: string;
+  /**
+   * Overrides the phase's id — `"span"` by default. See `PhaseMeta.id` in
+   * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
+   */
+  readonly id?: string;
 }
 
 interface SpanItem {
@@ -82,7 +87,7 @@ export function spanPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: SpanPhaseOptions,
 ): Phase<V, P> {
   const def: PhaseDef<V, P, SpanItem, Record<string, string | null>> = {
-    id: "span",
+    id: options.id ?? "span",
     onItemFailure: "skip",
     requires: [presenceNoteKey],
     produces: [spansNoteKey],

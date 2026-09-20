@@ -1,4 +1,10 @@
-import { emptyDraft, enveloped } from "@azx/ribo-core";
+import {
+  emptyDraft,
+  enveloped,
+  extractorPhase,
+  FakeExtractor,
+  validatePhases,
+} from "@azx/ribo-core";
 import type {
   DeepPartial,
   Enveloped,
@@ -332,5 +338,43 @@ describe("gapFillPhase — metadata", () => {
     const phase = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
     expect(phase.requiresDraft).toBe(true);
     expect(phase.seedsDraft).toBeUndefined();
+  });
+});
+
+describe("gapFillPhase — id", () => {
+  test('defaults to "gapfill" and honours an explicit id', () => {
+    const chat: ChatClient = {
+      complete: () => Promise.resolve({ content: "{}", finishReason: "stop" }),
+    };
+    const defaults = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
+    expect(defaults.id).toBe("gapfill");
+    const renamed = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat,
+      model: "m",
+      id: "gapfill-second-pass",
+    });
+    expect(renamed.id).toBe("gapfill-second-pass");
+  });
+
+  test("two gapFillPhases with different ids validate together — the thing the option exists to unblock", () => {
+    // `validatePhases` rejects duplicate ids, so a phase list that wants two
+    // follow-ups — one per kind of gap, say — needs one of them renamed. The
+    // base phase is the seeder the follow-ups' requiresDraft declaration needs.
+    const base = new FakeExtractor<GapExtraction>(committedFields);
+    const first = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat: {} as ChatClient,
+      model: "m",
+    });
+    const second = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat: {} as ChatClient,
+      model: "m",
+      id: "gapfill-ungrounded",
+    });
+    expect(() =>
+      validatePhases<GapValues>([extractorPhase("base", base), first, second]),
+    ).not.toThrow();
   });
 });

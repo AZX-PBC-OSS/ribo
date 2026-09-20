@@ -108,6 +108,11 @@ export interface FillPhaseOptions<V extends Record<string, unknown>, P = NoProve
    * `value` is non-null.
    */
   readonly narrowToAbstained?: boolean;
+  /**
+   * Overrides the phase's id — `"fill"` by default. See `PhaseMeta.id` in
+   * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
+   */
+  readonly id?: string;
 }
 
 /**
@@ -188,7 +193,7 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: FillPhaseOptions<V, P>,
 ): Phase<V, P> {
   const def: PhaseDef<V, P, FillJob, Record<string, unknown>> = {
-    id: "fill",
+    id: options.id ?? "fill",
     requires: [rosterNoteKey],
     // The merge assembles the roster-derived envelopes into `fields` — so a list
     // whose follow-up phases read the draft needs this before them. Capability,

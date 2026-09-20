@@ -306,3 +306,28 @@ describe("classifyWrappedPhase", () => {
     });
   });
 });
+
+describe("classifyPhase — id", () => {
+  test('defaults to "classify" and honours an explicit id', () => {
+    const { chat } = fakeChat(() => json("Gas"));
+    const defaults = classifyPhase<Values>({ groups, chat, model: chat.engine });
+    expect(defaults.id).toBe("classify");
+    const renamed = classifyPhase<Values>({ groups, chat, model: chat.engine, id: "classify-2" });
+    expect(renamed.id).toBe("classify-2");
+  });
+});
+
+describe("classifyWrappedPhase — id", () => {
+  test('defaults to "classify-wrapped" and honours an explicit id', () => {
+    const { chat } = fakeChat(() => json({ value: "Gas" }));
+    const defaults = classifyWrappedPhase<Values>({ groups, chat, model: chat.engine });
+    expect(defaults.id).toBe("classify-wrapped");
+    const renamed = classifyWrappedPhase<Values>({
+      groups,
+      chat,
+      model: chat.engine,
+      id: "classify-wrapped-2",
+    });
+    expect(renamed.id).toBe("classify-wrapped-2");
+  });
+});

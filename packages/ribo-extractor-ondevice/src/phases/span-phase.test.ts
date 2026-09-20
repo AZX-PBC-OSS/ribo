@@ -202,3 +202,13 @@ describe("spanPhase — merge", () => {
     expect(merged.notes.get(spansNoteKey)).toEqual({ hvac: {} });
   });
 });
+
+describe("spanPhase — id", () => {
+  test('defaults to "span" and honours an explicit id', () => {
+    const { chat } = fakeChat(() => json({}));
+    const defaults = spanPhase<Values>({ groups, chat, model: chat.engine });
+    expect(defaults.id).toBe("span");
+    const renamed = spanPhase<Values>({ groups, chat, model: chat.engine, id: "span-2" });
+    expect(renamed.id).toBe("span-2");
+  });
+});

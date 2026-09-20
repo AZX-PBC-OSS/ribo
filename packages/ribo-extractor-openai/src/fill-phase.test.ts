@@ -658,3 +658,25 @@ describe("fillPhase — narrowToAbstained", () => {
     expect(house.size.value).toBe("1950");
   });
 });
+
+describe("fillPhase — id", () => {
+  test('defaults to "fill" and honours an explicit id', () => {
+    const defaults = fillPhase<DemoValues>({
+      target,
+      chat: {} as ChatClient,
+      model: "m",
+      prepared,
+      buildFillInstructions,
+    });
+    expect(defaults.id).toBe("fill");
+    const renamed = fillPhase<DemoValues>({
+      target,
+      chat: {} as ChatClient,
+      model: "m",
+      prepared,
+      buildFillInstructions,
+      id: "fill-second-pass",
+    });
+    expect(renamed.id).toBe("fill-second-pass");
+  });
+});

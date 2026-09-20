@@ -76,6 +76,11 @@ export interface InventoryPhaseOptions {
   readonly prepared: readonly PreparedGroup[];
   /** Hard ceiling on `current` instances per group. Exceeding it throws. */
   readonly instanceCap: number;
+  /**
+   * Overrides the phase's id — `"inventory"` by default. See `PhaseMeta.id` in
+   * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
+   */
+  readonly id?: string;
 }
 
 /**
@@ -100,7 +105,7 @@ export function inventoryPhase<V extends Record<string, unknown>, P = NoProvenan
   options: InventoryPhaseOptions,
 ): Phase<V, P> {
   const def: PhaseDef<V, P, InventoryItem, Roster> = {
-    id: "inventory",
+    id: options.id ?? "inventory",
     // The inventory is one-shot: called once today, no retry, its failure fails
     // the run. The engine's default of 2 would re-issue whatever calls the
     // caller's inventory function makes.

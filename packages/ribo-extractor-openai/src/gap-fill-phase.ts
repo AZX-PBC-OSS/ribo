@@ -97,6 +97,11 @@ export interface GapFillPhaseOptions<V extends Record<string, unknown>, P = NoPr
    * follow-up path and never on the passthrough path. Defaults to identity.
    */
   readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
+  /**
+   * Overrides the phase's id — `"gapfill"` by default. See `PhaseMeta.id` in
+   * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
+   */
+  readonly id?: string;
 }
 
 /**
@@ -134,6 +139,7 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
     maxTokens,
     normalize = (fields) => fields,
     targets = ["abstained"],
+    id: phaseId = "gapfill",
   } = options;
   const wanted = new Set<GapFillTarget>(targets);
   const context = `gapFillExtractor: model response for "${target.name}"`;
@@ -141,7 +147,7 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
   const name = `${target.name}-gap-fill`;
 
   const def: PhaseDef<V, P, GapFillItem, Record<string, Extracted<unknown>>> = {
-    id: "gapfill",
+    id: phaseId,
     maxRetries: 0,
     // Its dependency is the SHAPE of `draft.fields` — re-asking about the leaves
     // another phase left abstained — not a note key, so the notes channel

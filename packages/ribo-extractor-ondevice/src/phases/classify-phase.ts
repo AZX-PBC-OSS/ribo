@@ -92,6 +92,12 @@ export interface ClassifyPhaseOptions {
   readonly chat: CapableChatClient;
   /** The model id passed through to each request. The transport ignores it. */
   readonly model: string;
+  /**
+   * Overrides the phase's id — `"classify"` or `"classify-wrapped"` depending
+   * on the factory. See `PhaseMeta.id` in `@azx/ribo-core` for what an id
+   * reaches and why a caller-chosen one is safe.
+   */
+  readonly id?: string;
 }
 
 interface ClassifyItem {
@@ -180,7 +186,7 @@ export function classifyPhase<V extends Record<string, unknown>, P = NoProvenanc
   options: ClassifyPhaseOptions,
 ): Phase<V, P> {
   const def: PhaseDef<V, P, ClassifyItem, ClassifyContribution> = {
-    id: "classify",
+    id: options.id ?? "classify",
     onItemFailure: "skip",
     requires: [spansNoteKey],
     produces: [unsupportedNoteKey],
@@ -244,7 +250,7 @@ export function classifyWrappedPhase<V extends Record<string, unknown>, P = NoPr
   options: ClassifyPhaseOptions,
 ): Phase<V, P> {
   const def: PhaseDef<V, P, ClassifyItem, ClassifyContribution> = {
-    id: "classify-wrapped",
+    id: options.id ?? "classify-wrapped",
     onItemFailure: "skip",
     requires: [unsupportedNoteKey],
     describeItem: (item) => ({ key: item.group.key, leaf: item.leaf.key }),

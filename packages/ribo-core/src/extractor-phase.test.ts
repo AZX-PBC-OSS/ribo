@@ -172,3 +172,12 @@ test("a lifted extractor declares seedsDraft — its merge shallow-assigns a com
   expect(phase.seedsDraft).toBe(true);
   expect(phase.requiresDraft).toBeUndefined();
 });
+
+test("the id is the caller's argument — the lift has no default of its own", () => {
+  // `extractorPhase` takes its id as a required first parameter, so a phase list
+  // can use the lift more than once by passing distinct ids — the property the
+  // options-based factories gain an `id` option for.
+  const extractor = new FakeExtractor<Env>(fieldsFixture);
+  expect(extractorPhase<TestValues>("lift", extractor).id).toBe("lift");
+  expect(extractorPhase<TestValues>("base", extractor).id).toBe("base");
+});

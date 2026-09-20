@@ -237,6 +237,11 @@ export interface PresencePhaseOptions {
   readonly chat: CapableChatClient;
   /** The model id passed through to each request. The transport ignores it. */
   readonly model: string;
+  /**
+   * Overrides the phase's id — `"presence"` by default. See `PhaseMeta.id` in
+   * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
+   */
+  readonly id?: string;
 }
 
 interface PresenceItem {
@@ -252,7 +257,7 @@ export function presencePhase<V extends Record<string, unknown>, P = NoProvenanc
   options: PresencePhaseOptions,
 ): Phase<V, P> {
   const def: PhaseDef<V, P, PresenceItem, Record<string, boolean>> = {
-    id: "presence",
+    id: options.id ?? "presence",
     onItemFailure: "skip",
     produces: [presenceNoteKey],
     // Its merge is THE SEED — the unconditional null-filled floor every later
