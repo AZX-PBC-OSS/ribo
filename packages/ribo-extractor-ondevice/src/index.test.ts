@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 import { enveloped } from "@azx/ribo-core";
-import type { ExtractionTarget } from "@azx/ribo-core";
 
 import * as api from "./index.js";
 import {
