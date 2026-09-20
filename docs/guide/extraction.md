@@ -260,9 +260,9 @@ into a list beside shipped ones. What is public, and from where:
 Three compositions cover the space. The examples share one thread: an audit pass of your own, whose
 note a shipped phase can then be made to wait for.
 
-**A custom phase can seed the draft.** `gapFillPhase` after it needs no declaration from you — its
-`plan` reads the draft's fields and throws only if a shipped provider it names is missing. Order the
-list so your seeding phase runs first:
+**A custom phase can seed the draft.** `gapFillPhase` after it needs no declaration from you — it
+names no provider at all; its `plan` reads the draft's fields and plans from whatever it finds, so
+an empty draft simply yields no work. Order the list so your seeding phase runs first:
 
 ```ts
 const define = phaseBuilder<V>(); // your adapter's writable patch type

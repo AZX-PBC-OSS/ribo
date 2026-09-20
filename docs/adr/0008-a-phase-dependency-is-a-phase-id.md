@@ -54,7 +54,8 @@ set: it catches a reader whose note was never written, not a producer that decla
 it conditionally. The engine's empty-plan no-op — a merge is skipped when its plan was empty — means
 a producing merge's "unconditional" write has a hole, so the read sites whose producer can plan
 empty (span → classify, classify → wrapped) pair the demand with an explicit carve-out for the
-legitimate absence.
+legitimate absence. The carve-out is anchored on the presence note, whose own plan is never empty:
+without that anchor a chain writing neither note would fall through it and no-op in silence.
 
 **The rename coupling is manufactured by this change.** Under note keys, renaming a phase broke
 nothing — a caller could rename the presence phase and a default `spanPhase()` still composed. Ids

@@ -109,6 +109,34 @@ describe("classifyPhase — plan", () => {
       expect(itemOf(items[0]).span).toBe("the system is gas");
     });
   });
+
+  // The three arms of the spans-note carve-out. The engine skips a merge whose
+  // plan was empty, so an absent spans note is legitimate ONLY when presence
+  // marked nothing present. Presence is demanded outright because its own plan
+  // is never empty — that is what tells a quiet chain from one missing its
+  // producers, and without it both arms below would no-op silently.
+  test("the spans note's absence is legitimate only when presence recorded nothing present", () => {
+    const { chat } = fakeChat(() => json("Gas"));
+    const phase = classifyPhase<Values>({ groups, chat, model: chat.engine });
+    phase.with((def) => {
+      const quiet = {
+        ...emptyDraft<Values>(),
+        notes: emptyNotes().set(presenceNoteKey, { hvac: { fuel: false } }),
+      };
+      expect(def.plan(quiet, ctx)).toHaveLength(0);
+
+      const misWired = {
+        ...emptyDraft<Values>(),
+        notes: emptyNotes().set(presenceNoteKey, { hvac: { fuel: true } }),
+      };
+      expect(() => def.plan(misWired, ctx)).toThrow(new RegExp(spansNoteKey));
+
+      // Neither note written: no presence phase ran either, so there is no
+      // signal that the quiet is legitimate. Defaulting here is what let a
+      // fully custom chain no-op without a word.
+      expect(() => def.plan(emptyDraft<Values>(), ctx)).toThrow(new RegExp(presenceNoteKey));
+    });
+  });
 });
 
 describe("classifyPhase — run", () => {
@@ -292,8 +320,16 @@ describe("classifyWrappedPhase", () => {
       expect(def.plan(spannedDraft(GROUNDED), ctx)).toHaveLength(0);
       // The note MISSING from the bag is legitimate only when there are no
       // grounded spans at all (classify planned nothing, so its merge never
-      // ran) — an empty draft qualifies, and the plan no-ops.
-      expect(def.plan(emptyDraft<Values>(), ctx)).toHaveLength(0);
+      // ran) — and only when presence ran to say so. A draft carrying the
+      // presence note and no spans qualifies, and the plan no-ops.
+      const quiet = {
+        ...emptyDraft<Values>(),
+        notes: emptyNotes().set(presenceNoteKey, { hvac: { fuel: false } }),
+      };
+      expect(def.plan(quiet, ctx)).toHaveLength(0);
+      // A draft with neither note is the fully-custom chain that wrote no
+      // producer at all — no signal, so it is refused rather than no-oped.
+      expect(() => def.plan(emptyDraft<Values>(), ctx)).toThrow(new RegExp(presenceNoteKey));
       // Spans WITHOUT the note is the mis-wired list, and the plan demands it
       // rather than silently no-oping.
       const withoutNote = {

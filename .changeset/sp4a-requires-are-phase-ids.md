@@ -32,3 +32,9 @@ still name every provider the phase reads from — `fillPhase({ requires: ["inve
 not `["mine"]`. `gapFillPhase` declares no `requires` at all and has no default: it is an optional
 refiner whose plan returns no items when it finds no candidates, so `[gapfill]` alone is a valid
 list.
+
+The engine's per-phase-boundary `produces` verification is gone with the
+declaration it verified, and so are its two tests. What replaced them is a
+read-site throw per reading phase, pinned end-to-end through `phasedExtractor`
+in `span-phase.test.ts` and `fill-phase.test.ts` — look there, not in
+`phased-extractor.test.ts`, for the guarantee that a mis-wired list is loud.

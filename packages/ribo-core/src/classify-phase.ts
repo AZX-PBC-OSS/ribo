@@ -47,7 +47,7 @@
 import { ChatError } from "./chat-client.js";
 import type { CapableChatClient, ChatCompletion, ChatMessage } from "./chat-client.js";
 import type { Enveloped, NoProvenance } from "./enveloped.js";
-import { noteKey } from "./phase-notes.js";
+import { demandNote, noteKey } from "./phase-notes.js";
 import type { NoteKey } from "./phase-notes.js";
 import type { DeepPartial, PhaseDraft } from "./phase-draft.js";
 import type { Phase, PhaseDef } from "./phase.js";
@@ -215,7 +215,13 @@ export function classifyPhase<V extends Record<string, unknown>, P = NoProvenanc
       // never happened). Spans note ABSENT while some leaf IS present is not
       // that case — it is a mis-wired list, and defaulting would make it a
       // silent all-null run that parses green.
-      const maps = draft.notes.get(presenceNoteKey) ?? {};
+      //
+      // The presence note is what tells the two apart, so it is demanded
+      // unconditionally: `presencePhase.plan` maps over the groups and is never
+      // empty, so its merge always runs and the note is always there. Reading
+      // it with a default instead would let a chain that wrote NEITHER note
+      // fall through the carve-out and no-op silently.
+      const maps = demandNote(draft.notes, presenceNoteKey, id, "presence");
       const spans = draft.notes.get(spansNoteKey);
       if (spans === undefined) {
         if (Object.values(maps).some((map) => Object.values(map).some(Boolean))) {
@@ -298,8 +304,12 @@ export function classifyWrappedPhase<V extends Record<string, unknown>, P = NoPr
       // bare pass: the unsupported note is legitimately absent when classify
       // planned nothing (no grounded spans anywhere), because a merge is
       // skipped on an empty plan. Spans WITHOUT the note is a mis-wired list.
+      // The presence note is demanded for the same reason it is in the bare
+      // pass: it is the one note always written, so it distinguishes a quiet
+      // chain from one missing its producers entirely.
       const recorded = draft.notes.get(unsupportedNoteKey);
       if (recorded === undefined) {
+        demandNote(draft.notes, presenceNoteKey, id, "presence");
         const spans = draft.notes.get(spansNoteKey) ?? {};
         if (Object.values(spans).some((map) => Object.keys(map).length > 0)) {
           throw new TypeError(
