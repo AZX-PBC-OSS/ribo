@@ -32,12 +32,7 @@
 
 import { z } from "zod";
 
-import {
-  draftSeededNoteKey,
-  isExtractedLeaf,
-  mergeGroupPieces,
-  phaseBuilder,
-} from "@azx/ribo-core";
+import { demandNote, isExtractedLeaf, mergeGroupPieces, phaseBuilder } from "@azx/ribo-core";
 import type {
   ChatClient,
   ChatMessage,
@@ -49,7 +44,6 @@ import type {
   NoProvenance,
   Phase,
   PhaseDef,
-  Roster,
   RosterCandidate,
 } from "@azx/ribo-core";
 
@@ -102,12 +96,14 @@ export interface FillPhaseOptions<V extends Record<string, unknown>, P = NoProve
    */
   readonly id?: string;
   /**
-   * Extra note keys this phase must wait for, unioned with the phase's own —
-   * additive, never replacing: a phase's own `requires` is a fact about what
-   * its `plan` reads, and a caller who replaced it would declare away a real
-   * dependency. **Deliberately no additive `produces`**: this merge will never
-   * write a caller's key, and the engine verifies a declared `produces` key
-   * against what the merge actually wrote — declaring one would throw mid-run.
+   * Ids of the phases this one must follow, REPLACING the default
+   * `["inventory"]` — the complete list, not an addition. The default names the
+   * shipped provider of the roster note this phase's `plan` reads; overriding
+   * it means naming that provider yourself. A caller adding an extra ordering
+   * constraint must still name whoever writes the roster:
+   * `requires: ["inventory", "mine"]`, not `["mine"]` — the plan throws naming
+   * the roster note when no earlier phase wrote it. See `PhaseMeta.requires`
+   * in `@azx/ribo-core` and ADR 0008.
    */
   readonly requires?: readonly string[];
 }
@@ -182,13 +178,12 @@ const jobFullyCommitted = <V extends Record<string, unknown>, P = NoProvenance>(
 export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: FillPhaseOptions<V, P>,
 ): Phase<V, P> {
+  const id = options.id ?? "fill";
   const def: PhaseDef<V, P, FillJob, Record<string, unknown>> = {
-    id: options.id ?? "fill",
-    // Unioned, never replaced — see `FillPhaseOptions.requires`.
-    requires: [...new Set([rosterNoteKey, ...(options.requires ?? [])])],
-    // The merge assembles the roster-derived envelopes into `fields`, so follow-up
-    // phases that read the draft stand on this one — see `draftSeededNoteKey`.
-    produces: [draftSeededNoteKey],
+    id,
+    // REPLACING, not additive: the option is the complete list, and the default
+    // names the shipped provider of the note this plan reads — see the option.
+    requires: options.requires ?? ["inventory"],
     describeItem: (item) => ({
       key: item.group.key,
       instance: item.instanceIndex + 1,
@@ -197,7 +192,9 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
       parts: item.group.parts ?? 1,
     }),
     plan: (draft, ctx) => {
-      const roster: Roster = draft.notes.get(rosterNoteKey) ?? {};
+      // A phase that reads a note demands it — defaulting would make a
+      // mis-wired list a silent all-null run that parses green.
+      const roster = demandNote(draft.notes, rosterNoteKey, id, "inventory");
       const transcript = ctx.transcript.text;
       const jobs: FillJob[] = [];
 
@@ -364,9 +361,6 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
         // written unconditionally: today the member is always present on the
         // result, and the engine emits it only when a merge wrote it.
         raw: groupResult,
-        // The `produces` marker, written unconditionally: a merge that planned
-        // no jobs never runs, so reaching this line means fields were assembled.
-        notes: draft.notes.set(draftSeededNoteKey, true),
       };
     },
   };

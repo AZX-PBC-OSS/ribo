@@ -1,5 +1,4 @@
 import {
-  draftSeededNoteKey,
   emptyDraft,
   enveloped,
   extractorPhase,
@@ -333,12 +332,12 @@ describe("gapFillPhase — merge", () => {
 });
 
 describe("gapFillPhase — metadata", () => {
-  test("requires the draft-seeded marker — its plan re-asks about leaves another phase left abstained", () => {
+  test("declares no requires of its own — `[gapfill]` alone is a valid list", () => {
     const chat: ChatClient = {
       complete: () => Promise.resolve({ content: "{}", finishReason: "stop" }),
     };
     const phase = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
-    expect(phase.requires).toContain(draftSeededNoteKey);
+    expect(phase.requires).toBeUndefined();
   });
 });
 
@@ -347,19 +346,36 @@ describe("gapFillPhase — requires", () => {
     complete: () => Promise.resolve({ content: "{}", finishReason: "stop" }),
   };
 
-  test("requires the draft-seeded marker and nothing else when the option is absent", () => {
-    const phase = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
-    expect(phase.requires).toEqual([draftSeededNoteKey]);
-  });
-
-  test("a caller's requires is unioned with the phase's own, which stays present", () => {
+  test("a caller's requires REPLACES — there is no default, so the list is exactly what you pass", () => {
     const phase = gapFillPhase<GapValues>({
       target: gapTarget,
       chat,
       model: "m",
       requires: ["mine"],
     });
-    expect(phase.requires).toEqual([draftSeededNoteKey, "mine"]);
+    expect(phase.requires).toEqual(["mine"]);
+  });
+
+  test("[gapfill] alone is accepted, and against an empty draft its plan returns no items and makes no call", () => {
+    // Acceptance alone would still pass if a regression quietly wired gap-fill
+    // to do work it cannot do — so pin the no-op half too: an empty draft has
+    // nothing abstained, the plan returns no items, and the chat is never
+    // reached. (The engine still fails such a run at the closing parse — the
+    // schema requires every group key — but that is the retryable, cheap half.)
+    const requests: ChatRequest[] = [];
+    const chat: ChatClient = {
+      complete: (request) => {
+        requests.push(request);
+        return Promise.resolve({ content: "{}", finishReason: "stop" });
+      },
+    };
+    const gapfill = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
+    expect(() => validatePhases<GapValues>([gapfill])).not.toThrow();
+
+    gapfill.with((def) => {
+      expect(def.plan(emptyDraft<GapValues>(), ctx)).toEqual([]);
+    });
+    expect(requests).toHaveLength(0);
   });
 });
 
@@ -382,8 +398,7 @@ describe("gapFillPhase — id", () => {
   test("two gapFillPhases with different ids validate together — the thing the option exists to unblock", () => {
     // `validatePhases` rejects duplicate ids, so a phase list that wants two
     // follow-ups — one per kind of gap, say — needs one of them renamed. The
-    // base phase is the lifted extractor producing the draft-seeded marker the
-    // follow-ups' requires declaration needs.
+    // base phase populates the draft the follow-ups' plans read.
     const base = new FakeExtractor<GapExtraction>(committedFields);
     const first = gapFillPhase<GapValues>({
       target: gapTarget,

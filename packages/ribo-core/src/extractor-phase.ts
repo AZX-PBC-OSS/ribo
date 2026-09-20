@@ -1,6 +1,5 @@
 import type { Enveloped, NoProvenance } from "./enveloped.js";
 import type { Extractor } from "./extractor.js";
-import { draftSeededNoteKey } from "./phase-notes.js";
 import type { Phase, PhaseDef } from "./phase.js";
 import { phaseBuilder } from "./phase.js";
 
@@ -30,10 +29,11 @@ import { phaseBuilder } from "./phase.js";
  *
  * What this deliberately does not do: it does not run anything on its own — the phase is
  * inert until an engine calls `plan`/`run`/`merge`. And it declares no `requires` of its
- * own: an `Extractor` speaks in fields and results, not in note keys. It produces
- * {@link draftSeededNoteKey} — the fields channel is exactly what it speaks, the merge
- * shallow-assigning a complete `Enveloped<V, P>` into the draft — so a list with a lifted
- * base is known, through the ordinary note-key check, to stand on a populated draft.
+ * own: an `Extractor` speaks in fields and results, not in notes. Its merge populates
+ * `draft.fields` unconditionally — the merge always runs (the plan is never empty) — which
+ * is the guarantee a follow-up phase that reads the fields stands on; there is no marker
+ * key declaring it (ADR 0008), so a follow-up that needs a populated draft takes
+ * responsibility for ordering after this phase through `requires`.
  */
 
 /**
@@ -47,10 +47,9 @@ const WHOLE_DOCUMENT = null;
 /** Options for {@link extractorPhase}. */
 export interface ExtractorPhaseOptions {
   /**
-   * Extra note keys this phase must wait for. The lift declares none of its
-   * own — an `Extractor` speaks in fields and results, not note keys — so the
-   * list is exactly what you pass. Additive-only, never a `produces`: the rule
-   * stated once on `FillPhaseOptions.requires` (`@azx/ribo-extractor-openai`).
+   * Ids of the phases this one must follow. The lift declares none of its
+   * own — an `Extractor` speaks in fields and results, not notes — so the
+   * list is exactly what you pass (ADR 0008).
    */
   readonly requires?: readonly string[];
 }
@@ -71,11 +70,9 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
     }
   > = {
     id,
-    // The fields channel, declared — see the file header.
-    produces: [draftSeededNoteKey],
-    // The caller's keys are the whole `requires` (see the option); an absent
-    // option leaves the def's `requires` unset, today's shape.
-    ...(options.requires === undefined ? {} : { requires: [...new Set(options.requires)] }),
+    // The caller's ids are the whole `requires` (see the option); an absent
+    // option leaves the def's `requires` unset.
+    ...(options.requires === undefined ? {} : { requires: options.requires }),
     plan: () => [WHOLE_DOCUMENT],
     run: async (_item, _draft, ctx) => {
       // Forwarded, not rebuilt: `signal` and `deadline` are the caller's cancellation and
@@ -117,13 +114,10 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
       }
       // `raw` is optional on the draft and its ABSENCE is what "no result carried one"
       // reads as — so it is spread in only when carried, never as an explicit undefined.
-      // The `produces` marker is written unconditionally with the fields — the merge
-      // always runs (the plan is never empty).
       return {
         ...draft,
         fields,
         statedEmptyGroups,
-        notes: draft.notes.set(draftSeededNoteKey, true),
         ...(hasRaw ? { raw } : {}),
       };
     },

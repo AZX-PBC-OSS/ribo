@@ -1,4 +1,4 @@
-import { draftSeededNoteKey, emptyDraft, enveloped } from "@azx/ribo-core";
+import { emptyDraft, enveloped, phasedExtractor } from "@azx/ribo-core";
 import type { ExtractionTarget, PhaseContext, PhaseDraft, Roster } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
@@ -236,7 +236,7 @@ describe("inventoryPhase — id", () => {
 });
 
 describe("inventoryPhase — requires", () => {
-  test("declares none of its own, and the option absent leaves today's undefined", () => {
+  test("declares none of its own, and the option absent leaves it undefined", () => {
     const phase = inventoryPhase<DemoValues>({
       inventory: async () => ({}),
       prepared,
@@ -245,7 +245,7 @@ describe("inventoryPhase — requires", () => {
     expect(phase.requires).toBeUndefined();
   });
 
-  test("a caller's requires is taken as the requires — the phase has none of its own to union", () => {
+  test("a caller's requires is taken as the requires — the phase has no default to replace", () => {
     const phase = inventoryPhase<DemoValues>({
       inventory: async () => ({}),
       prepared,
@@ -256,21 +256,54 @@ describe("inventoryPhase — requires", () => {
   });
 });
 
-test("inventory does NOT produce the draft-seeded marker, and that is deliberate", () => {
-  // The omission is load-bearing, and this file's subject warns that the obvious
-  // "fix" is the bug: inventory's merge writes `fields[key] = []` for stated-none
-  // and zero-current collection groups, which is scaffolding rather than
-  // extracted data. Marking it would make `[inventory, gapfill]` validate — the
-  // exact mis-wiring the marker exists to reject.
-  //
-  // Pinned directly rather than only through that list's rejection: that test
-  // fails for a reason about `gapfill`'s unmet requirement, so it would keep
-  // passing if inventory started producing the marker.
-  const phase = inventoryPhase({
-    inventory: async (): Promise<Roster> => ({ house: [] }),
-    prepared: [],
-    instanceCap: 4,
+/**
+ * `[inventory]` alone is a valid list that runs green when the roster leaves
+ * every group parseable — ADR 0008 protects this case explicitly. All groups
+ * here are collection groups, because only those does the inventory merge seed:
+ * an all-stated-empty roster legitimately yields `{ widgets: [], gadgets: [] }`
+ * with zero fill calls.
+ */
+const onlyCollectionsSchema = z
+  .object({
+    widgets: z.array(z.object({ color: z.string().nullable().optional() })).optional(),
+    gadgets: z.array(z.object({ color: z.string().nullable().optional() })).optional(),
+  })
+  .strict();
+type OnlyCollectionsValues = z.infer<typeof onlyCollectionsSchema>;
+
+const onlyCollectionsTarget: ExtractionTarget<OnlyCollectionsValues> = {
+  name: "only-collections",
+  extractionSchema: enveloped(onlyCollectionsSchema),
+  instructions: "Demo extraction instructions.",
+};
+
+const onlyCollectionsPrepared: readonly PreparedGroup[] = [
+  preparedGroup("widgets", true),
+  preparedGroup("gadgets", true),
+];
+
+test("[inventory] alone runs green over an all-stated-empty roster", async () => {
+  const extractor = phasedExtractor<OnlyCollectionsValues>({
+    target: onlyCollectionsTarget,
+    phases: [
+      inventoryPhase<OnlyCollectionsValues>({
+        inventory: async () => ({
+          widgets: { stated: "none", span: "no widgets" },
+          gadgets: { stated: "none", span: "no gadgets" },
+        }),
+        prepared: onlyCollectionsPrepared,
+        instanceCap: 4,
+      }),
+    ],
   });
 
-  expect(phase.produces ?? []).not.toContain(draftSeededNoteKey);
+  const result = await extractor.extract({ text: "no widgets or gadgets here", annotations: {} });
+
+  expect(result.fields.widgets).toEqual([]);
+  expect(result.fields.gadgets).toEqual([]);
+  expect(result.statedEmptyGroups).toEqual({
+    widgets: "no widgets",
+    gadgets: "no gadgets",
+  });
+  expect(result.usage.calls).toBe(1); // the inventory pass itself
 });

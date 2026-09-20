@@ -5,10 +5,8 @@ import {
   enveloped,
   extractGroups,
   phasedExtractor,
-  presenceNoteKey,
   presencePhase,
   spanPhase,
-  spansNoteKey,
   validatePhases,
 } from "./index.js";
 import type { CapableChatClient, ExtractionTarget } from "./index.js";
@@ -77,16 +75,15 @@ describe("a phase list composed through the public entry point", () => {
     expect(() => phasedExtractor<Values>({ target, phases })).not.toThrow();
   });
 
-  test("the note-key chain the list depends on is the barrel's own keys", () => {
-    // Pinned against the BARREL's keys: if the barrel exported a
-    // different-but-equal key instead of the phases' own, these fail.
-    const { chat, model, groups } = composeOptions();
-    const presence = presencePhase<Values>({ groups, chat, model });
+  test("the id chain the list depends on is the factories' own defaults", () => {
+    // Pinned through the BARREL: the default `requires` each factory applies
+    // names the shipped provider's default id, so the composed list above is
+    // ordered by construction (ADR 0008). The notes themselves are the runtime
+    // channel — their round-trip is pinned by the phase merge suites.
+    const { chat, model } = composeOptions();
     const span = spanPhase<Values>({ groups: [], chat, model });
     const classify = classifyPhase<Values>({ groups: [], chat, model });
-    expect(presence.produces).toContain(presenceNoteKey);
-    expect(span.requires).toContain(presenceNoteKey);
-    expect(span.produces).toContain(spansNoteKey);
-    expect(classify.requires).toContain(spansNoteKey);
+    expect(span.requires).toEqual(["presence"]);
+    expect(classify.requires).toEqual(["span"]);
   });
 });

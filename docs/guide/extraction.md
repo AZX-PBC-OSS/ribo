@@ -203,11 +203,12 @@ destroyed the distinction. If phases share scratch data, its key is branded — 
 so two phases cannot silently clobber one key or read one at the wrong type, while the key stays a
 plain string at runtime.
 
-### `requires` / `produces`, checked at construction
+### `requires`, checked at construction
 
-A phase declares which note keys it `requires` and which it `produces`, and a mis-wired list fails
-at construction — before the first call is paid for, with the missing key and the phase id named.
-Order matters: a key produced by a later phase does not satisfy an earlier phase's requirement.
+A phase declares `requires`: the **ids** of the phases that must appear earlier in the same list,
+and a mis-wired list fails at construction — before the first call is paid for, with the missing id
+and the phase id named. Order matters: a phase later in the list does not satisfy an earlier phase's
+requirement, and a phase cannot satisfy itself (ADR 0008).
 
 ### The three strategies are now presets over it
 
@@ -226,37 +227,29 @@ base phase's `start`/`done` pair where it previously emitted nothing; the per-ev
 count is gone; and returned objects are no longer reference-equal to the base extractor's, because
 the closing parse rebuilds every object (values are unchanged — deep equality holds).
 
-### A phase says whether it seeds the draft
+### A phase that reads a note demands it
 
-`requires`/`produces` cover the **notes** a phase reads and writes. They do not cover the _fields_,
-and one phase needs them: `gapFillPhase` re-asks about leaves an earlier phase left abstained, so it
-needs a draft somebody populated. There is a note key for exactly that:
+`requires` orders the list; it does not say what a phase reads. That is the notes channel — a
+roster, a per-group presence map — and the guarantee lives at the read site: a phase whose `plan`
+reads a note **throws when no earlier phase wrote it**, naming the key and the phase, instead of
+defaulting the read away (ADR 0008).
 
-```ts
-draftSeededNoteKey; // "draft-seeded" — produced by a phase whose merge populates draft.fields
-```
+The default is what would make a mis-wired list a **silent wrong answer**: a span phase with no
+presence phase before it plans nothing, the run returns the all-null floor, and the closing parse is
+green. Throwing turns it into a loud composition error before any call is made — `plan` is
+synchronous and runs before the first request.
 
-A seeding phase declares it in `produces` **and writes it** in its merge (`draft.notes.set(
-draftSeededNoteKey, true)`), so the engine's per-boundary check verifies the declaration against
-what the phase really did. A phase that reads the draft declares it in `requires`, and the ordinary
-`validatePhases` check applies: `[gapfill]` alone is rejected, as is `[inventory, gapfill]` —
-inventory does not produce the marker, because its `[]` entries are scaffolding rather than
-extracted data. Order matters, and a seeder later in the list does not help.
-
-**Why this is worth a construction-time error.** Without it the list runs, plans nothing, and dies
-at the closing parse — every group key is required, so a draft missing them is rejected. That
-failure is **retryable**, so the relay re-runs the whole list and re-spends every earlier phase's
-calls, repeatedly. Failing at construction is free.
-
-`fill`, `presence` and a lifted `extractorPhase` produce the marker. `gapfill` requires it.
+So the division of labour is: `requires` names _who_ must run earlier (checked at construction);
+the notes bag carries _what_ they handed over (checked at the read). A note key is still a plain
+string at runtime.
 
 ### Composing from outside: your phases beside the shipped ones
 
 Everything the shipped presets are made of is public, so a host can write its own phase and slot it
 into a list beside shipped ones. What is public, and from where:
 
-- **From `@azx/ribo-core`** — `phaseBuilder`; `noteKey`, for keys of your own; the
-  `draftSeededNoteKey` marker; and the three-phase strategy's parts, `presencePhase`, `spanPhase`,
+- **From `@azx/ribo-core`** — `phaseBuilder`; `noteKey`, for keys of your own; `demandNote`, the
+  read-site throw; and the three-phase strategy's parts, `presencePhase`, `spanPhase`,
   `classifyPhase` and `classifyWrappedPhase`, with the `extractGroups` walk that feeds them and their
   note keys `presenceNoteKey`, `spansNoteKey` and `unsupportedNoteKey`.
 - **From `@azx/ribo-extractor-openai`** — `gapFillPhase`, `inventoryPhase`, `fillPhase`, and their
@@ -267,17 +260,15 @@ into a list beside shipped ones. What is public, and from where:
 Three compositions cover the space. The examples share one thread: an audit pass of your own, whose
 note a shipped phase can then be made to wait for.
 
-**A custom phase can seed the draft.** The marker is an ordinary export, not an internal convention —
-a phase you build with `phaseBuilder` declares and writes it the same way a shipped one does, and the
-shipped `gapFillPhase` after it validates against the ordinary check:
+**A custom phase can seed the draft.** `gapFillPhase` after it needs no declaration from you — its
+`plan` reads the draft's fields and throws only if a shipped provider it names is missing. Order the
+list so your seeding phase runs first:
 
 ```ts
 const define = phaseBuilder<V>(); // your adapter's writable patch type
 
 const seed = define({
   id: "seed",
-  // Written unconditionally in the merge — "produces is checked twice" below.
-  produces: [draftSeededNoteKey],
   describeItem: () => ({ key: "" }),
   plan: () => ["whole-document"],
   run: async (_item, _draft, ctx) => ({
@@ -292,30 +283,31 @@ const seed = define({
     return {
       ...draft,
       fields: done.output.value, // a complete enveloped record, as a base phase's would be
-      notes: draft.notes.set(draftSeededNoteKey, true),
     };
   },
 });
 
 const extractor = phasedExtractor({
   target,
+  // No `requires` needed: `[gapfill]` alone is a valid list (it is an optional
+  // refiner), and anything before it that fills fields just gives it work.
   phases: [seed, gapFillPhase({ target, chat, model })],
 });
 ```
 
 **A custom phase can consume a shipped phase's output.** The keys the shipped phases write are
-exported, so your `plan` can read them:
+exported, so your `plan` can read them — and, reading, demand them: `demandNote` throws naming the
+key when no earlier phase wrote it.
 
 ```ts
 const audited = noteKey<Record<string, boolean>>("audited");
 
 const audit = define({
   id: "audit",
-  requires: [presenceNoteKey], // what presencePhase's merge wrote
-  produces: [audited],
+  requires: ["presence"], // the shipped presence phase's default id
   describeItem: (group) => ({ key: group }),
   plan: (draft) => {
-    const maps = draft.notes.get(presenceNoteKey) ?? {};
+    const maps = demandNote(draft.notes, presenceNoteKey, "audit", "presence");
     return Object.keys(maps); // narrowed by what presence found — the ask itself is yours
   },
   run: async (group, _draft, ctx) => ({
@@ -338,30 +330,31 @@ const extractor = phasedExtractor({
 });
 ```
 
-**A shipped phase can wait for a custom one.** Every shipped factory takes a `requires` option whose
-keys are **unioned** with the phase's own — so the `fillPhase` below waits for the inventory's roster
-AND for the audit's note:
+**A shipped phase can wait for a custom one.** Every shipped factory takes a `requires` option that
+**replaces** the factory's default — it is the complete list of ids, not an addition. So `fillPhase`
+below, which by default waits for `"inventory"`, must name the inventory phase AND the audit:
 
 ```ts
 const fill = fillPhase<Values>({
   // target, chat, model, prepared, buildFillInstructions — as usual.
-  requires: [audited], // unioned with the roster key the phase requires on its own
+  requires: ["inventory", "audit"], // the complete list — the default went away
 });
 
 // [inventory, audit, fill] validates. Reverse the last two and construction
-// rejects the list, naming "fill" and the note key no earlier phase produced.
+// rejects the list, naming "fill" and the id that does not appear earlier.
 const extractor = phasedExtractor({ target, phases: [inventory, audit, fill] });
 ```
 
 Two limits, stated because you will hit them:
 
-- **`produces` is not caller-extensible on a shipped phase.** Not an API omission: the engine
-  verifies every declared `produces` key against what the phase's merge actually wrote, and a shipped
-  merge will never write your key, so declaring one would throw mid-run. Your keys belong on your own
-  phases.
-- **A shipped phase's `requires` can only be widened.** The option unions; it never replaces. You
-  cannot make a shipped phase need _less_ — which is what stops a mis-wired list from declaring away
-  a real dependency and validating anyway.
+- **Overriding `requires` is taking responsibility for naming providers.** `fillPhase`'s `plan`
+  reads the roster note; drop `"inventory"` from the option and validation fails on the dangling
+  default — `requires: ["audit"]` alone does not compose. The defaults name the shipped providers;
+  a caller who renames or replaces a provider names the new id (`spanPhase({ requires:
+["presence-strict"] })`).
+- **A phase that reads a note demands it at the read site.** A list that slips a phase's provider
+  past validation — a custom phase named `"span"` that never writes the spans note, say — still
+  fails, loudly, from the reader's `plan`, before any call is made.
 
 ### Running a phase twice
 
@@ -414,13 +407,13 @@ of work belongs to. `describeItem(item)` supplies the `key` (and optionally `lea
 scoped-fill coordinates) the `PhaseUnit` events carry; **without it, every progress event carries
 an empty key.** If you want a progress stream a reviewer can read, this is not optional.
 
-### `produces` is checked twice
+### A phase that reads a note demands it — even past validation
 
-Construction is not the only check. The declared `produces` keys are verified again at each phase
-boundary at runtime, against what the phase's `merge` actually wrote — because a phase that
-declares a key and writes it only conditionally is a silent liar, and the condition that bites is
-exactly the realistic one (a roster-driven contribution written only when the roster found
-instances). Expect a mid-run throw naming the phase and the key, not a construction error.
+Construction checks ids, not writes: a custom phase whose id satisfies someone's `requires` but
+whose merge never writes the note they read would pass validation. The read-site throw closes that:
+the reader's `plan` throws naming the key and the likely cause. (One carve-out: a merge is skipped
+when its plan was empty, so a reader whose producer can legitimately plan nothing pairs the demand
+with an explicit check for that case — see `classifyPhase`.)
 
 ### A declared `maxRetries` is a request, not a promise
 
@@ -445,7 +438,6 @@ const define = phaseBuilder<V>(); // your adapter's writable patch type
 
 const scan = define({
   id: "scan",
-  produces: [discussed], // written unconditionally — see "checked twice" above
   describeItem: (group) => ({ key: group }),
   plan: () => groupKeys, // one item per group; the first pass has nothing to narrow against
   run: async (group, _draft, ctx) => ({
@@ -455,6 +447,8 @@ const scan = define({
     usage: { calls: 1 },
   }),
   merge: (draft, results) => {
+    // Written unconditionally — the fill phase's plan reads this key and
+    // demands it.
     const map = { ...draft.notes.get(discussed) };
     for (const r of results) {
       if (r.outcome === "result") map[r.item] = r.output.value;
@@ -465,7 +459,7 @@ const scan = define({
 
 const fill = define({
   id: "fill",
-  requires: [discussed],
+  requires: ["scan"], // the phase whose merge writes the discussed note
   describeItem: (group) => ({ key: group }),
   // THE NARROWING: only the groups the scan marked discussed get a call.
   plan: (draft) => groupKeys.filter((key) => draft.notes.get(discussed)?.[key] === true),

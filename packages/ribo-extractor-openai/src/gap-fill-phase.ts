@@ -33,7 +33,7 @@
 
 import { z } from "zod";
 
-import { draftSeededNoteKey, phaseBuilder } from "@azx/ribo-core";
+import { phaseBuilder } from "@azx/ribo-core";
 import type {
   ChatClient,
   Enveloped,
@@ -103,9 +103,10 @@ export interface GapFillPhaseOptions<V extends Record<string, unknown>, P = NoPr
    */
   readonly id?: string;
   /**
-   * Extra note keys this phase must wait for, unioned with the phase's own —
-   * additive, never replacing, and never a `produces`: the rule stated once on
-   * `FillPhaseOptions.requires` (same package).
+   * Ids of the phases this one must follow. The phase declares none of its
+   * own — it is an optional refiner over whatever draft it is given, and its
+   * `plan` returns `[]` when it finds no candidates, so even `[gapfill]` alone
+   * is a valid list (ADR 0008) — meaning the list is exactly what you pass.
    */
   readonly requires?: readonly string[];
 }
@@ -155,13 +156,12 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
   const def: PhaseDef<V, P, GapFillItem, Record<string, Extracted<unknown>>> = {
     id: phaseId,
     maxRetries: 0,
-    // Its dependency is the SHAPE of `draft.fields` — re-asking about the leaves
-    // another phase left abstained — declared through the draft-seeded marker, so
-    // `validatePhases` rejects a list where nothing populates the draft first,
-    // instead of the run dying at the closing parse with a retryable error that
-    // re-spends the earlier phases' calls on every retry.
-    // Unioned, never replaced — see `GapFillPhaseOptions.requires`.
-    requires: [...new Set([draftSeededNoteKey, ...(options.requires ?? [])])],
+    // Deliberately no `requires` of its own, and no default: gap-fill is an
+    // optional refiner whose plan returns `[]` when it finds no candidates, so
+    // `[gapfill]` alone is a valid list — the engine treats an empty plan as a
+    // no-op (ADR 0008). The caller's ids are the whole `requires` (see the
+    // option).
+    ...(options.requires === undefined ? {} : { requires: options.requires }),
     describeItem: () => ({ key: "" }),
     plan: (draft, ctx) => {
       // THE CAST, and why it is sound: the pure helpers take `Enveloped<V, P>`;

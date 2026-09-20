@@ -17,10 +17,11 @@
  * declared as a property with an arrow type, never a method signature: method syntax is
  * checked bivariantly, which would silently defeat the invariance.
  *
- * **The key is a plain string at runtime.** `requires`/`produces` are string arrays, the
- * phase-list construction check compares them as strings, and a later planner emits them
- * as JSON. The brand is a compile-time phantom only — `noteKey` is a cast and nothing
- * else, and `keys` returns plain strings.
+ * **The key is a plain string at runtime.** The brand is a compile-time phantom only —
+ * `noteKey` is a cast and nothing else, and `keys` returns plain strings. The keys are
+ * the cross-phase RUNTIME channel: the declaration vocabulary for ordering is phase ids
+ * (`PhaseMeta.requires`), not these keys — a phase that reads a note demands it at its
+ * read site, rather than declaring it (ADR 0008).
  *
  * What this deliberately does not do: no `delete`, no value iteration, and no `merge` —
  * the bag is copied on `set` and every write to the draft's copy belongs to a phase's
@@ -58,8 +59,8 @@ export function noteKey<T>(id: string): NoteKey<T> {
  * by copy-on-set.
  *
  * `get` and `set` are generic in the KEY's type parameter, so the value's type follows the
- * key — a mismatched read or write is a compile error. `keys` is the plain-string view the
- * `requires`/`produces` declarations and the construction check speak.
+ * key — a mismatched read or write is a compile error. `keys` is the plain-string view of
+ * everything set.
  */
 export interface Notes {
   /** The value stored under `key`, or `undefined` when nothing was set. */
@@ -101,8 +102,28 @@ export function emptyNotes(): Notes {
 }
 
 /**
- * Produced by a phase whose merge populates `draft.fields`; required by one that reads
- * them. A note key rather than a flag pair so the existing `requires`/`produces` check
- * does the ordering — see ADR 0008.
+ * A phase that reads a note demands it: the read-site throw that is the whole
+ * guarantee behind phase ordering (ADR 0008). Defaulting the read away instead would
+ * make a mis-wired list a silent wrong answer — nothing planned, an all-null run, the
+ * closing parse green.
+ *
+ * Use it only where the writer's `plan` is never empty. The engine skips a merge whose
+ * plan was empty, so a producer that legitimately planned nothing never writes its key,
+ * and an unconditional demand downstream would reject a correct list. `classifyPhase`
+ * is that case and guards with its own condition instead.
+ *
+ * A plain `TypeError`, matching `validatePhases`' style: a composition bug, not a model
+ * failure — `plan` is synchronous and runs before any call is made.
  */
-export const draftSeededNoteKey: NoteKey<true> = noteKey("draft-seeded");
+export function demandNote<T>(notes: Notes, key: NoteKey<T>, reader: string, writer: string): T {
+  const value = notes.get(key);
+  if (value === undefined) {
+    throw new TypeError(
+      `${reader}: the note "${key}" is not in the draft's notes — no earlier phase in ` +
+        `this list wrote it. A phase that reads a note demands it: run the phase that ` +
+        `writes it (default id "${writer}") before this one, or, if that phase is ` +
+        `renamed or you reordered the list, name it in this phase's requires.`,
+    );
+  }
+  return value;
+}

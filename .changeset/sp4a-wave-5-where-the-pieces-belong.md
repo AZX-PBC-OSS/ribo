@@ -21,13 +21,17 @@ validates, because its merge writes `fields[key] = []` scaffolding for stated-no
 collection groups, which is not clearly wrong.
 
 **A phase that reads the draft declares it through the notes channel.**
-`draftSeededNoteKey` (`noteKey("draft-seeded")`, exported from core) is produced
-by a phase whose merge populates `draft.fields` and required by one that reads
-them, so the ordinary order-sensitive `requires`/`produces` check does all the
-work and the engine's per-phase-boundary check verifies the claim against what
-the merge really wrote. `[gapfill]` alone is rejected, `[inventory, gapfill]` is
-rejected, `[fill, gapfill]` passes, order matters, and a phase cannot satisfy
-itself. See ADR 0008.
+`draftSeededNoteKey` (`noteKey("draft-seeded")`, exported from core) is produced by a
+phase whose merge populates `draft.fields` and required by one that reads them, so the
+ordinary order-sensitive `requires`/`produces` check does all the work and the engine's
+per-phase-boundary check verifies the claim against what the merge really wrote.
+`[gapfill]` alone is rejected, `[inventory, gapfill]` is rejected, `[fill, gapfill]`
+passes, order matters, and a phase cannot satisfy itself. See ADR 0008.
+
+_(Since this changeset was written, the declaration vocabulary moved to phase ids and
+`draftSeededNoteKey` was deleted — see `sp4a-requires-are-phase-ids.md` and ADR 0008 as
+rewritten. The refusal-at-construction outcome above now comes from the id check plus the
+read-site demand, and `[inventory, gapfill]` validates.)_
 
 **The chat transport seam lives in core now.** `ChatClient`, `CapableChatClient`,
 `ChatMessage`, `ChatRequest`, `ChatCompletion`, `ChatCallOptions`, `ChatCapability`,

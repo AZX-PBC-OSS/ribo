@@ -33,14 +33,14 @@
  *   and a pure `plan` should not throw on a roster property.
  *
  * The roster crosses the phase boundary in `notes` under {@link rosterNoteKey},
- * which the fill phase (`fill-phase.ts`) requires.
+ * which the fill phase's plan reads — and demands: its plan throws when no
+ * earlier phase wrote the key (ADR 0008).
  *
- * **Deliberately NOT producing `draftSeededNoteKey`**, though this merge does write
- * `fields[key] = []` for stated-none and zero-current collection groups — scaffolding,
- * not extracted data. Producing it would let `[inventory, gapfill]` validate —
- * gap-fill re-asking over a draft of nothing but scaffolding — exactly the mis-wiring
- * SP4a's marker check exists to reject (ADR 0008). The next reader will want to "fix"
- * this; that fix is the bug.
+ * `[inventory, gapfill]` is a legal list. The gap-fill pass plans from
+ * `draft.fields`, and the `[]` entries this merge writes for stated-none and
+ * zero-current collection groups are scaffolding rather than extracted data, so
+ * the walk finds nothing to re-ask about and the phase no-ops. Ordering a
+ * gap-fill after an inventory alone is a caller decision, not a wiring error.
  */
 
 import { phaseBuilder, noteKey } from "@azx/ribo-core";
@@ -81,10 +81,8 @@ export interface InventoryPhaseOptions {
    */
   readonly id?: string;
   /**
-   * Extra note keys this phase must wait for. The phase declares none of its
-   * own, so the list is exactly what you pass — additive-only, never a
-   * `produces`: the rule stated once on `FillPhaseOptions.requires`
-   * (`@azx/ribo-extractor-openai`).
+   * Ids of the phases this phase must follow. The phase declares none of its
+   * own — it runs first — so the list is exactly what you pass (ADR 0008).
    */
   readonly requires?: readonly string[];
 }
@@ -116,10 +114,10 @@ export function inventoryPhase<V extends Record<string, unknown>, P = NoProvenan
     // the run. The engine's default of 2 would re-issue whatever calls the
     // caller's inventory function makes.
     maxRetries: 0,
-    produces: [rosterNoteKey],
-    // The caller's keys are the whole `requires` — the phase declares none of
-    // its own (see the option); an absent option leaves the def's `requires` unset.
-    ...(options.requires === undefined ? {} : { requires: [...new Set(options.requires)] }),
+    // The caller's ids are the whole `requires` — the phase declares none of
+    // its own (see the option); an absent option leaves the def's `requires`
+    // unset.
+    ...(options.requires === undefined ? {} : { requires: options.requires }),
     describeItem: () => ({ key: "" }),
     plan: (_draft, ctx) => [{ transcript: ctx.transcript.text }],
     run: async (item) => {
@@ -130,8 +128,9 @@ export function inventoryPhase<V extends Record<string, unknown>, P = NoProvenan
       // The phase plans exactly one item and runs under the default abort
       // policy, so under the engine a failure rejects before merge and this is
       // always a single result outcome. An error outcome driven directly has no
-      // roster to interpret; returning the draft unchanged lets the engine's
-      // produces check name the missing key rather than inventing a roster.
+      // roster to interpret; returning the draft unchanged lets the fill
+      // phase's read of the missing roster note throw and name it, rather than
+      // inventing a roster.
       const settled = outcomes.find((o) => o.outcome === "result");
       if (settled === undefined) return draft;
       const roster = settled.output.value;
@@ -180,6 +179,8 @@ export function inventoryPhase<V extends Record<string, unknown>, P = NoProvenan
         }
       }
 
+      // The roster note is written unconditionally on this path: the fill
+      // phase's plan reads it and demands it.
       return {
         ...draft,
         fields: fields as DeepPartial<Enveloped<V, P>>,

@@ -8,12 +8,19 @@ import { ChatError } from "./chat-client.js";
 import type { ExtractionTarget } from "./extractor.js";
 import type { PhaseContext } from "./phase.js";
 
-import { extractGroups, nullEnvelope, presenceNoteKey, wrapGroupEntry } from "./presence-phase.js";
+import {
+  extractGroups,
+  nullEnvelope,
+  presenceNoteKey,
+  presencePhase,
+  wrapGroupEntry,
+} from "./presence-phase.js";
 import type { Group, Leaf, LeafEnvelope } from "./presence-phase.js";
-import { spansNoteKey } from "./span-phase.js";
+import { spanPhase, spansNoteKey } from "./span-phase.js";
 import type { SpanMaps } from "./span-phase.js";
 import { classifyPhase, classifyWrappedPhase, unsupportedNoteKey } from "./classify-phase.js";
 import type { UnsupportedLeaves } from "./classify-phase.js";
+import { validatePhases } from "./validate-phases.js";
 import { fakeChat } from "./test-support/fake-chat.js";
 
 /**
@@ -190,8 +197,9 @@ describe("classifyPhase — merge", () => {
       confidence: 1,
       sourceSpan: "the system is gas",
     });
-    // The phase declares it produces this key: the note is written even when
-    // empty, or the engine's produces check would throw.
+    // The wrapped pass's plan reads this key and demands it: the note is
+    // written even when empty, or a legal pass over zero unsupported leaves
+    // would throw from the wrapped phase's plan.
     expect(merged.notes.get(unsupportedNoteKey)).toEqual([]);
   });
 
@@ -280,9 +288,20 @@ describe("classifyWrappedPhase", () => {
       ]);
 
       // No unsupported leaves anywhere: no items, no call, no event — the
-      // empty-plan case.
+      // empty-plan case (the note written, empty).
       expect(def.plan(spannedDraft(GROUNDED), ctx)).toHaveLength(0);
+      // The note MISSING from the bag is legitimate only when there are no
+      // grounded spans at all (classify planned nothing, so its merge never
+      // ran) — an empty draft qualifies, and the plan no-ops.
       expect(def.plan(emptyDraft<Values>(), ctx)).toHaveLength(0);
+      // Spans WITHOUT the note is the mis-wired list, and the plan demands it
+      // rather than silently no-oping.
+      const withoutNote = {
+        ...spannedDraft(GROUNDED),
+        notes: emptyNotes().set(presenceNoteKey, {}).set(spansNoteKey, GROUNDED),
+      };
+      expect(() => def.plan(withoutNote, ctx)).toThrow(TypeError);
+      expect(() => def.plan(withoutNote, ctx)).toThrow(new RegExp(unsupportedNoteKey));
     });
   });
 
@@ -337,27 +356,27 @@ describe("classifyWrappedPhase — id", () => {
 });
 
 describe("classifyPhase — requires", () => {
-  test("requires the spans note and nothing else when the option is absent", () => {
+  test("defaults to the span phase's id when the option is absent", () => {
     const { chat } = fakeChat(() => json("Gas"));
     const phase = classifyPhase<Values>({ groups, chat, model: chat.engine });
-    expect(phase.requires).toEqual([spansNoteKey]);
+    expect(phase.requires).toEqual(["span"]);
   });
 
-  test("a caller's requires is unioned with the phase's own, which stays present", () => {
+  test("a caller's requires REPLACES the default — the complete list, not an addition", () => {
     const { chat } = fakeChat(() => json("Gas"));
     const phase = classifyPhase<Values>({ groups, chat, model: chat.engine, requires: ["mine"] });
-    expect(phase.requires).toEqual([spansNoteKey, "mine"]);
+    expect(phase.requires).toEqual(["mine"]);
   });
 });
 
 describe("classifyWrappedPhase — requires", () => {
-  test("requires the unsupported note and nothing else when the option is absent", () => {
+  test("defaults to the classify phase's id when the option is absent", () => {
     const { chat } = fakeChat(() => json({ value: "Gas" }));
     const phase = classifyWrappedPhase<Values>({ groups, chat, model: chat.engine });
-    expect(phase.requires).toEqual([unsupportedNoteKey]);
+    expect(phase.requires).toEqual(["classify"]);
   });
 
-  test("a caller's requires is unioned with the phase's own, which stays present", () => {
+  test("a caller's requires REPLACES the default — the complete list, not an addition", () => {
     const { chat } = fakeChat(() => json({ value: "Gas" }));
     const phase = classifyWrappedPhase<Values>({
       groups,
@@ -365,6 +384,24 @@ describe("classifyWrappedPhase — requires", () => {
       model: chat.engine,
       requires: ["mine"],
     });
-    expect(phase.requires).toEqual([unsupportedNoteKey, "mine"]);
+    expect(phase.requires).toEqual(["mine"]);
+  });
+
+  test("[classifyWrappedPhase] alone is rejected, naming the phase's id and the missing 'classify'", () => {
+    const { chat } = fakeChat(() => json({ value: "Gas" }));
+    const wrapped = classifyWrappedPhase<Values>({ groups, chat, model: chat.engine });
+    expect(() => validatePhases<Values>([wrapped])).toThrow(/classify-wrapped/);
+    expect(() => validatePhases<Values>([wrapped])).toThrow(/"classify"/);
+  });
+
+  test("the full four-phase chain validates on its id defaults", () => {
+    const { chat } = fakeChat(() => json({ value: "Gas" }));
+    const phases = [
+      presencePhase<Values>({ groups, chat, model: chat.engine }),
+      spanPhase<Values>({ groups, chat, model: chat.engine }),
+      classifyPhase<Values>({ groups, chat, model: chat.engine }),
+      classifyWrappedPhase<Values>({ groups, chat, model: chat.engine }),
+    ];
+    expect(() => validatePhases<Values>(phases)).not.toThrow();
   });
 });

@@ -413,21 +413,6 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
             }
           }
           const merged = def.merge(draft, outcomes);
-          // The runtime half of the construction-time check: every key the phase
-          // declared in `produces` must now be present in the merged draft's notes.
-          // A phase that declares a key and writes it only conditionally is a
-          // silent liar, and a roster-driven contribution is exactly that shape —
-          // this is what makes `requires`/`produces` an actual guarantee rather
-          // than a declaration.
-          for (const key of phase.produces ?? []) {
-            if (!merged.notes.keys.includes(key)) {
-              throw new Error(
-                `phasedExtractor: phase "${phase.id}" declared it produces note key ` +
-                  `"${key}", but its merge did not write it — a phase that declares a ` +
-                  `key and writes it only conditionally is a silent liar`,
-              );
-            }
-          }
           return merged;
         });
       }

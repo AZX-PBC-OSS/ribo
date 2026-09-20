@@ -7,9 +7,18 @@ import { enveloped } from "./enveloped.js";
 import type { ExtractionTarget } from "./extractor.js";
 import type { PhaseContext } from "./phase.js";
 
-import { extractGroups, nullEnvelope, presenceNoteKey, wrapGroupEntry } from "./presence-phase.js";
+import {
+  extractGroups,
+  nullEnvelope,
+  presenceNoteKey,
+  presencePhase,
+  wrapGroupEntry,
+} from "./presence-phase.js";
 import type { Group, Leaf, LeafEnvelope, PresenceMaps } from "./presence-phase.js";
 import { spansNoteKey, spanPhase } from "./span-phase.js";
+import { phaseBuilder } from "./phase.js";
+import { phasedExtractor } from "./phased-extractor.js";
+import { validatePhases } from "./validate-phases.js";
 import { fakeChat } from "./test-support/fake-chat.js";
 
 /**
@@ -218,15 +227,76 @@ describe("spanPhase — id", () => {
 });
 
 describe("spanPhase — requires", () => {
-  test("requires the presence note and nothing else when the option is absent", () => {
+  test("defaults to the presence phase's id when the option is absent", () => {
     const { chat } = fakeChat(() => json({}));
     const phase = spanPhase<Values>({ groups, chat, model: chat.engine });
-    expect(phase.requires).toEqual([presenceNoteKey]);
+    expect(phase.requires).toEqual(["presence"]);
   });
 
-  test("a caller's requires is unioned with the phase's own, which stays present", () => {
+  test("a caller's requires REPLACES the default — the complete list, not an addition", () => {
     const { chat } = fakeChat(() => json({}));
     const phase = spanPhase<Values>({ groups, chat, model: chat.engine, requires: ["mine"] });
-    expect(phase.requires).toEqual([presenceNoteKey, "mine"]);
+    expect(phase.requires).toEqual(["mine"]);
+  });
+});
+
+describe("spanPhase — the list it composes into", () => {
+  test("a renamed producer: [presence({id:'p1'}), span({requires:['p1']})] validates", () => {
+    // The discriminating pin for REPLACING semantics: the caller renamed the
+    // presence phase and names it, so the default "presence" must NOT also be
+    // required — against a union implementation this list would fail validation.
+    const { chat } = fakeChat(() => json({}));
+    const presence = presencePhase<Values>({ groups, chat, model: chat.engine, id: "p1" });
+    const span = spanPhase<Values>({ groups, chat, model: chat.engine, requires: ["p1"] });
+    expect(() => validatePhases<Values>([presence, span])).not.toThrow();
+  });
+
+  test("the renamed list WITHOUT the override does not validate — the dangling default is the point", () => {
+    const { chat } = fakeChat(() => json({}));
+    const presence = presencePhase<Values>({ groups, chat, model: chat.engine, id: "p1" });
+    const span = spanPhase<Values>({ groups, chat, model: chat.engine });
+    expect(() => validatePhases<Values>([presence, span])).toThrow(/span/);
+    expect(() => validatePhases<Values>([presence, span])).toThrow(/presence/);
+  });
+
+  test("[span] alone is rejected, naming the span phase's id and the missing 'presence'", () => {
+    const { chat } = fakeChat(() => json({}));
+    const span = spanPhase<Values>({ groups, chat, model: chat.engine });
+    expect(() => validatePhases<Values>([span])).toThrow(/span/);
+    expect(() => validatePhases<Values>([span])).toThrow(/"presence"/);
+  });
+
+  test("[span, presence] is rejected — a dependency satisfied by a LATER phase is not satisfied", () => {
+    const { chat } = fakeChat(() => json({}));
+    const span = spanPhase<Values>({ groups, chat, model: chat.engine });
+    const presence = presencePhase<Values>({ groups, chat, model: chat.engine });
+    expect(() => validatePhases<Values>([span, presence])).toThrow(/span/);
+  });
+
+  test("[presence, span] is accepted", () => {
+    const { chat } = fakeChat(() => json({}));
+    const presence = presencePhase<Values>({ groups, chat, model: chat.engine });
+    const span = spanPhase<Values>({ groups, chat, model: chat.engine });
+    expect(() => validatePhases<Values>([presence, span])).not.toThrow();
+  });
+
+  test("a dropped dependency is loud, not silent: the run throws from plan, naming the missing note", async () => {
+    // THE mis-wiring the replacing semantics makes expressible: span ordered
+    // after a phase that never writes the presence note. The old `?? {}`
+    // default made this a silent wrong answer — nothing planned, the all-null
+    // floor returned, the closing parse green.
+    const { chat } = fakeChat(() => json({}));
+    const mine = phaseBuilder<Values>()({
+      id: "mine",
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => draft, // writes no notes
+    });
+    const span = spanPhase<Values>({ groups, chat, model: chat.engine, requires: ["mine"] });
+    const extractor = phasedExtractor<Values>({ target, phases: [mine, span] });
+
+    const rejection = await extractor.extract(ctx.transcript).catch((cause: unknown) => cause);
+    expect(rejection).toBeInstanceOf(TypeError);
+    expect((rejection as Error).message).toMatch(new RegExp(presenceNoteKey));
   });
 });

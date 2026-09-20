@@ -31,7 +31,7 @@
 import type { CapableChatClient, ChatMessage } from "./chat-client.js";
 import type { Enveloped, NoProvenance } from "./enveloped.js";
 import { isSpanGrounded } from "./provenance.js";
-import { noteKey } from "./phase-notes.js";
+import { demandNote, noteKey } from "./phase-notes.js";
 import type { NoteKey } from "./phase-notes.js";
 import type { DeepPartial } from "./phase-draft.js";
 import type { Phase, PhaseDef } from "./phase.js";
@@ -53,7 +53,7 @@ import type { Group, JsonSchema, Leaf } from "./presence-phase.js";
  */
 export type SpanMaps = Record<string, Record<string, string>>;
 
-/** The note key {@link spanPhase} produces and the classify phase requires. */
+/** The note key {@link spanPhase}'s merge writes and the classify phase's plan reads. */
 export const spansNoteKey: NoteKey<SpanMaps> = noteKey("three-phase-spans");
 
 /** Options for {@link spanPhase}. */
@@ -70,9 +70,12 @@ export interface SpanPhaseOptions {
    */
   readonly id?: string;
   /**
-   * Extra note keys this phase must wait for, unioned with the phase's own —
-   * additive, never replacing, and never a `produces`: the rule stated once on
-   * `FillPhaseOptions.requires` (`@azx/ribo-extractor-openai`).
+   * Ids of the phases this one must follow, REPLACING the default
+   * `["presence"]` — the complete list, not an addition. The default names the
+   * shipped provider of the presence note this phase's `plan` reads; overriding
+   * it means naming that provider yourself (a renamed presence phase:
+   * `spanPhase({ requires: ["presence-strict"] })`), or validation fails on a
+   * dangling id. See `PhaseMeta.requires` in `@azx/ribo-core` and ADR 0008.
    */
   readonly requires?: readonly string[];
 }
@@ -93,15 +96,19 @@ interface SpanItem {
 export function spanPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: SpanPhaseOptions,
 ): Phase<V, P> {
+  const id = options.id ?? "span";
   const def: PhaseDef<V, P, SpanItem, Record<string, string | null>> = {
-    id: options.id ?? "span",
+    id,
     onItemFailure: "skip",
-    // Unioned, never replaced — see `SpanPhaseOptions.requires`.
-    requires: [...new Set([presenceNoteKey, ...(options.requires ?? [])])],
-    produces: [spansNoteKey],
+    // REPLACING, not additive: the option is the complete list, and the default
+    // names the shipped provider of the note this plan reads — see the option.
+    requires: options.requires ?? ["presence"],
     describeItem: (item) => ({ key: item.group.key }),
     plan: (draft, ctx) => {
-      const maps = draft.notes.get(presenceNoteKey) ?? {};
+      // A phase that reads a note demands it: defaulting here would make a
+      // mis-wired list a silent wrong answer — nothing planned, the run returns
+      // the all-null floor, and the closing parse is green.
+      const maps = demandNote(draft.notes, presenceNoteKey, id, "presence");
       const items: SpanItem[] = [];
       for (const group of options.groups) {
         const map = maps[group.key];

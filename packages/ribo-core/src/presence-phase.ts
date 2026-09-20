@@ -46,7 +46,7 @@
 
 import type { CapableChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
 import type { Enveloped, NoProvenance } from "./enveloped.js";
-import { draftSeededNoteKey, noteKey } from "./phase-notes.js";
+import { noteKey } from "./phase-notes.js";
 import type { NoteKey } from "./phase-notes.js";
 import type { DeepPartial } from "./phase-draft.js";
 import type { Phase, PhaseDef } from "./phase.js";
@@ -220,7 +220,7 @@ export function chatRequest(
  */
 export type PresenceMaps = Record<string, Record<string, boolean>>;
 
-/** The note key {@link presencePhase} produces and the span phase requires. */
+/** The note key {@link presencePhase}'s merge writes and the span phase's plan reads. */
 export const presenceNoteKey: NoteKey<PresenceMaps> = noteKey("three-phase-presence");
 
 /** Options for {@link presencePhase}. */
@@ -237,9 +237,8 @@ export interface PresencePhaseOptions {
    */
   readonly id?: string;
   /**
-   * Extra note keys this phase must wait for. The phase declares none of its
-   * own, so the list is exactly what you pass — additive-only, never a
-   * `produces` (the rule stated on `FillPhaseOptions.requires`).
+   * Ids of the phases this phase must follow. The phase declares none of its
+   * own — it runs first — so the list is exactly what you pass (ADR 0008).
    */
   readonly requires?: readonly string[];
 }
@@ -259,12 +258,10 @@ export function presencePhase<V extends Record<string, unknown>, P = NoProvenanc
   const def: PhaseDef<V, P, PresenceItem, Record<string, boolean>> = {
     id: options.id ?? "presence",
     onItemFailure: "skip",
-    // The caller's keys are the whole `requires` — the phase declares none of
-    // its own (see the option); an absent option leaves the def's `requires` unset.
-    ...(options.requires === undefined ? {} : { requires: [...new Set(options.requires)] }),
-    // The marker rides alongside the presence map: this merge is THE SEED — see
-    // the file header for why the seed is load-bearing.
-    produces: [presenceNoteKey, draftSeededNoteKey],
+    // The caller's ids are the whole `requires` — the phase declares none of
+    // its own (see the option); an absent option leaves the def's `requires`
+    // unset.
+    ...(options.requires === undefined ? {} : { requires: options.requires }),
     describeItem: (item) => ({ key: item.group.key }),
     plan: () => options.groups.map((group) => ({ group })),
     run: async (item, _draft, ctx) => {
@@ -315,7 +312,9 @@ export function presencePhase<V extends Record<string, unknown>, P = NoProvenanc
       return {
         ...draft,
         fields: fields as DeepPartial<Enveloped<V, P>>,
-        notes: draft.notes.set(presenceNoteKey, maps).set(draftSeededNoteKey, true),
+        // Written unconditionally — the span phase's plan reads this key and
+        // demands it, so even a fully-failed presence pass must write it.
+        notes: draft.notes.set(presenceNoteKey, maps),
       };
     },
   };

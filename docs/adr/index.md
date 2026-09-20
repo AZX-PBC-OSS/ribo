@@ -3,7 +3,8 @@
 A decision with consequences, one per file, written when it is made and never rewritten
 afterwards. If a later decision reverses this one, that is a **new** ADR, and this one is marked
 `Superseded by NNNN` — the record of what we believed and why stays intact, because the reasoning
-is the point.
+is the point. One exception: an ADR for a decision that has not shipped in a released version is
+rewritten in place, because there is no history to preserve yet.
 
 ## What belongs here, and what does not
 
@@ -49,7 +50,7 @@ receives.
 | [0005](./0005-cache-key-covers-the-whole-prompt.md)                            | An extraction cache key covers the whole prompt, and a hit reports zero calls             | Accepted |
 | [0006](./0006-budget-is-a-detector-not-a-governor.md)                          | The budget combinator detects overspend; it does not prevent it                           | Accepted |
 | [0007](./0007-consensus-first-survivor-is-structurally-authoritative.md)       | Consensus takes its structure from the first survivor and drops what only others produced | Accepted |
-| [0008](./0008-draft-shape-dependency-is-a-note-key.md)                         | A draft-shape dependency is a note key, not a second axis                                 | Accepted |
+| [0008](./0008-a-phase-dependency-is-a-phase-id.md)                             | A phase dependency is a phase id, not a note key                                          | Accepted |
 | [0009](./0009-group-scoping-is-unsound-under-a-required-key-schema.md)         | Group scoping is unsound under a required-key schema                                      | Accepted |
 | [0010](./0010-phases-and-the-chat-seam-belong-in-core.md)                      | The chat seam and the transport-agnostic phases belong in core                            | Accepted |
 | [0011](./0011-the-agentic-layer-waits-for-a-vocabulary-worth-planning-over.md) | The agentic layer waits for a vocabulary worth planning over                              | Accepted |

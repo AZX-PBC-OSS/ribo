@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 
 import type { NoProvenance } from "./enveloped.js";
-import { draftSeededNoteKey } from "./phase-notes.js";
 import { phaseBuilder } from "./phase.js";
 import type { PhaseMeta } from "./phase.js";
 import { validatePhases } from "./validate-phases.js";
@@ -22,9 +21,9 @@ const phase = (id: string, meta: Partial<PhaseMeta> = {}) =>
   });
 
 // One test per rejection, each asserting the throw AND that the message names the
-// offending phase id and key/value — a validator whose message does not identify the
-// problem is half a validator, and the agentic use (the message is the repair prompt for
-// the next model attempt) depends entirely on it.
+// offending phase id and the id or value it got wrong — a validator whose message does
+// not identify the problem is half a validator, and the agentic use (the message is the
+// repair prompt for the next model attempt) depends entirely on it.
 
 test("an empty phase list throws", () => {
   expect(() => validatePhases<TestValues>([])).toThrow(TypeError);
@@ -36,10 +35,10 @@ test("a duplicate id throws, naming the id", () => {
   expect(() => validatePhases<TestValues>(phases)).toThrow(/presence/);
 });
 
-test("a requires key no earlier phase produces throws, naming the phase and the key", () => {
-  const fill = phase("fill", { requires: ["roster"] });
+test("a requires id that is not an earlier phase's throws, naming the phase and the id", () => {
+  const fill = phase("fill", { requires: ["inventory"] });
   expect(() => validatePhases<TestValues>([fill])).toThrow(/fill/);
-  expect(() => validatePhases<TestValues>([fill])).toThrow(/roster/);
+  expect(() => validatePhases<TestValues>([fill])).toThrow(/inventory/);
 });
 
 test("a concurrency that is not a positive integer throws, naming the phase and the value", () => {
@@ -60,82 +59,50 @@ test("a negative maxRetries throws, naming the phase and the value", () => {
 
 // The positive cases.
 
-test("a well-formed list with a key produced by phase 1 and required by phase 3 passes", () => {
-  const one = phase("one", { produces: ["roster"] });
+test("a well-formed list with a dependency on phase 1 from phase 3 passes", () => {
+  const one = phase("one");
   const two = phase("two");
-  const three = phase("three", { requires: ["roster"] });
+  const three = phase("three", { requires: ["one"] });
   expect(() => validatePhases<TestValues>([one, two, three])).not.toThrow();
 });
 
-test("a phase that requires what a LATER phase produces throws", () => {
-  const early = phase("early", { requires: ["roster"] });
-  const late = phase("late", { produces: ["roster"] });
-  expect(() => validatePhases<TestValues>([early, late])).toThrow(/roster/);
+test("a phase that requires a LATER phase throws — a dependency satisfied later is not satisfied", () => {
+  const early = phase("early", { requires: ["late"] });
+  const late = phase("late");
+  expect(() => validatePhases<TestValues>([early, late])).toThrow(/late/);
 });
 
-test("a phase with no requires and no produces passes", () => {
+test("a phase with no requires passes", () => {
   expect(() => validatePhases<TestValues>([phase("plain")])).not.toThrow();
 });
 
 test("a single-phase list passes", () => {
-  const only = phase("only", { produces: ["roster"] });
-  expect(() => validatePhases<TestValues>([only])).not.toThrow();
+  expect(() => validatePhases<TestValues>([phase("only")])).not.toThrow();
 });
 
-// ---------------------------------------------------------------------------
-// The draft-seeded marker: a phase whose dependency is the SHAPE of
-// `draft.fields` — not a note's value, so no other key would express it —
-// declares `requires: [draftSeededNoteKey]`. The ids are the real phases', but
-// the phases are the helper's: the real ones live in leaf packages core cannot
-// import, and their note requirements would trip the check for the wrong reason.
-// ---------------------------------------------------------------------------
-
-test("a gapfill requiring the marker with nothing before it throws, naming the phase and the key", () => {
-  const gapfill = phase("gapfill", { requires: [draftSeededNoteKey] });
-  expect(() => validatePhases<TestValues>([gapfill])).toThrow(/gapfill/);
-  expect(() => validatePhases<TestValues>([gapfill])).toThrow(/draft-seeded/);
+test("a phase whose requires contains its own id is rejected — check before adding", () => {
+  const self = phase("both", { requires: ["both"] });
+  expect(() => validatePhases<TestValues>([self])).toThrow(/both/);
 });
 
-test("a marker-requiring phase after one that does not produce it throws — inventory does not seed", () => {
-  const inventory = phase("inventory");
-  const gapfill = phase("gapfill", { requires: [draftSeededNoteKey] });
-  expect(() => validatePhases<TestValues>([inventory, gapfill])).toThrow(/gapfill/);
-  expect(() => validatePhases<TestValues>([inventory, gapfill])).toThrow(/draft-seeded/);
-});
+// The id chain: a phase's `requires` names the phase whose output it reads. The
+// ids here are the shipped defaults' for legibility, but the phases are the
+// helper's — the real ones live where their note reads are tested.
 
-test("a marker-requiring phase after a marker-producing one passes", () => {
-  const fill = phase("fill", { produces: [draftSeededNoteKey] });
-  const gapfill = phase("gapfill", { requires: [draftSeededNoteKey] });
-  expect(() => validatePhases<TestValues>([fill, gapfill])).not.toThrow();
-});
-
-test("a marker-producing phase AFTER the requiring one does not satisfy it — order matters", () => {
-  const gapfill = phase("gapfill", { requires: [draftSeededNoteKey] });
-  const fill = phase("fill", { produces: [draftSeededNoteKey] });
-  expect(() => validatePhases<TestValues>([gapfill, fill])).toThrow(/gapfill/);
-});
-
-test("a phase producing AND requiring the marker does not satisfy itself", () => {
-  const both = phase("both", {
-    produces: [draftSeededNoteKey],
-    requires: [draftSeededNoteKey],
-  });
-  expect(() => validatePhases<TestValues>([both])).toThrow(/both/);
-});
-
-test("the three-phase chain validates on its note declarations plus the marker", () => {
-  const presence = phase("presence", { produces: ["presence", draftSeededNoteKey] });
-  const span = phase("span", { requires: ["presence"], produces: ["spans"] });
-  const classify = phase("classify", { requires: ["spans"], produces: ["unsupported"] });
+test("the three-phase chain validates on its id declarations", () => {
+  const presence = phase("presence");
+  const span = phase("span", { requires: ["presence"] });
+  const classify = phase("classify", { requires: ["span"] });
   expect(() => validatePhases<TestValues>([presence, span, classify])).not.toThrow();
 });
 
-test("a list where no phase produces the marker passes — there is deliberately no list-level seeding rule", () => {
-  // The pin that no "at least one phase must seed" rule was added, and must not be:
-  // `[inventory]` alone is not clearly wrong — its merge writes `fields[key] = []`
-  // for stated-none collection groups, so an all-stated-empty roster legitimately
-  // produces `{hvac: []}` — and such a rule would reject it along with every
-  // `phasedExtractor` fixture that predates the marker (SP4a design §4.1).
+test("a list where no phase requires anything passes — there is deliberately no list-level seeding rule", () => {
+  // The pin that no "at least one phase must run first" rule was added, and must
+  // not be: `[inventory]` alone is not clearly wrong — its merge writes
+  // `fields[key] = []` for stated-none collection groups, so an all-stated-empty
+  // roster legitimately produces `{hvac: []}` — and such a rule would reject it
+  // along with every `phasedExtractor` fixture whose phases declare no
+  // requirements (ADR 0008).
   const inventory = phase("inventory");
   expect(() => validatePhases<TestValues>([inventory])).not.toThrow();
 });

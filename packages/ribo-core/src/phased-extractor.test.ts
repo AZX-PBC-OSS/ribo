@@ -13,7 +13,7 @@ import type { Phase } from "./phase.js";
 import { phaseBuilder } from "./phase.js";
 import { phasedExtractor } from "./phased-extractor.js";
 import type { RetryBudget } from "./retry-budget.js";
-import { TerminalError } from "./storage/backoff.js";
+import { TerminalError, isTransientFailure } from "./storage/backoff.js";
 import { SchemaParseError } from "./schema-parse-error.js";
 
 // Hand-written phases over a tiny hand-written V — no adapter imports, no model. The
@@ -895,7 +895,7 @@ describe("phasedExtractor — the running deadline and the per-phase retry budge
   });
 });
 
-describe("phasedExtractor — the unit stream and the produces check", () => {
+describe("phasedExtractor — the unit stream", () => {
   function transient503(): Error {
     return Object.assign(new Error("service unavailable"), { status: 503 });
   }
@@ -1225,55 +1225,23 @@ describe("phasedExtractor — the unit stream and the produces check", () => {
     expect(result.usage.completionTokens).toBe(15);
   });
 
-  test("a phase declaring produces whose merge does not write it throws at that boundary, naming phase and key", async () => {
-    let secondRan = false;
-    const liar = build({
-      id: "liar",
-      produces: ["roster"],
+  test("a run that yields an incomplete draft throws a TRANSIENT failure at the closing parse", async () => {
+    // The guard against ever wrapping the closing parse as terminal: a schema
+    // miss is sampled, not deterministic, and a wrongly-dead transient failure
+    // silently loses a field recording someone drove to a house to make. A
+    // mis-wired list that reaches this parse must stay retryable —
+    // parse-with-schema.ts and backoff.ts own that asymmetry.
+    const incomplete = build({
+      id: "incomplete",
       plan: () => [1],
       run: async () => ({ value: 1 }),
-      merge: (draft) => draft, // declares "roster", writes nothing
+      merge: (draft) => draft, // writes no fields at all
     });
-    const second = build({
-      id: "second",
-      requires: ["roster"],
-      plan: () => [1],
-      run: async () => {
-        secondRan = true;
-        return { value: 1 };
-      },
-      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
-    });
-    const extractor = phasedExtractor<TestValues>({ target, phases: [liar, second] });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [incomplete] });
 
     const rejection = await extractor.extract(transcript).catch((cause: unknown) => cause);
     expect(rejection).toBeInstanceOf(Error);
-    expect((rejection as Error).message).toContain("liar");
-    expect((rejection as Error).message).toContain("roster");
-    // Thrown at THAT phase's boundary — the next phase never ran.
-    expect(secondRan).toBe(false);
-  });
-
-  test("a phase declaring produces and actually writing it passes the check", async () => {
-    const honest = build({
-      id: "honest",
-      produces: ["roster"],
-      plan: () => [1],
-      run: async () => ({ value: 1 }),
-      merge: (draft) => ({ ...draft, notes: draft.notes.set(noteKey<unknown>("roster"), true) }),
-    });
-    const consumer = build({
-      id: "consumer",
-      requires: ["roster"],
-      plan: () => [1],
-      run: async () => ({ value: 1 }),
-      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
-    });
-    const extractor = phasedExtractor<TestValues>({ target, phases: [honest, consumer] });
-
-    const result = await extractor.extract(transcript);
-
-    expect(result.fields.note?.value).toBe("done");
+    expect(isTransientFailure(rejection)).toBe(true);
   });
 });
 

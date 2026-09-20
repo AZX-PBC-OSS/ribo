@@ -1,10 +1,9 @@
 import {
-  draftSeededNoteKey,
   emptyDraft,
   emptyNotes,
   enveloped,
-  noteKey,
   phaseBuilder,
+  phasedExtractor,
   validatePhases,
 } from "@azx/ribo-core";
 import type {
@@ -454,19 +453,6 @@ describe("fillPhase — merge", () => {
   });
 });
 
-describe("fillPhase — metadata", () => {
-  test("produces the draft-seeded marker — its merge writes envelopes from the roster into the draft's fields", () => {
-    const phase = fillPhase<DemoValues>({
-      target,
-      chat: {} as ChatClient,
-      model: "m",
-      prepared,
-      buildFillInstructions,
-    });
-    expect(phase.produces).toContain(draftSeededNoteKey);
-  });
-});
-
 describe("fillPhase — requires", () => {
   const base = {
     target,
@@ -476,29 +462,31 @@ describe("fillPhase — requires", () => {
     buildFillInstructions,
   };
 
-  test("requires the roster note and nothing else when the option is absent", () => {
-    expect(fillPhase<DemoValues>(base).requires).toEqual([rosterNoteKey]);
+  test("defaults to the inventory phase's id when the option is absent", () => {
+    expect(fillPhase<DemoValues>(base).requires).toEqual(["inventory"]);
   });
 
-  test("a caller's requires is unioned with the phase's own — it does not replace it", () => {
+  test("a caller's requires REPLACES the default — the complete list, not an addition", () => {
     const phase = fillPhase<DemoValues>({ ...base, requires: ["mine"] });
-    expect(phase.requires).toEqual([rosterNoteKey, "mine"]);
+    expect(phase.requires).toEqual(["mine"]);
   });
 
-  test("a caller re-supplying the roster note is deduped — cosmetic; the engine tolerates a repeat", () => {
-    const phase = fillPhase<DemoValues>({ ...base, requires: [rosterNoteKey] });
-    expect(phase.requires).toEqual([rosterNoteKey]);
+  test("a caller adding a constraint must still name the roster's provider — the plan reads the note", () => {
+    // The consequence documented on the option: overriding `requires` supplies
+    // the COMPLETE list. Drop "inventory" and validation fails on the dangling
+    // default — the caller took responsibility for naming a provider and did
+    // not.
+    const phase = fillPhase<DemoValues>({ ...base, requires: ["inventory", "mine"] });
+    expect(phase.requires).toEqual(["inventory", "mine"]);
   });
 
-  // THE composition pin the wave exists for: a caller-built phase produces a
-  // custom key, the SHIPPED fill phase is given that key through the additive
-  // `requires` option, and the list's validity now depends on the caller's
-  // phase running before it.
+  // THE composition pin the wave exists for, in id terms: a caller-built phase
+  // with its own id, and the SHIPPED fill phase told — through the REPLACING
+  // option, naming both providers — to wait for it. The list's validity now
+  // depends on the caller's phase running before it.
   test("[inventory, mine, fill] validates and [inventory, fill, mine] is rejected", () => {
-    const mineKey = noteKey<unknown>("composition-pin-mine");
     const mine = phaseBuilder<DemoValues>()({
       id: "mine",
-      produces: [mineKey],
       plan: () => [],
       // Validation never enters `with`, so the run is never reached; a throw
       // keeps the double honest if a future refactor starts running it.
@@ -507,7 +495,7 @@ describe("fillPhase — requires", () => {
       },
       merge: (draft) => draft,
     });
-    const fill = fillPhase<DemoValues>({ ...base, requires: [mineKey] });
+    const fill = fillPhase<DemoValues>({ ...base, requires: ["inventory", "mine"] });
     const inventory = inventoryPhase<DemoValues>({
       inventory: async () => ({}),
       prepared,
@@ -516,8 +504,40 @@ describe("fillPhase — requires", () => {
 
     expect(() => validatePhases<DemoValues>([inventory, mine, fill])).not.toThrow();
     expect(() => validatePhases<DemoValues>([inventory, fill, mine])).toThrow(
-      /phase "fill" requires note key "composition-pin-mine"/,
+      /phase "fill" requires phase "mine"/,
     );
+  });
+
+  test("a dropped dependency is loud, not silent: the plan throws naming the roster note", () => {
+    // The most important consequence of replacing semantics: a list whose
+    // earlier phases never write the roster note must not become a silent
+    // all-null run. Direct plan-level form.
+    const phase = fillPhase<DemoValues>(base);
+    const empty = { ...emptyDraft<DemoValues>() };
+    expect(() => phase.with((def) => def.plan(empty, ctx))).toThrow(new RegExp(rosterNoteKey));
+  });
+
+  test("a dropped dependency throws from the RUN's plan before any call is paid for", async () => {
+    // Engine-level form of the same pin: `mine` writes no notes, fill demands
+    // the roster. The chat is a throwing double because it must never be
+    // reached — the throw happens in plan, before any item runs.
+    const chat: ChatClient = {
+      complete: async () => {
+        throw new Error("no call may be made — plan must throw first");
+      },
+    };
+    const mine = phaseBuilder<DemoValues>()({
+      id: "mine",
+      plan: () => [1],
+      run: async () => ({ value: 1 }),
+      merge: (draft) => draft,
+    });
+    const fill = fillPhase<DemoValues>({ ...base, chat, requires: ["mine"] });
+    const extractor = phasedExtractor<DemoValues>({ target, phases: [mine, fill] });
+
+    const rejection = await extractor.extract(ctx.transcript).catch((cause: unknown) => cause);
+    expect(rejection).toBeInstanceOf(TypeError);
+    expect((rejection as Error).message).toMatch(new RegExp(rosterNoteKey));
   });
 });
 

@@ -574,11 +574,10 @@ export type {
 // Phased extraction, wave 3a — the phase vocabulary, with no engine yet. A phase becomes a
 // value a caller can construct, inspect and validate; nothing runs one (the engine is a
 // later wave). Branded note keys and the immutable bag they address: the cross-phase
-// channel whose keys are typed so two phases cannot silently clobber or misread, while the
-// keys stay plain strings at runtime for `requires`/`produces` and a model-emitted plan.
-// `draftSeededNoteKey` is the marker for "my merge populates `draft.fields`" — the
-// requires/produces spelling of the dependency a phase cannot declare with its own keys.
-export { draftSeededNoteKey, emptyNotes, noteKey } from "./phase-notes.js";
+// RUNTIME channel, whose keys are typed so two phases cannot silently clobber or misread.
+// Declaration is phase ids (`PhaseMeta.requires`); a phase that reads a note demands it
+// at its read site — `demandNote` is that throw (ADR 0008).
+export { demandNote, emptyNotes, noteKey } from "./phase-notes.js";
 export type { NoteKey, Notes } from "./phase-notes.js";
 // The draft a phased run's phases progressively fill, and its homomorphic deep partial —
 // the shape that lets a phase write one leaf's `sourceSpan` without claiming its siblings.
@@ -599,10 +598,9 @@ export type { PhaseItemOutcome, PhaseOutput } from "./phase-outcome.js";
 export { phaseBuilder } from "./phase.js";
 export type { Phase, PhaseContext, PhaseDef, PhaseMeta } from "./phase.js";
 // The construction-time phase-list validator: reject a mis-wired list — empty, duplicate
-// id, a `requires` no earlier phase `produces`, a bad concurrency or retry count — before
-// the first call is paid for, naming the offending phase and key or value. The
-// per-phase-boundary `produces` verification is a different check that runs during a run
-// and belongs with the engine (Wave 3b), not here.
+// id, a `requires` naming a phase that does not appear earlier in the list, a bad
+// concurrency or retry count — before the first call is paid for, naming the offending
+// phase and id or value.
 export { validatePhases } from "./validate-phases.js";
 // Any Extractor becomes a phase: the primitive that makes the later `phasedExtractor` the
 // outer shell for the whole family rather than a fourth sibling beside the existing
