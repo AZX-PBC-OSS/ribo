@@ -12,7 +12,7 @@
 
 import { z } from "zod";
 
-import type { ChatClient, ChatRequest } from "./chat-client.js";
+import type { ChatClient, ChatRequest } from "@azx/ribo-core";
 import {
   assertStopFinishReason,
   completeOrClassify,

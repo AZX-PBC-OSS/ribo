@@ -6,11 +6,18 @@ import {
   phasedExtractor,
   SchemaParseError,
 } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget, Extractor, PhaseUnit } from "@azx/ribo-core";
+import type {
+  ChatClient,
+  ChatFinishReason,
+  ChatRequest,
+  ChatUsage,
+  Enveloped,
+  ExtractionTarget,
+  Extractor,
+  PhaseUnit,
+} from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
-
-import type { ChatClient, ChatFinishReason, ChatRequest, ChatUsage } from "./chat-client.js";
 import {
   findAbstainedLeaves,
   findUngroundedLeaves,

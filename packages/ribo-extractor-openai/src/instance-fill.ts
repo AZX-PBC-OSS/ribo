@@ -37,6 +37,8 @@ import {
 import type {
   AnnotatedTranscript,
   BackoffOptions,
+  ChatClient,
+  ChatMessage,
   Enveloped,
   ExtractionObserver,
   Extractor,
@@ -51,7 +53,6 @@ import type {
   RosterCandidate,
 } from "@azx/ribo-core";
 
-import type { ChatClient, ChatMessage } from "./chat-client.js";
 import { narrowToLeaves } from "./extraction-common.js";
 import { fillPhase } from "./fill-phase.js";
 import { inventoryPhase } from "./inventory-phase.js";

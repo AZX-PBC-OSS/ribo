@@ -610,6 +610,30 @@ export { validatePhases } from "./validate-phases.js";
 // `PhaseOutput`, and a shallow top-level merge into the draft.
 export { extractorPhase } from "./extractor-phase.js";
 
+// The chat transport seam — the THIN, provider-agnostic interface an extractor calls to
+// reach a chat-completions model, moved here from `@azx/ribo-extractor-openai` so the
+// transport-agnostic phases beside it (see below, wave 5) can consume it without any
+// package reaching across a sibling boundary. Core stays IMPLEMENTATION-free: no fetch,
+// no provider SDK, no credentials — the transports (`openAiChat`, `helixChat`, the
+// on-device one) live in the extractor packages and are injected. `ChatError` is a VALUE
+// export (a class); the rest are types.
+export { ChatError } from "./chat-client.js";
+export type {
+  CapableChatClient,
+  ChatCallOptions,
+  ChatCapability,
+  ChatClient,
+  ChatCompletion,
+  ChatErrorKind,
+  ChatFinishReason,
+  ChatMessage,
+  ChatRequest,
+  ChatResponseFormat,
+  ChatRole,
+  ChatUnavailableReason,
+  ChatUsage,
+} from "./chat-client.js";
+
 // The phased-extraction engine (wave 3b): run a list of phases in order, fanning each
 // phase's items out through a bounded pool, threading the draft through each `merge`,
 // then normalize once and parse once. Owns scheduling, retry, cancellation, the running

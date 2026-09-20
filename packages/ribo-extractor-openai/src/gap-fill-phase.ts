@@ -35,6 +35,7 @@ import { z } from "zod";
 
 import { draftSeededNoteKey, phaseBuilder } from "@azx/ribo-core";
 import type {
+  ChatClient,
   Enveloped,
   Extracted,
   ExtractionTarget,
@@ -43,7 +44,6 @@ import type {
   PhaseDef,
 } from "@azx/ribo-core";
 
-import type { ChatClient } from "./chat-client.js";
 import type { UsageTotals } from "./extraction-common.js";
 import {
   addUsage,

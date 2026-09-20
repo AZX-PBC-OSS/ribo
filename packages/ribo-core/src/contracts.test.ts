@@ -14,6 +14,11 @@ import {
   resolveReview,
 } from "./index.js";
 import type {
+  CapableChatClient,
+  ChatCapability,
+  ChatClient,
+  ChatCompletion,
+  ChatRequest,
   ExtractionHedgeEvent,
   Extractor,
   FieldDecisions,
@@ -390,4 +395,26 @@ test("the hedged extractor vocabulary is public through the barrel and composes 
   expect(result.fields.rValue).toBe(19);
   expect(inner.calls).toHaveLength(1);
   expect(events).toHaveLength(0);
+});
+
+test("the chat transport seam is public through the barrel and composes as typed", async () => {
+  // Moved here from `@azx/ribo-extractor-openai` (SP4a wave 5): the
+  // transport-agnostic phases consume this seam, so it is core vocabulary. The
+  // type-level pin, as index.test.ts defers type-only exports to this file —
+  // the seam must resolve through the barrel for an extractor author, and a
+  // plain `ChatClient` must not count as `CapableChatClient`.
+  const client: ChatClient = {
+    complete: async (_request: ChatRequest): Promise<ChatCompletion> => ({ content: "{}" }),
+  };
+  const capable: CapableChatClient = {
+    ...client,
+    engine: "test-engine",
+    capability: async (): Promise<ChatCapability> => ({ status: "ready" }),
+  };
+
+  // A `CapableChatClient` IS a `ChatClient`: the capability members widen, never
+  // replace, the one-method transport.
+  const widened: ChatClient = capable;
+  expect(widened).toBe(capable);
+  expect(capable.engine).toBe("test-engine");
 });

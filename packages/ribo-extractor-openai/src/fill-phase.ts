@@ -45,6 +45,9 @@ import {
   phaseBuilder,
 } from "@azx/ribo-core";
 import type {
+  ChatClient,
+  ChatMessage,
+  ChatRequest,
   DeepPartial,
   Enveloped,
   ExtractionTarget,
@@ -56,7 +59,6 @@ import type {
   RosterCandidate,
 } from "@azx/ribo-core";
 
-import type { ChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
 import type { UsageTotals } from "./extraction-common.js";
 import {
   addUsage,

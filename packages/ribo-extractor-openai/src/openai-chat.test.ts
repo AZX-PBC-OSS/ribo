@@ -1,8 +1,6 @@
-import { isTransientFailure } from "@azx/ribo-core";
+import { ChatError, isTransientFailure, type ChatRequest } from "@azx/ribo-core";
 import { describe, expect, test } from "vitest";
 
-import { ChatError } from "./chat-client.js";
-import type { ChatRequest } from "./chat-client.js";
 import { openAiChat } from "./openai-chat.js";
 
 /**

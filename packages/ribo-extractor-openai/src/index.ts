@@ -129,15 +129,16 @@ export type { OpenAiChatOptions } from "./openai-chat.js";
 export { helixChat } from "./helix-chat.js";
 export type { HelixChatOptions } from "./helix-chat.js";
 
-// The chat transport seam: the interface an extractor calls, its request/response
-// types, its call options, and the typed error its implementations throw.
-// `ChatError` is a VALUE export (a class); the rest are types.
-export { ChatError } from "./chat-client.js";
+// The chat transport seam now lives in `@azx/ribo-core` — it is the
+// transport-agnostic interface the phases speak, and the phases moved there
+// (SP4a wave 5). This re-export is compatibility for existing consumers;
+// `openAiChat` and `helixChat` above remain the implementations, still here.
+export { ChatError } from "@azx/ribo-core";
 export type {
+  CapableChatClient,
   ChatCallOptions,
   ChatCapability,
   ChatClient,
-  CapableChatClient,
   ChatCompletion,
   ChatErrorKind,
   ChatFinishReason,
@@ -147,4 +148,4 @@ export type {
   ChatResponseFormat,
   ChatRole,
   ChatUsage,
-} from "./chat-client.js";
+} from "@azx/ribo-core";

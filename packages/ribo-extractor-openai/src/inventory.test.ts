@@ -1,10 +1,9 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { ChatError } from "./chat-client.js";
-import type { ChatClient, ChatFinishReason, ChatRequest } from "./chat-client.js";
+import { ChatError, SchemaParseError } from "@azx/ribo-core";
+import type { ChatClient, ChatFinishReason, ChatRequest } from "@azx/ribo-core";
 import { extractInventory } from "./inventory.js";
-import { SchemaParseError } from "@azx/ribo-core";
 
 /**
  * Must-fail tests for the inventory-pass extraction phase (Task 9). All calls run

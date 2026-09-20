@@ -82,6 +82,7 @@ import { z } from "zod";
 import { groupedExtractor } from "@azx/ribo-core";
 import type {
   BackoffOptions,
+  ChatClient,
   Enveloped,
   ExtractionObserver,
   ExtractionTarget,
@@ -92,7 +93,6 @@ import type {
   RetryBudgetObserver,
 } from "@azx/ribo-core";
 
-import type { ChatClient } from "./chat-client.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 import type { ExtractionGroup } from "./split-schema.js";
 import { projectTarget } from "./project-target.js";

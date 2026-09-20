@@ -7,6 +7,8 @@ import {
   validatePhases,
 } from "@azx/ribo-core";
 import type {
+  ChatClient,
+  ChatRequest,
   DeepPartial,
   Enveloped,
   ExtractionTarget,
@@ -16,7 +18,6 @@ import type {
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import type { ChatClient, ChatRequest } from "./chat-client.js";
 import { gapFillPhase } from "./gap-fill-phase.js";
 import type { AbstainedLeaf } from "./gap-fill.js";
 

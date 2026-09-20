@@ -1,4 +1,5 @@
 import {
+  ChatError,
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
   enveloped,
@@ -6,6 +7,10 @@ import {
   SchemaParseError,
 } from "@azx/ribo-core";
 import type {
+  ChatClient,
+  ChatCompletion,
+  ChatFinishReason,
+  ChatRequest,
   Enveloped,
   ExtractionTarget,
   ExtractOptions,
@@ -16,8 +21,6 @@ import type {
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { ChatError } from "./chat-client.js";
-import type { ChatClient, ChatCompletion, ChatFinishReason, ChatRequest } from "./chat-client.js";
 import { perGroupExtractor } from "./per-group.js";
 import { splitExtractionSchema } from "./split-schema.js";
 

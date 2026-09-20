@@ -18,7 +18,7 @@ import {
   type ChatFinishReason,
   type ChatRequest,
   type ChatUsage,
-} from "./chat-client.js";
+} from "@azx/ribo-core";
 
 /** Config for {@link openAiChat}. */
 export interface OpenAiChatOptions {

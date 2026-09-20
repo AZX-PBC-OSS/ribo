@@ -41,15 +41,17 @@ import { z } from "zod";
 import { SchemaParseError } from "@azx/ribo-core";
 import type {
   AnnotatedTranscript,
+  ChatClient,
+  ChatMessage,
   Enveloped,
   ExtractionResult,
   ExtractionTarget,
   ExtractionUsage,
+  ExtractOptions,
   Extractor,
   NoProvenance,
 } from "@azx/ribo-core";
 
-import type { ChatClient, ChatMessage } from "./chat-client.js";
 import type { UsageTotals } from "./extraction-common.js";
 import {
   addUsage,
@@ -59,7 +61,6 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
-import type { ExtractOptions } from "@azx/ribo-core";
 
 /** The default retry budget. Small and bounded on purpose: every retry is a real, paid model call. */
 const DEFAULT_MAX_RETRIES = 1;

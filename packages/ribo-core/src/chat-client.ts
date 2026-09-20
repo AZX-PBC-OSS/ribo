@@ -1,19 +1,23 @@
 /**
  * The chat transport seam — a THIN, provider-agnostic interface an extractor
- * calls to reach a chat-completions model. It lives in the adapter, NOT in
- * `ribo-core`: core stays LLM-free (a managed-endpoint extractor would not use a
- * `ChatClient` at all), and the transport is injected exactly as the transcriber
- * and connectivity probe are.
+ * calls to reach a chat-completions model. It lives in core (moved from
+ * `@azx/ribo-extractor-openai`, SP4a wave 5) because the transport-agnostic
+ * phases that consume it — the presence/span/classify trio — live here too, and
+ * a seam owned by one extractor package would force the other to reach across
+ * a sibling boundary. Core stays IMPLEMENTATION-free, not interface-free: no
+ * `fetch`, no provider SDK, no credentials — `openAiChat` and `helixChat` remain
+ * in the openai package, and the transport is injected exactly as the
+ * transcriber and connectivity probe are.
  *
  * The shape mirrors the OpenAI-compatible `/chat/completions` contract the Helix
  * proxy exposes (A2): a `model`, an ordered list of role-tagged `messages`, and a
  * `response_format` pinning structured JSON output to a JSON Schema. It is
  * deliberately the smallest slice that supports single-shot structured extraction
  * — no streaming, no tools, no temperature knobs — so a test can implement it with
- * a fake and neither the adapter nor `ribo-core` depends on a provider SDK.
+ * a fake and neither the extractor packages nor a host depends on a provider SDK.
  */
 
-import { CANCELLATION } from "@azx/ribo-core";
+import { CANCELLATION } from "./cancellation.js";
 
 /** Chat roles used by single-shot extraction: the system prompt, few-shot turns, the transcript. */
 export type ChatRole = "system" | "user" | "assistant";
@@ -218,10 +222,10 @@ export type ChatCapability =
  *
  * Both the managed and on-device transports implement this: the managed path may
  * become unavailable when the uplink drops, and the on-device path may need a
- * download or may be unsupported. Keeping the contract here, at the transport seam,
- * avoids a dependency cycle: the on-device package depends on this package, so it
- * cannot export a type that `helixChat` and the composite extractor (both here)
- * need to consume.
+ * download or may be unsupported. Keeping the contract in core, beside the
+ * `Transcriber` seam, is what lets the extractor packages consume it without a
+ * dependency between them — `helixChat` and the on-device transport both
+ * implement it, and neither imports the other's package.
  */
 export interface CapableChatClient extends ChatClient {
   /**
@@ -266,12 +270,12 @@ export type ChatErrorKind =
  * site. `cause` is preserved (`Error`'s standard `cause`) — precisely what
  * flattening to a message string discards.
  *
- * The `aborted` factory additionally brands its error with ribo-core's
- * `CANCELLATION` marker, so a combinator in core can recognise "the caller stopped
- * this" without importing this package's error type. The brand is set in THAT
- * factory only — never in the constructor and never on the prototype: branding the
- * class would make every transport failure look like a cancellation and silently
- * disable retries everywhere.
+ * The `aborted` factory additionally brands its error with the `CANCELLATION`
+ * marker (`cancellation.ts`), so a combinator anywhere in the workspace can
+ * recognise "the caller stopped this" without importing a transport's error
+ * type. The brand is set in THAT factory only — never in the constructor and
+ * never on the prototype: branding the class would make every transport failure
+ * look like a cancellation and silently disable retries everywhere.
  */
 export class ChatError extends Error {
   override readonly name = "ChatError";
