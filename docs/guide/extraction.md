@@ -250,6 +250,119 @@ calls, repeatedly. Failing at construction is free.
 
 `fill`, `presence` and a lifted `extractorPhase` produce the marker. `gapfill` requires it.
 
+### Composing from outside: your phases beside the shipped ones
+
+Everything the shipped presets are made of is public, so a host can write its own phase and slot it
+into a list beside shipped ones. What is public, and from where:
+
+- **From `@azx/ribo-core`** — `phaseBuilder`; `noteKey`, for keys of your own; the
+  `draftSeededNoteKey` marker; and the three-phase strategy's parts, `presencePhase`, `spanPhase`,
+  `classifyPhase` and `classifyWrappedPhase`, with the `extractGroups` walk that feeds them and their
+  note keys `presenceNoteKey`, `spansNoteKey` and `unsupportedNoteKey`.
+- **From `@azx/ribo-extractor-openai`** — `gapFillPhase`, `inventoryPhase`, `fillPhase`, and their
+  `rosterNoteKey`.
+- **From `@azx/ribo-extractor-ondevice`** — only the `threePhaseExtractor` preset, which tunes those
+  core phases to the on-device transport; the phases themselves are core's.
+
+Three compositions cover the space. The examples share one thread: an audit pass of your own, whose
+note a shipped phase can then be made to wait for.
+
+**A custom phase can seed the draft.** The marker is an ordinary export, not an internal convention —
+a phase you build with `phaseBuilder` declares and writes it the same way a shipped one does, and the
+shipped `gapFillPhase` after it validates against the ordinary check:
+
+```ts
+const define = phaseBuilder<V>(); // your adapter's writable patch type
+
+const seed = define({
+  id: "seed",
+  // Written unconditionally in the merge — "produces is checked twice" below.
+  produces: [draftSeededNoteKey],
+  describeItem: () => ({ key: "" }),
+  plan: () => ["whole-document"],
+  run: async (_item, _draft, ctx) => ({
+    // Your prompt assembly and chat call, elided. `ctx.transcript.text` is the
+    // one canonical string; `ctx.signal` is the caller's cancellation.
+    value: await myWholeDocumentPass(ctx.transcript.text, ctx.signal),
+    usage: { calls: 1 },
+  }),
+  merge: (draft, results) => {
+    const done = results.find((r) => r.outcome === "result");
+    if (done === undefined) return draft;
+    return {
+      ...draft,
+      fields: done.output.value, // a complete enveloped record, as a base phase's would be
+      notes: draft.notes.set(draftSeededNoteKey, true),
+    };
+  },
+});
+
+const extractor = phasedExtractor({
+  target,
+  phases: [seed, gapFillPhase({ target, chat, model })],
+});
+```
+
+**A custom phase can consume a shipped phase's output.** The keys the shipped phases write are
+exported, so your `plan` can read them:
+
+```ts
+const audited = noteKey<Record<string, boolean>>("audited");
+
+const audit = define({
+  id: "audit",
+  requires: [presenceNoteKey], // what presencePhase's merge wrote
+  produces: [audited],
+  describeItem: (group) => ({ key: group }),
+  plan: (draft) => {
+    const maps = draft.notes.get(presenceNoteKey) ?? {};
+    return Object.keys(maps); // narrowed by what presence found — the ask itself is yours
+  },
+  run: async (group, _draft, ctx) => ({
+    value: await auditGroup(group, ctx.transcript.text, ctx.signal),
+    usage: { calls: 1 },
+  }),
+  merge: (draft, results) => {
+    const map = { ...draft.notes.get(audited) };
+    for (const r of results) {
+      if (r.outcome === "result") map[r.item] = true;
+    }
+    return { ...draft, notes: draft.notes.set(audited, map) };
+  },
+});
+
+const extractor = phasedExtractor({
+  target,
+  // `groups` is `extractGroups(z.toJSONSchema(target.extractionSchema))`.
+  phases: [presencePhase<Values>({ groups, chat, model }), audit],
+});
+```
+
+**A shipped phase can wait for a custom one.** Every shipped factory takes a `requires` option whose
+keys are **unioned** with the phase's own — so the `fillPhase` below waits for the inventory's roster
+AND for the audit's note:
+
+```ts
+const fill = fillPhase<Values>({
+  // target, chat, model, prepared, buildFillInstructions — as usual.
+  requires: [audited], // unioned with the roster key the phase requires on its own
+});
+
+// [inventory, audit, fill] validates. Reverse the last two and construction
+// rejects the list, naming "fill" and the note key no earlier phase produced.
+const extractor = phasedExtractor({ target, phases: [inventory, audit, fill] });
+```
+
+Two limits, stated because you will hit them:
+
+- **`produces` is not caller-extensible on a shipped phase.** Not an API omission: the engine
+  verifies every declared `produces` key against what the phase's merge actually wrote, and a shipped
+  merge will never write your key, so declaring one would throw mid-run. Your keys belong on your own
+  phases.
+- **A shipped phase's `requires` can only be widened.** The option unions; it never replaces. You
+  cannot make a shipped phase need *less* — which is what stops a mis-wired list from declaring away
+  a real dependency and validating anyway.
+
 ### Running a phase twice
 
 A second `fillPhase` used to be a no-op that overwrote the first — its `plan` reads the roster and
@@ -276,11 +389,11 @@ so those keys are already in the draft; scoping would skip work that was **never
 ### Which phases you can actually compose
 
 `gapFillPhase`, `inventoryPhase`, `fillPhase` and `rosterNoteKey` are exported from
-`@azx/ribo-extractor-openai`'s barrel. The on-device strategy's four phases are **not** exported —
-they live under an internal directory and the package's entry point exposes only the preset — and
-this repo forbids deep imports. Compose from what is actually available rather than assuming every
-preset's pieces are public. `extractorPhase(id, extractor)`, from `@azx/ribo-core`, lifts any
-existing `Extractor` into a one-item phase, in any package.
+`@azx/ribo-extractor-openai`'s barrel. The on-device strategy's four phases moved to `@azx/ribo-core`
+in SP4a wave 5 and are exported from there; the on-device package's entry point exposes only the
+preset — and this repo forbids deep imports. Compose from what is actually available rather than
+assuming every preset's pieces are public. `extractorPhase(id, extractor)`, from `@azx/ribo-core`,
+lifts any existing `Extractor` into a one-item phase, in any package.
 
 ### Failure policy: `onItemFailure`
 
