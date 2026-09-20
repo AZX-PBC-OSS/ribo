@@ -96,20 +96,14 @@ export interface FillPhaseOptions<V extends Record<string, unknown>, P = NoProve
    * `false`, which plans every job the roster yields: the presets were measured
    * with that semantics, and `true` changes behaviour for every existing caller.
    *
-   * **Why narrowing is sound where group scoping was not** — design
-   * ADR 0009 shipped this and abandoned
-   * scoping, and the distinction is the reason. `merge` starts from
-   * `{ ...draft.fields }`, so anything an earlier phase wrote survives a
-   * narrowed re-run: narrowing skips work that is ALREADY DONE — the skipped
-   * keys are in the draft. Scoping would skip work that was NEVER DONE — its
-   * keys would be absent from `fields`, and the closing parse rejects a missing
-   * top-level group key.
+   * **Why narrowing is sound where group scoping was not** (ADR 0009): `merge`
+   * starts from `{ ...draft.fields }`, so narrowing skips work that is ALREADY
+   * DONE and its keys are in the draft. Scoping would skip work that was NEVER
+   * DONE, and the closing parse rejects a missing top-level group key.
    *
-   * **The granularity is the job, not the leaf.** A job whose leaves are all
-   * committed is skipped; a job with any uncommitted leaf is planned in full and
-   * re-asks about everything in it. Leaf-level narrowing — re-asking exactly the
-   * abstained leaves — is what `gapFillPhase` does and is a different phase; §7
-   * of the design records this job-level limit as known.
+   * **The granularity is the job, not the leaf.** A job with any uncommitted
+   * leaf is planned in full and re-asks about everything in it. Leaf-level
+   * narrowing is `gapFillPhase`'s job.
    *
    * "Committed" means what it means everywhere else: a leaf envelope whose
    * `value` is non-null.

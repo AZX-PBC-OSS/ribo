@@ -20,19 +20,14 @@ There is deliberately no rule that _some_ phase must seed: `[inventory]` alone s
 validates, because its merge writes `fields[key] = []` scaffolding for stated-none
 collection groups, which is not clearly wrong.
 
-**The axis was added and removed in the same unreleased line.** `seedsDraft`
-and `requiresDraft` on `PhaseMeta`, and the `validatePhases` rule that paired
-them, are gone. The same dependency — a phase whose shape-of-`draft.fields`
-need no other key could express — is now `draftSeededNoteKey`
-(`noteKey("draft-seeded")`, exported from core): a seeding phase produces it
-and writes it into the draft's notes in its merge, which the engine's
-per-phase-boundary `produces` check verifies, and a phase that reads the draft
-requires it, so the ordinary order-sensitive check does all the work. The five
-behaviours the axis's tests pinned are preserved: `[gapfill]` alone rejected,
-`[inventory, gapfill]` rejected, `[fill, gapfill]` passes, order matters, and a
-phase cannot satisfy itself. ADR 0008 is superseded by ADR 0010, which records
-that the axis's justification (a list-level seeding rule) was dropped under
-review while the API built for it was not.
+**A phase that reads the draft declares it through the notes channel.**
+`draftSeededNoteKey` (`noteKey("draft-seeded")`, exported from core) is produced
+by a phase whose merge populates `draft.fields` and required by one that reads
+them, so the ordinary order-sensitive `requires`/`produces` check does all the
+work and the engine's per-phase-boundary check verifies the claim against what
+the merge really wrote. `[gapfill]` alone is rejected, `[inventory, gapfill]` is
+rejected, `[fill, gapfill]` passes, order matters, and a phase cannot satisfy
+itself. See ADR 0008.
 
 **The chat transport seam lives in core now.** `ChatClient`, `CapableChatClient`,
 `ChatMessage`, `ChatRequest`, `ChatCompletion`, `ChatCallOptions`, `ChatCapability`,

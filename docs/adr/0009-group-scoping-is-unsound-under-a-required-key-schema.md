@@ -34,13 +34,13 @@ skips work that was **never done**, so those keys never appear at all.
 ## Consequences
 
 A planner's decision space is repetition and ordering, not selection. That is materially thinner
-than the case SP4a opened with, and it should be weighed before the agentic layer is built rather
-than after — it is recorded in that design's §7.
+than the case for an agentic layer opened with, and it should be weighed before that layer is
+built rather than after (ADR 0011).
 
 A sound version exists and is a larger design: scoping as a **plan-level** property with a coverage
 invariant, where the union of the scoped phases must cover every group, checked at construction.
-That is the group-level dependency system SP4a's §3 rules out, and it would need the phase list to
-stop being a plain ordered list.
+It would need the phase list to stop being a plain ordered list, which is more than any caller has
+asked for.
 
 The cheap alternative — making the extraction schema's group keys optional — is not available.
 Every key being required **is** the anti-hallucination rule: a model must emit an explicit `null`

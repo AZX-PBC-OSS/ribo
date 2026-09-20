@@ -49,6 +49,7 @@ receives.
 | [0005](./0005-cache-key-covers-the-whole-prompt.md)                      | An extraction cache key covers the whole prompt, and a hit reports zero calls             | Accepted           |
 | [0006](./0006-budget-is-a-detector-not-a-governor.md)                    | The budget combinator detects overspend; it does not prevent it                           | Accepted           |
 | [0007](./0007-consensus-first-survivor-is-structurally-authoritative.md) | Consensus takes its structure from the first survivor and drops what only others produced | Accepted           |
-| [0008](./0008-draft-state-is-declared-not-inferred.md)                   | A phase declares whether it seeds the draft, or needs one seeded                          | Superseded by 0010 |
+| [0008](./0008-draft-shape-dependency-is-a-note-key.md)                   | A draft-shape dependency is a note key, not a second axis                                 | Accepted           |
 | [0009](./0009-group-scoping-is-unsound-under-a-required-key-schema.md)   | Group scoping is unsound under a required-key schema                                      | Accepted           |
-| [0010](./0010-draft-shape-dependency-is-a-note-key.md)                   | A draft-shape dependency is a note key, not a second axis                                 | Accepted           |
+| [0010](./0010-phases-and-the-chat-seam-belong-in-core.md)                | The chat seam and the transport-agnostic phases belong in core                            | Accepted           |
+| [0011](./0011-the-agentic-layer-waits-for-a-vocabulary-worth-planning-over.md) | The agentic layer waits for a vocabulary worth planning over                        | Accepted           |
