@@ -18,9 +18,11 @@ sub-project widens the vocabulary. The planner waits.
 
 Three changes, in the order they matter:
 
-- **A draft-state axis on `PhaseMeta`** (`seedsDraft`, `requiresDraft`). `requires`/`produces`
-  model the **notes** channel and nothing models the **fields** channel, which is why a phase list
-  of `[gapfill]` alone passes every check and returns a successful, empty extraction.
+- **A marker note key**, `draftSeededNoteKey`. `gapFillPhase`'s dependency is on the shape of
+  `draft.fields`, which it could not declare — so a list of `[gapfill]` alone passed every check.
+  A phase that populates the fields produces the marker; `gapfill` requires it; the existing
+  `requires`/`produces` check does the rest. (§4.1 records the boolean axis this replaced, and why
+  it was unnecessary.)
 - **Group scoping**, so a phase can target a subset of groups. This is what makes _selection_ a
   real decision rather than a formality — today every fill fills everything.
 - **Fill that narrows from the draft**, so _repetition_ means something. Today a second
@@ -50,7 +52,7 @@ the relay re-runs the whole phase list, spending every earlier phase's calls aga
 until the item is `dead`. A mis-wired list is not a silent wrong answer; it is a loud, expensive,
 repeating one.
 
-Rejecting at construction is free. That is the justification for the draft-state axis, and it is
+Rejecting at construction is free. That is the justification for the marker key, and it is
 narrower than the one this design first gave.
 
 ### 2.2 A second `fillPhase` is a no-op that overwrites the first
@@ -81,7 +83,7 @@ This is the third feature in this program found unreachable through a barrel, af
 ## 3. What this cannot mean
 
 **Not a general dataflow graph.** Phases stay a _list_, run in order, over one shared draft. The
-draft-state axis adds two booleans, not a dependency solver. SP1 chose a list deliberately and
+marker key is one more note key, not a dependency solver. SP1 chose a list deliberately and
 nothing here reopens it.
 
 **Not a group-level dependency system.** Group scoping filters what a phase works on. It does not
@@ -216,6 +218,7 @@ distinction; nothing in the type does.
 ## 6. Sequencing
 
 1. **Wave 1 — the draft-state axis** and `validatePhases`' two new rules. Declare it on all seven
+   _(built, then replaced by the marker key in wave 5 — see §4.1)_.
    phases. This is the one that closes a live hole and is worth doing even if nothing else is.
 2. **Wave 2 — `narrowToAbstained`** on `fillPhase`, plus the optional `id` SP4 needs on all
    eight factories (the same edit to the same files).
@@ -234,9 +237,10 @@ Then re-open `sp4-agentic-layer-design.md` with a vocabulary worth planning over
 - **`narrowToAbstained` may be the wrong granularity.** Job-level narrowing skips a job whose leaves
   are all committed; a job that is half-filled still re-asks about everything. Leaf-level narrowing
   is what gap-fill does and is a different phase.
-- **The draft-state axis is declared by hand** on each phase, so it can be declared wrongly, and
-  nothing checks the declaration against behaviour. A phase claiming `seedsDraft` that writes no
-  fields satisfies rule 2 and produces the empty extraction anyway.
+- **The marker is declared by hand** on each phase, so it can be declared wrongly. `produces` is
+  verified against the notes a merge actually wrote, so a phase declaring the marker and not
+  writing it fails — but a phase writing the marker while populating nothing still satisfies every
+  consumer. The declaration is a promise about fields, checked only as a promise about notes.
 - **Without scoping, the decision space a planner gets is thin.** Repetition and ordering are what
   remain. That is a materially weaker case for SP4b than this design opened with, and it should be
   weighed before the planner is built rather than after.
