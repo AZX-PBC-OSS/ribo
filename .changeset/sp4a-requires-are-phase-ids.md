@@ -38,3 +38,9 @@ declaration it verified, and so are its two tests. What replaced them is a
 read-site throw per reading phase, pinned end-to-end through `phasedExtractor`
 in `span-phase.test.ts` and `fill-phase.test.ts` — look there, not in
 `phased-extractor.test.ts`, for the guarantee that a mis-wired list is loud.
+
+`extractorPhase` gains an options object to carry the option — a third, optional
+parameter, since it previously took only `(id, extractor)`. The other seven
+factories (`presencePhase`, `spanPhase`, `classifyPhase`, `classifyWrappedPhase`
+in core; `inventoryPhase`, `fillPhase`, `gapFillPhase` in the openai package)
+already had options objects.

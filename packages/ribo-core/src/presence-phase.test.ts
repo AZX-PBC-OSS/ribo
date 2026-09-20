@@ -144,9 +144,10 @@ describe("presencePhase — merge", () => {
     // The load-bearing detail: a group whose presence map ends up all false has
     // no item in any later phase, and the engine skips `merge` on an empty plan
     // — so presence is the only phase that can write this group at all. Without
-    // the seed its key would go missing from `fields`, and because the group
-    // schemas are `.optional()` the closing parse succeeds silently with the
-    // group absent, surfacing much later as a TypeError on a leaf read.
+    // the seed its key would go missing from `fields`, and the closing parse
+    // would reject it — `enveloped()` strips top-level `.optional()` and rebuilds
+    // with `z.strictObject`, so every group key is required (`enveloped.test.ts`
+    // pins that) — after every other group's model calls had been spent.
     // Here hvac's item FAILED (no outcome at all) and site's succeeded all-false;
     // the seed must cover both.
     const { chat } = fakeChat((name) =>

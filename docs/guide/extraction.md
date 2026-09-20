@@ -252,8 +252,8 @@ into a list beside shipped ones. What is public, and from where:
   read-site throw; and the three-phase strategy's parts, `presencePhase`, `spanPhase`,
   `classifyPhase` and `classifyWrappedPhase`, with the `extractGroups` walk that feeds them and their
   note keys `presenceNoteKey`, `spansNoteKey` and `unsupportedNoteKey`.
-- **From `@azx/ribo-extractor-openai`** — `gapFillPhase`, `inventoryPhase`, `fillPhase`, and their
-  `rosterNoteKey`.
+- **From `@azx/ribo-extractor-openai`** — `gapFillPhase`, `inventoryPhase`, `fillPhase`, plus the
+  `rosterNoteKey` the inventory and fill phases hand off under.
 - **From `@azx/ribo-extractor-ondevice`** — only the `threePhaseExtractor` preset, which tunes those
   core phases to the on-device transport; the phases themselves are core's.
 
@@ -348,10 +348,11 @@ const extractor = phasedExtractor({ target, phases: [inventory, audit, fill] });
 Two limits, stated because you will hit them:
 
 - **Overriding `requires` is taking responsibility for naming providers.** `fillPhase`'s `plan`
-  reads the roster note; drop `"inventory"` from the option and validation fails on the dangling
-  default — `requires: ["audit"]` alone does not compose. The defaults name the shipped providers;
-  a caller who renames or replaces a provider names the new id (`spanPhase({ requires:
-["presence-strict"] })`).
+  reads the roster note; drop `"inventory"` from the option and construction passes — the ids are
+  yours to name — but the run throws from fill's `plan`, naming the roster note no earlier phase
+  wrote: `requires: ["audit"]` alone does not compose. The defaults name the shipped providers;
+  a caller who renames or replaces a provider names the new id
+  (`spanPhase({ requires: ["presence-strict"] })`).
 - **A phase that reads a note demands it at the read site.** A list that slips a phase's provider
   past validation — a custom phase named `"span"` that never writes the spans note, say — still
   fails, loudly, from the reader's `plan`, before any call is made.

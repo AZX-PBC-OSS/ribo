@@ -24,8 +24,8 @@ would most need.
 
 So scoping `fillPhase` to `["hvac"]` leaves every other group's key absent and the run dies at the
 parse. That applies to every _seeding_ phase — which is every phase scoping would have been useful
-on. The phases where it is safe are the refiners, `gapfill` and `span`, and those already take
-their scope from what the draft contains.
+on. The phases where it is safe are the refiners — `gapfill`, `span` and `classify` — and those
+already take their scope from what the draft contains.
 
 **`narrowToAbstained` was kept, and the distinction is the whole decision.** Narrowing skips work
 that is **already done**, so those keys are in the draft and survive the merge's copy. Scoping

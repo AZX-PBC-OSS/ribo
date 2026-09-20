@@ -1,7 +1,6 @@
 ---
 "@azx/ribo-core": minor
 "@azx/ribo-extractor-openai": minor
-"@azx/ribo-extractor-ondevice": minor
 ---
 
 Repetition means something, and a phase list can use a kind more than once.
@@ -19,7 +18,7 @@ rather than blanked — a full fill is unaffected, since every slot's job ran.
 
 All seven options-based phase factories — `inventoryPhase`, `fillPhase` and `gapFillPhase`
 in `@azx/ribo-extractor-openai`; `presencePhase`, `spanPhase`, `classifyPhase` and
-`classifyWrappedPhase` in `@azx/ribo-extractor-ondevice` — gain `id?: string`, defaulting
+`classifyWrappedPhase` in `@azx/ribo-core` — gain `id?: string`, defaulting
 to the factory's current literal (`inventory`, `fill`, `gapfill`, `presence`, `span`,
 `classify`, `classify-wrapped`). `validatePhases` rejects duplicate ids, so a phase list
 could not use one kind twice; renaming an instance unblocks that. `extractorPhase` already

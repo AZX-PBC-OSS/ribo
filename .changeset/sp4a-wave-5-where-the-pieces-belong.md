@@ -4,34 +4,22 @@
 "@azx/ribo-extractor-ondevice": minor
 ---
 
-SP4a wave 5: the draft-state axis is replaced by a marker note key, and the
-`ChatClient` seam plus the three transport-agnostic phases move into
-`@azx/ribo-core`.
+SP4a wave 5: the `ChatClient` seam and the three transport-agnostic phases
+move into `@azx/ribo-core`.
 
-**What a consumer gets:** a phase list that is mis-wired on the draft — `[gapfill]` with
-nothing before it to populate the fields — is now refused at construction, naming the
-phase and the fix. Before, such a list planned nothing, the engine no-oped, and the run
-died at the closing trust-boundary parse with a `SchemaParseError`. That error is
-_retryable_, so the relay re-ran the whole phase list, re-spending every earlier phase's
-model calls on each retry, until the session item went `dead`. Rejecting at construction
-is free.
+**What a consumer gets:** a mis-wired phase list no longer fails silently. A phase whose
+`plan` reads a note — the span phase reading presence's map, the fill phase reading the
+inventory's roster — throws from that `plan`, naming the key and the fix, before any call
+is made. Before, such a list planned nothing, the engine no-oped, and the run died at the
+closing trust-boundary parse with a `SchemaParseError`. That error is _retryable_, so the
+relay re-ran the whole phase list, re-spending every earlier phase's model calls on each
+retry, until the session item went `dead`. (A list that runs and legitimately fills
+nothing still fails at that parse — it is the correct backstop. The declaration vocabulary
+itself is phase ids: see `sp4a-requires-are-phase-ids.md` and ADR 0008.)
 
 There is deliberately no rule that _some_ phase must seed: `[inventory]` alone still
 validates, because its merge writes `fields[key] = []` scaffolding for stated-none
 collection groups, which is not clearly wrong.
-
-**A phase that reads the draft declares it through the notes channel.**
-`draftSeededNoteKey` (`noteKey("draft-seeded")`, exported from core) is produced by a
-phase whose merge populates `draft.fields` and required by one that reads them, so the
-ordinary order-sensitive `requires`/`produces` check does all the work and the engine's
-per-phase-boundary check verifies the claim against what the merge really wrote.
-`[gapfill]` alone is rejected, `[inventory, gapfill]` is rejected, `[fill, gapfill]`
-passes, order matters, and a phase cannot satisfy itself. See ADR 0008.
-
-_(Since this changeset was written, the declaration vocabulary moved to phase ids and
-`draftSeededNoteKey` was deleted — see `sp4a-requires-are-phase-ids.md` and ADR 0008 as
-rewritten. The refusal-at-construction outcome above now comes from the id check plus the
-read-site demand, and `[inventory, gapfill]` validates.)_
 
 **The chat transport seam lives in core now.** `ChatClient`, `CapableChatClient`,
 `ChatMessage`, `ChatRequest`, `ChatCompletion`, `ChatCallOptions`, `ChatCapability`,
@@ -46,8 +34,8 @@ are implementations and stay where they are.
 and the `extractGroups`/`Group`/`Leaf`/`JsonSchema` schema walk moved from
 `@azx/ribo-extractor-ondevice` to `@azx/ribo-core` — nothing in them is
 on-device — and are exported from core's barrel beside `extractorPhase`.
-`@azx/ribo-extractor-ondevice` no longer exports them (the wave-3 exports are
-removed; there is no compatibility re-export here, because a host composes
-these from core) and keeps `threePhaseExtractor`, the genuinely on-device
-preset. The package's dependency on `@azx/ribo-extractor-openai` remains for
-`perGroupExtractor` in its retry-integration test.
+`@azx/ribo-extractor-ondevice` keeps `threePhaseExtractor`, the genuinely
+on-device preset, and its public surface is otherwise unchanged — a host
+composes the phases from core. The package's dependency on
+`@azx/ribo-extractor-openai` remains for `perGroupExtractor` in its
+retry-integration test.

@@ -13,10 +13,10 @@ control already existed: a structured-output enum of the host's registry keys, a
 
 Reviewing it against the phases that exist produced two facts that the machinery cannot fix.
 
-**`fillPhase.plan` never reads `draft.fields`.** It reads the roster note, `prepared` and the
+**`fillPhase.plan` read nothing of the draft.** It read the roster note, `prepared` and the
 transcript. So "fill, then fill again with what the first pass learned" — the strategy used to
 justify letting a plan name a phase kind twice — planned identical jobs, and the merge overwrote
-the first pass.
+the first pass. (`narrowToAbstained`, shipped instead — see Decision — is what changed both.)
 
 **`gapFillPhase` could not declare what it needs.** Its dependency was the shape of `draft.fields`,
 which the notes channel could not express, so a plan of `[gapfill]` alone passed every gate.
@@ -29,10 +29,11 @@ program's failure mode, arriving through the front door.
 
 Build the vocabulary first; defer the planner.
 
-Shipped instead: the draft-shape dependency as a note key (ADR 0008), so a mis-wired list is
-refused at construction; `narrowToAbstained`, so a second fill does useful work; an optional `id`
-per factory, so a list can use a kind twice; the phases and chat seam moved to core with an
-additive `requires` (ADR 0010), so hosts can compose at all.
+Shipped instead: `narrowToAbstained`, so a second fill does useful work; an optional `id`
+per factory, so a list can use a kind twice; the phases and chat seam moved to core with a
+`requires` option over phase ids (ADR 0010), so hosts can compose at all. The draft-shape
+dependency was left unexpressed on purpose: `[gapfill]` alone stays legal, and a list that
+reaches the closing parse incomplete still fails there, retryably (ADR 0008).
 
 ## Consequences
 

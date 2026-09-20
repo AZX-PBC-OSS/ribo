@@ -13,8 +13,8 @@
  *
  * - **`plan` returns one item per group, always.** Presence is the pass that
  *   decides what everything else looks at, so it has nothing to narrow against —
- *   and it is the only phase whose `plan` is never empty (the schema walk refuses
- *   a zero-group target at construction), which is why the seed below is its to
+ *   and it is the only phase whose `plan` is never empty (the preset refuses a
+ *   zero-group walk at construction), which is why the seed below is its to
  *   own.
  * - **`merge` seeds every group with a full null envelope — the task's
  *   load-bearing detail.** It stores each group's boolean map in `notes` AND

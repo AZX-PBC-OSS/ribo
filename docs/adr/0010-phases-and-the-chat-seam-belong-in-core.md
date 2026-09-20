@@ -36,10 +36,9 @@ genuinely device-specific: device-tuned per-call ceilings, zero retry delay.
 ## Consequences
 
 A host can compose the shipped phases, and its own alongside them. Every note key,
-`phaseBuilder`, `noteKey` and the phases themselves are public, and the phase factories take an
-additive `requires` so a shipped phase can be made to wait for a caller's own. `produces` is
-deliberately **not** caller-extensible: the engine verifies it against what a merge actually wrote,
-so an added key would make the phase throw mid-run.
+`phaseBuilder`, `noteKey` and the phases themselves are public, and the phase factories take a
+`requires` option — the complete list of phase ids to wait for, replacing the factory default
+(ADR 0008) — so a shipped phase can be made to wait for a caller's own.
 
 The cost is a permanently wider public surface — four factories, their options, their note keys and
 the schema walk are now supported API and a compatibility commitment.
