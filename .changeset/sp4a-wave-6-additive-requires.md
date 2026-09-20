@@ -8,7 +8,7 @@ SP4a wave 6: a shipped phase can be made to wait for a phase of your own.
 Every phase factory's options gain `requires?: readonly string[]` — extra note
 keys the phase must wait for, **unioned** with the phase's own. A host composing
 its own phase beside shipped ones could already wire `plan` to read whatever it
-liked, but could not make a *shipped* phase order itself after that phase's
+liked, but could not make a _shipped_ phase order itself after that phase's
 output; now the list `[inventoryPhase, myPhase, fillPhase({ requires:
 [myNoteKey] })]` validates, and reversing the last two is rejected at
 construction, naming `fill` and the key no earlier phase produced. The phase's

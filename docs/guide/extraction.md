@@ -360,7 +360,7 @@ Two limits, stated because you will hit them:
   merge will never write your key, so declaring one would throw mid-run. Your keys belong on your own
   phases.
 - **A shipped phase's `requires` can only be widened.** The option unions; it never replaces. You
-  cannot make a shipped phase need *less* — which is what stops a mis-wired list from declaring away
+  cannot make a shipped phase need _less_ — which is what stops a mis-wired list from declaring away
   a real dependency and validating anyway.
 
 ### Running a phase twice
