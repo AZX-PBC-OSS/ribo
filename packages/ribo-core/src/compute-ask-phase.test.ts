@@ -10,8 +10,9 @@ import { enveloped } from "./enveloped.js";
 import type { Enveloped, NoProvenance } from "./enveloped.js";
 import type { ExtractionTarget } from "./extractor.js";
 import type { DeepPartial } from "./phase-draft.js";
-import { noteKey } from "./phase-notes.js";
+import { demandNote, noteKey } from "./phase-notes.js";
 import type { NoteKey } from "./phase-notes.js";
+import type { PhaseDraft } from "./phase-draft.js";
 import type { Phase } from "./phase.js";
 import { phasedExtractor } from "./phased-extractor.js";
 import { SchemaParseError } from "./schema-parse-error.js";
@@ -74,14 +75,17 @@ describe("computePhase and askPhase — the composition", () => {
       // The fold reads the note back AT THE ANSWER'S TYPE. `verdict` exists
       // only on `Answer`, so an implementation that widened the value to
       // `unknown` fails to compile here, not at runtime.
+      // `demandNote`, the spelling `phase-notes.ts` prescribes where the writer's
+      // plan is never empty — which the ask's is. A guarded `get` would make a
+      // mis-ordered list an all-null run caught only by the closing parse.
       fold: (draft) => {
-        const answer = draft.notes.get(answerKey);
-        if (answer === undefined) return draft;
+        const answer = demandNote(draft.notes, answerKey, "compute", "ask");
         return {
           ...draft,
           fields: { note: { value: answer.verdict, confidence: 1, sourceSpan: null } },
         };
       },
+      requires: ["ask"],
     });
     const extractor = phasedExtractor<TestValues>({ target, phases: [ask, compute] });
 
@@ -144,6 +148,27 @@ describe("computePhase and askPhase — the composition", () => {
         noteKey: answerKey,
       });
     void widened;
+  });
+
+  test("supplying both sinks, or neither, is refused at the call site", () => {
+    const { chat } = fakeChat(() => "{}");
+    const base = { schema: answerSchema, chat, model: "test-model", messages: () => [] };
+    const both = (): Phase<TestValues> =>
+      // @ts-expect-error — exactly one of `noteKey` and `fold` is the contract, held by
+      // `never` partners in the options union. A regression to two independent optional
+      // members would compile this and silently prefer one in `merge`, which only the
+      // runtime guard would catch — and only for callers it can see.
+      askPhase<TestValues, NoProvenance>()<Answer>({
+        ...base,
+        noteKey: answerKey,
+        fold: (draft: PhaseDraft<TestValues>) => draft,
+      });
+    const neither = (): Phase<TestValues> =>
+      // @ts-expect-error — and neither sink is equally refused: an ask whose answer goes
+      // nowhere is a call paid for and thrown away.
+      askPhase<TestValues, NoProvenance>()<Answer>({ ...base });
+    void both;
+    void neither;
   });
 });
 

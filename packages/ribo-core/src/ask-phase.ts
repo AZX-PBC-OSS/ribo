@@ -35,7 +35,8 @@ import { phaseBuilder } from "./phase.js";
  * check at construction for callers the type cannot see.
  *
  * **The parse is the shipped chain.** The response crosses the same trust boundary the
- * managed phases cross — `completeOrClassify` (refusal and unsupported are terminal),
+ * managed OPENAI phases cross — core's own presence/span/classify call `chat.complete`
+ * directly and do not — `completeOrClassify` (refusal and unsupported are terminal),
  * `assertStopFinishReason` (truncation is terminal), `parseJsonContent` (bad JSON is
  * transient), then `parseWithSchema` against the caller's schema: a schema miss is a
  * `SchemaParseError`, recognisable and transient, because the same request can pass on a
@@ -136,6 +137,15 @@ export function askPhase<V extends Record<string, unknown>, P = NoProvenance>():
     // The caller's schema, rendered once for the request's structured-output contract —
     // the same draft-2020-12 rendering every managed extractor sends.
     const jsonSchema: JsonSchema = z.toJSONSchema(options.schema, { target: "draft-2020-12" });
+    // The structured-output schema name, derived rather than the id itself.
+    // `PhaseMeta.id` promises an id reaches three places, none of them a wire —
+    // which is why no factory validates its charset. Sending a raw id would
+    // make the request body a fourth, and an id like `"my ask"` would be a 400,
+    // which `isTransientFailure` reads terminal: dead mid-run with every
+    // earlier phase's calls already spent. Every shipped phase builds its name
+    // instead (`classify-phase.ts` replaces dots the same way), and the name
+    // need not equal the id — each request is independent.
+    const requestName = `ask-${id.replace(/[^A-Za-z0-9_-]/g, "-")}`.slice(0, 64);
 
     const def: PhaseDef<V, P, null, T> = {
       id,
@@ -146,7 +156,12 @@ export function askPhase<V extends Record<string, unknown>, P = NoProvenance>():
       plan: () => [ONE_QUESTION],
       run: async (_item, draft, ctx) => {
         const context = `askPhase: model response for "${ctx.target.name}"`;
-        const request = chatRequest(options.model, options.messages(draft, ctx), jsonSchema, id);
+        const request = chatRequest(
+          options.model,
+          options.messages(draft, ctx),
+          jsonSchema,
+          requestName,
+        );
         const completion = await completeOrClassify(options.chat, request, context, {
           // Forwarded, not rebuilt: the phase context's signal is the caller's
           // cancellation combined with the phase pool's sibling abort, and a

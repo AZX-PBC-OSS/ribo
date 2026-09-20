@@ -25,7 +25,8 @@ whole-draft transform, at the caller's value type.
 `computePhase` is the deterministic slot: no model call, no I/O, one marker item, the
 caller's fold at the draft's type. `askPhase` is one model call against the **caller's**
 zod schema: the request's structured output is rendered from it, the response is parsed
-against it at the same trust boundary the managed phases cross (`completeOrClassify` →
+against it at the same trust boundary the managed openai phases cross — not core's own
+presence/span/classify, which call `chat.complete` directly (`completeOrClassify` →
 `assertStopFinishReason` → `parseJsonContent` → `parseWithSchema`), and the parsed answer
 goes where the caller says — under a caller's `NoteKey<T>`, or folded into the draft at
 the answer's type. `T` unifies across `z.ZodType<T>` and `NoteKey<T>` in one options

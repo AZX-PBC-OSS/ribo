@@ -411,9 +411,13 @@ const ask = askPhase<Values>()({
 });
 
 const fold = computePhase<Values>({
+  // `demandNote`, not a guarded `get`: the ask's plan is never empty, so its merge
+  // always runs and the note is always there under a correctly ordered list. A
+  // guarded read turns a mis-ordered `[fold, ask]` into an all-null extraction that
+  // fails the closing parse retryably; demanding it names the wiring at plan time.
+  requires: ["ask"],
   fold: (draft) => {
-    const hazard = draft.notes.get(hazardNote); // reads back at `Hazard` — no cast
-    if (hazard === undefined) return draft;
+    const hazard = demandNote(draft.notes, hazardNote, "fold", "ask"); // at `Hazard`, no cast
     return {
       ...draft,
       fields: { note: { value: hazard.hazard, confidence: 1, sourceSpan: null } },

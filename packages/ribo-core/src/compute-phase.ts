@@ -79,7 +79,9 @@ export function computePhase<V extends Record<string, unknown>, P = NoProvenance
 ): Phase<V, P> {
   const def: PhaseDef<V, P, null, void> = {
     id: options.id ?? "compute",
-    // The fold cannot fail, so there is no failure mode to budget retries for.
+    // `maxRetries` budgets `run` attempts, and this `run` is a no-op that cannot
+    // fail — the fold is arbitrary caller code and CAN throw, but it runs in
+    // `merge`, which the retry loop never touches.
     maxRetries: 0,
     // The caller's ids are the whole `requires` — the phase declares none of
     // its own (see the option); an absent option leaves the def's `requires`
