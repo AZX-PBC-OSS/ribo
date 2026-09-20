@@ -1,10 +1,13 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
-import { emptyDraft, enveloped } from "@azx/ribo-core";
-import type { ExtractionTarget, PhaseContext, PhaseDraft } from "@azx/ribo-core";
+import { emptyDraft } from "./phase-draft.js";
+import type { PhaseDraft } from "./phase-draft.js";
+import { enveloped } from "./enveloped.js";
+import type { ExtractionTarget } from "./extractor.js";
+import type { PhaseContext } from "./phase.js";
 
 import { extractGroups, presenceNoteKey, presencePhase } from "./presence-phase.js";
-import { fakeChat } from "../test-support/fake-chat.js";
+import { fakeChat } from "./test-support/fake-chat.js";
 
 /**
  * Phase-level tests for the presence phase, against hand-built drafts — the
@@ -141,9 +144,10 @@ describe("presencePhase — merge", () => {
     // The load-bearing detail: a group whose presence map ends up all false has
     // no item in any later phase, and the engine skips `merge` on an empty plan
     // — so presence is the only phase that can write this group at all. Without
-    // the seed its key would go missing from `fields`, and because the group
-    // schemas are `.optional()` the closing parse succeeds silently with the
-    // group absent, surfacing much later as a TypeError on a leaf read.
+    // the seed its key would go missing from `fields`, and the closing parse
+    // would reject it — `enveloped()` strips top-level `.optional()` and rebuilds
+    // with `z.strictObject`, so every group key is required (`enveloped.test.ts`
+    // pins that) — after every other group's model calls had been spent.
     // Here hvac's item FAILED (no outcome at all) and site's succeeded all-false;
     // the seed must cover both.
     const { chat } = fakeChat((name) =>
@@ -287,5 +291,61 @@ describe("presencePhase — the construction-time provenance refusal", () => {
 
   test("the default leaf derivation is untouched — it still walks", () => {
     expect(() => walkedGroups(extractionSchema)).not.toThrow();
+  });
+});
+
+describe("presencePhase — metadata", () => {
+  test("its merge writes the presence note unconditionally — the span phase's plan demands it", async () => {
+    const { chat } = fakeChat((name) =>
+      json(
+        name === "hvac-presence"
+          ? { fuel: true, efficiency: false, notes: false }
+          : { yearBuilt: false },
+      ),
+    );
+    const phase = presencePhase<Values>({ groups, chat, model: chat.engine });
+    const draft0 = emptyDraft<Values>();
+    const merged = await phase.with(async (def) => {
+      const outcomes = [];
+      for (const item of def.plan(draft0, ctx)) {
+        outcomes.push({
+          outcome: "result" as const,
+          item,
+          output: await def.run(item, draft0, ctx),
+        });
+      }
+      return def.merge(draft0, outcomes);
+    });
+    // Even an all-false (or all-failed) presence pass writes the key: the span
+    // phase's plan throws when it is missing, so the note is the runtime
+    // channel's contract, not a declaration.
+    expect(merged.notes.get(presenceNoteKey)).toEqual({
+      hvac: { fuel: true, efficiency: false, notes: false },
+      site: { yearBuilt: false },
+    });
+  });
+});
+
+describe("presencePhase — requires", () => {
+  test("declares none of its own, and the option absent leaves it undefined", () => {
+    const { chat } = fakeChat(() => json({}));
+    const phase = presencePhase<Values>({ groups, chat, model: chat.engine });
+    expect(phase.requires).toBeUndefined();
+  });
+
+  test("a caller's requires is taken as the requires — the phase has no default to replace", () => {
+    const { chat } = fakeChat(() => json({}));
+    const phase = presencePhase<Values>({ groups, chat, model: chat.engine, requires: ["mine"] });
+    expect(phase.requires).toEqual(["mine"]);
+  });
+});
+
+describe("presencePhase — id", () => {
+  test('defaults to "presence" and honours an explicit id', () => {
+    const { chat } = fakeChat(() => json({}));
+    const defaults = presencePhase<Values>({ groups, chat, model: chat.engine });
+    expect(defaults.id).toBe("presence");
+    const renamed = presencePhase<Values>({ groups, chat, model: chat.engine, id: "presence-2" });
+    expect(renamed.id).toBe("presence-2");
   });
 });

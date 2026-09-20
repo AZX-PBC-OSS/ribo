@@ -30,16 +30,7 @@
  * second parse is the same function as this first parse.
  */
 
-import { TerminalError } from "@azx/ribo-core";
-import type { ExtractionTarget, NoProvenance } from "@azx/ribo-core";
-
-// The trust-boundary parse lives in core beside `SchemaParseError` — it is the
-// one function every extractor (and `groupedExtractor`'s second parse) crosses,
-// so the two parses cannot drift. Re-exported to keep this module's public
-// surface and every internal import unchanged.
-export { parseWithSchema } from "@azx/ribo-core";
-
-import { ChatError } from "./chat-client.js";
+import { ChatError, TerminalError } from "@azx/ribo-core";
 import type {
   ChatCallOptions,
   ChatClient,
@@ -47,7 +38,16 @@ import type {
   ChatMessage,
   ChatRequest,
   ChatUsage,
-} from "./chat-client.js";
+  ExtractionTarget,
+  NoProvenance,
+} from "@azx/ribo-core";
+
+// The trust-boundary parse lives in core beside `SchemaParseError` — the one
+// function every extractor (and `groupedExtractor`'s second parse) crosses, so
+// the two parses cannot drift. Re-exported to keep this module's public surface
+// and every internal import unchanged.
+export { parseWithSchema } from "@azx/ribo-core";
+
 import { projectTarget } from "./project-target.js";
 
 /**

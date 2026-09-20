@@ -1,16 +1,27 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
-import { emptyDraft, emptyNotes, enveloped } from "@azx/ribo-core";
-import type { ExtractionTarget, PhaseContext, PhaseDraft } from "@azx/ribo-core";
-import { ChatError } from "@azx/ribo-extractor-openai";
+import { emptyDraft } from "./phase-draft.js";
+import type { PhaseDraft } from "./phase-draft.js";
+import { emptyNotes } from "./phase-notes.js";
+import { enveloped } from "./enveloped.js";
+import { ChatError } from "./chat-client.js";
+import type { ExtractionTarget } from "./extractor.js";
+import type { PhaseContext } from "./phase.js";
 
-import { extractGroups, nullEnvelope, presenceNoteKey, wrapGroupEntry } from "./presence-phase.js";
+import {
+  extractGroups,
+  nullEnvelope,
+  presenceNoteKey,
+  presencePhase,
+  wrapGroupEntry,
+} from "./presence-phase.js";
 import type { Group, Leaf, LeafEnvelope } from "./presence-phase.js";
-import { spansNoteKey } from "./span-phase.js";
+import { spanPhase, spansNoteKey } from "./span-phase.js";
 import type { SpanMaps } from "./span-phase.js";
 import { classifyPhase, classifyWrappedPhase, unsupportedNoteKey } from "./classify-phase.js";
 import type { UnsupportedLeaves } from "./classify-phase.js";
-import { fakeChat } from "../test-support/fake-chat.js";
+import { validatePhases } from "./validate-phases.js";
+import { fakeChat } from "./test-support/fake-chat.js";
 
 /**
  * Phase-level tests for the classify and wrapped-classify phases, against
@@ -96,6 +107,34 @@ describe("classifyPhase — plan", () => {
         { key: "hvac", leaf: "fuel" },
       ]);
       expect(itemOf(items[0]).span).toBe("the system is gas");
+    });
+  });
+
+  // The three arms of the spans-note carve-out. The engine skips a merge whose
+  // plan was empty, so an absent spans note is legitimate ONLY when presence
+  // marked nothing present. Presence is demanded outright because its own plan
+  // is never empty — that is what tells a quiet chain from one missing its
+  // producers, and without it both arms below would no-op silently.
+  test("the spans note's absence is legitimate only when presence recorded nothing present", () => {
+    const { chat } = fakeChat(() => json("Gas"));
+    const phase = classifyPhase<Values>({ groups, chat, model: chat.engine });
+    phase.with((def) => {
+      const quiet = {
+        ...emptyDraft<Values>(),
+        notes: emptyNotes().set(presenceNoteKey, { hvac: { fuel: false } }),
+      };
+      expect(def.plan(quiet, ctx)).toHaveLength(0);
+
+      const misWired = {
+        ...emptyDraft<Values>(),
+        notes: emptyNotes().set(presenceNoteKey, { hvac: { fuel: true } }),
+      };
+      expect(() => def.plan(misWired, ctx)).toThrow(new RegExp(spansNoteKey));
+
+      // Neither note written: no presence phase ran either, so there is no
+      // signal that the quiet is legitimate. Defaulting here is what let a
+      // fully custom chain no-op without a word.
+      expect(() => def.plan(emptyDraft<Values>(), ctx)).toThrow(new RegExp(presenceNoteKey));
     });
   });
 });
@@ -186,8 +225,9 @@ describe("classifyPhase — merge", () => {
       confidence: 1,
       sourceSpan: "the system is gas",
     });
-    // The phase declares it produces this key: the note is written even when
-    // empty, or the engine's produces check would throw.
+    // The wrapped pass's plan reads this key and demands it: the note is
+    // written even when empty, or a legal pass over zero unsupported leaves
+    // would throw from the wrapped phase's plan.
     expect(merged.notes.get(unsupportedNoteKey)).toEqual([]);
   });
 
@@ -276,9 +316,28 @@ describe("classifyWrappedPhase", () => {
       ]);
 
       // No unsupported leaves anywhere: no items, no call, no event — the
-      // empty-plan case.
+      // empty-plan case (the note written, empty).
       expect(def.plan(spannedDraft(GROUNDED), ctx)).toHaveLength(0);
-      expect(def.plan(emptyDraft<Values>(), ctx)).toHaveLength(0);
+      // The note MISSING from the bag is legitimate only when there are no
+      // grounded spans at all (classify planned nothing, so its merge never
+      // ran) — and only when presence ran to say so. A draft carrying the
+      // presence note and no spans qualifies, and the plan no-ops.
+      const quiet = {
+        ...emptyDraft<Values>(),
+        notes: emptyNotes().set(presenceNoteKey, { hvac: { fuel: false } }),
+      };
+      expect(def.plan(quiet, ctx)).toHaveLength(0);
+      // A draft with neither note is the fully-custom chain that wrote no
+      // producer at all — no signal, so it is refused rather than no-oped.
+      expect(() => def.plan(emptyDraft<Values>(), ctx)).toThrow(new RegExp(presenceNoteKey));
+      // Spans WITHOUT the note is the mis-wired list, and the plan demands it
+      // rather than silently no-oping.
+      const withoutNote = {
+        ...spannedDraft(GROUNDED),
+        notes: emptyNotes().set(presenceNoteKey, {}).set(spansNoteKey, GROUNDED),
+      };
+      expect(() => def.plan(withoutNote, ctx)).toThrow(TypeError);
+      expect(() => def.plan(withoutNote, ctx)).toThrow(new RegExp(unsupportedNoteKey));
     });
   });
 
@@ -304,5 +363,81 @@ describe("classifyWrappedPhase", () => {
       expect(output.value).toEqual({ kind: "classified", value: "Gas" });
       expect(output.usage).toEqual({ calls: 1 });
     });
+  });
+});
+
+describe("classifyPhase — id", () => {
+  test('defaults to "classify" and honours an explicit id', () => {
+    const { chat } = fakeChat(() => json("Gas"));
+    const defaults = classifyPhase<Values>({ groups, chat, model: chat.engine });
+    expect(defaults.id).toBe("classify");
+    const renamed = classifyPhase<Values>({ groups, chat, model: chat.engine, id: "classify-2" });
+    expect(renamed.id).toBe("classify-2");
+  });
+});
+
+describe("classifyWrappedPhase — id", () => {
+  test('defaults to "classify-wrapped" and honours an explicit id', () => {
+    const { chat } = fakeChat(() => json({ value: "Gas" }));
+    const defaults = classifyWrappedPhase<Values>({ groups, chat, model: chat.engine });
+    expect(defaults.id).toBe("classify-wrapped");
+    const renamed = classifyWrappedPhase<Values>({
+      groups,
+      chat,
+      model: chat.engine,
+      id: "classify-wrapped-2",
+    });
+    expect(renamed.id).toBe("classify-wrapped-2");
+  });
+});
+
+describe("classifyPhase — requires", () => {
+  test("defaults to the span phase's id when the option is absent", () => {
+    const { chat } = fakeChat(() => json("Gas"));
+    const phase = classifyPhase<Values>({ groups, chat, model: chat.engine });
+    expect(phase.requires).toEqual(["span"]);
+  });
+
+  test("a caller's requires REPLACES the default — the complete list, not an addition", () => {
+    const { chat } = fakeChat(() => json("Gas"));
+    const phase = classifyPhase<Values>({ groups, chat, model: chat.engine, requires: ["mine"] });
+    expect(phase.requires).toEqual(["mine"]);
+  });
+});
+
+describe("classifyWrappedPhase — requires", () => {
+  test("defaults to the classify phase's id when the option is absent", () => {
+    const { chat } = fakeChat(() => json({ value: "Gas" }));
+    const phase = classifyWrappedPhase<Values>({ groups, chat, model: chat.engine });
+    expect(phase.requires).toEqual(["classify"]);
+  });
+
+  test("a caller's requires REPLACES the default — the complete list, not an addition", () => {
+    const { chat } = fakeChat(() => json({ value: "Gas" }));
+    const phase = classifyWrappedPhase<Values>({
+      groups,
+      chat,
+      model: chat.engine,
+      requires: ["mine"],
+    });
+    expect(phase.requires).toEqual(["mine"]);
+  });
+
+  test("[classifyWrappedPhase] alone is rejected, naming the phase's id and the missing 'classify'", () => {
+    const { chat } = fakeChat(() => json({ value: "Gas" }));
+    const wrapped = classifyWrappedPhase<Values>({ groups, chat, model: chat.engine });
+    expect(() => validatePhases<Values>([wrapped])).toThrow(/classify-wrapped/);
+    expect(() => validatePhases<Values>([wrapped])).toThrow(/"classify"/);
+  });
+
+  test("the full four-phase chain validates on its id defaults", () => {
+    const { chat } = fakeChat(() => json({ value: "Gas" }));
+    const phases = [
+      presencePhase<Values>({ groups, chat, model: chat.engine }),
+      spanPhase<Values>({ groups, chat, model: chat.engine }),
+      classifyPhase<Values>({ groups, chat, model: chat.engine }),
+      classifyWrappedPhase<Values>({ groups, chat, model: chat.engine }),
+    ];
+    expect(() => validatePhases<Values>(phases)).not.toThrow();
   });
 });

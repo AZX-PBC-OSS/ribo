@@ -31,16 +31,17 @@ import { z } from "zod";
 import { nextUnitId } from "@azx/ribo-core";
 import type {
   AnnotatedTranscript,
+  ChatClient,
   Enveloped,
   ExtractionObserver,
   Extractor,
   ExtractionResult,
   ExtractionTarget,
+  ExtractOptions,
   NoProvenance,
   WholeUnit,
 } from "@azx/ribo-core";
 
-import type { ChatClient } from "./chat-client.js";
 import type { UsageTotals } from "./extraction-common.js";
 import {
   addUsage,
@@ -50,7 +51,6 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
-import type { ExtractOptions } from "@azx/ribo-core";
 
 /**
  * Options for {@link singleShotExtractor}.

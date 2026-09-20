@@ -1,10 +1,15 @@
 import { z } from "zod";
 import { describe, expect, test, vi } from "vitest";
-import { ChatError } from "@azx/ribo-extractor-openai";
 import {
+  ChatError,
+  classifyPhase,
+  classifyWrappedPhase,
   enveloped,
+  extractGroups,
   isCancellation,
   phasedExtractor,
+  presencePhase,
+  spanPhase,
   type ExtractionTarget,
   type PhaseUnit,
 } from "@azx/ribo-core";
@@ -12,9 +17,6 @@ import type { RetryBudget } from "@azx/ribo-core";
 
 import { OnDeviceChat, DEFAULT_DEVICE_PROMPT_DEADLINE_MS } from "./ondevice-chat.js";
 import { threePhaseExtractor } from "./index.js";
-import { classifyPhase, classifyWrappedPhase } from "./phases/classify-phase.js";
-import { extractGroups, presencePhase } from "./phases/presence-phase.js";
-import { spanPhase } from "./phases/span-phase.js";
 import { FakeLanguageModel } from "./test-support/fake-language-model.js";
 
 /**

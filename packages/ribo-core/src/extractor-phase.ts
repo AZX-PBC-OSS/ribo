@@ -28,8 +28,12 @@ import { phaseBuilder } from "./phase.js";
  * merging; this one does not need to.
  *
  * What this deliberately does not do: it does not run anything on its own — the phase is
- * inert until an engine calls `plan`/`run`/`merge`. And it declares no `requires` or
- * `produces`: an `Extractor` speaks in fields and results, not in note keys.
+ * inert until an engine calls `plan`/`run`/`merge`. And it declares no `requires` of its
+ * own: an `Extractor` speaks in fields and results, not in notes. Its merge populates
+ * `draft.fields` unconditionally — the merge always runs (the plan is never empty) — which
+ * is the guarantee a follow-up phase that reads the fields stands on; there is no marker
+ * key declaring it (ADR 0008), so a follow-up that needs a populated draft takes
+ * responsibility for ordering after this phase through `requires`.
  */
 
 /**
@@ -40,9 +44,20 @@ import { phaseBuilder } from "./phase.js";
  */
 const WHOLE_DOCUMENT = null;
 
+/** Options for {@link extractorPhase}. */
+export interface ExtractorPhaseOptions {
+  /**
+   * Ids of the phases this one must follow. The lift declares none of its
+   * own — an `Extractor` speaks in fields and results, not notes — so the
+   * list is exactly what you pass (ADR 0008).
+   */
+  readonly requires?: readonly string[];
+}
+
 export function extractorPhase<V extends Record<string, unknown>, P = NoProvenance>(
   id: string,
   extractor: Extractor<Enveloped<V, P>>,
+  options: ExtractorPhaseOptions = {},
 ): Phase<V, P> {
   const def: PhaseDef<
     V,
@@ -55,6 +70,9 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
     }
   > = {
     id,
+    // The caller's ids are the whole `requires` (see the option); an absent
+    // option leaves the def's `requires` unset.
+    ...(options.requires === undefined ? {} : { requires: options.requires }),
     plan: () => [WHOLE_DOCUMENT],
     run: async (_item, _draft, ctx) => {
       // Forwarded, not rebuilt: `signal` and `deadline` are the caller's cancellation and
@@ -96,7 +114,12 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
       }
       // `raw` is optional on the draft and its ABSENCE is what "no result carried one"
       // reads as — so it is spread in only when carried, never as an explicit undefined.
-      return { ...draft, fields, statedEmptyGroups, ...(hasRaw ? { raw } : {}) };
+      return {
+        ...draft,
+        fields,
+        statedEmptyGroups,
+        ...(hasRaw ? { raw } : {}),
+      };
     },
   };
   return phaseBuilder<V, P>()(def);

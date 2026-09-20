@@ -240,12 +240,19 @@ runtime**, so `requires`/`produces`, the construction check below and SP4's mode
 all unchanged, and `Phase<V, P>` gains no type parameter — §3's mixability constraint is fully
 intact. `noteKey<unknown>("scratch")` remains available as the escape hatch.
 
+> _Note (SP4a): the keys are the runtime channel alone now — the ordering declaration moved to
+> phase ids (`PhaseMeta.requires`) and the construction check checks ids. See ADR 0008._
+
 **Phases declare what they require and produce, and the declaration is checked at construction**,
 failing with the missing key and the phase id named. This is `groupedExtractor`'s coverage check and
 `enveloped()`'s `validateProvenance` applied to a new axis: a composition error surfaces before the
 first call is paid for. A second check runs at each phase boundary in development — a phase that
 declares `produces` and does not write it is a silent liar, and a conditionally-written key (a
 roster-driven `statedEmptyGroups` contribution) is exactly the shape that lies.
+
+> _Note (SP4a): the declaration vocabulary moved to **phase ids** — `requires` names the phases
+> that must appear earlier in the list, and `produces` is gone, the guarantee carried instead by a
+> read-site throw in the reader. See ADR 0008._
 
 That check earns its keep twice. In SP4 it is the agent's admission control — a model cannot emit a
 plan that wires phases in the wrong order, because construction rejects it and the rejection names
@@ -517,6 +524,9 @@ PhaseDef<V, P, I, C>) => R) => R`, with `id`, `requires`, `produces`, `concurren
   entering. The combinator writes `phase.with(def => …)` and inside that callback `I` and `C` are
   bound and correlated, so handing phase 0's items to phase 1's `run` is a compile error. An erasing
   cast would typecheck that exact mistake, in the combinator's own scheduling loop.
+
+  > _Note (SP4a): `produces` is gone from the metadata and `requires` names phase ids — see ADR 0008._
+
 - `phaseBuilder<V, P>()` returns the phase constructor, curried so `V`/`P` are fixed once per
   strategy and `I`/`C` are inferred per phase. A single four-parameter constructor cannot work:
   TypeScript has no partial type-argument inference, and every V/P-generic constructor in this repo
@@ -569,9 +579,13 @@ PhaseDef<V, P, I, C>) => R) => R`, with `id`, `requires`, `produces`, `concurren
 - **Nobody writes a fourth phase — the most likely failure.** The consumers of `phasedExtractor`
   today are three ports and nothing else. Every part of its surface — `notes`, `requires`/`produces`,
   the draft, the policy flag, the widened unit stream — is paid for by those three until SP4 lands.
+
+  > _Note (SP4a): the `requires` half of that surface is now declared over phase ids — see ADR 0008._
+
   The sharp test is not "does anyone write a fourth phase" but **"does SP4 compose a strategy no
   preset already covers"**. If it does not, SP4 is a router over three fixed strategies, §1's smaller
   refactor was the right build, and the marketing claim the program exists to support is hollow.
+
 - **The retry-budget and delay tuning is got wrong.** §4.5's two numbers and §4.2's delay policy are
   the difference between the on-device path keeping its retries and silently running with none. The
   repo has a documented history with silent zero-budget derivations — it is why `requireRetryBudget`
@@ -579,6 +593,10 @@ PhaseDef<V, P, I, C>) => R) => R`, with `id`, `requires`, `produces`, `concurren
 - **`notes` becomes a second schema.** The branded keys make shape errors compile errors, but not a
   dependency graph. If phases accumulate enough cross-references that `requires`/`produces` is
   something people reason about as a whole, §3's DAG has arrived through the back door.
+
+  > _Note (SP4a): ordering is declared over phase ids now (`PhaseMeta.requires`), and the branded
+  > keys are the runtime channel alone — see ADR 0008. The warning below stands._
+
 - **The deadline slicing is too crude.** Equal shares assume equal cost and classify is the outlier.
   The fix is weights, the bar is `onRetryBudget` evidence, not intuition.
 - **`phasedExtractor` grows a vocabulary.** Scheduling modes, phase dependencies, a routing hook: any
@@ -593,6 +611,10 @@ PhaseDef<V, P, I, C>) => R) => R`, with `id`, `requires`, `produces`, `concurren
   construction, with the key and the phase id named — before any call.
 - A phase that declares `produces` and does not write the key fails at that phase's boundary, naming
   both.
+
+  > _Note (SP4a): both checks were since replaced — `requires` names phase ids, the boundary
+  > `produces` verification is gone in favour of a read-site throw in the reader. See ADR 0008._
+
 - Reading a note key at the wrong type is a compile error; storing the wrong shape under it is a
   compile error (type-level, pinned both ways).
 - Handing one phase's items to another phase's `run` is a compile error (type-level — this is what

@@ -124,6 +124,28 @@ test("a phase that omits describeItem is still a valid Phase", () => {
   expect(bare.id).toBe("bare");
 });
 
+// The metadata declarations are asserted through `phaseBuilder`, never an object
+// literal: the builder copies the metadata member-by-member, so a member missing from
+// that copy list reads `undefined` off every real phase, while a literal-based test
+// would still see it. The validator and planner read the constructed `Phase` — that is
+// why this is the construction that matters.
+test("a builder-constructed phase exposes requires as declared", () => {
+  const requirer = build({
+    id: "requirer",
+    requires: ["presence"],
+    plan: () => [],
+    run: async () => ({ value: 1 }),
+    merge: (draft) => draft,
+  });
+  expect(requirer.requires).toEqual(["presence"]);
+});
+
+test("a phase declaring no requires reads undefined", () => {
+  // `undefined` reads as "declares nothing" downstream — every fixture that declares
+  // none must keep validating unchanged.
+  expect(stringPhase.requires).toBeUndefined();
+});
+
 // ---------------------------------------------------------------------------
 // Type-level
 // ---------------------------------------------------------------------------
@@ -169,5 +191,4 @@ test("PhaseMeta is readable off a Phase without calling with", () => {
   const meta: PhaseMeta = stringPhase;
   expect(meta.id).toBe("strings");
   expect(meta.requires).toBeUndefined();
-  expect(meta.produces).toBeUndefined();
 });

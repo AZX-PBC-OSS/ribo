@@ -39,23 +39,27 @@
  *
  * The marker reports `{ calls: 1 }`: the call was made and today's code counts
  * it; a marker carrying no usage would undercount every unsupported leaf.
+ *
+ * Since SP4a wave 5 this file lives in core beside `presence-phase.ts`: the
+ * `ChatError` it reads is core's seam type, and nothing here is on-device.
  */
 
-import { noteKey, phaseBuilder } from "@azx/ribo-core";
-import type {
-  DeepPartial,
-  Enveloped,
-  NoProvenance,
-  NoteKey,
-  Phase,
-  PhaseDef,
-  PhaseDraft,
-  PhaseItemOutcome,
-} from "@azx/ribo-core";
-import { ChatError } from "@azx/ribo-extractor-openai";
-import type { CapableChatClient, ChatCompletion, ChatMessage } from "@azx/ribo-extractor-openai";
+import { ChatError } from "./chat-client.js";
+import type { CapableChatClient, ChatCompletion, ChatMessage } from "./chat-client.js";
+import type { Enveloped, NoProvenance } from "./enveloped.js";
+import { demandNote, noteKey } from "./phase-notes.js";
+import type { NoteKey } from "./phase-notes.js";
+import type { DeepPartial, PhaseDraft } from "./phase-draft.js";
+import type { Phase, PhaseDef } from "./phase.js";
+import { phaseBuilder } from "./phase.js";
+import type { PhaseItemOutcome } from "./phase-outcome.js";
 
-import { chatRequest, isSchemaNode, writableGroupEntry } from "./presence-phase.js";
+import {
+  chatRequest,
+  isSchemaNode,
+  presenceNoteKey,
+  writableGroupEntry,
+} from "./presence-phase.js";
 import type { Group, JsonSchema, Leaf } from "./presence-phase.js";
 import { spansNoteKey } from "./span-phase.js";
 
@@ -81,7 +85,7 @@ export interface UnsupportedLeaf {
 
 export type UnsupportedLeaves = readonly UnsupportedLeaf[];
 
-/** The note key the classify phase produces and the wrapped pass requires. */
+/** The note key the classify phase's merge writes and the wrapped pass's plan reads. */
 export const unsupportedNoteKey: NoteKey<UnsupportedLeaves> = noteKey("three-phase-unsupported");
 
 /** Options shared by {@link classifyPhase} and {@link classifyWrappedPhase}. */
@@ -92,6 +96,22 @@ export interface ClassifyPhaseOptions {
   readonly chat: CapableChatClient;
   /** The model id passed through to each request. The transport ignores it. */
   readonly model: string;
+  /**
+   * Overrides the phase's id — `"classify"` or `"classify-wrapped"` depending
+   * on the factory. See `PhaseMeta.id` in `@azx/ribo-core` for what an id
+   * reaches and why a caller-chosen one is safe.
+   */
+  readonly id?: string;
+  /**
+   * Ids of the phases this one must follow, REPLACING the factory's default —
+   * the complete list, not an addition. The default names the shipped provider
+   * of the note this phase's `plan` reads (`"span"` for the bare pass, which
+   * reads the spans note; `"classify"` for the wrapped pass, which reads the
+   * unsupported note); overriding it means naming that provider yourself, or
+   * validation fails on a dangling id. See `PhaseMeta.requires` in
+   * `@azx/ribo-core` and ADR 0008.
+   */
+  readonly requires?: readonly string[];
 }
 
 interface ClassifyItem {
@@ -148,9 +168,9 @@ function classifyMerge<V extends Record<string, unknown>, P>(
   return {
     ...draft,
     fields: fields as DeepPartial<Enveloped<V, P>>,
-    // Written even when empty: the phase declares it produces this key, and a
-    // key written only conditionally is the silent-liar shape the engine's
-    // produces check exists to catch.
+    // Written even when empty: the wrapped pass's plan reads this key and
+    // demands it — an empty list must still be written, or a legal pass over
+    // zero unsupported leaves would throw from the wrapped phase's plan.
     notes: draft.notes.set(unsupportedNoteKey, unsupported),
   };
 }
@@ -179,14 +199,42 @@ function buildClassifyMessages(leaf: Leaf, span: string): ChatMessage[] {
 export function classifyPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: ClassifyPhaseOptions,
 ): Phase<V, P> {
+  const id = options.id ?? "classify";
   const def: PhaseDef<V, P, ClassifyItem, ClassifyContribution> = {
-    id: "classify",
+    id,
     onItemFailure: "skip",
-    requires: [spansNoteKey],
-    produces: [unsupportedNoteKey],
+    // REPLACING, not additive: the option is the complete list, and the default
+    // names the shipped provider of the note this plan reads — see the option.
+    requires: options.requires ?? ["span"],
     describeItem: (item) => ({ key: item.group.key, leaf: item.leaf.key }),
     plan: (draft) => {
-      const spans = draft.notes.get(spansNoteKey) ?? {};
+      // A phase that reads a note demands it — with one carve-out the engine
+      // forces: a merge is skipped when its plan was empty, so the spans note
+      // is legitimately absent when presence marked nothing present (span
+      // planned nothing, so its merge never ran and its unconditional write
+      // never happened). Spans note ABSENT while some leaf IS present is not
+      // that case — it is a mis-wired list, and defaulting would make it a
+      // silent all-null run that parses green.
+      //
+      // The presence note is what tells the two apart, so it is demanded
+      // unconditionally: `presencePhase.plan` maps over the groups and is never
+      // empty, so its merge always runs and the note is always there. Reading
+      // it with a default instead would let a chain that wrote NEITHER note
+      // fall through the carve-out and no-op silently.
+      const maps = demandNote(draft.notes, presenceNoteKey, id, "presence");
+      const spans = draft.notes.get(spansNoteKey);
+      if (spans === undefined) {
+        if (Object.values(maps).some((map) => Object.values(map).some(Boolean))) {
+          throw new TypeError(
+            `${id}: the note "${spansNoteKey}" is not in the draft's notes, but the ` +
+              "presence maps record present leaves — no earlier phase in this list " +
+              `wrote the note. A phase that reads a note demands it: run the phase ` +
+              `that writes it (default id "span") before this one, or name it in ` +
+              `this phase's requires.`,
+          );
+        }
+        return [];
+      }
       const items: ClassifyItem[] = [];
       for (const group of options.groups) {
         const groupSpans = spans[group.key];
@@ -243,13 +291,37 @@ export function classifyPhase<V extends Record<string, unknown>, P = NoProvenanc
 export function classifyWrappedPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: ClassifyPhaseOptions,
 ): Phase<V, P> {
+  const id = options.id ?? "classify-wrapped";
   const def: PhaseDef<V, P, ClassifyItem, ClassifyContribution> = {
-    id: "classify-wrapped",
+    id,
     onItemFailure: "skip",
-    requires: [unsupportedNoteKey],
+    // REPLACING, not additive: the option is the complete list, and the default
+    // names the shipped provider of the note this plan reads — see the option.
+    requires: options.requires ?? ["classify"],
     describeItem: (item) => ({ key: item.group.key, leaf: item.leaf.key }),
     plan: (draft, _ctx) => {
-      const recorded = draft.notes.get(unsupportedNoteKey) ?? [];
+      // A phase that reads a note demands it — with the same carve-out as the
+      // bare pass: the unsupported note is legitimately absent when classify
+      // planned nothing (no grounded spans anywhere), because a merge is
+      // skipped on an empty plan. Spans WITHOUT the note is a mis-wired list.
+      // The presence note is demanded for the same reason it is in the bare
+      // pass: it is the one note always written, so it distinguishes a quiet
+      // chain from one missing its producers entirely.
+      const recorded = draft.notes.get(unsupportedNoteKey);
+      if (recorded === undefined) {
+        demandNote(draft.notes, presenceNoteKey, id, "presence");
+        const spans = draft.notes.get(spansNoteKey) ?? {};
+        if (Object.values(spans).some((map) => Object.keys(map).length > 0)) {
+          throw new TypeError(
+            `${id}: the note "${unsupportedNoteKey}" is not in the draft's notes, but ` +
+              "grounded spans exist — no earlier phase in this list wrote the note. " +
+              `A phase that reads a note demands it: run the phase that writes it ` +
+              `(default id "classify") before this one, or name it in this phase's ` +
+              `requires.`,
+          );
+        }
+        return [];
+      }
       return recorded.map(({ group, leaf, span }) => ({ group, leaf, span }));
     },
     run: async (item, _draft, ctx) => {

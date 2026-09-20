@@ -21,9 +21,9 @@ const phase = (id: string, meta: Partial<PhaseMeta> = {}) =>
   });
 
 // One test per rejection, each asserting the throw AND that the message names the
-// offending phase id and key/value — a validator whose message does not identify the
-// problem is half a validator, and the agentic use (the message is the repair prompt for
-// the next model attempt) depends entirely on it.
+// offending phase id and the id or value it got wrong — a validator whose message does
+// not identify the problem is half a validator, and the agentic use (the message is the
+// repair prompt for the next model attempt) depends entirely on it.
 
 test("an empty phase list throws", () => {
   expect(() => validatePhases<TestValues>([])).toThrow(TypeError);
@@ -35,10 +35,10 @@ test("a duplicate id throws, naming the id", () => {
   expect(() => validatePhases<TestValues>(phases)).toThrow(/presence/);
 });
 
-test("a requires key no earlier phase produces throws, naming the phase and the key", () => {
-  const fill = phase("fill", { requires: ["roster"] });
+test("a requires id that is not an earlier phase's throws, naming the phase and the id", () => {
+  const fill = phase("fill", { requires: ["inventory"] });
   expect(() => validatePhases<TestValues>([fill])).toThrow(/fill/);
-  expect(() => validatePhases<TestValues>([fill])).toThrow(/roster/);
+  expect(() => validatePhases<TestValues>([fill])).toThrow(/inventory/);
 });
 
 test("a concurrency that is not a positive integer throws, naming the phase and the value", () => {
@@ -59,24 +59,50 @@ test("a negative maxRetries throws, naming the phase and the value", () => {
 
 // The positive cases.
 
-test("a well-formed list with a key produced by phase 1 and required by phase 3 passes", () => {
-  const one = phase("one", { produces: ["roster"] });
+test("a well-formed list with a dependency on phase 1 from phase 3 passes", () => {
+  const one = phase("one");
   const two = phase("two");
-  const three = phase("three", { requires: ["roster"] });
+  const three = phase("three", { requires: ["one"] });
   expect(() => validatePhases<TestValues>([one, two, three])).not.toThrow();
 });
 
-test("a phase that requires what a LATER phase produces throws", () => {
-  const early = phase("early", { requires: ["roster"] });
-  const late = phase("late", { produces: ["roster"] });
-  expect(() => validatePhases<TestValues>([early, late])).toThrow(/roster/);
+test("a phase that requires a LATER phase throws — a dependency satisfied later is not satisfied", () => {
+  const early = phase("early", { requires: ["late"] });
+  const late = phase("late");
+  expect(() => validatePhases<TestValues>([early, late])).toThrow(/late/);
 });
 
-test("a phase with no requires and no produces passes", () => {
+test("a phase with no requires passes", () => {
   expect(() => validatePhases<TestValues>([phase("plain")])).not.toThrow();
 });
 
 test("a single-phase list passes", () => {
-  const only = phase("only", { produces: ["roster"] });
-  expect(() => validatePhases<TestValues>([only])).not.toThrow();
+  expect(() => validatePhases<TestValues>([phase("only")])).not.toThrow();
+});
+
+test("a phase whose requires contains its own id is rejected — check before adding", () => {
+  const self = phase("both", { requires: ["both"] });
+  expect(() => validatePhases<TestValues>([self])).toThrow(/both/);
+});
+
+// The id chain: a phase's `requires` names the phase whose output it reads. The
+// ids here are the shipped defaults' for legibility, but the phases are the
+// helper's — the real ones live where their note reads are tested.
+
+test("the three-phase chain validates on its id declarations", () => {
+  const presence = phase("presence");
+  const span = phase("span", { requires: ["presence"] });
+  const classify = phase("classify", { requires: ["span"] });
+  expect(() => validatePhases<TestValues>([presence, span, classify])).not.toThrow();
+});
+
+test("a list where no phase requires anything passes — there is deliberately no list-level seeding rule", () => {
+  // The pin that no "at least one phase must run first" rule was added, and must
+  // not be: `[inventory]` alone is not clearly wrong — its merge writes
+  // `fields[key] = []` for stated-none collection groups, so an all-stated-empty
+  // roster legitimately produces `{hvac: []}` — and such a rule would reject it
+  // along with every `phasedExtractor` fixture whose phases declare no
+  // requirements (ADR 0008).
+  const inventory = phase("inventory");
+  expect(() => validatePhases<TestValues>([inventory])).not.toThrow();
 });

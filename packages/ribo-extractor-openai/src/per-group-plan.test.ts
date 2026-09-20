@@ -1,9 +1,14 @@
 import { enveloped, groupedExtractor } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget, GroupMap } from "@azx/ribo-core";
+import type {
+  ChatClient,
+  ChatRequest,
+  Enveloped,
+  ExtractionTarget,
+  GroupMap,
+} from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import type { ChatClient, ChatRequest } from "./chat-client.js";
 import { gapFillExtractor } from "./gap-fill.js";
 import { overrideGroups, perGroupPlan } from "./per-group.js";
 import type { PerGroupPlan } from "./per-group.js";

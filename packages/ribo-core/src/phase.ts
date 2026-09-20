@@ -32,19 +32,41 @@ import type { PhaseItemOutcome, PhaseOutput } from "./phase-outcome.js";
  * `V`/`P` once per strategy and infers `I` and `C` per phase from the definition.
  *
  * What this deliberately does not do: nothing here RUNS a phase — no scheduling, no
- * retry loop, no budget derivation, no unit events. That is the Wave 3b engine. And the
- * per-phase-boundary `produces` verification is a run-time check that belongs with it;
- * the construction-time list check lives in `validate-phases.ts`.
+ * retry loop, no budget derivation, no unit events. That is the Wave 3b engine, and the
+ * construction-time list check lives in `validate-phases.ts`.
  */
 
 /** The metadata a phase list carries on the outside, where `with` need not be entered. */
 export interface PhaseMeta {
-  /** Stable identifier for the phase, e.g. `"presence"`. Unique within a list. */
+  /**
+   * Stable identifier for the phase, e.g. `"presence"`. Unique within a list.
+   *
+   * **Why a caller-chosen id is safe** — the one doc comment for the optional
+   * `id` every phase factory's options accept (SP4a wave 2): a phase list
+   * cannot use a phase KIND twice unless one instance can be renamed, because
+   * `validatePhases`' duplicate check is per id, not per kind. An id reaches
+   * exactly three places — `validatePhases`' duplicate detection, the engine's
+   * error messages, and `PhaseUnit.phaseId` in the live observer stream — and
+   * nothing persists it, so a caller-chosen id changes only what a live
+   * progress consumer sees. No charset is validated at the factories:
+   * constraining a model-chosen id belongs with the planner that accepts model
+   * input, not with a factory a developer calls.
+   */
   readonly id: string;
-  /** Note keys this phase reads from the draft's bag, which an earlier phase must have produced. */
+  /**
+   * Ids of the phases this one must follow: every named phase must appear EARLIER in
+   * the same list, checked by `validatePhases` at construction (ADR 0008). The ids are
+   * the caller-visible ones, so a caller who renames a phase must update whoever
+   * depends on it — the factory defaults name the shipped providers, and supplying the
+   * option REPLACES the default (a caller adding a constraint must still name every
+   * provider the phase actually reads from).
+   *
+   * The cross-phase data itself still travels through the draft's typed notes bag —
+   * the runtime channel (`phase-notes.ts`). A phase that reads a note demands it: its
+   * `plan` throws when no earlier phase wrote the key, which is the guarantee this
+   * declaration orders.
+   */
   readonly requires?: readonly string[];
-  /** Note keys this phase writes into the draft's bag, which a later phase may require. */
-  readonly produces?: readonly string[];
   /**
    * How many of this phase's items may run at once. The run-level default a phase
    * inherits when it declares none is the combinator's concern (Wave 3b).
@@ -173,10 +195,13 @@ export type Phase<V extends Record<string, unknown>, P = NoProvenance> = PhaseMe
 export function phaseBuilder<V extends Record<string, unknown>, P = NoProvenance>(): <I, C>(
   def: PhaseDef<V, P, I, C>,
 ) => Phase<V, P> {
+  // Copied member-by-member, not by spread: a spread would carry `plan`/`run`/`merge`
+  // onto the outside of the `Phase`, defeating the existential hiding. The cost is that
+  // a new `PhaseMeta` member MUST be added to this list — missed, it reads `undefined`
+  // off every builder-constructed phase and validation silently never sees it.
   return (def) => ({
     id: def.id,
     requires: def.requires,
-    produces: def.produces,
     concurrency: def.concurrency,
     onItemFailure: def.onItemFailure,
     maxRetries: def.maxRetries,

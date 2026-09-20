@@ -1,16 +1,21 @@
 import {
+  ChatError,
   enveloped,
   FakeExtractor,
   isTransientFailure,
   SchemaParseError,
   TerminalError,
 } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget } from "@azx/ribo-core";
+import type {
+  ChatClient,
+  ChatCompletion,
+  ChatRequest,
+  Enveloped,
+  ExtractionTarget,
+} from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { ChatError } from "./chat-client.js";
-import type { ChatClient, ChatCompletion, ChatRequest } from "./chat-client.js";
 import { schemaRetryExtractor } from "./schema-retry.js";
 import { singleShotExtractor } from "./single-shot.js";
 

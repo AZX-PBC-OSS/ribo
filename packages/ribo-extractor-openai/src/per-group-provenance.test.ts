@@ -1,9 +1,8 @@
 import { enveloped } from "@azx/ribo-core";
-import type { ExtractionTarget } from "@azx/ribo-core";
+import type { ChatClient, ChatRequest, ExtractionTarget } from "@azx/ribo-core";
 import { z } from "zod";
 import { expect, test } from "vitest";
 
-import type { ChatClient, ChatRequest } from "./chat-client.js";
 import { perGroupExtractor } from "./per-group.js";
 
 /**

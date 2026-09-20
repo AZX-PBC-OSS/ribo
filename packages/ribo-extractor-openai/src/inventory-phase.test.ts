@@ -1,4 +1,4 @@
-import { emptyDraft, enveloped } from "@azx/ribo-core";
+import { emptyDraft, enveloped, phasedExtractor } from "@azx/ribo-core";
 import type { ExtractionTarget, PhaseContext, PhaseDraft, Roster } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
@@ -215,4 +215,95 @@ describe("inventoryPhase — merge", () => {
       'scopedInstanceExtractor: group "widgets" has 2 current instances, exceeding the cap of 1',
     );
   });
+});
+
+describe("inventoryPhase — id", () => {
+  test('defaults to "inventory" and honours an explicit id', () => {
+    const defaults = inventoryPhase<DemoValues>({
+      inventory: async () => ({}),
+      prepared,
+      instanceCap: 10,
+    });
+    expect(defaults.id).toBe("inventory");
+    const renamed = inventoryPhase<DemoValues>({
+      inventory: async () => ({}),
+      prepared,
+      instanceCap: 10,
+      id: "inventory-cheap",
+    });
+    expect(renamed.id).toBe("inventory-cheap");
+  });
+});
+
+describe("inventoryPhase — requires", () => {
+  test("declares none of its own, and the option absent leaves it undefined", () => {
+    const phase = inventoryPhase<DemoValues>({
+      inventory: async () => ({}),
+      prepared,
+      instanceCap: 10,
+    });
+    expect(phase.requires).toBeUndefined();
+  });
+
+  test("a caller's requires is taken as the requires — the phase has no default to replace", () => {
+    const phase = inventoryPhase<DemoValues>({
+      inventory: async () => ({}),
+      prepared,
+      instanceCap: 10,
+      requires: ["mine"],
+    });
+    expect(phase.requires).toEqual(["mine"]);
+  });
+});
+
+/**
+ * `[inventory]` alone is a valid list that runs green when the roster leaves
+ * every group parseable — ADR 0008 protects this case explicitly. All groups
+ * here are collection groups, because only those does the inventory merge seed:
+ * an all-stated-empty roster legitimately yields `{ widgets: [], gadgets: [] }`
+ * with zero fill calls.
+ */
+const onlyCollectionsSchema = z
+  .object({
+    widgets: z.array(z.object({ color: z.string().nullable().optional() })).optional(),
+    gadgets: z.array(z.object({ color: z.string().nullable().optional() })).optional(),
+  })
+  .strict();
+type OnlyCollectionsValues = z.infer<typeof onlyCollectionsSchema>;
+
+const onlyCollectionsTarget: ExtractionTarget<OnlyCollectionsValues> = {
+  name: "only-collections",
+  extractionSchema: enveloped(onlyCollectionsSchema),
+  instructions: "Demo extraction instructions.",
+};
+
+const onlyCollectionsPrepared: readonly PreparedGroup[] = [
+  preparedGroup("widgets", true),
+  preparedGroup("gadgets", true),
+];
+
+test("[inventory] alone runs green over an all-stated-empty roster", async () => {
+  const extractor = phasedExtractor<OnlyCollectionsValues>({
+    target: onlyCollectionsTarget,
+    phases: [
+      inventoryPhase<OnlyCollectionsValues>({
+        inventory: async () => ({
+          widgets: { stated: "none", span: "no widgets" },
+          gadgets: { stated: "none", span: "no gadgets" },
+        }),
+        prepared: onlyCollectionsPrepared,
+        instanceCap: 4,
+      }),
+    ],
+  });
+
+  const result = await extractor.extract({ text: "no widgets or gadgets here", annotations: {} });
+
+  expect(result.fields.widgets).toEqual([]);
+  expect(result.fields.gadgets).toEqual([]);
+  expect(result.statedEmptyGroups).toEqual({
+    widgets: "no widgets",
+    gadgets: "no gadgets",
+  });
+  expect(result.usage.calls).toBe(1); // the inventory pass itself
 });

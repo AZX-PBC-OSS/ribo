@@ -15,10 +15,10 @@
  *
  * Since Wave 6 this file is only the preset — the scheduling, retry, abort,
  * deadline, unit stream, usage accumulation and closing trust-boundary parse are
- * the engine's (`phasedExtractor`), and the phases themselves live in
- * `phases/presence-phase.ts`, `phases/span-phase.ts` and `phases/classify-phase.ts`.
- * What stays here is the schema walk and the two numbers that keep the strategy's
- * retries alive:
+ * the engine's (`phasedExtractor`), and the phases themselves are core's
+ * `presencePhase`, `spanPhase` and `classifyPhase` (moved there in SP4a wave 5;
+ * this file composes them). What stays here is the schema walk's zero-group
+ * refusal and the two numbers that keep the strategy's retries alive:
  *
  * - **`perCallCeilingMs` is device-sized.** The engine default is 120 s, sized for
  *   a managed structured-output call; the on-device transport's own bound is
@@ -36,8 +36,16 @@
 
 import { z } from "zod";
 
-import { phasedExtractor } from "@azx/ribo-core";
+import {
+  classifyPhase,
+  classifyWrappedPhase,
+  extractGroups,
+  phasedExtractor,
+  presencePhase,
+  spanPhase,
+} from "@azx/ribo-core";
 import type {
+  CapableChatClient,
   Enveloped,
   Extractor,
   ExtractionObserver,
@@ -46,12 +54,6 @@ import type {
   PhaseUnit,
 } from "@azx/ribo-core";
 
-import type { CapableChatClient } from "@azx/ribo-extractor-openai";
-
-import { classifyPhase, classifyWrappedPhase } from "./phases/classify-phase.js";
-import { extractGroups } from "./phases/presence-phase.js";
-import { presencePhase } from "./phases/presence-phase.js";
-import { spanPhase } from "./phases/span-phase.js";
 import { DEFAULT_DEVICE_PROMPT_DEADLINE_MS } from "./ondevice-chat.js";
 
 /** Default retry budget for a single call, matching the spike. */

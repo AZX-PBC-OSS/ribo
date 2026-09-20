@@ -23,18 +23,19 @@
  * The transcript rides on the item because `merge` — which grounds the spans —
  * has no phase context to read it from (the same shape `gap-fill-phase.ts`
  * uses). It is the same string `ctx.transcript.text` hands the run.
+ *
+ * Since SP4a wave 5 this file lives in core beside `presence-phase.ts` (same
+ * move, same reason): nothing here is on-device.
  */
 
-import { isSpanGrounded, noteKey, phaseBuilder } from "@azx/ribo-core";
-import type {
-  DeepPartial,
-  Enveloped,
-  NoProvenance,
-  NoteKey,
-  Phase,
-  PhaseDef,
-} from "@azx/ribo-core";
-import type { CapableChatClient, ChatMessage } from "@azx/ribo-extractor-openai";
+import type { CapableChatClient, ChatMessage } from "./chat-client.js";
+import type { Enveloped, NoProvenance } from "./enveloped.js";
+import { isSpanGrounded } from "./provenance.js";
+import { demandNote, noteKey } from "./phase-notes.js";
+import type { NoteKey } from "./phase-notes.js";
+import type { DeepPartial } from "./phase-draft.js";
+import type { Phase, PhaseDef } from "./phase.js";
+import { phaseBuilder } from "./phase.js";
 
 import {
   chatRequest,
@@ -52,7 +53,7 @@ import type { Group, JsonSchema, Leaf } from "./presence-phase.js";
  */
 export type SpanMaps = Record<string, Record<string, string>>;
 
-/** The note key {@link spanPhase} produces and the classify phase requires. */
+/** The note key {@link spanPhase}'s merge writes and the classify phase's plan reads. */
 export const spansNoteKey: NoteKey<SpanMaps> = noteKey("three-phase-spans");
 
 /** Options for {@link spanPhase}. */
@@ -63,6 +64,20 @@ export interface SpanPhaseOptions {
   readonly chat: CapableChatClient;
   /** The model id passed through to each request. The transport ignores it. */
   readonly model: string;
+  /**
+   * Overrides the phase's id — `"span"` by default. See `PhaseMeta.id` in
+   * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
+   */
+  readonly id?: string;
+  /**
+   * Ids of the phases this one must follow, REPLACING the default
+   * `["presence"]` — the complete list, not an addition. The default names the
+   * shipped provider of the presence note this phase's `plan` reads; overriding
+   * it means naming that provider yourself (a renamed presence phase:
+   * `spanPhase({ requires: ["presence-strict"] })`), or validation fails on a
+   * dangling id. See `PhaseMeta.requires` in `@azx/ribo-core` and ADR 0008.
+   */
+  readonly requires?: readonly string[];
 }
 
 interface SpanItem {
@@ -81,14 +96,19 @@ interface SpanItem {
 export function spanPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: SpanPhaseOptions,
 ): Phase<V, P> {
+  const id = options.id ?? "span";
   const def: PhaseDef<V, P, SpanItem, Record<string, string | null>> = {
-    id: "span",
+    id,
     onItemFailure: "skip",
-    requires: [presenceNoteKey],
-    produces: [spansNoteKey],
+    // REPLACING, not additive: the option is the complete list, and the default
+    // names the shipped provider of the note this plan reads — see the option.
+    requires: options.requires ?? ["presence"],
     describeItem: (item) => ({ key: item.group.key }),
     plan: (draft, ctx) => {
-      const maps = draft.notes.get(presenceNoteKey) ?? {};
+      // A phase that reads a note demands it: defaulting here would make a
+      // mis-wired list a silent wrong answer — nothing planned, the run returns
+      // the all-null floor, and the closing parse is green.
+      const maps = demandNote(draft.notes, presenceNoteKey, id, "presence");
       const items: SpanItem[] = [];
       for (const group of options.groups) {
         const map = maps[group.key];

@@ -1,13 +1,13 @@
 import {
+  ChatError,
   isTransientFailure,
   type ConnectivitySource,
   type ConnectivityState,
   type ConnectivityStatus,
+  type ChatRequest,
 } from "@azx/ribo-core";
 import { describe, expect, test } from "vitest";
 
-import { ChatError } from "./chat-client.js";
-import type { ChatRequest } from "./chat-client.js";
 import { helixChat } from "./helix-chat.js";
 
 /**

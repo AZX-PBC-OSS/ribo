@@ -13,8 +13,8 @@
  *
  * - **`plan` returns one item per group, always.** Presence is the pass that
  *   decides what everything else looks at, so it has nothing to narrow against —
- *   and it is the only phase whose `plan` is never empty (the schema walk refuses
- *   a zero-group target at construction), which is why the seed below is its to
+ *   and it is the only phase whose `plan` is never empty (the preset refuses a
+ *   zero-group walk at construction), which is why the seed below is its to
  *   own.
  * - **`merge` seeds every group with a full null envelope — the task's
  *   load-bearing detail.** It stores each group's boolean map in `notes` AND
@@ -23,11 +23,10 @@
  *   phases overwrite individual leaves; the seed is the floor. Without it, a
  *   group whose presence map is all false has no item in any later phase and no
  *   merge would ever write it: the engine skips `merge` entirely on an empty
- *   plan. Today every path commits a group result, including that all-false
- *   early-out; ported without the seed, the group's key is simply MISSING from
- *   the fields, and because the group schemas are `.optional()` the closing
- *   parse then succeeds silently with the group absent — the failure surfaces
- *   much later as a `TypeError` when something reads a leaf off it.
+ *   plan, so that group's key would be MISSING from the fields — and the closing
+ *   trust-boundary parse REJECTS it, because `enveloped()` strips top-level
+ *   `.optional()` and rebuilds with `z.strictObject`, so every group key is
+ *   required (`enveloped.test.ts` pins that).
  * - **Every merge that writes a group entry applies the array wrap through one
  *   shared helper** — {@link wrapGroupEntry}. A collection group's value is the
  *   leaf-envelope map wrapped in a one-element array; a flat group's is the map
@@ -40,18 +39,18 @@
  * asks for one verbatim span per leaf, so it cannot extract that group.
  * {@link extractGroups} throws at construction with a message naming the group
  * and the leaf and explaining the alternative — before any call is made.
+ *
+ * Since SP4a wave 5 this file lives in core: nothing here is on-device — it asks
+ * any {@link ChatClient} — and core owns the phase vocabulary.
  */
 
-import { noteKey, phaseBuilder } from "@azx/ribo-core";
-import type {
-  DeepPartial,
-  Enveloped,
-  NoProvenance,
-  NoteKey,
-  Phase,
-  PhaseDef,
-} from "@azx/ribo-core";
-import type { CapableChatClient, ChatMessage, ChatRequest } from "@azx/ribo-extractor-openai";
+import type { CapableChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
+import type { Enveloped, NoProvenance } from "./enveloped.js";
+import { noteKey } from "./phase-notes.js";
+import type { NoteKey } from "./phase-notes.js";
+import type { DeepPartial } from "./phase-draft.js";
+import type { Phase, PhaseDef } from "./phase.js";
+import { phaseBuilder } from "./phase.js";
 
 /** Loose JSON Schema node — enough to walk the zod-generated schema and build sub-schemas. */
 export type JsonSchema = Record<string, unknown>;
@@ -221,7 +220,7 @@ export function chatRequest(
  */
 export type PresenceMaps = Record<string, Record<string, boolean>>;
 
-/** The note key {@link presencePhase} produces and the span phase requires. */
+/** The note key {@link presencePhase}'s merge writes and the span phase's plan reads. */
 export const presenceNoteKey: NoteKey<PresenceMaps> = noteKey("three-phase-presence");
 
 /** Options for {@link presencePhase}. */
@@ -232,6 +231,16 @@ export interface PresencePhaseOptions {
   readonly chat: CapableChatClient;
   /** The model id passed through to each request. The transport ignores it. */
   readonly model: string;
+  /**
+   * Overrides the phase's id — `"presence"` by default. See `PhaseMeta.id` in
+   * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
+   */
+  readonly id?: string;
+  /**
+   * Ids of the phases this phase must follow. The phase declares none of its
+   * own — it runs first — so the list is exactly what you pass (ADR 0008).
+   */
+  readonly requires?: readonly string[];
 }
 
 interface PresenceItem {
@@ -247,9 +256,12 @@ export function presencePhase<V extends Record<string, unknown>, P = NoProvenanc
   options: PresencePhaseOptions,
 ): Phase<V, P> {
   const def: PhaseDef<V, P, PresenceItem, Record<string, boolean>> = {
-    id: "presence",
+    id: options.id ?? "presence",
     onItemFailure: "skip",
-    produces: [presenceNoteKey],
+    // The caller's ids are the whole `requires` — the phase declares none of
+    // its own (see the option); an absent option leaves the def's `requires`
+    // unset.
+    ...(options.requires === undefined ? {} : { requires: options.requires }),
     describeItem: (item) => ({ key: item.group.key }),
     plan: () => options.groups.map((group) => ({ group })),
     run: async (item, _draft, ctx) => {
@@ -300,6 +312,8 @@ export function presencePhase<V extends Record<string, unknown>, P = NoProvenanc
       return {
         ...draft,
         fields: fields as DeepPartial<Enveloped<V, P>>,
+        // Written unconditionally — the span phase's plan reads this key and
+        // demands it, so even a fully-failed presence pass must write it.
         notes: draft.notes.set(presenceNoteKey, maps),
       };
     },

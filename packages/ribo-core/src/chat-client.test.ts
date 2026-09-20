@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, test } from "vitest";
 
-import { isCancellation } from "@azx/ribo-core";
+import { isCancellation } from "./cancellation.js";
 
 import { ChatError } from "./chat-client.js";
 import type {

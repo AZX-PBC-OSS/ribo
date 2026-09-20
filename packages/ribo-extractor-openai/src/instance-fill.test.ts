@@ -2,9 +2,15 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
 import { enveloped, SchemaParseError, TerminalError } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget, PhaseUnit, RetryBudget } from "@azx/ribo-core";
-
-import type { ChatClient, ChatCompletion, ChatRequest } from "./chat-client.js";
+import type {
+  ChatClient,
+  ChatCompletion,
+  ChatRequest,
+  Enveloped,
+  ExtractionTarget,
+  PhaseUnit,
+  RetryBudget,
+} from "@azx/ribo-core";
 import {
   buildFillMessages,
   projectFillExample,

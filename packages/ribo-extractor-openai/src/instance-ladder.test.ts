@@ -8,14 +8,14 @@ import {
   terminalFallsThrough,
 } from "@azx/ribo-core";
 import type {
+  ChatClient,
+  ChatRequest,
   Enveloped,
   ExtractionArbiter,
   ExtractionTarget,
   ExtractionUnit,
   ResultOutcome,
 } from "@azx/ribo-core";
-
-import type { ChatClient, ChatRequest } from "./chat-client.js";
 import { instanceLadder } from "./instance-ladder.js";
 import { perGroupArrayExtractor, perGroupSingletonExtractor } from "./per-group.js";
 import type { FillScope } from "./instance-fill.js";

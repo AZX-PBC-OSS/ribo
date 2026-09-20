@@ -125,10 +125,11 @@ Four tiers. Dependencies always point **inward toward `ribo-core`**: `ribo-ui-re
 `ribo-adapter-snuggpro`, `ribo-extractor-openai`, `ribo-extractor-ondevice`, `ribo-transcriber-ondevice`,
 `ribo-transcriber-managed`, `ribo-transcriber-managed-docs` and `ribo-transcriber-pdfjs` each depend on
 `ribo-core`. **One exception, declared rather than hidden:** `ribo-extractor-ondevice` also depends
-on `ribo-extractor-openai` (a real `workspace:^` `dependencies` entry) for its shared chat-client
-vocabulary — `ChatError`, `ChatCapability`, `ChatMessage`, `ChatRequest`, `CapableChatClient` and
-`perGroupExtractor`, imported across `three-phase-extractor.ts`, `ondevice-chat.ts`, `capability.ts`
-and `session.ts`. No other leaf package depends on a sibling leaf. The field app composes all of
+on `ribo-extractor-openai` (a real `workspace:^` `dependencies` entry) for `perGroupExtractor` in
+`retry-integration.test.ts` — the chat seam itself (`ChatError`, `ChatCapability`, `ChatMessage`,
+`ChatRequest`, `CapableChatClient`) and the presence/span/classify phases moved into `ribo-core`
+(SP4a wave 5), and a day when that test composes differently the dependency goes with it. No other
+leaf package depends on a sibling leaf. The field app composes all of
 these; nothing depends on the field app.
 
 | Tier                                 | Location                                 | Responsibility                                                                                                                                                                                                     |

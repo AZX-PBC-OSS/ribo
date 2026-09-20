@@ -5,6 +5,7 @@ import { enveloped } from "./enveloped.js";
 import type { Enveloped, NoProvenance } from "./enveloped.js";
 import type { Extractor } from "./extractor.js";
 import { FakeExtractor } from "./extractor.js";
+import { emptyNotes, noteKey } from "./phase-notes.js";
 import { emptyDraft } from "./phase-draft.js";
 import type { PhaseDraft } from "./phase-draft.js";
 import type { PhaseItemOutcome } from "./phase-outcome.js";
@@ -93,13 +94,14 @@ test("the result's usage arrives on the PhaseOutput", async () => {
   });
 });
 
-test("merge installs the fields into an empty draft and leaves notes untouched", async () => {
+test("merge installs the fields into an empty draft and writes no notes", async () => {
   const extractor = new FakeExtractor<Env>(fieldsFixture);
   const phase = extractorPhase<TestValues>("lift", extractor);
   const draft0 = emptyDraft<TestValues>();
   const draft1 = await phase.with((def) => foldPhase(def, draft0));
   expect(draft1.fields).toEqual(fieldsFixture);
-  expect(draft1.notes).toBe(draft0.notes);
+  // The merge speaks in fields and results, not notes: the bag is left empty.
+  expect(draft1.notes.keys).toEqual([]);
 });
 
 test("merge carries raw and statedEmptyGroups through when present, absent/empty when not", async () => {
@@ -130,6 +132,9 @@ test("merge carries raw and statedEmptyGroups through when present, absent/empty
 
 test("merge overwrites the keys the extractor returned, leaving the draft's other top-level keys", async () => {
   const rooms = [{ name: { value: "attic", confidence: 0.7, sourceSpan: "attic" } }];
+  // A pre-existing note, so the merge's non-write of notes is observable: whatever
+  // the draft carried must survive untouched.
+  const carriedKey = noteKey<unknown>("carried");
   const draft0: PhaseDraft<TestValues> = {
     ...emptyDraft<TestValues>(),
     fields: {
@@ -137,6 +142,7 @@ test("merge overwrites the keys the extractor returned, leaving the draft's othe
       rooms,
     },
     raw: "old raw",
+    notes: emptyNotes().set(carriedKey, 1),
   };
   // The enveloped schema is closed, so the extractor's result covers every top-level
   // group key: `note` is overwritten, and so is `rooms` — wholesale, by the shallow
@@ -157,11 +163,31 @@ test("merge overwrites the keys the extractor returned, leaving the draft's othe
   });
   expect(draft1.fields.rooms).toEqual([]);
   expect(draft1.raw).toBe("old raw");
-  expect(draft1.notes).toBe(draft0.notes);
+  expect(draft1.notes.get(carriedKey)).toBe(1);
 });
 
 test("a phase built this way passes validatePhases as a single-element list", () => {
   const extractor = new FakeExtractor<Env>(fieldsFixture);
   const phase = extractorPhase<TestValues>("lift", extractor);
   expect(() => validatePhases<TestValues>([phase])).not.toThrow();
+});
+
+test("the id is the caller's argument — the lift has no default of its own", () => {
+  // `extractorPhase` takes its id as a required first parameter, so a phase list
+  // can use the lift more than once by passing distinct ids — the property the
+  // options-based factories gain an `id` option for.
+  const extractor = new FakeExtractor<Env>(fieldsFixture);
+  expect(extractorPhase<TestValues>("lift", extractor).id).toBe("lift");
+  expect(extractorPhase<TestValues>("base", extractor).id).toBe("base");
+});
+
+test("declares no requires of its own, and the option absent leaves it undefined", () => {
+  const extractor = new FakeExtractor<Env>(fieldsFixture);
+  expect(extractorPhase<TestValues>("lift", extractor).requires).toBeUndefined();
+});
+
+test("a caller's requires is taken as the requires — the lift has no default to replace", () => {
+  const extractor = new FakeExtractor<Env>(fieldsFixture);
+  const phase = extractorPhase<TestValues>("lift", extractor, { requires: ["mine"] });
+  expect(phase.requires).toEqual(["mine"]);
 });

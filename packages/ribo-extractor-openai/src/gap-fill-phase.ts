@@ -35,6 +35,7 @@ import { z } from "zod";
 
 import { phaseBuilder } from "@azx/ribo-core";
 import type {
+  ChatClient,
   Enveloped,
   Extracted,
   ExtractionTarget,
@@ -43,7 +44,6 @@ import type {
   PhaseDef,
 } from "@azx/ribo-core";
 
-import type { ChatClient } from "./chat-client.js";
 import type { UsageTotals } from "./extraction-common.js";
 import {
   addUsage,
@@ -97,6 +97,18 @@ export interface GapFillPhaseOptions<V extends Record<string, unknown>, P = NoPr
    * follow-up path and never on the passthrough path. Defaults to identity.
    */
   readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
+  /**
+   * Overrides the phase's id — `"gapfill"` by default. See `PhaseMeta.id` in
+   * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
+   */
+  readonly id?: string;
+  /**
+   * Ids of the phases this one must follow. The phase declares none of its
+   * own — it is an optional refiner over whatever draft it is given, and its
+   * `plan` returns `[]` when it finds no candidates, so even `[gapfill]` alone
+   * is a valid list (ADR 0008) — meaning the list is exactly what you pass.
+   */
+  readonly requires?: readonly string[];
 }
 
 /**
@@ -134,6 +146,7 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
     maxTokens,
     normalize = (fields) => fields,
     targets = ["abstained"],
+    id: phaseId = "gapfill",
   } = options;
   const wanted = new Set<GapFillTarget>(targets);
   const context = `gapFillExtractor: model response for "${target.name}"`;
@@ -141,8 +154,14 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
   const name = `${target.name}-gap-fill`;
 
   const def: PhaseDef<V, P, GapFillItem, Record<string, Extracted<unknown>>> = {
-    id: "gapfill",
+    id: phaseId,
     maxRetries: 0,
+    // Deliberately no `requires` of its own, and no default: gap-fill is an
+    // optional refiner whose plan returns `[]` when it finds no candidates, so
+    // `[gapfill]` alone is a valid list — the engine treats an empty plan as a
+    // no-op (ADR 0008). The caller's ids are the whole `requires` (see the
+    // option).
+    ...(options.requires === undefined ? {} : { requires: options.requires }),
     describeItem: () => ({ key: "" }),
     plan: (draft, ctx) => {
       // THE CAST, and why it is sound: the pure helpers take `Enveloped<V, P>`;

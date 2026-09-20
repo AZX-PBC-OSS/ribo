@@ -1,5 +1,13 @@
-import { emptyDraft, enveloped } from "@azx/ribo-core";
+import {
+  emptyDraft,
+  enveloped,
+  extractorPhase,
+  FakeExtractor,
+  validatePhases,
+} from "@azx/ribo-core";
 import type {
+  ChatClient,
+  ChatRequest,
   DeepPartial,
   Enveloped,
   ExtractionTarget,
@@ -9,7 +17,6 @@ import type {
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import type { ChatClient, ChatRequest } from "./chat-client.js";
 import { gapFillPhase } from "./gap-fill-phase.js";
 import type { AbstainedLeaf } from "./gap-fill.js";
 
@@ -321,5 +328,91 @@ describe("gapFillPhase — merge", () => {
         wall: abstainingFields.envelope.wall,
       },
     });
+  });
+});
+
+describe("gapFillPhase — metadata", () => {
+  test("declares no requires of its own — `[gapfill]` alone is a valid list", () => {
+    const chat: ChatClient = {
+      complete: () => Promise.resolve({ content: "{}", finishReason: "stop" }),
+    };
+    const phase = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
+    expect(phase.requires).toBeUndefined();
+  });
+});
+
+describe("gapFillPhase — requires", () => {
+  const chat: ChatClient = {
+    complete: () => Promise.resolve({ content: "{}", finishReason: "stop" }),
+  };
+
+  test("a caller's requires REPLACES — there is no default, so the list is exactly what you pass", () => {
+    const phase = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat,
+      model: "m",
+      requires: ["mine"],
+    });
+    expect(phase.requires).toEqual(["mine"]);
+  });
+
+  test("[gapfill] alone is accepted, and against an empty draft its plan returns no items and makes no call", () => {
+    // Acceptance alone would still pass if a regression quietly wired gap-fill
+    // to do work it cannot do — so pin the no-op half too: an empty draft has
+    // nothing abstained, the plan returns no items, and the chat is never
+    // reached. (The engine still fails such a run at the closing parse — the
+    // schema requires every group key — but that is the retryable, cheap half.)
+    const requests: ChatRequest[] = [];
+    const chat: ChatClient = {
+      complete: (request) => {
+        requests.push(request);
+        return Promise.resolve({ content: "{}", finishReason: "stop" });
+      },
+    };
+    const gapfill = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
+    expect(() => validatePhases<GapValues>([gapfill])).not.toThrow();
+
+    gapfill.with((def) => {
+      expect(def.plan(emptyDraft<GapValues>(), ctx)).toEqual([]);
+    });
+    expect(requests).toHaveLength(0);
+  });
+});
+
+describe("gapFillPhase — id", () => {
+  test('defaults to "gapfill" and honours an explicit id', () => {
+    const chat: ChatClient = {
+      complete: () => Promise.resolve({ content: "{}", finishReason: "stop" }),
+    };
+    const defaults = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
+    expect(defaults.id).toBe("gapfill");
+    const renamed = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat,
+      model: "m",
+      id: "gapfill-second-pass",
+    });
+    expect(renamed.id).toBe("gapfill-second-pass");
+  });
+
+  test("two gapFillPhases with different ids validate together — the thing the option exists to unblock", () => {
+    // `validatePhases` rejects duplicate ids, so a phase list that wants two
+    // follow-ups — one per kind of gap, say — needs one of them renamed. The
+    // base phase populates the draft the follow-ups' plans read.
+    const base = new FakeExtractor<GapExtraction>(committedFields);
+    const first = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat: {} as ChatClient,
+      model: "m",
+    });
+    const second = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat: {} as ChatClient,
+      model: "m",
+      id: "gapfill-ungrounded",
+    });
+    expect(() =>
+      validatePhases<GapValues>([extractorPhase("base", base), first, second]),
+    ).not.toThrow();
   });
 });

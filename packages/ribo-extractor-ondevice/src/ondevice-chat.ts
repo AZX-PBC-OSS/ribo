@@ -6,7 +6,7 @@ import {
   type ChatCompletion,
   type ChatMessage,
   type ChatRequest,
-} from "@azx/ribo-extractor-openai";
+} from "@azx/ribo-core";
 
 import type {
   LanguageModel,

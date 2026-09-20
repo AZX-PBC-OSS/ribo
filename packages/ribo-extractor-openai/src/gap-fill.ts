@@ -42,6 +42,8 @@ import {
   spanGroundedness,
 } from "@azx/ribo-core";
 import type {
+  ChatClient,
+  ChatMessage,
   Enveloped,
   Extracted,
   ExtractionObserver,
@@ -52,7 +54,6 @@ import type {
   PhaseUnit,
 } from "@azx/ribo-core";
 
-import type { ChatClient, ChatMessage } from "./chat-client.js";
 import { gapFillPhase } from "./gap-fill-phase.js";
 
 /**
