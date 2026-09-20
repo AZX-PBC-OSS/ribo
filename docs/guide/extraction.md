@@ -226,6 +226,55 @@ base phase's `start`/`done` pair where it previously emitted nothing; the per-ev
 count is gone; and returned objects are no longer reference-equal to the base extractor's, because
 the closing parse rebuilds every object (values are unchanged — deep equality holds).
 
+### A phase says whether it seeds the draft
+
+`requires`/`produces` cover the **notes** a phase reads and writes. They do not cover the _fields_,
+and one phase needs them: `gapFillPhase` re-asks about leaves an earlier phase left abstained, so it
+needs a draft somebody populated. There is no note key for that.
+
+Two optional flags close it:
+
+```ts
+seedsDraft?: boolean;    // this phase's merge can populate an empty draft's fields
+requiresDraft?: boolean; // this phase only does useful work over a populated one
+```
+
+`validatePhases` rejects a list where a `requiresDraft` phase has no earlier `seedsDraft` one —
+`[gapfill]` alone, or `[inventory, gapfill]`. Order matters, and a seeder later in the list does not
+help.
+
+**Why this is worth a construction-time error.** Without it the list runs, plans nothing, and dies
+at the closing parse — every group key is required, so a draft missing them is rejected. That
+failure is **retryable**, so the relay re-runs the whole list and re-spends every earlier phase's
+calls, repeatedly. Failing at construction is free.
+
+`fill`, `presence` and a lifted `extractorPhase` seed. `gapfill` requires. `inventory` declares
+neither: it writes `[]` entries for groups the roster called empty, which is scaffolding rather than
+extracted data.
+
+### Running a phase twice
+
+A second `fillPhase` used to be a no-op that overwrote the first — its `plan` reads the roster and
+the transcript, never the draft. `narrowToAbstained: true` makes it skip jobs whose leaves are
+already committed, so `[inventory, fill, fill({ narrowToAbstained: true })]` re-asks only about what
+the first pass missed.
+
+The granularity is the **job**, not the leaf: a job with any uncommitted leaf is planned in full.
+Leaf-level narrowing is what `gapFillPhase` does.
+
+Every phase factory also takes an optional `id`, defaulting to its usual one, because
+`validatePhases` rejects duplicates and a list using a kind twice needs to name them apart.
+
+### What you cannot do: scope a phase to some groups
+
+Targeting a subset of groups is not available, and will not be. The extraction schema requires
+**every** top-level group key — that is the anti-hallucination rule, which forces a model to emit an
+explicit `null` rather than omit a field — and a phase's merge writes only the groups it ran jobs
+for. A scoped fill therefore leaves the other keys absent and the run fails at the parse.
+
+The distinction against `narrowToAbstained` is exact: narrowing skips work that is **already done**,
+so those keys are already in the draft; scoping would skip work that was **never done**.
+
 ### Which phases you can actually compose
 
 `gapFillPhase`, `inventoryPhase`, `fillPhase` and `rosterNoteKey` are exported from
