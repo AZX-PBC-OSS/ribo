@@ -20,19 +20,12 @@ import type { CapableChatClient, ExtractionTarget } from "./index.js";
  * modules through the package's `exports` map, so this is exactly the
  * composition the barrel makes possible, and nothing else.
  *
- * The test moved here from `@azx/ribo-extractor-ondevice` (SP4a wave 5, with
- * the phases), and the move makes its point STRONGER: a host no longer composes
- * these phases from an extractor package — the transport-agnostic walk is core
- * surface, and the on-device package only tunes the preset. The transport here
- * is a bare `CapableChatClient` fake rather than any real engine: construction
- * and validation make no calls, and any host-wired transport must do.
- *
- * The groups come from `extractGroups`, also public: the first cut of the
- * earlier wave exported the phases but not the walk that feeds them, so a host
- * could build a list and never run one. `presencePhase` takes
- * `groups: readonly Group[]` and `extractGroups` is the only thing that
- * produces them. Walking a REAL schema here rather than passing `[]` is what
- * makes this the composition test — it is the whole path a host would take.
+ * The transport is a bare `CapableChatClient` fake: construction and validation
+ * make no calls, and any host-wired transport must do. The groups come from
+ * `extractGroups`, also public — `presencePhase` takes `groups: readonly Group[]`
+ * and `extractGroups` is the only thing that produces them. Walking a REAL schema
+ * here rather than passing `[]` is what makes this the composition test — it is
+ * the whole path a host would take.
  */
 
 const patchSchema = z.strictObject({
@@ -54,9 +47,7 @@ const target: ExtractionTarget<Values> = {
 };
 
 function composeOptions() {
-  // A bare `CapableChatClient` double — the seam the phases take, faked the
-  // way a host's test would fake whatever transport it wires. Construction
-  // and validation make no calls.
+  // A bare `CapableChatClient` double — construction and validation make no calls.
   const chat: CapableChatClient = {
     engine: "fake-chat",
     capability: () => {
@@ -66,8 +57,7 @@ function composeOptions() {
       throw new Error("complete() is not exercised by construction and validation");
     },
   };
-  // The walk, from the barrel. A host with an extraction schema and nothing
-  // else can get here, which is the property this file exists to pin.
+  // The walk, from the barrel — the property this file exists to pin.
   const groups = extractGroups(z.toJSONSchema(target.extractionSchema));
   return { chat, model: chat.engine, groups };
 }
@@ -75,8 +65,7 @@ function composeOptions() {
 describe("a phase list composed through the public entry point", () => {
   test("constructs and validates through phasedExtractor", () => {
     const { chat, model, groups } = composeOptions();
-    // Non-empty: the walk found the schema's groups, so these phases are
-    // constructed the way a host would construct them.
+    // Non-empty: the walk found the schema's groups.
     expect(groups.length).toBeGreaterThan(0);
     const phases = [
       presencePhase<Values>({ groups, chat, model }),
@@ -89,10 +78,8 @@ describe("a phase list composed through the public entry point", () => {
   });
 
   test("the note-key chain the list depends on is the barrel's own keys", () => {
-    // The chain is what validatePhases judges, so pin it against the BARREL's
-    // keys: if the barrel exported a different-but-equal key instead of the
-    // phases' own, these fail and a host composing with those keys in hand
-    // would be wiring a list the shipped phases do not speak.
+    // Pinned against the BARREL's keys: if the barrel exported a
+    // different-but-equal key instead of the phases' own, these fail.
     const { chat, model, groups } = composeOptions();
     const presence = presencePhase<Values>({ groups, chat, model });
     const span = spanPhase<Values>({ groups: [], chat, model });

@@ -493,7 +493,7 @@ describe("fillPhase — requires", () => {
   // THE composition pin the wave exists for: a caller-built phase produces a
   // custom key, the SHIPPED fill phase is given that key through the additive
   // `requires` option, and the list's validity now depends on the caller's
-  // phase running before it — validation rejects the reversed list.
+  // phase running before it.
   test("[inventory, mine, fill] validates and [inventory, fill, mine] is rejected", () => {
     const mineKey = noteKey<unknown>("composition-pin-mine");
     const mine = phaseBuilder<DemoValues>()({
@@ -524,8 +524,7 @@ describe("fillPhase — requires", () => {
 describe("fillPhase — narrowToAbstained", () => {
   /**
    * Both leaves committed — the slot a fill response leaves when it commits
-   * everything. "Committed" is the value-non-null sense the rest of the
-   * codebase uses; a slot holding any null value is not committed.
+   * everything; "committed" is the value-non-null sense, so any null is not.
    */
   const committedLeaves = (colorValue: string, sizeValue: string): Record<string, unknown> => ({
     color: { value: colorValue, sourceSpan: "span", confidence: 1 },
@@ -631,8 +630,9 @@ describe("fillPhase — narrowToAbstained", () => {
   });
 
   test("a job with one committed and one abstained leaf plans the whole job — the granularity is the job, not the leaf", () => {
-    // Deliberately job-granular: leaf-level narrowing is gapFillPhase's job
-    // (ADR 0009 records the limit).
+    // Deliberately job-granular — leaf-level narrowing is gapFillPhase's (ADR
+    // 0009). Widget 0's color is committed and its size abstained, so its job
+    // re-asks about everything in it.
     const phase = fillPhase<DemoValues>({
       target,
       chat: {} as ChatClient,

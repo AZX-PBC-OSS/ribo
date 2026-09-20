@@ -1,13 +1,9 @@
 /**
  * The chat transport seam — a THIN, provider-agnostic interface an extractor
  * calls to reach a chat-completions model. It lives in core (moved from
- * `@azx/ribo-extractor-openai`, SP4a wave 5) because the transport-agnostic
- * phases that consume it — the presence/span/classify trio — live here too, and
- * a seam owned by one extractor package would force the other to reach across
- * a sibling boundary. Core stays IMPLEMENTATION-free, not interface-free: no
- * `fetch`, no provider SDK, no credentials — `openAiChat` and `helixChat` remain
- * in the openai package, and the transport is injected exactly as the
- * transcriber and connectivity probe are.
+ * `@azx/ribo-extractor-openai`, SP4a wave 5) beside the transport-agnostic
+ * phases that consume it; core stays IMPLEMENTATION-free, not interface-free:
+ * no `fetch`, no provider SDK, no credentials — the transports are injected.
  *
  * The shape mirrors the OpenAI-compatible `/chat/completions` contract the Helix
  * proxy exposes (A2): a `model`, an ordered list of role-tagged `messages`, and a
@@ -85,9 +81,7 @@ export interface ChatUsage {
    *
    * Load-bearing for a real question: extraction sends the same instructions and
    * few-shot example on every group call, so whether the prefix is being cached
-   * decides what that example actually costs in production. Without this the
-   * answer is unobservable from the field — `helixChat` used to parse the route's
-   * `cacheReadInputTokens` and throw it away for want of somewhere to put it.
+   * decides what that example actually costs in production.
    */
   readonly cachedPromptTokens?: number;
   /**
@@ -113,9 +107,7 @@ export interface ChatUsage {
  * `choices[0].finish_reason` is missing, non-string, or not one of the three known
  * members is a {@link ChatError} of kind `malformed-response`, not a completion with
  * the field left off. `ribo-adapter-snuggpro/acceptance/cli-chat.ts`
- * cannot truncate, so its inability to report a finish reason is sound. An optional
- * field that implementations are required to populate is a contract a reader cannot
- * infer from the type.
+ * cannot truncate, so its inability to report a finish reason is sound.
  */
 export interface ChatCompletion {
   readonly content: string;
@@ -223,9 +215,8 @@ export type ChatCapability =
  * Both the managed and on-device transports implement this: the managed path may
  * become unavailable when the uplink drops, and the on-device path may need a
  * download or may be unsupported. Keeping the contract in core, beside the
- * `Transcriber` seam, is what lets the extractor packages consume it without a
- * dependency between them — `helixChat` and the on-device transport both
- * implement it, and neither imports the other's package.
+ * `Transcriber` seam, lets both extractor packages consume it without a
+ * dependency between them.
  */
 export interface CapableChatClient extends ChatClient {
   /**
@@ -271,11 +262,11 @@ export type ChatErrorKind =
  * flattening to a message string discards.
  *
  * The `aborted` factory additionally brands its error with the `CANCELLATION`
- * marker (`cancellation.ts`), so a combinator anywhere in the workspace can
- * recognise "the caller stopped this" without importing a transport's error
- * type. The brand is set in THAT factory only — never in the constructor and
- * never on the prototype: branding the class would make every transport failure
- * look like a cancellation and silently disable retries everywhere.
+ * marker (`cancellation.ts`), so a combinator anywhere can recognise "the caller stopped
+ * this" without importing a transport's error type. The brand is set in THAT
+ * factory only — never in the constructor and never on the prototype: branding the
+ * class would make every transport failure look like a cancellation and silently
+ * disable retries everywhere.
  */
 export class ChatError extends Error {
   override readonly name = "ChatError";

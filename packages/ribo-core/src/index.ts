@@ -611,13 +611,10 @@ export { validatePhases } from "./validate-phases.js";
 export { extractorPhase } from "./extractor-phase.js";
 export type { ExtractorPhaseOptions } from "./extractor-phase.js";
 
-// The chat transport seam — the THIN, provider-agnostic interface an extractor calls to
-// reach a chat-completions model, moved here from `@azx/ribo-extractor-openai` so the
-// transport-agnostic phases beside it (see below, wave 5) can consume it without any
-// package reaching across a sibling boundary. Core stays IMPLEMENTATION-free: no fetch,
-// no provider SDK, no credentials — the transports (`openAiChat`, `helixChat`, the
-// on-device one) live in the extractor packages and are injected. `ChatError` is a VALUE
-// export (a class); the rest are types.
+// The chat transport seam — moved here from `@azx/ribo-extractor-openai` (SP4a wave 5)
+// beside the transport-agnostic phases that consume it. Core stays IMPLEMENTATION-free:
+// the transports (`openAiChat`, `helixChat`, the on-device one) live in the extractor
+// packages and are injected. `ChatError` is a VALUE export (a class); the rest are types.
 export { ChatError } from "./chat-client.js";
 export type {
   CapableChatClient,
@@ -635,13 +632,11 @@ export type {
   ChatUsage,
 } from "./chat-client.js";
 
-// The three-phase walk that a narrowing strategy composes its phase list from —
-// moved here from `@azx/ribo-extractor-ondevice` (SP4a wave 5): the phases ask a
-// `ChatClient` which leaves are present, what spans support them, and which are
-// unsupported — nothing on-device — and core owns the phase vocabulary beside
-// `extractorPhase`. The on-device package keeps the preset that tunes them
-// (`threePhaseExtractor`); a host composes the phases themselves from here, the
-// way `public-composition.test.ts` does.
+// The three-phase walk, moved here from `@azx/ribo-extractor-ondevice` (SP4a wave 5):
+// the phases ask a `ChatClient` which leaves are present, what spans support them, and
+// which are unsupported — nothing on-device — and core owns the phase vocabulary. The
+// on-device package keeps the preset; a host composes the phases from here, the way
+// `public-composition.test.ts` does.
 export { extractGroups, presencePhase, presenceNoteKey } from "./presence-phase.js";
 export type { Group, JsonSchema, Leaf, PresencePhaseOptions } from "./presence-phase.js";
 export { spanPhase, spansNoteKey } from "./span-phase.js";
@@ -663,5 +658,4 @@ export type { PhasedExtractorOptions } from "./phased-extractor.js";
 // transcripts — one phantom instance per chunk, because each chunk sees a fragment of
 // one unit and reports a unit. And the problem it solved does not occur here: the whole
 // corpus is 21KB of text, while the constraint that actually binds is SCHEMA size, which
-// per-group extraction already handles. See
-// `spikes/chunked-vs-single/FINDINGS.md` and the SP3 design's §4.3.
+// per-group extraction already handles. The SP3 design's §4.3 records the measurement.

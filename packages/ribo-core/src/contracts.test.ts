@@ -398,9 +398,7 @@ test("the hedged extractor vocabulary is public through the barrel and composes 
 });
 
 test("the chat transport seam is public through the barrel and composes as typed", async () => {
-  // Moved here from `@azx/ribo-extractor-openai` (SP4a wave 5): the
-  // transport-agnostic phases consume this seam, so it is core vocabulary. The
-  // type-level pin, as index.test.ts defers type-only exports to this file —
+  // The type-level pin, as index.test.ts defers type-only exports to this file —
   // the seam must resolve through the barrel for an extractor author, and a
   // plain `ChatClient` must not count as `CapableChatClient`.
   const client: ChatClient = {

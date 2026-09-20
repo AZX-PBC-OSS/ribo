@@ -47,14 +47,11 @@ export interface PhaseMeta {
    * cannot use a phase KIND twice unless one instance can be renamed, because
    * `validatePhases`' duplicate check is per id, not per kind. An id reaches
    * exactly three places — `validatePhases`' duplicate detection, the engine's
-   * error messages, and `PhaseUnit.phaseId` in the live observer stream.
-   * Nothing persists it — not the session record, not the storage schema, not
-   * the UI hook — so a caller-chosen id changes only what a live progress
-   * consumer sees, which is correct for a distinct phase instance. No charset
-   * is validated at the factories: SP4's review flagged that a model-chosen id
-   * would reach the relay's persisted `lastError`, and constraining that
-   * belongs with the planner that accepts model input, not with a factory a
-   * developer calls.
+   * error messages, and `PhaseUnit.phaseId` in the live observer stream — and
+   * nothing persists it, so a caller-chosen id changes only what a live
+   * progress consumer sees. No charset is validated at the factories:
+   * constraining a model-chosen id belongs with the planner that accepts model
+   * input, not with a factory a developer calls.
    */
   readonly id: string;
   /** Note keys this phase reads from the draft's bag, which an earlier phase must have produced. */
@@ -192,8 +189,7 @@ export function phaseBuilder<V extends Record<string, unknown>, P = NoProvenance
   // Copied member-by-member, not by spread: a spread would carry `plan`/`run`/`merge`
   // onto the outside of the `Phase`, defeating the existential hiding. The cost is that
   // a new `PhaseMeta` member MUST be added to this list — missed, it reads `undefined`
-  // off every builder-constructed phase and validation silently never sees it, so a
-  // test for the member belongs beside whatever rule consumes it.
+  // off every builder-constructed phase and validation silently never sees it.
   return (def) => ({
     id: def.id,
     requires: def.requires,

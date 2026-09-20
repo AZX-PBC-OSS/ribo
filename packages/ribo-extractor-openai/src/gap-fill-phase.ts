@@ -104,18 +104,8 @@ export interface GapFillPhaseOptions<V extends Record<string, unknown>, P = NoPr
   readonly id?: string;
   /**
    * Extra note keys this phase must wait for, unioned with the phase's own —
-   * additive, never replacing. A phase's own `requires` is a fact about what
-   * its `plan` reads, not a configuration choice: letting a caller replace it
-   * would let them declare away a real dependency, reintroducing the
-   * `[gapfill]`-alone class of bug the note-key check exists to reject. Adding
-   * can only make validation stricter. Duplicates are removed cosmetically —
-   * the engine tolerates a repeat; dedup keeps error messages and any future
-   * introspection clean.
-   *
-   * **Deliberately no additive `produces`.** The engine verifies a declared
-   * `produces` key against what the phase's merge actually wrote, and this
-   * merge will never write a caller's key — declaring one would throw mid-run.
-   * A caller's contribution belongs on a caller-built phase.
+   * additive, never replacing, and never a `produces`: the rule stated once on
+   * `FillPhaseOptions.requires` (same package).
    */
   readonly requires?: readonly string[];
 }
@@ -166,11 +156,10 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
     id: phaseId,
     maxRetries: 0,
     // Its dependency is the SHAPE of `draft.fields` — re-asking about the leaves
-    // another phase left abstained — declared through the draft-seeded marker so
-    // `validatePhases` rejects a list where nothing populates the draft before this
-    // phase at construction, instead of the run dying at the closing parse with a
-    // retryable `SchemaParseError` that re-spends the earlier phases' calls on every
-    // retry.
+    // another phase left abstained — declared through the draft-seeded marker, so
+    // `validatePhases` rejects a list where nothing populates the draft first,
+    // instead of the run dying at the closing parse with a retryable error that
+    // re-spends the earlier phases' calls on every retry.
     // Unioned, never replaced — see `GapFillPhaseOptions.requires`.
     requires: [...new Set([draftSeededNoteKey, ...(options.requires ?? [])])],
     describeItem: () => ({ key: "" }),

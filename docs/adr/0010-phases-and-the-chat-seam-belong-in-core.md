@@ -9,14 +9,14 @@ Date: 2026-09-19
 not exported from it. Their only imports were `noteKey`/`phaseBuilder` from core and the chat seam
 (`CapableChatClient`, `ChatMessage`, `ChatError`, …) from `@azx/ribo-extractor-openai`. Nothing in
 them is on-device: they ask a chat client which leaves are present, what spans support them, and
-which are unsupported. They were there because `threePhaseExtractor` — the on-device *preset* — is
+which are unsupported. They were there because `threePhaseExtractor` — the on-device _preset_ — is
 there, and they were carved out of it.
 
 The consequence was that any composition story was managed-only, which for an offline-first library
 is the wrong half. It also meant a host could not build an alternative arrangement of the phases
 the library already ships.
 
-The chat seam was similarly misplaced. `chat-client.ts` is the transport *interface*; `openAiChat`
+The chat seam was similarly misplaced. `chat-client.ts` is the transport _interface_; `openAiChat`
 and `helixChat` are implementations. It imported exactly one symbol — `CANCELLATION` from core.
 
 ## Decision

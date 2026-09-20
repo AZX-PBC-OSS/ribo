@@ -17,10 +17,8 @@ export { threePhaseExtractor } from "./three-phase-extractor.js";
 export type { ThreePhaseExtractorOptions } from "./three-phase-extractor.js";
 
 // The four phases `threePhaseExtractor` composes moved to `@azx/ribo-core` in
-// SP4a wave 5 — they are transport-agnostic, and core owns the phase vocabulary
-// — so their factories, options types, note keys and the `extractGroups` schema
-// walk are exported THERE now. This barrel keeps only what it owns: the on-device
-// transport, the preset that tunes the phases to it, and the device capability
-// vocabulary.
+// SP4a wave 5 — transport-agnostic, and core owns the phase vocabulary — so their
+// factories, note keys and the `extractGroups` walk are exported THERE. This barrel
+// keeps what it owns: the transport, the preset, the device capability vocabulary.
 
 export { SessionCapabilityError } from "./session.js";

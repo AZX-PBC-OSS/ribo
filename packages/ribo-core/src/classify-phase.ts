@@ -40,9 +40,8 @@
  * The marker reports `{ calls: 1 }`: the call was made and today's code counts
  * it; a marker carrying no usage would undercount every unsupported leaf.
  *
- * Since SP4a wave 5 this file lives in core beside `presence-phase.ts` (same
- * move, same reason): the `ChatError` it reads is core's seam type, and nothing
- * here is on-device.
+ * Since SP4a wave 5 this file lives in core beside `presence-phase.ts`: the
+ * `ChatError` it reads is core's seam type, and nothing here is on-device.
  */
 
 import { ChatError } from "./chat-client.js";
@@ -100,18 +99,8 @@ export interface ClassifyPhaseOptions {
   readonly id?: string;
   /**
    * Extra note keys the phase must wait for, unioned with its own — additive,
-   * never replacing. A phase's own `requires` is a fact about what its `plan`
-   * reads, not a configuration choice: letting a caller replace it would let
-   * them declare away a real dependency, reintroducing the `[gapfill]`-alone
-   * class of bug the note-key check exists to reject. Adding can only make
-   * validation stricter. Duplicates are removed cosmetically — the engine
-   * tolerates a repeat; dedup keeps error messages and any future
-   * introspection clean.
-   *
-   * **Deliberately no additive `produces`.** The engine verifies a declared
-   * `produces` key against what the phase's merge actually wrote, and the
-   * classify merges will never write a caller's key — declaring one would
-   * throw mid-run. A caller's contribution belongs on a caller-built phase.
+   * never replacing, and never a `produces`: the rule stated once on
+   * `FillPhaseOptions.requires` (`@azx/ribo-extractor-openai`).
    */
   readonly requires?: readonly string[];
 }

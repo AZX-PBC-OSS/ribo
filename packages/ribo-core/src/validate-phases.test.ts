@@ -85,13 +85,9 @@ test("a single-phase list passes", () => {
 // ---------------------------------------------------------------------------
 // The draft-seeded marker: a phase whose dependency is the SHAPE of
 // `draft.fields` — not a note's value, so no other key would express it —
-// declares `requires: [draftSeededNoteKey]` and stands on the phases that
-// populate it, through the same order-sensitive check the note keys above
-// already get. The ids are the real phases' — the lists read as the ones the
-// presets construct — but the phases are the helper's, because the real ones
-// live in leaf packages core cannot import, and `fillPhase` carries note
-// requirements of its own that would trip the existing check for the wrong
-// reason.
+// declares `requires: [draftSeededNoteKey]`. The ids are the real phases', but
+// the phases are the helper's: the real ones live in leaf packages core cannot
+// import, and their note requirements would trip the check for the wrong reason.
 // ---------------------------------------------------------------------------
 
 test("a gapfill requiring the marker with nothing before it throws, naming the phase and the key", () => {

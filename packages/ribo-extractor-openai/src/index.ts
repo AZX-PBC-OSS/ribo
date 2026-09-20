@@ -129,9 +129,8 @@ export type { OpenAiChatOptions } from "./openai-chat.js";
 export { helixChat } from "./helix-chat.js";
 export type { HelixChatOptions } from "./helix-chat.js";
 
-// The chat transport seam now lives in `@azx/ribo-core` — it is the
-// transport-agnostic interface the phases speak, and the phases moved there
-// (SP4a wave 5). This re-export is compatibility for existing consumers;
+// The chat transport seam now lives in `@azx/ribo-core` (the phases moved there
+// with it, SP4a wave 5). This re-export is compatibility for existing consumers;
 // `openAiChat` and `helixChat` above remain the implementations, still here.
 export { ChatError } from "@azx/ribo-core";
 export type {

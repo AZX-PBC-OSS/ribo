@@ -42,10 +42,10 @@ import type {
   NoProvenance,
 } from "@azx/ribo-core";
 
-// The trust-boundary parse lives in core beside `SchemaParseError` — it is the
-// one function every extractor (and `groupedExtractor`'s second parse) crosses,
-// so the two parses cannot drift. Re-exported to keep this module's public
-// surface and every internal import unchanged.
+// The trust-boundary parse lives in core beside `SchemaParseError` — the one
+// function every extractor (and `groupedExtractor`'s second parse) crosses, so
+// the two parses cannot drift. Re-exported to keep this module's public surface
+// and every internal import unchanged.
 export { parseWithSchema } from "@azx/ribo-core";
 
 import { projectTarget } from "./project-target.js";

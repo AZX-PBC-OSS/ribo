@@ -126,10 +126,9 @@ test("a phase that omits describeItem is still a valid Phase", () => {
 
 // The note-channel declarations are asserted through `phaseBuilder`, never an object
 // literal: the builder copies the metadata member-by-member, so a member missing from
-// that copy list reads `undefined` off every real phase (which is every real
-// construction) while a literal-based test would still see it. The validator and the
-// planner read the metadata off the constructed `Phase` — that is why this is the
-// construction that matters.
+// that copy list reads `undefined` off every real phase, while a literal-based test
+// would still see it. The validator and planner read the constructed `Phase` — that is
+// why this is the construction that matters.
 test("a builder-constructed phase exposes requires and produces as declared", () => {
   const requirer = build({
     id: "requirer",
