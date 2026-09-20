@@ -3,6 +3,7 @@ import type {
   DeepPartial,
   Enveloped,
   ExtractionTarget,
+  Phase,
   PhaseContext,
   PhaseDraft,
   Roster,
@@ -11,7 +12,7 @@ import type { ChatClient, ChatRequest } from "./chat-client.js";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { rosterNoteKey } from "./inventory-phase.js";
+import { inventoryPhase, rosterNoteKey } from "./inventory-phase.js";
 import { fillPhase } from "./fill-phase.js";
 import type { PreparedGroup } from "./instance-fill.js";
 
@@ -455,5 +456,205 @@ describe("fillPhase — metadata", () => {
     });
     expect(phase.seedsDraft).toBe(true);
     expect(phase.requiresDraft).toBeUndefined();
+  });
+});
+
+describe("fillPhase — narrowToAbstained", () => {
+  /**
+   * Both leaves committed — the slot a fill response leaves when it commits
+   * everything. "Committed" is the value-non-null sense the rest of the
+   * codebase uses; a slot holding any null value is not committed.
+   */
+  const committedLeaves = (colorValue: string, sizeValue: string): Record<string, unknown> => ({
+    color: { value: colorValue, sourceSpan: "span", confidence: 1 },
+    size: { value: sizeValue, sourceSpan: "span", confidence: 1 },
+  });
+
+  /** Both leaves abstained — the slot a fill response leaves when it commits nothing. */
+  const abstainedLeaves = (): Record<string, unknown> => ({
+    color: { value: null, sourceSpan: null, confidence: 1 },
+    size: { value: null, sourceSpan: null, confidence: 1 },
+  });
+
+  /** Plan only; the job list as request names, through the existential hiding. */
+  function planNames(phase: Phase<DemoValues>, draft: PhaseDraft<DemoValues>): string[] {
+    return phase.with((def) => def.plan(draft, ctx).map((item) => jobOf(item).requestName));
+  }
+
+  /** Plan, run every job against the phase's chat, fold through merge. */
+  async function runPhase(
+    phase: Phase<DemoValues>,
+    draft: PhaseDraft<DemoValues>,
+  ): Promise<{ names: string[]; merged: PhaseDraft<DemoValues> }> {
+    return phase.with(async (def) => {
+      const items = def.plan(draft, ctx);
+      const names = items.map((item) => jobOf(item).requestName);
+      const outcomes = [];
+      for (const item of items) {
+        outcomes.push({
+          outcome: "result" as const,
+          item,
+          output: await def.run(item, draft, ctx),
+        });
+      }
+      return { names, merged: def.merge(draft, outcomes) };
+    });
+  }
+
+  test("plans every job the roster yields when the option is absent or false — the presets' behaviour", () => {
+    // A fully committed draft is exactly what a narrowed fill would skip — so
+    // the default's job list here is the pin that nothing narrows unless asked.
+    const draft = draftWith(twoWidgets(), {
+      widgets: [committedLeaves("red", "1"), committedLeaves("blue", "2")],
+      house: committedLeaves("main", "1950"),
+    });
+    const absent = fillPhase<DemoValues>({
+      target,
+      chat: {} as ChatClient,
+      model: "m",
+      prepared,
+      buildFillInstructions,
+    });
+    expect(planNames(absent, draft)).toEqual([
+      "demo-widgets-fill-0",
+      "demo-widgets-fill-1",
+      "demo-house-fill",
+    ]);
+    const explicitFalse = fillPhase<DemoValues>({
+      target,
+      chat: {} as ChatClient,
+      model: "m",
+      prepared,
+      buildFillInstructions,
+      narrowToAbstained: false,
+    });
+    expect(planNames(explicitFalse, draft)).toEqual([
+      "demo-widgets-fill-0",
+      "demo-widgets-fill-1",
+      "demo-house-fill",
+    ]);
+  });
+
+  test("with narrowToAbstained, an empty draft plans every job — nothing is committed yet", () => {
+    const phase = fillPhase<DemoValues>({
+      target,
+      chat: {} as ChatClient,
+      model: "m",
+      prepared,
+      buildFillInstructions,
+      narrowToAbstained: true,
+    });
+    expect(planNames(phase, draftWith(twoWidgets()))).toEqual([
+      "demo-widgets-fill-0",
+      "demo-widgets-fill-1",
+      "demo-house-fill",
+    ]);
+  });
+
+  test("with narrowToAbstained, a group whose leaves are all committed skips its job and the others keep theirs", () => {
+    const phase = fillPhase<DemoValues>({
+      target,
+      chat: {} as ChatClient,
+      model: "m",
+      prepared,
+      buildFillInstructions,
+      narrowToAbstained: true,
+    });
+    // Both widget instances are fully committed in the draft; the singleton
+    // house has no slot at all. Only the house job may survive.
+    const draft = draftWith(twoWidgets(), {
+      widgets: [committedLeaves("red", "1"), committedLeaves("blue", "2")],
+    });
+    expect(planNames(phase, draft)).toEqual(["demo-house-fill"]);
+  });
+
+  test("a job with one committed and one abstained leaf plans the whole job — the granularity is the job, not the leaf", () => {
+    // Deliberately job-granular: leaf-level narrowing — re-asking exactly the
+    // abstained leaf — is what gapFillPhase does and is a different phase
+    // (design `sp4a-composable-phases-design.md` §7 records the limit). Widget
+    // 0's color is committed and its size abstained, so its job re-asks about
+    // everything in it.
+    const phase = fillPhase<DemoValues>({
+      target,
+      chat: {} as ChatClient,
+      model: "m",
+      prepared,
+      buildFillInstructions,
+      narrowToAbstained: true,
+    });
+    const draft = draftWith(twoWidgets(), {
+      widgets: [leafEnvelope("red")],
+    });
+    expect(planNames(phase, draft)).toEqual([
+      "demo-widgets-fill-0",
+      "demo-widgets-fill-1",
+      "demo-house-fill",
+    ]);
+  });
+
+  test("two fills compose: [inventory, fill, fill(narrowToAbstained)] — the second plans strictly fewer jobs and the first fill's results survive", async () => {
+    // The wave's stated purpose, pinned end to end. The first fill commits
+    // every leaf of widget 0 and of the singleton house and abstains across
+    // widget 1; the narrowed second fill plans only widget 1's job — no call
+    // for what is already done — and its merge starts from the draft, so the
+    // first fill's committed leaves survive it.
+    const roster: Roster = {
+      widgets: [currentCandidate("the red widget"), currentCandidate("the blue widget")],
+      gadgets: [],
+      house: [],
+    };
+    const draft0 = emptyDraft<DemoValues>();
+    const inventory = inventoryPhase<DemoValues>({
+      inventory: async () => roster,
+      prepared,
+      instanceCap: 10,
+    });
+    const draft1 = (await runPhase(inventory, draft0)).merged;
+
+    const firstChat = fakeChat((name) => {
+      if (name === "demo-widgets-fill-0") return { widgets: committedLeaves("red", "1") };
+      if (name === "demo-widgets-fill-1") return { widgets: abstainedLeaves() };
+      return { house: committedLeaves("main", "1950") };
+    });
+    const first = fillPhase<DemoValues>({
+      target,
+      chat: firstChat.chat,
+      model: "demo-model",
+      prepared,
+      buildFillInstructions,
+    });
+    const firstRun = await runPhase(first, draft1);
+    expect(firstRun.names).toEqual([
+      "demo-widgets-fill-0",
+      "demo-widgets-fill-1",
+      "demo-house-fill",
+    ]);
+
+    const secondChat = fakeChat((name) => {
+      if (name === "demo-widgets-fill-1") return { widgets: committedLeaves("second-pass", "2") };
+      throw new Error(`the narrowed second fill must not call ${name}`);
+    });
+    const second = fillPhase<DemoValues>({
+      target,
+      chat: secondChat.chat,
+      model: "demo-model",
+      prepared,
+      buildFillInstructions,
+      narrowToAbstained: true,
+    });
+    const secondRun = await runPhase(second, firstRun.merged);
+    expect(secondRun.names.length).toBeLessThan(firstRun.names.length);
+    expect(secondRun.names).toEqual(["demo-widgets-fill-1"]);
+    expect(secondChat.requests).toHaveLength(1);
+
+    const fields = secondRun.merged.fields as Record<string, unknown>;
+    const widgets = fields.widgets as { color: { value: unknown }; size: { value: unknown } }[];
+    expect(widgets[0]!.color.value).toBe("red");
+    expect(widgets[0]!.size.value).toBe("1");
+    expect(widgets[1]!.color.value).toBe("second-pass");
+    expect(widgets[1]!.size.value).toBe("2");
+    const house = fields.house as { color: { value: unknown }; size: { value: unknown } };
+    expect(house.color.value).toBe("main");
+    expect(house.size.value).toBe("1950");
   });
 });

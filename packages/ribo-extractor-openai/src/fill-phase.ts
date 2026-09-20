@@ -17,10 +17,14 @@
  *   seeding empty collection groups, enforcing the cap) lives in the inventory
  *   phase's merge instead. Job derivation reads only the roster, the prepared
  *   groups' metadata and the transcript, so the split is a rearrangement, not a
- *   reordering.
+ *   reordering. The one exception is `narrowToAbstained`, which reads
+ *   `draft.fields` to skip jobs whose leaves are already committed — see the
+ *   option for why that read is sound and what it costs.
  * - **`merge` recombines and writes `raw`.** Pieces sharing a `(group, instance)`
  *   slot merge with `mergeGroupPieces`; collection groups assemble into arrays
- *   indexed by the job's `instanceIndex`, never by arrival order. `raw` is the
+ *   indexed by the job's `instanceIndex`, never by arrival order, on a base
+ *   taken from the draft's own entry for the key so a narrowed fill cannot blank
+ *   the slots its skipped jobs did not re-ask. `raw` is the
  *   assembled pre-normalize record — today `raw` is ALWAYS present on the result,
  *   and the engine emits it only when a merge wrote it, so a merge that did not
  *   write it would drop the member entirely (the exact miss the previous port in
@@ -32,7 +36,9 @@
  * other group uses `buildFillMessages` with the adapter's scope block.
  */
 
-import { mergeGroupPieces, phaseBuilder } from "@azx/ribo-core";
+import { z } from "zod";
+
+import { isExtractedLeaf, mergeGroupPieces, phaseBuilder } from "@azx/ribo-core";
 import type {
   DeepPartial,
   Enveloped,
@@ -76,6 +82,32 @@ export interface FillPhaseOptions<V extends Record<string, unknown>, P = NoProve
    * the natural-language rendering; the extractor owns the calling pattern.
    */
   readonly buildFillInstructions: (groupKey: string, scope: FillScope) => string;
+  /**
+   * When true, `plan` skips a job whose leaves are already committed in the
+   * draft, so running the fill phase twice does useful work the second time —
+   * the second fill re-asks only about what the first did not get. Defaults to
+   * `false`, which plans every job the roster yields: the presets were measured
+   * with that semantics, and `true` changes behaviour for every existing caller.
+   *
+   * **Why narrowing is sound where group scoping was not** — design
+   * `sp4a-composable-phases-design.md` §4.3 shipped this and §4.2 abandoned
+   * scoping, and the distinction is the reason. `merge` starts from
+   * `{ ...draft.fields }`, so anything an earlier phase wrote survives a
+   * narrowed re-run: narrowing skips work that is ALREADY DONE — the skipped
+   * keys are in the draft. Scoping would skip work that was NEVER DONE — its
+   * keys would be absent from `fields`, and the closing parse rejects a missing
+   * top-level group key.
+   *
+   * **The granularity is the job, not the leaf.** A job whose leaves are all
+   * committed is skipped; a job with any uncommitted leaf is planned in full and
+   * re-asks about everything in it. Leaf-level narrowing — re-asking exactly the
+   * abstained leaves — is what `gapFillPhase` does and is a different phase; §7
+   * of the design records this job-level limit as known.
+   *
+   * "Committed" means what it means everywhere else: a leaf envelope whose
+   * `value` is non-null.
+   */
+  readonly narrowToAbstained?: boolean;
 }
 
 /**
@@ -94,6 +126,58 @@ interface FillJob {
   readonly requestName: string;
   readonly context: string;
 }
+
+/**
+ * The leaves one fill job asks the model about: a partitioned piece names its
+ * own subset (`leafKeys`); any other piece's schema is the one-key object
+ * `{ [key]: leaves }`, so the element's property names are the leaf set — the
+ * same shape walk `leafSchemaAtPath` does. An empty set asks about nothing and
+ * is never treated as satisfied, so a group whose piece schema cannot be walked
+ * is always planned — narrowing may plan a job that did not need re-asking,
+ * never skip one that did.
+ */
+const pieceLeafKeys = (group: PreparedGroup): readonly string[] => {
+  if (group.leafKeys !== undefined) return group.leafKeys;
+  if (!(group.schema instanceof z.ZodObject)) return [];
+  const shape = group.schema.shape as Record<string, z.ZodType>;
+  const element = shape[group.key];
+  return element instanceof z.ZodObject ? Object.keys(element.shape) : [];
+};
+
+/**
+ * Whether every leaf a job would fill is already committed in the draft —
+ * "committed" meaning what it means everywhere else: a leaf envelope whose
+ * `value` is non-null, the definition `findAbstainedLeaves` works from. Read
+ * through `isExtractedLeaf` so a slot written by anything other than a fill
+ * merge reads as uncommitted rather than as data.
+ */
+const jobFullyCommitted = <V extends Record<string, unknown>, P = NoProvenance>(
+  fields: DeepPartial<Enveloped<V, P>>,
+  group: PreparedGroup,
+  instanceIndex: number,
+): boolean => {
+  const leaves = pieceLeafKeys(group);
+  if (leaves.length === 0) return false;
+  // THE CAST, and why it is sound: the slot is read by dynamic key, which the
+  // deep partial's mapped type cannot index by a runtime string. Every leaf
+  // read from it is checked through `isExtractedLeaf` before its value is
+  // believed, so a wrong shape cannot survive as a committed read.
+  const entry = (fields as Record<string, unknown>)[group.key];
+  // A collection's slot is the instance's element of the group's array; a
+  // singleton's is the group entry itself — the same places the merge reads
+  // the draft's fields from when it spreads them forward.
+  const slot = group.isCollection
+    ? Array.isArray(entry)
+      ? (entry as unknown[])[instanceIndex]
+      : undefined
+    : entry;
+  if (slot === null || typeof slot !== "object" || Array.isArray(slot)) return false;
+  const map = slot as Record<string, unknown>;
+  return leaves.every((leaf) => {
+    const envelope = map[leaf];
+    return isExtractedLeaf(envelope) && envelope.value !== null;
+  });
+};
 
 /**
  * The fill phase: derive one job per `(group, piece, instance)` from the
@@ -124,6 +208,11 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
 
       for (const group of options.prepared) {
         if (!group.isCollection || group.key === "") {
+          // Narrowing first, before any prompt is built: a job whose leaves
+          // are all committed in the draft is work already done (see
+          // `narrowToAbstained`). The slot for this branch is the group entry
+          // itself, at the job's instance 0.
+          if (options.narrowToAbstained && jobFullyCommitted(draft.fields, group, 0)) continue;
           // Singleton or non-grouped fallback: one fill call per piece, no
           // scope semantics. The roster is not consulted — the singleton
           // branch ran before any roster interpretation today, and a stated
@@ -165,6 +254,10 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
         if (current.length === 0) continue;
 
         for (let i = 0; i < current.length; i++) {
+          // Narrowing first, before any prompt is built — see the singleton
+          // branch above. The granularity is the job: one uncommitted leaf
+          // plans the whole job, because leaf-level narrowing is gap-fill's.
+          if (options.narrowToAbstained && jobFullyCommitted(draft.fields, group, i)) continue;
           const candidate = current[i]!;
           const scope = buildFillScope(group.key, rosterGroup, candidate, i);
           const messages = buildFillMessages(
@@ -249,10 +342,16 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
           // inventory merge deliberately does not allocate it (a group with
           // current candidates is not seeded). One slot per current
           // candidate, indexed by the job's instanceIndex, never by arrival
-          // order.
+          // order. The base is the DRAFT's entry for the key when it holds
+          // one — the merge starts from `{ ...draft.fields }` for every other
+          // shape, and a narrowed fill's skipped jobs are exactly the slots a
+          // fresh array would blank.
+          const draftArray = groupResult[job.group.key];
           const arr =
             collectionArrays[job.group.key] ??
-            (collectionArrays[job.group.key] = new Array<unknown>(job.instances));
+            (collectionArrays[job.group.key] = Array.isArray(draftArray)
+              ? (draftArray as unknown[]).slice()
+              : new Array<unknown>(job.instances));
           // A slot already holding a value means an earlier piece of the SAME
           // partitioned group already contributed its leaf subset for this
           // instance — recombine via mergeGroupPieces (the per-group extractor's
