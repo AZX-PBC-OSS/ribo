@@ -202,9 +202,13 @@ longer re-exports them.
 
 ## 5. What this cost, stated plainly
 
-**Two more booleans on a contract every phase implements**, and the honest risk is that
-`seedsDraft`/`requiresDraft` is a two-value approximation of something richer. If a third state
-appears, this axis was the wrong shape.
+**One more note key, and a write in three merges.** Seeding phases now set
+`draftSeededNoteKey` in their merge, because the engine verifies `produces` against what a merge
+actually wrote. `extractorPhase` previously left the notes bag untouched and now always adds a key
+— a small behaviour change, pinned by content rather than by the identity assertion it replaced.
+The honest risk is that a single marker is a one-bit approximation of "the draft has usable
+fields"; a phase needing to say _which_ groups are populated would want more keys, not a richer
+one.
 
 **Group scoping is only as good as the group keys**, which are strings checked at construction.
 A caller who scopes to `"hvac"` on a schema whose key is `"hvacSystems"` gets a throw, which is the
@@ -250,14 +254,15 @@ Then re-open `sp4-agentic-layer-design.md` with a vocabulary worth planning over
 - A list of `[gapfill]` alone is **rejected at construction** — the pin for §2.1. Without it the
   run dies at the closing parse with a RETRYABLE error, so the relay re-spends every earlier
   phase's calls on each retry.
-- `[inventory, fill]` validates; `[inventory, gapfill]` is rejected (no seeding phase before a
-  `requiresDraft` one); `[fill, gapfill]` validates.
-- **`[inventory]` alone still validates**, and that is deliberate — see §4.1's footnote. Pin it, so
-  a future reader does not re-add the list-level rule.
+- `[inventory, fill]` validates; `[inventory, gapfill]` is rejected (nothing before `gapfill`
+  produces the marker it requires); `[fill, gapfill]` validates.
+- **`[inventory]` alone still validates**, and that is deliberate — see §4.1. Pin it, so a future
+  reader does not re-add the list-level rule.
+- **`inventory` does not produce the marker**, pinned directly rather than only through
+  `[inventory, gapfill]`'s rejection — the source calls that omission deliberate and warns the
+  obvious "fix" is the bug, so the property deserves its own line.
 - The on-device chain `[presence, span, classify]` validates **unchanged**, on its existing note
-  declarations plus presence's new `seedsDraft` — the pin that the axis did not disturb six phases
-  that were already correct.
-- A list where no phase declares `seedsDraft` is rejected even if every `requires` is satisfied.
+  declarations — the pin that this did not disturb six phases that were already correct.
 - Every existing phase list in the repo still validates unchanged — the presets AND the ~50
   hand-rolled fixtures in `phased-extractor.test.ts`, none of which declares either member. This is
   the pin that dropping the list-level rule bought.

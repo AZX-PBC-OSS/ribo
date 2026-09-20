@@ -8,6 +8,18 @@ SP4a wave 5: the draft-state axis is replaced by a marker note key, and the
 `ChatClient` seam plus the three transport-agnostic phases move into
 `@azx/ribo-core`.
 
+**What a consumer gets:** a phase list that is mis-wired on the draft — `[gapfill]` with
+nothing before it to populate the fields — is now refused at construction, naming the
+phase and the fix. Before, such a list planned nothing, the engine no-oped, and the run
+died at the closing trust-boundary parse with a `SchemaParseError`. That error is
+_retryable_, so the relay re-ran the whole phase list, re-spending every earlier phase's
+model calls on each retry, until the session item went `dead`. Rejecting at construction
+is free.
+
+There is deliberately no rule that _some_ phase must seed: `[inventory]` alone still
+validates, because its merge writes `fields[key] = []` scaffolding for stated-none
+collection groups, which is not clearly wrong.
+
 **The axis was added and removed in the same unreleased line.** `seedsDraft`
 and `requiresDraft` on `PhaseMeta`, and the `validatePhases` rule that paired
 them, are gone. The same dependency — a phase whose shape-of-`draft.fields`

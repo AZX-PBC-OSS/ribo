@@ -1,4 +1,4 @@
-import { emptyDraft, enveloped } from "@azx/ribo-core";
+import { draftSeededNoteKey, emptyDraft, enveloped } from "@azx/ribo-core";
 import type { ExtractionTarget, PhaseContext, PhaseDraft, Roster } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
@@ -233,4 +233,23 @@ describe("inventoryPhase — id", () => {
     });
     expect(renamed.id).toBe("inventory-cheap");
   });
+});
+
+test("inventory does NOT produce the draft-seeded marker, and that is deliberate", () => {
+  // The omission is load-bearing, and this file's subject warns that the obvious
+  // "fix" is the bug: inventory's merge writes `fields[key] = []` for stated-none
+  // and zero-current collection groups, which is scaffolding rather than
+  // extracted data. Marking it would make `[inventory, gapfill]` validate — the
+  // exact mis-wiring the marker exists to reject.
+  //
+  // Pinned directly rather than only through that list's rejection: that test
+  // fails for a reason about `gapfill`'s unmet requirement, so it would keep
+  // passing if inventory started producing the marker.
+  const phase = inventoryPhase({
+    inventory: async (): Promise<Roster> => ({ house: [] }),
+    prepared: [],
+    instanceCap: 4,
+  });
+
+  expect(phase.produces ?? []).not.toContain(draftSeededNoteKey);
 });
