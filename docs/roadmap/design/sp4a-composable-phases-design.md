@@ -92,75 +92,46 @@ per item. Every change here is metadata a phase declares or an option a factory 
 
 ## 4. Design
 
-### 4.1 The draft-state axis
+### 4.1 The draft-seeded marker (rewritten — this section originally built an axis)
 
 ```ts
-interface PhaseMeta {
-  // … existing: id, requires, produces, concurrency, onItemFailure, maxRetries
-  /** This phase can populate an empty draft's `fields`. */
-  readonly seedsDraft?: boolean;
-  /** This phase only does useful work over a draft another phase populated. */
-  readonly requiresDraft?: boolean;
-}
+/** Produced by any phase whose merge populates `draft.fields`; required by a phase that reads them. */
+export const draftSeededNoteKey: NoteKey<true> = noteKey("draft-seeded");
 ```
 
-Both default to `undefined`, read as `false`, so every existing phase list keeps validating.
+The first version of this section added a `seedsDraft`/`requiresDraft` boolean axis to `PhaseMeta`
+plus a `validatePhases` rule, reasoning that `requires`/`produces` model the **notes** channel and
+nothing models the **fields** channel. That reasoning did not survive contact with the rest of the
+design. The list-level rule the axis existed to enable — "at least one phase must seed the draft" —
+was dropped as too invasive (it would have rejected every `phasedExtractor` fixture whose phases
+declare no notes, and `[inventory]` alone is not clearly wrong), leaving the axis to serve exactly
+one phase's dependency through a second, parallel mechanism the note-key vocabulary already had.
+ADR 0010 records the reversal; 0008 stands as the record of why the axis looked right.
 
-**The axis serves exactly one phase today, and the first draft of this section got that wrong.**
-It claimed `span` and `classify` would need `requiresDraft`. They do not: `spanPhase.plan` reads
-`draft.notes.get(presenceNoteKey)` and `classifyPhase.plan` reads `draft.notes.get(spansNoteKey)`,
-and both **already declare those as `requires`**. Six of the seven phases express their
-dependencies correctly through the notes channel:
+So: a phase whose dependency is the **shape of `draft.fields`** declares
+`requires: [draftSeededNoteKey]`, and a phase whose merge populates the draft declares the key in
+`produces` **and writes it** in its merge — which the engine's per-phase-boundary check verifies
+against what the phase really did, making the declaration a proof rather than a promise. The
+existing order-sensitive `requires` check is the whole rule set; `validatePhases` gained nothing.
+The phases declare:
 
-| Phase              | `requires`           | `produces`           | `seedsDraft` | `requiresDraft` |
-| ------------------ | -------------------- | -------------------- | ------------ | --------------- |
-| `inventory`        | —                    | `rosterNoteKey`      | —            | —               |
-| `fill`             | `rosterNoteKey`      | —                    | **yes**      | —               |
-| `gapfill`          | —                    | —                    | —            | **yes**         |
-| `extractorPhase`   | —                    | —                    | **yes**      | —               |
-| `presence`         | —                    | `presenceNoteKey`    | **yes**      | —               |
-| `span`             | `presenceNoteKey`    | `spansNoteKey`       | —            | —               |
-| `classify`         | `spansNoteKey`       | `unsupportedNoteKey` | —            | —               |
-| `classify-wrapped` | `unsupportedNoteKey` | —                    | —            | —               |
+| Phase              | `requires`           | `produces`                              |
+| ------------------ | -------------------- | --------------------------------------- |
+| `inventory`        | —                    | `rosterNoteKey`                         |
+| `fill`             | `rosterNoteKey`      | `draftSeededNoteKey`                    |
+| `gapfill`          | `draftSeededNoteKey` | —                                       |
+| `extractorPhase`   | —                    | `draftSeededNoteKey`                    |
+| `presence`         | —                    | `presenceNoteKey`, `draftSeededNoteKey` |
+| `span`             | `presenceNoteKey`    | `spansNoteKey`                          |
+| `classify`         | `spansNoteKey`       | `unsupportedNoteKey`                    |
+| `classify-wrapped` | `unsupportedNoteKey` | —                                       |
 
-`gapfill` is the only phase whose dependency is on the **shape of `draft.fields`** rather than on a
-note, and that is precisely why `PhaseMeta` cannot express it and why `[gapfill]` alone passes
-every gate.
-
-**`validatePhases` gains two rules**, both the same order-sensitive shape as the existing
-`requires` check, and both rejecting at construction:
-
-1. A phase declaring `requiresDraft` must be preceded by one declaring `seedsDraft`.
-
-**There is no second rule.** An earlier draft added "at least one phase must declare `seedsDraft`",
-to catch `[inventory]` alone. It is dropped for two reasons, both found by review. It would reject
-roughly fifty existing `phasedExtractor` constructions in the test suite — every hand-rolled
-fixture would have to declare `seedsDraft` — which is a large, purely mechanical edit to buy one
-diagnostic. And `[inventory]` alone is not clearly wrong: its merge writes `fields[key] = []` for
-stated-none and zero-current collection groups, so an all-stated-empty roster legitimately produces
-`{hvac: []}`.
-
-Rule 1 costs nothing by comparison: no existing fixture declares `requiresDraft`, so it never fires
-on one, and it still rejects `[gapfill]` alone — the case that motivated the axis.
-
-¹ `inventory` is deliberately **not** marked `seedsDraft` even though its merge can write `[]`
-entries. Those are scaffolding for groups the roster said are empty, not extracted data, and
-marking it would make `[inventory, gapfill]` validate — which is exactly the mis-wiring rule 1
-exists to reject.
-
-**Rule 2 is the one that earns the axis.** Rule 1 alone could have been done with a payload-free
-marker note — a `draftSeededNoteKey` that seeding phases produce and `gapfill` requires — reusing a
-mechanism that already works. Rule 2 cannot: "no phase in this list ever populates `fields`" is a
-property of the whole list, not of a pair, and no `requires`/`produces` arrangement expresses it.
-`[inventory]` alone is a vacuous success for exactly that reason — it produces a roster note and
-writes no fields — and a marker note would not catch it.
-
-Given rule 2 forces a real declaration, `requiresDraft` is one more boolean and is more honest than
-a note carrying no payload.
-
-**Why booleans rather than declaring which groups or leaves.** The useful question is "could this
-list possibly produce data", which presence answers. A finer axis would need phases to declare
-which leaves they write, which none of them knows until `plan` runs.
+`[gapfill]` alone is rejected, as is `[inventory, gapfill]` — `inventory` is deliberately **not** a
+producer of the marker, because its `[]` entries for stated-none groups are scaffolding rather than
+extracted data, and letting them satisfy gap-fill is exactly the mis-wiring to reject. `[fill,
+gapfill]` validates; `[gapfill, fill]` does not, because order matters; and a phase listing the key
+in both `requires` and `produces` cannot satisfy itself, because a phase's own `produces` is
+absorbed after its `requires` are checked. All five cases are pinned in `validate-phases.test.ts`.
 
 ### 4.2 Group scoping — designed, checked, ABANDONED
 
@@ -210,14 +181,22 @@ scoped-instance presets were measured with the current semantics.
 parse — only the job list narrows. A separate factory would duplicate all of that to vary one
 predicate.
 
-### 4.4 Export the on-device phases
+### 4.4 The transport-agnostic phases live in core (rewritten — this section originally exported them from ondevice)
 
-`presencePhase`, `spanPhase`, `classifyPhase`, `classifyWrappedPhase` and their note keys join
-`@azx/ribo-extractor-ondevice`'s barrel, as openai's three already have with `rosterNoteKey`.
+`presencePhase`, `spanPhase`, `classifyPhase`, `classifyWrappedPhase`, their note keys and the
+`extractGroups` schema walk moved to `@azx/ribo-core` (SP4a wave 5), where they are exported beside
+`extractorPhase`. The original section exported them from `@azx/ribo-extractor-ondevice`'s barrel,
+mirroring how openai's phases are exported there — but the on-device home was an accident of where
+the preset lives, not a property of the phases: they ask a `ChatClient` which leaves are present,
+what spans support them and which are unsupported, and nothing in that is on-device. With the
+`ChatClient` seam itself moved to core (the seam is the interface the phases speak), the phases
+moved with it, and a host composes them from core while the on-device package keeps only
+`threePhaseExtractor` — the preset that tunes them to the device (`concurrency: 1`, the device-sized
+`perCallCeilingMs`, zero retry delay), which is the genuinely on-device part.
 
-This widens a public surface deliberately: they become supported API, and their options types are
-then a compatibility commitment. That is the cost of composition being possible at all outside the
-package.
+The compatibility commitment stands, moved rather than widened twice: the phases, their options
+types and their note keys are supported core API, and `@azx/ribo-extractor-ondevice`'s barrel no
+longer re-exports them.
 
 ## 5. What this cost, stated plainly
 

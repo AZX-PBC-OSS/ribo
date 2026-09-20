@@ -1,6 +1,6 @@
 # 0008. A phase declares whether it seeds the draft, or needs one seeded
 
-Status: Accepted
+Status: Superseded by 0010
 Date: 2026-09-19
 
 ## Context

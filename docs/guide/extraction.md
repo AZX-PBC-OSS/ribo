@@ -230,27 +230,25 @@ the closing parse rebuilds every object (values are unchanged — deep equality 
 
 `requires`/`produces` cover the **notes** a phase reads and writes. They do not cover the _fields_,
 and one phase needs them: `gapFillPhase` re-asks about leaves an earlier phase left abstained, so it
-needs a draft somebody populated. There is no note key for that.
-
-Two optional flags close it:
+needs a draft somebody populated. There is a note key for exactly that:
 
 ```ts
-seedsDraft?: boolean;    // this phase's merge can populate an empty draft's fields
-requiresDraft?: boolean; // this phase only does useful work over a populated one
+draftSeededNoteKey; // "draft-seeded" — produced by a phase whose merge populates draft.fields
 ```
 
-`validatePhases` rejects a list where a `requiresDraft` phase has no earlier `seedsDraft` one —
-`[gapfill]` alone, or `[inventory, gapfill]`. Order matters, and a seeder later in the list does not
-help.
+A seeding phase declares it in `produces` **and writes it** in its merge (`draft.notes.set(
+draftSeededNoteKey, true)`), so the engine's per-boundary check verifies the declaration against
+what the phase really did. A phase that reads the draft declares it in `requires`, and the ordinary
+`validatePhases` check applies: `[gapfill]` alone is rejected, as is `[inventory, gapfill]` —
+inventory does not produce the marker, because its `[]` entries are scaffolding rather than
+extracted data. Order matters, and a seeder later in the list does not help.
 
 **Why this is worth a construction-time error.** Without it the list runs, plans nothing, and dies
 at the closing parse — every group key is required, so a draft missing them is rejected. That
 failure is **retryable**, so the relay re-runs the whole list and re-spends every earlier phase's
 calls, repeatedly. Failing at construction is free.
 
-`fill`, `presence` and a lifted `extractorPhase` seed. `gapfill` requires. `inventory` declares
-neither: it writes `[]` entries for groups the roster called empty, which is scaffolding rather than
-extracted data.
+`fill`, `presence` and a lifted `extractorPhase` produce the marker. `gapfill` requires it.
 
 ### Running a phase twice
 
