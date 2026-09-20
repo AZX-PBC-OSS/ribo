@@ -20,3 +20,5 @@ factories, their options types and their note keys are now supported API and a
 compatibility commitment — exporting a phase without its note key would have exported
 something that cannot be composed with anything, which is why the keys travel with the
 factories.
+
+The schema walk goes with them: `extractGroups` and its `Group`/`Leaf`/`JsonSchema` vocabulary are public too. Exporting the phases without it exported something a host could construct but never run — `presencePhase` takes walked groups and nothing else produces them. This mirrors `@azx/ribo-extractor-openai`, where `splitExtractionSchema` and `PreparedGroup` are public for the same reason.

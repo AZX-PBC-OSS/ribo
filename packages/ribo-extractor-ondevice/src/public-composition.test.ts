@@ -3,7 +3,14 @@ import { describe, expect, test } from "vitest";
 import { enveloped, phasedExtractor, validatePhases } from "@azx/ribo-core";
 import type { ExtractionTarget } from "@azx/ribo-core";
 
-import { classifyPhase, presenceNoteKey, presencePhase, spanPhase, spansNoteKey } from "./index.js";
+import {
+  classifyPhase,
+  extractGroups,
+  presenceNoteKey,
+  presencePhase,
+  spanPhase,
+  spansNoteKey,
+} from "./index.js";
 import { OnDeviceChat } from "./ondevice-chat.js";
 import { FakeLanguageModel } from "./test-support/fake-language-model.js";
 
@@ -14,12 +21,12 @@ import { FakeLanguageModel } from "./test-support/fake-language-model.js";
  * cannot reach `./phases/*` through the package's `exports` map, so this is
  * exactly the composition the barrel makes possible, and nothing else.
  *
- * The list is validated but never run, and the options carry an empty `groups`:
- * the schema walk that turns an `extractionSchema` into the `groups` the three
- * options take is still package-private, so walked groups are not constructible
- * from public exports. Construction and validation exercise the phases'
- * metadata — ids, `requires`/`produces`, `seedsDraft` — which is what
- * `validatePhases` judges, without mimicking the walk's output by hand.
+ * The groups come from `extractGroups`, also public: the first cut of this wave
+ * exported the phases but not the walk that feeds them, so a host could build a
+ * list and never run one. `presencePhase` takes `groups: readonly Group[]` and
+ * `extractGroups` is the only thing that produces them. Walking a REAL schema
+ * here rather than passing `[]` is what makes this the wave's deliverable — it
+ * is the whole path a host would take.
  */
 
 const patchSchema = z.strictObject({
@@ -45,16 +52,22 @@ function composeOptions() {
   // too; the fake model behind it is package test-support, incidental here —
   // construction and validation make no calls.
   const chat = new OnDeviceChat({ languageModel: new FakeLanguageModel() });
-  return { chat, model: chat.engine };
+  // The walk, from the barrel. A host with an extraction schema and nothing
+  // else can get here, which is the property this file exists to pin.
+  const groups = extractGroups(z.toJSONSchema(target.extractionSchema));
+  return { chat, model: chat.engine, groups };
 }
 
 describe("a phase list composed through the public entry point", () => {
   test("constructs and validates through phasedExtractor", () => {
-    const { chat, model } = composeOptions();
+    const { chat, model, groups } = composeOptions();
+    // Non-empty: the walk found the schema's groups, so these phases are
+    // constructed the way a host would construct them.
+    expect(groups.length).toBeGreaterThan(0);
     const phases = [
-      presencePhase<Values>({ groups: [], chat, model }),
-      spanPhase<Values>({ groups: [], chat, model }),
-      classifyPhase<Values>({ groups: [], chat, model }),
+      presencePhase<Values>({ groups, chat, model }),
+      spanPhase<Values>({ groups, chat, model }),
+      classifyPhase<Values>({ groups, chat, model }),
     ];
     expect(() => validatePhases<Values>(phases)).not.toThrow();
     // Construction validates again — a mis-wired list fails before extract.
@@ -66,8 +79,8 @@ describe("a phase list composed through the public entry point", () => {
     // keys: if the barrel exported a different-but-equal key instead of the
     // phases' own, these fail and a host composing with those keys in hand
     // would be wiring a list the shipped phases do not speak.
-    const { chat, model } = composeOptions();
-    const presence = presencePhase<Values>({ groups: [], chat, model });
+    const { chat, model, groups } = composeOptions();
+    const presence = presencePhase<Values>({ groups, chat, model });
     const span = spanPhase<Values>({ groups: [], chat, model });
     const classify = classifyPhase<Values>({ groups: [], chat, model });
     expect(presence.produces).toContain(presenceNoteKey);

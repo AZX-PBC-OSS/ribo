@@ -29,6 +29,18 @@ export type { ThreePhaseExtractorOptions } from "./three-phase-extractor.js";
 export { presencePhase, presenceNoteKey } from "./phases/presence-phase.js";
 export type { PresencePhaseOptions } from "./phases/presence-phase.js";
 
+// The schema walk the phases consume, and its vocabulary. Exporting the phases
+// without this exported something a host cannot actually run: `presencePhase`
+// takes `groups: readonly Group[]`, and `extractGroups` is the only thing that
+// produces them — `threePhaseExtractor` calls it before constructing the phase.
+// A host could construct and validate a phase list but never execute one.
+//
+// This mirrors what `@azx/ribo-extractor-openai` already does for its own
+// phases, where `splitExtractionSchema` and `PreparedGroup` are public so a
+// caller can produce `inventoryPhase`'s `prepared`.
+export { extractGroups } from "./phases/presence-phase.js";
+export type { Group, Leaf, JsonSchema } from "./phases/presence-phase.js";
+
 export { spanPhase, spansNoteKey } from "./phases/span-phase.js";
 export type { SpanPhaseOptions } from "./phases/span-phase.js";
 
