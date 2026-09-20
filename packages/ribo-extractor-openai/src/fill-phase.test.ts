@@ -1,4 +1,12 @@
-import { draftSeededNoteKey, emptyDraft, emptyNotes, enveloped } from "@azx/ribo-core";
+import {
+  draftSeededNoteKey,
+  emptyDraft,
+  emptyNotes,
+  enveloped,
+  noteKey,
+  phaseBuilder,
+  validatePhases,
+} from "@azx/ribo-core";
 import type {
   ChatClient,
   ChatRequest,
@@ -456,6 +464,60 @@ describe("fillPhase — metadata", () => {
       buildFillInstructions,
     });
     expect(phase.produces).toContain(draftSeededNoteKey);
+  });
+});
+
+describe("fillPhase — requires", () => {
+  const base = {
+    target,
+    chat: {} as ChatClient,
+    model: "m",
+    prepared,
+    buildFillInstructions,
+  };
+
+  test("requires the roster note and nothing else when the option is absent", () => {
+    expect(fillPhase<DemoValues>(base).requires).toEqual([rosterNoteKey]);
+  });
+
+  test("a caller's requires is unioned with the phase's own — it does not replace it", () => {
+    const phase = fillPhase<DemoValues>({ ...base, requires: ["mine"] });
+    expect(phase.requires).toEqual([rosterNoteKey, "mine"]);
+  });
+
+  test("a caller re-supplying the roster note is deduped — cosmetic; the engine tolerates a repeat", () => {
+    const phase = fillPhase<DemoValues>({ ...base, requires: [rosterNoteKey] });
+    expect(phase.requires).toEqual([rosterNoteKey]);
+  });
+
+  // THE composition pin the wave exists for: a caller-built phase produces a
+  // custom key, the SHIPPED fill phase is given that key through the additive
+  // `requires` option, and the list's validity now depends on the caller's
+  // phase running before it — validation rejects the reversed list.
+  test("[inventory, mine, fill] validates and [inventory, fill, mine] is rejected", () => {
+    const mineKey = noteKey<unknown>("composition-pin-mine");
+    const mine = phaseBuilder<DemoValues>()({
+      id: "mine",
+      produces: [mineKey],
+      plan: () => [],
+      // Validation never enters `with`, so the run is never reached; a throw
+      // keeps the double honest if a future refactor starts running it.
+      run: async () => {
+        throw new Error("validation only — this phase must never run in this pin");
+      },
+      merge: (draft) => draft,
+    });
+    const fill = fillPhase<DemoValues>({ ...base, requires: [mineKey] });
+    const inventory = inventoryPhase<DemoValues>({
+      inventory: async () => ({}),
+      prepared,
+      instanceCap: 10,
+    });
+
+    expect(() => validatePhases<DemoValues>([inventory, mine, fill])).not.toThrow();
+    expect(() => validatePhases<DemoValues>([inventory, fill, mine])).toThrow(
+      /phase "fill" requires note key "composition-pin-mine"/,
+    );
   });
 });
 

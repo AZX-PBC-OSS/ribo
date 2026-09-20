@@ -609,6 +609,7 @@ export { validatePhases } from "./validate-phases.js";
 // combinators. One item (the whole document), `signal`/`deadline` forwarded, usage on the
 // `PhaseOutput`, and a shallow top-level merge into the draft.
 export { extractorPhase } from "./extractor-phase.js";
+export type { ExtractorPhaseOptions } from "./extractor-phase.js";
 
 // The chat transport seam — the THIN, provider-agnostic interface an extractor calls to
 // reach a chat-completions model, moved here from `@azx/ribo-extractor-openai` so the

@@ -120,6 +120,22 @@ export interface FillPhaseOptions<V extends Record<string, unknown>, P = NoProve
    * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
    */
   readonly id?: string;
+  /**
+   * Extra note keys this phase must wait for, unioned with the phase's own —
+   * additive, never replacing. A phase's own `requires` is a fact about what
+   * its `plan` reads, not a configuration choice: letting a caller replace it
+   * would let them declare away a real dependency, reintroducing the
+   * `[gapfill]`-alone class of bug the note-key check exists to reject. Adding
+   * can only make validation stricter. Duplicates are removed cosmetically —
+   * the engine tolerates a repeat; dedup keeps error messages and any future
+   * introspection clean.
+   *
+   * **Deliberately no additive `produces`.** The engine verifies a declared
+   * `produces` key against what the phase's merge actually wrote, and this
+   * merge will never write a caller's key — declaring one would throw mid-run.
+   * A caller's contribution belongs on a caller-built phase.
+   */
+  readonly requires?: readonly string[];
 }
 
 /**
@@ -201,7 +217,10 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
 ): Phase<V, P> {
   const def: PhaseDef<V, P, FillJob, Record<string, unknown>> = {
     id: options.id ?? "fill",
-    requires: [rosterNoteKey],
+    // Unioned, never replaced — a caller can only add ordering, never subtract
+    // it. See `FillPhaseOptions.requires` for why the roster key is not a
+    // configuration choice.
+    requires: [...new Set([rosterNoteKey, ...(options.requires ?? [])])],
     // The merge assembles the roster-derived envelopes into `fields` — so a phase
     // whose follow-ups read the draft stands on this one, declared through the
     // marker key the engine verifies against what the merge really wrote.

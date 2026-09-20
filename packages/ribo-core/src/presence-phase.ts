@@ -245,6 +245,20 @@ export interface PresencePhaseOptions {
    * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
    */
   readonly id?: string;
+  /**
+   * Extra note keys this phase must wait for. The phase declares none of its
+   * own — nothing its `plan` reads comes from the notes bag — so the list is
+   * exactly what you pass, deduped cosmetically (the engine tolerates a repeat;
+   * dedup keeps error messages and any future introspection clean).
+   *
+   * **Deliberately no additive `produces`.** The engine verifies a declared
+   * `produces` key against what the phase's merge actually wrote, and this
+   * merge will never write a caller's key — declaring one would throw mid-run.
+   * A caller's contribution belongs on a caller-built phase. The same asymmetry
+   * in the other direction is the point of the option: a caller's `requires`
+   * can only add ordering, never subtract it.
+   */
+  readonly requires?: readonly string[];
 }
 
 interface PresenceItem {
@@ -262,6 +276,10 @@ export function presencePhase<V extends Record<string, unknown>, P = NoProvenanc
   const def: PhaseDef<V, P, PresenceItem, Record<string, boolean>> = {
     id: options.id ?? "presence",
     onItemFailure: "skip",
+    // The caller's keys are the whole `requires` — the phase declares none of
+    // its own (see the option) — and an absent option leaves the def's
+    // `requires` unset, today's shape.
+    ...(options.requires === undefined ? {} : { requires: [...new Set(options.requires)] }),
     // The marker rides alongside the presence map: this merge is THE SEED — the
     // unconditional null-filled floor every later phase's writes land on — declared
     // through the draft-seeded key so the ordinary note-key check knows a list

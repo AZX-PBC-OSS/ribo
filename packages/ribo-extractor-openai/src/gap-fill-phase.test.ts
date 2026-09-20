@@ -342,6 +342,27 @@ describe("gapFillPhase — metadata", () => {
   });
 });
 
+describe("gapFillPhase — requires", () => {
+  const chat: ChatClient = {
+    complete: () => Promise.resolve({ content: "{}", finishReason: "stop" }),
+  };
+
+  test("requires the draft-seeded marker and nothing else when the option is absent", () => {
+    const phase = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
+    expect(phase.requires).toEqual([draftSeededNoteKey]);
+  });
+
+  test("a caller's requires is unioned with the phase's own, which stays present", () => {
+    const phase = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat,
+      model: "m",
+      requires: ["mine"],
+    });
+    expect(phase.requires).toEqual([draftSeededNoteKey, "mine"]);
+  });
+});
+
 describe("gapFillPhase — id", () => {
   test('defaults to "gapfill" and honours an explicit id', () => {
     const chat: ChatClient = {

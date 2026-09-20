@@ -29,8 +29,10 @@ import { phaseBuilder } from "./phase.js";
  * merging; this one does not need to.
  *
  * What this deliberately does not do: it does not run anything on its own — the phase is
- * inert until an engine calls `plan`/`run`/`merge`. And it declares no `requires`: an
- * `Extractor` speaks in fields and results, not in note keys. It produces
+ * inert until an engine calls `plan`/`run`/`merge`. And it declares no `requires` of its
+ * own: an `Extractor` speaks in fields and results, not in note keys. (A caller can make
+ * the lift wait on keys of its own through `ExtractorPhaseOptions.requires` — additive
+ * only, and never a `produces`, for the runtime reason stated on the option.) It produces
  * {@link draftSeededNoteKey} — the fields channel is exactly what it speaks, the merge
  * shallow-assigning a complete `Enveloped<V, P>` into the draft — so a list with a lifted
  * base is known, through the ordinary note-key check, to stand on a populated draft.
@@ -44,9 +46,28 @@ import { phaseBuilder } from "./phase.js";
  */
 const WHOLE_DOCUMENT = null;
 
+/** Options for {@link extractorPhase}. */
+export interface ExtractorPhaseOptions {
+  /**
+   * Extra note keys this phase must wait for. The lift declares none of its
+   * own — an `Extractor` speaks in fields and results, not note keys — so the
+   * list is exactly what you pass, deduped cosmetically (the engine tolerates
+   * a repeat; dedup keeps error messages and any future introspection clean).
+   *
+   * **Deliberately no additive `produces`.** The engine verifies a declared
+   * `produces` key against what the phase's merge actually wrote, and this
+   * merge will never write a caller's key — declaring one would throw mid-run.
+   * A caller's contribution belongs on a caller-built phase. The same asymmetry
+   * in the other direction is the point of the option: a caller's `requires`
+   * can only add ordering, never subtract it.
+   */
+  readonly requires?: readonly string[];
+}
+
 export function extractorPhase<V extends Record<string, unknown>, P = NoProvenance>(
   id: string,
   extractor: Extractor<Enveloped<V, P>>,
+  options: ExtractorPhaseOptions = {},
 ): Phase<V, P> {
   const def: PhaseDef<
     V,
@@ -63,6 +84,10 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
     // into the draft, so follow-up phases that read the draft stand on this — through the
     // marker key, verified against what the merge really wrote. See the file header.
     produces: [draftSeededNoteKey],
+    // The caller's keys are the whole `requires` — the lift declares none of its own (see
+    // the file header) — and an absent option leaves the def's `requires` unset, which is
+    // today's shape.
+    ...(options.requires === undefined ? {} : { requires: [...new Set(options.requires)] }),
     plan: () => [WHOLE_DOCUMENT],
     run: async (_item, _draft, ctx) => {
       // Forwarded, not rebuilt: `signal` and `deadline` are the caller's cancellation and

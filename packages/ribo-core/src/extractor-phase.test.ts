@@ -189,3 +189,14 @@ test("the id is the caller's argument — the lift has no default of its own", (
   expect(extractorPhase<TestValues>("lift", extractor).id).toBe("lift");
   expect(extractorPhase<TestValues>("base", extractor).id).toBe("base");
 });
+
+test("declares no requires of its own, and the option absent leaves today's undefined", () => {
+  const extractor = new FakeExtractor<Env>(fieldsFixture);
+  expect(extractorPhase<TestValues>("lift", extractor).requires).toBeUndefined();
+});
+
+test("a caller's requires is taken as the requires — the lift has none of its own to union", () => {
+  const extractor = new FakeExtractor<Env>(fieldsFixture);
+  const phase = extractorPhase<TestValues>("lift", extractor, { requires: ["mine"] });
+  expect(phase.requires).toEqual(["mine"]);
+});

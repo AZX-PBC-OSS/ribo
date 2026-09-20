@@ -102,6 +102,22 @@ export interface GapFillPhaseOptions<V extends Record<string, unknown>, P = NoPr
    * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
    */
   readonly id?: string;
+  /**
+   * Extra note keys this phase must wait for, unioned with the phase's own —
+   * additive, never replacing. A phase's own `requires` is a fact about what
+   * its `plan` reads, not a configuration choice: letting a caller replace it
+   * would let them declare away a real dependency, reintroducing the
+   * `[gapfill]`-alone class of bug the note-key check exists to reject. Adding
+   * can only make validation stricter. Duplicates are removed cosmetically —
+   * the engine tolerates a repeat; dedup keeps error messages and any future
+   * introspection clean.
+   *
+   * **Deliberately no additive `produces`.** The engine verifies a declared
+   * `produces` key against what the phase's merge actually wrote, and this
+   * merge will never write a caller's key — declaring one would throw mid-run.
+   * A caller's contribution belongs on a caller-built phase.
+   */
+  readonly requires?: readonly string[];
 }
 
 /**
@@ -155,7 +171,8 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
     // phase at construction, instead of the run dying at the closing parse with a
     // retryable `SchemaParseError` that re-spends the earlier phases' calls on every
     // retry.
-    requires: [draftSeededNoteKey],
+    // Unioned, never replaced — see `GapFillPhaseOptions.requires`.
+    requires: [...new Set([draftSeededNoteKey, ...(options.requires ?? [])])],
     describeItem: () => ({ key: "" }),
     plan: (draft, ctx) => {
       // THE CAST, and why it is sound: the pure helpers take `Enveloped<V, P>`;

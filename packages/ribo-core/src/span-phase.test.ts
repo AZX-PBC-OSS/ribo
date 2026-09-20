@@ -216,3 +216,17 @@ describe("spanPhase — id", () => {
     expect(renamed.id).toBe("span-2");
   });
 });
+
+describe("spanPhase — requires", () => {
+  test("requires the presence note and nothing else when the option is absent", () => {
+    const { chat } = fakeChat(() => json({}));
+    const phase = spanPhase<Values>({ groups, chat, model: chat.engine });
+    expect(phase.requires).toEqual([presenceNoteKey]);
+  });
+
+  test("a caller's requires is unioned with the phase's own, which stays present", () => {
+    const { chat } = fakeChat(() => json({}));
+    const phase = spanPhase<Values>({ groups, chat, model: chat.engine, requires: ["mine"] });
+    expect(phase.requires).toEqual([presenceNoteKey, "mine"]);
+  });
+});

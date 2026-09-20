@@ -81,6 +81,20 @@ export interface InventoryPhaseOptions {
    * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
    */
   readonly id?: string;
+  /**
+   * Extra note keys this phase must wait for. The phase declares none of its
+   * own — its `plan` reads only the phase context — so the list is exactly what
+   * you pass, deduped cosmetically (the engine tolerates a repeat; dedup keeps
+   * error messages and any future introspection clean).
+   *
+   * **Deliberately no additive `produces`.** The engine verifies a declared
+   * `produces` key against what the phase's merge actually wrote, and this
+   * merge will never write a caller's key — declaring one would throw mid-run.
+   * A caller's contribution belongs on a caller-built phase. The same asymmetry
+   * in the other direction is the point of the option: a caller's `requires`
+   * can only add ordering, never subtract it.
+   */
+  readonly requires?: readonly string[];
 }
 
 /**
@@ -111,6 +125,10 @@ export function inventoryPhase<V extends Record<string, unknown>, P = NoProvenan
     // caller's inventory function makes.
     maxRetries: 0,
     produces: [rosterNoteKey],
+    // The caller's keys are the whole `requires` — the phase declares none of
+    // its own (see the option) — and an absent option leaves the def's
+    // `requires` unset, today's shape.
+    ...(options.requires === undefined ? {} : { requires: [...new Set(options.requires)] }),
     describeItem: () => ({ key: "" }),
     plan: (_draft, ctx) => [{ transcript: ctx.transcript.text }],
     run: async (item) => {

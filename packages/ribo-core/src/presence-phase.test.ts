@@ -303,6 +303,20 @@ describe("presencePhase — metadata", () => {
   });
 });
 
+describe("presencePhase — requires", () => {
+  test("declares none of its own, and the option absent leaves today's undefined", () => {
+    const { chat } = fakeChat(() => json({}));
+    const phase = presencePhase<Values>({ groups, chat, model: chat.engine });
+    expect(phase.requires).toBeUndefined();
+  });
+
+  test("a caller's requires is taken as the requires — the phase has none of its own to union", () => {
+    const { chat } = fakeChat(() => json({}));
+    const phase = presencePhase<Values>({ groups, chat, model: chat.engine, requires: ["mine"] });
+    expect(phase.requires).toEqual(["mine"]);
+  });
+});
+
 describe("presencePhase — id", () => {
   test('defaults to "presence" and honours an explicit id', () => {
     const { chat } = fakeChat(() => json({}));

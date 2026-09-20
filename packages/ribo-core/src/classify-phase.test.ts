@@ -335,3 +335,36 @@ describe("classifyWrappedPhase — id", () => {
     expect(renamed.id).toBe("classify-wrapped-2");
   });
 });
+
+describe("classifyPhase — requires", () => {
+  test("requires the spans note and nothing else when the option is absent", () => {
+    const { chat } = fakeChat(() => json("Gas"));
+    const phase = classifyPhase<Values>({ groups, chat, model: chat.engine });
+    expect(phase.requires).toEqual([spansNoteKey]);
+  });
+
+  test("a caller's requires is unioned with the phase's own, which stays present", () => {
+    const { chat } = fakeChat(() => json("Gas"));
+    const phase = classifyPhase<Values>({ groups, chat, model: chat.engine, requires: ["mine"] });
+    expect(phase.requires).toEqual([spansNoteKey, "mine"]);
+  });
+});
+
+describe("classifyWrappedPhase — requires", () => {
+  test("requires the unsupported note and nothing else when the option is absent", () => {
+    const { chat } = fakeChat(() => json({ value: "Gas" }));
+    const phase = classifyWrappedPhase<Values>({ groups, chat, model: chat.engine });
+    expect(phase.requires).toEqual([unsupportedNoteKey]);
+  });
+
+  test("a caller's requires is unioned with the phase's own, which stays present", () => {
+    const { chat } = fakeChat(() => json({ value: "Gas" }));
+    const phase = classifyWrappedPhase<Values>({
+      groups,
+      chat,
+      model: chat.engine,
+      requires: ["mine"],
+    });
+    expect(phase.requires).toEqual([unsupportedNoteKey, "mine"]);
+  });
+});

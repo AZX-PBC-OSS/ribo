@@ -235,6 +235,27 @@ describe("inventoryPhase — id", () => {
   });
 });
 
+describe("inventoryPhase — requires", () => {
+  test("declares none of its own, and the option absent leaves today's undefined", () => {
+    const phase = inventoryPhase<DemoValues>({
+      inventory: async () => ({}),
+      prepared,
+      instanceCap: 10,
+    });
+    expect(phase.requires).toBeUndefined();
+  });
+
+  test("a caller's requires is taken as the requires — the phase has none of its own to union", () => {
+    const phase = inventoryPhase<DemoValues>({
+      inventory: async () => ({}),
+      prepared,
+      instanceCap: 10,
+      requires: ["mine"],
+    });
+    expect(phase.requires).toEqual(["mine"]);
+  });
+});
+
 test("inventory does NOT produce the draft-seeded marker, and that is deliberate", () => {
   // The omission is load-bearing, and this file's subject warns that the obvious
   // "fix" is the bug: inventory's merge writes `fields[key] = []` for stated-none

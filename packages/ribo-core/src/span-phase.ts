@@ -69,6 +69,22 @@ export interface SpanPhaseOptions {
    * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
    */
   readonly id?: string;
+  /**
+   * Extra note keys this phase must wait for, unioned with the phase's own —
+   * additive, never replacing. A phase's own `requires` is a fact about what
+   * its `plan` reads, not a configuration choice: letting a caller replace it
+   * would let them declare away a real dependency, reintroducing the
+   * `[gapfill]`-alone class of bug the note-key check exists to reject. Adding
+   * can only make validation stricter. Duplicates are removed cosmetically —
+   * the engine tolerates a repeat; dedup keeps error messages and any future
+   * introspection clean.
+   *
+   * **Deliberately no additive `produces`.** The engine verifies a declared
+   * `produces` key against what the phase's merge actually wrote, and this
+   * merge will never write a caller's key — declaring one would throw mid-run.
+   * A caller's contribution belongs on a caller-built phase.
+   */
+  readonly requires?: readonly string[];
 }
 
 interface SpanItem {
@@ -90,7 +106,10 @@ export function spanPhase<V extends Record<string, unknown>, P = NoProvenance>(
   const def: PhaseDef<V, P, SpanItem, Record<string, string | null>> = {
     id: options.id ?? "span",
     onItemFailure: "skip",
-    requires: [presenceNoteKey],
+    // Unioned, never replaced — a caller can only add ordering, never subtract
+    // it. See `SpanPhaseOptions.requires` for why the phase's own key is not a
+    // configuration choice.
+    requires: [...new Set([presenceNoteKey, ...(options.requires ?? [])])],
     produces: [spansNoteKey],
     describeItem: (item) => ({ key: item.group.key }),
     plan: (draft, ctx) => {
