@@ -38,7 +38,12 @@
 
 import { z } from "zod";
 
-import { isExtractedLeaf, mergeGroupPieces, phaseBuilder } from "@azx/ribo-core";
+import {
+  draftSeededNoteKey,
+  isExtractedLeaf,
+  mergeGroupPieces,
+  phaseBuilder,
+} from "@azx/ribo-core";
 import type {
   DeepPartial,
   Enveloped,
@@ -195,10 +200,10 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
   const def: PhaseDef<V, P, FillJob, Record<string, unknown>> = {
     id: options.id ?? "fill",
     requires: [rosterNoteKey],
-    // The merge assembles the roster-derived envelopes into `fields` — so a list
-    // whose follow-up phases read the draft needs this before them. Capability,
-    // not guarantee: an empty roster plans no jobs and writes nothing.
-    seedsDraft: true,
+    // The merge assembles the roster-derived envelopes into `fields` — so a phase
+    // whose follow-ups read the draft stands on this one, declared through the
+    // marker key the engine verifies against what the merge really wrote.
+    produces: [draftSeededNoteKey],
     describeItem: (item) => ({
       key: item.group.key,
       instance: item.instanceIndex + 1,
@@ -382,6 +387,11 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
         // written unconditionally: today the member is always present on the
         // result, and the engine emits it only when a merge wrote it.
         raw: groupResult,
+        // The marker the phase declares in `produces`, written so the engine's
+        // boundary check sees the declaration honoured. Unconditional: a merge
+        // that planned no jobs never runs (the engine skips an empty plan), so
+        // reaching this line means fields were assembled.
+        notes: draft.notes.set(draftSeededNoteKey, true),
       };
     },
   };

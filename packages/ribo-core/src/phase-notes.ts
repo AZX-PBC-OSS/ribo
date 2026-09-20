@@ -99,3 +99,19 @@ class NoteBag implements Notes {
 export function emptyNotes(): Notes {
   return new NoteBag(new Map());
 }
+
+/**
+ * Produced by any phase whose merge populates `draft.fields`; required by a phase that
+ * reads them.
+ *
+ * **Why a note key and not a dedicated flag pair.** `requires`/`produces` already
+ * expresses "this phase needs what that one did" — order-sensitively, with a phase
+ * unable to satisfy itself, and with the engine verifying a declared `produces` against
+ * what the merge really wrote — so the marker makes the draft-shape dependency a
+ * verified guarantee instead of a second, parallel declaration mechanism with its own
+ * validation rule. The flag pair it replaces was justified by a list-level rule ("at
+ * least one phase must seed the draft") that was dropped as too invasive before the
+ * pair shipped in a released line; the rule was the only thing the pair could express
+ * that the marker cannot, and its absence is deliberate (`[inventory]` alone validates).
+ */
+export const draftSeededNoteKey: NoteKey<true> = noteKey("draft-seeded");

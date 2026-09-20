@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
-import { emptyDraft, enveloped } from "@azx/ribo-core";
+import { draftSeededNoteKey, emptyDraft, enveloped } from "@azx/ribo-core";
 import type { ExtractionTarget, PhaseContext, PhaseDraft } from "@azx/ribo-core";
 
 import { extractGroups, presenceNoteKey, presencePhase } from "./presence-phase.js";
@@ -291,11 +291,11 @@ describe("presencePhase — the construction-time provenance refusal", () => {
 });
 
 describe("presencePhase — metadata", () => {
-  test("declares seedsDraft — its merge is the unconditional seed the whole strategy stands on", () => {
+  test("produces the draft-seeded marker — its merge is the unconditional seed the whole strategy stands on", () => {
     const { chat } = fakeChat(() => json({}));
     const phase = presencePhase<Values>({ groups, chat, model: chat.engine });
-    expect(phase.seedsDraft).toBe(true);
-    expect(phase.requiresDraft).toBeUndefined();
+    expect(phase.produces).toContain(draftSeededNoteKey);
+    expect(phase.produces).toContain(presenceNoteKey);
   });
 });
 

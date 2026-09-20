@@ -5,6 +5,7 @@ import { enveloped } from "./enveloped.js";
 import type { Enveloped, NoProvenance } from "./enveloped.js";
 import type { Extractor } from "./extractor.js";
 import { FakeExtractor } from "./extractor.js";
+import { draftSeededNoteKey, emptyNotes, noteKey } from "./phase-notes.js";
 import { emptyDraft } from "./phase-draft.js";
 import type { PhaseDraft } from "./phase-draft.js";
 import type { PhaseItemOutcome } from "./phase-outcome.js";
@@ -93,13 +94,15 @@ test("the result's usage arrives on the PhaseOutput", async () => {
   });
 });
 
-test("merge installs the fields into an empty draft and leaves notes untouched", async () => {
+test("merge installs the fields into an empty draft and writes nothing but the marker note", async () => {
   const extractor = new FakeExtractor<Env>(fieldsFixture);
   const phase = extractorPhase<TestValues>("lift", extractor);
   const draft0 = emptyDraft<TestValues>();
   const draft1 = await phase.with((def) => foldPhase(def, draft0));
   expect(draft1.fields).toEqual(fieldsFixture);
-  expect(draft1.notes).toBe(draft0.notes);
+  // The produces declaration is honoured with a real write, so the bag changes —
+  // but only by the marker: the merge adds no other note.
+  expect(draft1.notes.keys).toEqual([draftSeededNoteKey]);
 });
 
 test("merge carries raw and statedEmptyGroups through when present, absent/empty when not", async () => {
@@ -130,6 +133,9 @@ test("merge carries raw and statedEmptyGroups through when present, absent/empty
 
 test("merge overwrites the keys the extractor returned, leaving the draft's other top-level keys", async () => {
   const rooms = [{ name: { value: "attic", confidence: 0.7, sourceSpan: "attic" } }];
+  // A pre-existing note, so the merge's marker write is observable as an ADDITION
+  // rather than the whole bag: whatever the draft carried must survive it.
+  const carriedKey = noteKey<unknown>("carried");
   const draft0: PhaseDraft<TestValues> = {
     ...emptyDraft<TestValues>(),
     fields: {
@@ -137,12 +143,14 @@ test("merge overwrites the keys the extractor returned, leaving the draft's othe
       rooms,
     },
     raw: "old raw",
+    notes: emptyNotes().set(carriedKey, 1),
   };
   // The enveloped schema is closed, so the extractor's result covers every top-level
   // group key: `note` is overwritten, and so is `rooms` — wholesale, by the shallow
   // top-level assign (a deep merge would have kept the draft's array elements; it does
   // not get to). The draft's top-level members the result did NOT return — the
-  // pre-existing `raw` and the `notes` bag — are left as they were.
+  // pre-existing `raw` and the `notes` bag — are left as they were, the marker write
+  // being the one addition the produces declaration obliges.
   const noteAndEmptyRooms: Env = {
     note: { value: "new", confidence: 0.9, sourceSpan: "the note span" },
     rooms: [],
@@ -157,7 +165,8 @@ test("merge overwrites the keys the extractor returned, leaving the draft's othe
   });
   expect(draft1.fields.rooms).toEqual([]);
   expect(draft1.raw).toBe("old raw");
-  expect(draft1.notes).toBe(draft0.notes);
+  expect(draft1.notes.get(carriedKey)).toBe(1);
+  expect(draft1.notes.get(draftSeededNoteKey)).toBe(true);
 });
 
 test("a phase built this way passes validatePhases as a single-element list", () => {
@@ -166,11 +175,10 @@ test("a phase built this way passes validatePhases as a single-element list", ()
   expect(() => validatePhases<TestValues>([phase])).not.toThrow();
 });
 
-test("a lifted extractor declares seedsDraft — its merge shallow-assigns a complete result into the draft", () => {
+test("a lifted extractor produces the draft-seeded marker — its merge shallow-assigns a complete result into the draft", () => {
   const extractor = new FakeExtractor<Env>(fieldsFixture);
   const phase = extractorPhase<TestValues>("lift", extractor);
-  expect(phase.seedsDraft).toBe(true);
-  expect(phase.requiresDraft).toBeUndefined();
+  expect(phase.produces).toContain(draftSeededNoteKey);
 });
 
 test("the id is the caller's argument — the lift has no default of its own", () => {

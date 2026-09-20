@@ -47,7 +47,7 @@
  * and the leaf and explaining the alternative — before any call is made.
  */
 
-import { noteKey, phaseBuilder } from "@azx/ribo-core";
+import { draftSeededNoteKey, noteKey, phaseBuilder } from "@azx/ribo-core";
 import type {
   DeepPartial,
   Enveloped,
@@ -259,12 +259,12 @@ export function presencePhase<V extends Record<string, unknown>, P = NoProvenanc
   const def: PhaseDef<V, P, PresenceItem, Record<string, boolean>> = {
     id: options.id ?? "presence",
     onItemFailure: "skip",
-    produces: [presenceNoteKey],
-    // Its merge is THE SEED — the unconditional null-filled floor every later
-    // phase's writes land on. Declared so `validatePhases` knows a list starting
-    // with this phase has a populated draft behind its follow-ups. See the file
-    // header for why the seed is load-bearing.
-    seedsDraft: true,
+    // The marker rides alongside the presence map: this merge is THE SEED — the
+    // unconditional null-filled floor every later phase's writes land on — declared
+    // through the draft-seeded key so the ordinary note-key check knows a list
+    // starting with this phase has a populated draft behind its follow-ups. See the
+    // file header for why the seed is load-bearing.
+    produces: [presenceNoteKey, draftSeededNoteKey],
     describeItem: (item) => ({ key: item.group.key }),
     plan: () => options.groups.map((group) => ({ group })),
     run: async (item, _draft, ctx) => {
@@ -315,7 +315,7 @@ export function presencePhase<V extends Record<string, unknown>, P = NoProvenanc
       return {
         ...draft,
         fields: fields as DeepPartial<Enveloped<V, P>>,
-        notes: draft.notes.set(presenceNoteKey, maps),
+        notes: draft.notes.set(presenceNoteKey, maps).set(draftSeededNoteKey, true),
       };
     },
   };

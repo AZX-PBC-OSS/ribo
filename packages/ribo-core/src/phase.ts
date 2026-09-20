@@ -73,28 +73,6 @@ export interface PhaseMeta {
   readonly onItemFailure?: "abort" | "skip";
   /** Retries per item, so the total attempts per item is `maxRetries + 1`. */
   readonly maxRetries?: number;
-  /**
-   * This phase can populate an empty draft's `fields`. Capability, not guarantee —
-   * nothing checks the declaration against behaviour (`fillPhase` with an empty roster
-   * writes nothing and still declares this), because a phase does not know what it
-   * will write until `plan` runs against a draft.
-   *
-   * The axis exists because `requires`/`produces` model the **notes** channel alone:
-   * nothing modelled the **fields** channel, so a phase whose dependency is the shape
-   * of `draft.fields` — `gapfill` re-asking about leaves another phase left abstained —
-   * had no way to declare it, and a list with no field-populating phase before it
-   * passed every check. Most phases express their dependencies correctly through notes;
-   * this pair is only for the ones that cannot.
-   */
-  readonly seedsDraft?: boolean;
-  /**
-   * This phase only does useful work over a draft another phase populated — its
-   * `plan` reads `draft.fields`, not just the notes bag. `validatePhases` rejects a
-   * list in which no earlier phase declares {@link seedsDraft}, so the mis-wiring
-   * surfaces at construction instead of as a retryable parse failure after every
-   * earlier phase's calls have been spent.
-   */
-  readonly requiresDraft?: boolean;
 }
 
 /**
@@ -223,8 +201,6 @@ export function phaseBuilder<V extends Record<string, unknown>, P = NoProvenance
     concurrency: def.concurrency,
     onItemFailure: def.onItemFailure,
     maxRetries: def.maxRetries,
-    seedsDraft: def.seedsDraft,
-    requiresDraft: def.requiresDraft,
     with: (use) => use(def),
   });
 }

@@ -1,4 +1,4 @@
-import { emptyDraft, emptyNotes, enveloped } from "@azx/ribo-core";
+import { draftSeededNoteKey, emptyDraft, emptyNotes, enveloped } from "@azx/ribo-core";
 import type {
   DeepPartial,
   Enveloped,
@@ -446,7 +446,7 @@ describe("fillPhase — merge", () => {
 });
 
 describe("fillPhase — metadata", () => {
-  test("declares seedsDraft — its merge writes envelopes from the roster into the draft's fields", () => {
+  test("produces the draft-seeded marker — its merge writes envelopes from the roster into the draft's fields", () => {
     const phase = fillPhase<DemoValues>({
       target,
       chat: {} as ChatClient,
@@ -454,8 +454,7 @@ describe("fillPhase — metadata", () => {
       prepared,
       buildFillInstructions,
     });
-    expect(phase.seedsDraft).toBe(true);
-    expect(phase.requiresDraft).toBeUndefined();
+    expect(phase.produces).toContain(draftSeededNoteKey);
   });
 });
 

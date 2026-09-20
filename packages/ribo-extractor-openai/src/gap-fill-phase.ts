@@ -33,7 +33,7 @@
 
 import { z } from "zod";
 
-import { phaseBuilder } from "@azx/ribo-core";
+import { draftSeededNoteKey, phaseBuilder } from "@azx/ribo-core";
 import type {
   Enveloped,
   Extracted,
@@ -150,12 +150,12 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
     id: phaseId,
     maxRetries: 0,
     // Its dependency is the SHAPE of `draft.fields` — re-asking about the leaves
-    // another phase left abstained — not a note key, so the notes channel
-    // (`requires`) cannot express it. Declaring it lets `validatePhases` reject a
-    // list where nothing seeds the draft before this phase at construction,
-    // instead of the run dying at the closing parse with a retryable
-    // `SchemaParseError` that re-spends the earlier phases' calls on every retry.
-    requiresDraft: true,
+    // another phase left abstained — declared through the draft-seeded marker so
+    // `validatePhases` rejects a list where nothing populates the draft before this
+    // phase at construction, instead of the run dying at the closing parse with a
+    // retryable `SchemaParseError` that re-spends the earlier phases' calls on every
+    // retry.
+    requires: [draftSeededNoteKey],
     describeItem: () => ({ key: "" }),
     plan: (draft, ctx) => {
       // THE CAST, and why it is sound: the pure helpers take `Enveloped<V, P>`;

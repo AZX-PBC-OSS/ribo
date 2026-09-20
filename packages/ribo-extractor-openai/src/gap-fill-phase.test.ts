@@ -1,4 +1,5 @@
 import {
+  draftSeededNoteKey,
   emptyDraft,
   enveloped,
   extractorPhase,
@@ -331,13 +332,12 @@ describe("gapFillPhase — merge", () => {
 });
 
 describe("gapFillPhase — metadata", () => {
-  test("declares requiresDraft — its plan re-asks about leaves another phase left abstained", () => {
+  test("requires the draft-seeded marker — its plan re-asks about leaves another phase left abstained", () => {
     const chat: ChatClient = {
       complete: () => Promise.resolve({ content: "{}", finishReason: "stop" }),
     };
     const phase = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
-    expect(phase.requiresDraft).toBe(true);
-    expect(phase.seedsDraft).toBeUndefined();
+    expect(phase.requires).toContain(draftSeededNoteKey);
   });
 });
 
@@ -360,7 +360,8 @@ describe("gapFillPhase — id", () => {
   test("two gapFillPhases with different ids validate together — the thing the option exists to unblock", () => {
     // `validatePhases` rejects duplicate ids, so a phase list that wants two
     // follow-ups — one per kind of gap, say — needs one of them renamed. The
-    // base phase is the seeder the follow-ups' requiresDraft declaration needs.
+    // base phase is the lifted extractor producing the draft-seeded marker the
+    // follow-ups' requires declaration needs.
     const base = new FakeExtractor<GapExtraction>(committedFields);
     const first = gapFillPhase<GapValues>({
       target: gapTarget,

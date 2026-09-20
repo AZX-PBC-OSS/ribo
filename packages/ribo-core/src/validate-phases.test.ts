@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 
 import type { NoProvenance } from "./enveloped.js";
+import { draftSeededNoteKey } from "./phase-notes.js";
 import { phaseBuilder } from "./phase.js";
 import type { PhaseMeta } from "./phase.js";
 import { validatePhases } from "./validate-phases.js";
@@ -82,51 +83,63 @@ test("a single-phase list passes", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The draft-state axis: a phase declaring `requiresDraft` must be preceded by
-// one declaring `seedsDraft`. Same order-sensitive shape as the note-key check
-// above. The ids are the real phases' — the lists read as the ones the presets
-// construct — but the phases are the helper's, because the real ones live in
-// leaf packages core cannot import, and `fillPhase` carries note requirements
-// of its own that would trip the existing check for the wrong reason.
+// The draft-seeded marker: a phase whose dependency is the SHAPE of
+// `draft.fields` — not a note's value, so no other key would express it —
+// declares `requires: [draftSeededNoteKey]` and stands on the phases that
+// populate it, through the same order-sensitive check the note keys above
+// already get. The ids are the real phases' — the lists read as the ones the
+// presets construct — but the phases are the helper's, because the real ones
+// live in leaf packages core cannot import, and `fillPhase` carries note
+// requirements of its own that would trip the existing check for the wrong
+// reason.
 // ---------------------------------------------------------------------------
 
-test("a requiresDraft phase after a seedsDraft phase passes", () => {
-  const fill = phase("fill", { seedsDraft: true });
-  const gapfill = phase("gapfill", { requiresDraft: true });
+test("a gapfill requiring the marker with nothing before it throws, naming the phase and the key", () => {
+  const gapfill = phase("gapfill", { requires: [draftSeededNoteKey] });
+  expect(() => validatePhases<TestValues>([gapfill])).toThrow(/gapfill/);
+  expect(() => validatePhases<TestValues>([gapfill])).toThrow(/draft-seeded/);
+});
+
+test("a marker-requiring phase after one that does not produce it throws — inventory does not seed", () => {
+  const inventory = phase("inventory");
+  const gapfill = phase("gapfill", { requires: [draftSeededNoteKey] });
+  expect(() => validatePhases<TestValues>([inventory, gapfill])).toThrow(/gapfill/);
+  expect(() => validatePhases<TestValues>([inventory, gapfill])).toThrow(/draft-seeded/);
+});
+
+test("a marker-requiring phase after a marker-producing one passes", () => {
+  const fill = phase("fill", { produces: [draftSeededNoteKey] });
+  const gapfill = phase("gapfill", { requires: [draftSeededNoteKey] });
   expect(() => validatePhases<TestValues>([fill, gapfill])).not.toThrow();
 });
 
-test("a requiresDraft phase with no seeder before it throws, naming the phase and the fix", () => {
-  const inventory = phase("inventory");
-  const gapfill = phase("gapfill", { requiresDraft: true });
-  expect(() => validatePhases<TestValues>([inventory, gapfill])).toThrow(/gapfill/);
-  expect(() => validatePhases<TestValues>([inventory, gapfill])).toThrow(/seedsDraft/);
-});
-
-test("a seedsDraft phase AFTER the requiresDraft one does not satisfy it — order matters", () => {
-  const gapfill = phase("gapfill", { requiresDraft: true });
-  const fill = phase("fill", { seedsDraft: true });
+test("a marker-producing phase AFTER the requiring one does not satisfy it — order matters", () => {
+  const gapfill = phase("gapfill", { requires: [draftSeededNoteKey] });
+  const fill = phase("fill", { produces: [draftSeededNoteKey] });
   expect(() => validatePhases<TestValues>([gapfill, fill])).toThrow(/gapfill/);
 });
 
-test("a phase declaring both members does not satisfy itself and throws when first", () => {
-  const both = phase("both", { seedsDraft: true, requiresDraft: true });
+test("a phase producing AND requiring the marker does not satisfy itself", () => {
+  const both = phase("both", {
+    produces: [draftSeededNoteKey],
+    requires: [draftSeededNoteKey],
+  });
   expect(() => validatePhases<TestValues>([both])).toThrow(/both/);
 });
 
-test("the three-phase chain validates on its note declarations plus presence's seedsDraft", () => {
-  const presence = phase("presence", { produces: ["presence"], seedsDraft: true });
+test("the three-phase chain validates on its note declarations plus the marker", () => {
+  const presence = phase("presence", { produces: ["presence", draftSeededNoteKey] });
   const span = phase("span", { requires: ["presence"], produces: ["spans"] });
   const classify = phase("classify", { requires: ["spans"], produces: ["unsupported"] });
   expect(() => validatePhases<TestValues>([presence, span, classify])).not.toThrow();
 });
 
-test("a list where no phase declares either member passes — there is deliberately no list-level seeding rule", () => {
+test("a list where no phase produces the marker passes — there is deliberately no list-level seeding rule", () => {
   // The pin that no "at least one phase must seed" rule was added, and must not be:
   // `[inventory]` alone is not clearly wrong — its merge writes `fields[key] = []`
   // for stated-none collection groups, so an all-stated-empty roster legitimately
   // produces `{hvac: []}` — and such a rule would reject it along with every
-  // `phasedExtractor` fixture that predates the axis (SP4a design §4.1).
+  // `phasedExtractor` fixture that predates the marker (SP4a design §4.1).
   const inventory = phase("inventory");
   expect(() => validatePhases<TestValues>([inventory])).not.toThrow();
 });

@@ -124,39 +124,30 @@ test("a phase that omits describeItem is still a valid Phase", () => {
   expect(bare.id).toBe("bare");
 });
 
-// The draft-state declarations are asserted through `phaseBuilder`, never an object
+// The note-channel declarations are asserted through `phaseBuilder`, never an object
 // literal: the builder copies the metadata member-by-member, so a member missing from
 // that copy list reads `undefined` off every real phase (which is every real
 // construction) while a literal-based test would still see it. The validator and the
 // planner read the metadata off the constructed `Phase` — that is why this is the
 // construction that matters.
-test("a builder-constructed phase exposes seedsDraft and requiresDraft as declared", () => {
-  const seeder = build({
-    id: "seeder",
-    seedsDraft: true,
-    plan: () => [],
-    run: async () => ({ value: 1 }),
-    merge: (draft) => draft,
-  });
+test("a builder-constructed phase exposes requires and produces as declared", () => {
   const requirer = build({
     id: "requirer",
-    requiresDraft: true,
+    requires: ["roster"],
+    produces: ["spans"],
     plan: () => [],
     run: async () => ({ value: 1 }),
     merge: (draft) => draft,
   });
-  expect(seeder.seedsDraft).toBe(true);
-  expect(requirer.requiresDraft).toBe(true);
-  // Declaring one does not imply the other: each is read off independently.
-  expect(seeder.requiresDraft).toBeUndefined();
-  expect(requirer.seedsDraft).toBeUndefined();
+  expect(requirer.requires).toEqual(["roster"]);
+  expect(requirer.produces).toEqual(["spans"]);
 });
 
-test("a phase declaring neither draft-state member reads undefined for both", () => {
-  // `undefined` reads as false downstream — every fixture written before the axis
-  // declares neither, and every existing list must keep validating unchanged.
-  expect(stringPhase.seedsDraft).toBeUndefined();
-  expect(stringPhase.requiresDraft).toBeUndefined();
+test("a phase declaring neither note-channel member reads undefined for both", () => {
+  // `undefined` reads as "declares nothing" downstream — every fixture that declares
+  // neither must keep validating unchanged.
+  expect(stringPhase.requires).toBeUndefined();
+  expect(stringPhase.produces).toBeUndefined();
 });
 
 // ---------------------------------------------------------------------------

@@ -576,7 +576,9 @@ export type {
 // later wave). Branded note keys and the immutable bag they address: the cross-phase
 // channel whose keys are typed so two phases cannot silently clobber or misread, while the
 // keys stay plain strings at runtime for `requires`/`produces` and a model-emitted plan.
-export { emptyNotes, noteKey } from "./phase-notes.js";
+// `draftSeededNoteKey` is the marker for "my merge populates `draft.fields`" — the
+// requires/produces spelling of the dependency a phase cannot declare with its own keys.
+export { draftSeededNoteKey, emptyNotes, noteKey } from "./phase-notes.js";
 export type { NoteKey, Notes } from "./phase-notes.js";
 // The draft a phased run's phases progressively fill, and its homomorphic deep partial —
 // the shape that lets a phase write one leaf's `sourceSpan` without claiming its siblings.

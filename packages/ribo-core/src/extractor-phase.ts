@@ -1,5 +1,6 @@
 import type { Enveloped, NoProvenance } from "./enveloped.js";
 import type { Extractor } from "./extractor.js";
+import { draftSeededNoteKey } from "./phase-notes.js";
 import type { Phase, PhaseDef } from "./phase.js";
 import { phaseBuilder } from "./phase.js";
 
@@ -28,11 +29,11 @@ import { phaseBuilder } from "./phase.js";
  * merging; this one does not need to.
  *
  * What this deliberately does not do: it does not run anything on its own — the phase is
- * inert until an engine calls `plan`/`run`/`merge`. And it declares no `requires` or
- * `produces`: an `Extractor` speaks in fields and results, not in note keys. It does
- * declare `seedsDraft` — the fields channel is exactly what it speaks, the merge
+ * inert until an engine calls `plan`/`run`/`merge`. And it declares no `requires`: an
+ * `Extractor` speaks in fields and results, not in note keys. It produces
+ * {@link draftSeededNoteKey} — the fields channel is exactly what it speaks, the merge
  * shallow-assigning a complete `Enveloped<V, P>` into the draft — so a list with a lifted
- * base is known to `validatePhases` as one that populates the draft.
+ * base is known, through the ordinary note-key check, to stand on a populated draft.
  */
 
 /**
@@ -59,9 +60,9 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
   > = {
     id,
     // The fields channel, declared: the merge shallow-assigns a complete `Enveloped<V, P>`
-    // into the draft, so follow-up phases that read the draft stand on this. See the file
-    // header — note keys it still declares none of.
-    seedsDraft: true,
+    // into the draft, so follow-up phases that read the draft stand on this — through the
+    // marker key, verified against what the merge really wrote. See the file header.
+    produces: [draftSeededNoteKey],
     plan: () => [WHOLE_DOCUMENT],
     run: async (_item, _draft, ctx) => {
       // Forwarded, not rebuilt: `signal` and `deadline` are the caller's cancellation and
@@ -103,7 +104,16 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
       }
       // `raw` is optional on the draft and its ABSENCE is what "no result carried one"
       // reads as — so it is spread in only when carried, never as an explicit undefined.
-      return { ...draft, fields, statedEmptyGroups, ...(hasRaw ? { raw } : {}) };
+      // The marker the phase declares in `produces` is written unconditionally with the
+      // fields — the merge always runs (the plan is never empty), so the engine's
+      // boundary check always sees the declaration honoured.
+      return {
+        ...draft,
+        fields,
+        statedEmptyGroups,
+        notes: draft.notes.set(draftSeededNoteKey, true),
+        ...(hasRaw ? { raw } : {}),
+      };
     },
   };
   return phaseBuilder<V, P>()(def);
