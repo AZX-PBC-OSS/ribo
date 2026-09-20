@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { ChatError, type ChatRequest } from "@azx/ribo-extractor-openai";
+import { ChatError, type ChatRequest } from "@azx/ribo-core";
 
 import { ONDEVICE_CHAT_ENGINE, OnDeviceChat } from "./ondevice-chat.js";
 import {

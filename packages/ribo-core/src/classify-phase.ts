@@ -39,21 +39,21 @@
  *
  * The marker reports `{ calls: 1 }`: the call was made and today's code counts
  * it; a marker carrying no usage would undercount every unsupported leaf.
+ *
+ * Since SP4a wave 5 this file lives in core beside `presence-phase.ts` (same
+ * move, same reason): the `ChatError` it reads is core's seam type, and nothing
+ * here is on-device.
  */
 
-import { noteKey, phaseBuilder } from "@azx/ribo-core";
-import type {
-  DeepPartial,
-  Enveloped,
-  NoProvenance,
-  NoteKey,
-  Phase,
-  PhaseDef,
-  PhaseDraft,
-  PhaseItemOutcome,
-} from "@azx/ribo-core";
-import { ChatError } from "@azx/ribo-extractor-openai";
-import type { CapableChatClient, ChatCompletion, ChatMessage } from "@azx/ribo-extractor-openai";
+import { ChatError } from "./chat-client.js";
+import type { CapableChatClient, ChatCompletion, ChatMessage } from "./chat-client.js";
+import type { Enveloped, NoProvenance } from "./enveloped.js";
+import { noteKey } from "./phase-notes.js";
+import type { NoteKey } from "./phase-notes.js";
+import type { DeepPartial, PhaseDraft } from "./phase-draft.js";
+import type { Phase, PhaseDef } from "./phase.js";
+import { phaseBuilder } from "./phase.js";
+import type { PhaseItemOutcome } from "./phase-outcome.js";
 
 import { chatRequest, isSchemaNode, writableGroupEntry } from "./presence-phase.js";
 import type { Group, JsonSchema, Leaf } from "./presence-phase.js";

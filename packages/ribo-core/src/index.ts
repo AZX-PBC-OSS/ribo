@@ -634,6 +634,20 @@ export type {
   ChatUsage,
 } from "./chat-client.js";
 
+// The three-phase walk that a narrowing strategy composes its phase list from —
+// moved here from `@azx/ribo-extractor-ondevice` (SP4a wave 5): the phases ask a
+// `ChatClient` which leaves are present, what spans support them, and which are
+// unsupported — nothing on-device — and core owns the phase vocabulary beside
+// `extractorPhase`. The on-device package keeps the preset that tunes them
+// (`threePhaseExtractor`); a host composes the phases themselves from here, the
+// way `public-composition.test.ts` does.
+export { extractGroups, presencePhase, presenceNoteKey } from "./presence-phase.js";
+export type { Group, JsonSchema, Leaf, PresencePhaseOptions } from "./presence-phase.js";
+export { spanPhase, spansNoteKey } from "./span-phase.js";
+export type { SpanPhaseOptions } from "./span-phase.js";
+export { classifyPhase, classifyWrappedPhase, unsupportedNoteKey } from "./classify-phase.js";
+export type { ClassifyPhaseOptions } from "./classify-phase.js";
+
 // The phased-extraction engine (wave 3b): run a list of phases in order, fanning each
 // phase's items out through a bounded pool, threading the draft through each `merge`,
 // then normalize once and parse once. Owns scheduling, retry, cancellation, the running

@@ -45,18 +45,21 @@
  * asks for one verbatim span per leaf, so it cannot extract that group.
  * {@link extractGroups} throws at construction with a message naming the group
  * and the leaf and explaining the alternative — before any call is made.
+ *
+ * Since SP4a wave 5 this file lives in core, not `@azx/ribo-extractor-ondevice`
+ * (where the `threePhaseExtractor` port put it): nothing here is on-device — it
+ * asks any {@link ChatClient} which leaves are discussed — and core owns the
+ * phase vocabulary. The on-device package keeps only the preset that composes
+ * the three phases at device-tuned settings.
  */
 
-import { draftSeededNoteKey, noteKey, phaseBuilder } from "@azx/ribo-core";
-import type {
-  DeepPartial,
-  Enveloped,
-  NoProvenance,
-  NoteKey,
-  Phase,
-  PhaseDef,
-} from "@azx/ribo-core";
-import type { CapableChatClient, ChatMessage, ChatRequest } from "@azx/ribo-extractor-openai";
+import type { CapableChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
+import type { Enveloped, NoProvenance } from "./enveloped.js";
+import { draftSeededNoteKey, noteKey } from "./phase-notes.js";
+import type { NoteKey } from "./phase-notes.js";
+import type { DeepPartial } from "./phase-draft.js";
+import type { Phase, PhaseDef } from "./phase.js";
+import { phaseBuilder } from "./phase.js";
 
 /** Loose JSON Schema node — enough to walk the zod-generated schema and build sub-schemas. */
 export type JsonSchema = Record<string, unknown>;

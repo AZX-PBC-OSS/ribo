@@ -23,18 +23,19 @@
  * The transcript rides on the item because `merge` — which grounds the spans —
  * has no phase context to read it from (the same shape `gap-fill-phase.ts`
  * uses). It is the same string `ctx.transcript.text` hands the run.
+ *
+ * Since SP4a wave 5 this file lives in core beside `presence-phase.ts` (same
+ * move, same reason): nothing here is on-device.
  */
 
-import { isSpanGrounded, noteKey, phaseBuilder } from "@azx/ribo-core";
-import type {
-  DeepPartial,
-  Enveloped,
-  NoProvenance,
-  NoteKey,
-  Phase,
-  PhaseDef,
-} from "@azx/ribo-core";
-import type { CapableChatClient, ChatMessage } from "@azx/ribo-extractor-openai";
+import type { CapableChatClient, ChatMessage } from "./chat-client.js";
+import type { Enveloped, NoProvenance } from "./enveloped.js";
+import { isSpanGrounded } from "./provenance.js";
+import { noteKey } from "./phase-notes.js";
+import type { NoteKey } from "./phase-notes.js";
+import type { DeepPartial } from "./phase-draft.js";
+import type { Phase, PhaseDef } from "./phase.js";
+import { phaseBuilder } from "./phase.js";
 
 import {
   chatRequest,

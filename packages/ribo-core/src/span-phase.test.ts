@@ -1,12 +1,16 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
-import { emptyDraft, emptyNotes, enveloped } from "@azx/ribo-core";
-import type { ExtractionTarget, PhaseContext, PhaseDraft } from "@azx/ribo-core";
+import { emptyDraft } from "./phase-draft.js";
+import type { PhaseDraft } from "./phase-draft.js";
+import { emptyNotes } from "./phase-notes.js";
+import { enveloped } from "./enveloped.js";
+import type { ExtractionTarget } from "./extractor.js";
+import type { PhaseContext } from "./phase.js";
 
 import { extractGroups, nullEnvelope, presenceNoteKey, wrapGroupEntry } from "./presence-phase.js";
 import type { Group, Leaf, LeafEnvelope, PresenceMaps } from "./presence-phase.js";
 import { spansNoteKey, spanPhase } from "./span-phase.js";
-import { fakeChat } from "../test-support/fake-chat.js";
+import { fakeChat } from "./test-support/fake-chat.js";
 
 /**
  * Phase-level tests for the span phase, against hand-built drafts — the engine

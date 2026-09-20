@@ -1,4 +1,4 @@
-import type { ChatCapability } from "@azx/ribo-extractor-openai";
+import type { ChatCapability } from "@azx/ribo-core";
 import type { ScheduleTimer } from "@azx/ribo-core";
 
 import type { LanguageModel, LanguageModelPrompt, LanguageModelSession } from "./capability.js";

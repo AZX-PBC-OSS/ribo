@@ -1,4 +1,4 @@
-import type { ChatCapability } from "@azx/ribo-extractor-openai";
+import type { ChatCapability } from "@azx/ribo-core";
 
 export type LanguageModelAvailability =
   "unavailable" | "downloadable" | "downloading" | "available";

@@ -1,32 +1,38 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
-import { enveloped, phasedExtractor, validatePhases } from "@azx/ribo-core";
-import type { ExtractionTarget } from "@azx/ribo-core";
-
 import {
   classifyPhase,
+  enveloped,
   extractGroups,
+  phasedExtractor,
   presenceNoteKey,
   presencePhase,
   spanPhase,
   spansNoteKey,
+  validatePhases,
 } from "./index.js";
-import { OnDeviceChat } from "./ondevice-chat.js";
-import { FakeLanguageModel } from "./test-support/fake-language-model.js";
+import type { CapableChatClient, ExtractionTarget } from "./index.js";
 
 /**
- * The wave's deliverable, as a test: a host assembles `[presence, span, classify]`
- * through the package's public entry point ALONE and hands the list to core's
- * engine. Every phase and note-key import here comes from `./index.js` — a host
- * cannot reach `./phases/*` through the package's `exports` map, so this is
- * exactly the composition the barrel makes possible, and nothing else.
+ * A host assembles `[presence, span, classify]` through core's public entry
+ * point ALONE and hands the list to core's engine. Every phase and note-key
+ * import here comes from `./index.js` — a host cannot reach the individual
+ * modules through the package's `exports` map, so this is exactly the
+ * composition the barrel makes possible, and nothing else.
  *
- * The groups come from `extractGroups`, also public: the first cut of this wave
- * exported the phases but not the walk that feeds them, so a host could build a
- * list and never run one. `presencePhase` takes `groups: readonly Group[]` and
- * `extractGroups` is the only thing that produces them. Walking a REAL schema
- * here rather than passing `[]` is what makes this the wave's deliverable — it
- * is the whole path a host would take.
+ * The test moved here from `@azx/ribo-extractor-ondevice` (SP4a wave 5, with
+ * the phases), and the move makes its point STRONGER: a host no longer composes
+ * these phases from an extractor package — the transport-agnostic walk is core
+ * surface, and the on-device package only tunes the preset. The transport here
+ * is a bare `CapableChatClient` fake rather than any real engine: construction
+ * and validation make no calls, and any host-wired transport must do.
+ *
+ * The groups come from `extractGroups`, also public: the first cut of the
+ * earlier wave exported the phases but not the walk that feeds them, so a host
+ * could build a list and never run one. `presencePhase` takes
+ * `groups: readonly Group[]` and `extractGroups` is the only thing that
+ * produces them. Walking a REAL schema here rather than passing `[]` is what
+ * makes this the composition test — it is the whole path a host would take.
  */
 
 const patchSchema = z.strictObject({
@@ -48,10 +54,18 @@ const target: ExtractionTarget<Values> = {
 };
 
 function composeOptions() {
-  // `OnDeviceChat` is itself a public export, so the transport is host-wirable
-  // too; the fake model behind it is package test-support, incidental here —
-  // construction and validation make no calls.
-  const chat = new OnDeviceChat({ languageModel: new FakeLanguageModel() });
+  // A bare `CapableChatClient` double — the seam the phases take, faked the
+  // way a host's test would fake whatever transport it wires. Construction
+  // and validation make no calls.
+  const chat: CapableChatClient = {
+    engine: "fake-chat",
+    capability: () => {
+      throw new Error("capability() is not exercised by construction and validation");
+    },
+    complete: async () => {
+      throw new Error("complete() is not exercised by construction and validation");
+    },
+  };
   // The walk, from the barrel. A host with an extraction schema and nothing
   // else can get here, which is the property this file exists to pin.
   const groups = extractGroups(z.toJSONSchema(target.extractionSchema));

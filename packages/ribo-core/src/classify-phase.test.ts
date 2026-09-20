@@ -1,8 +1,12 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
-import { emptyDraft, emptyNotes, enveloped } from "@azx/ribo-core";
-import type { ExtractionTarget, PhaseContext, PhaseDraft } from "@azx/ribo-core";
-import { ChatError } from "@azx/ribo-extractor-openai";
+import { emptyDraft } from "./phase-draft.js";
+import type { PhaseDraft } from "./phase-draft.js";
+import { emptyNotes } from "./phase-notes.js";
+import { enveloped } from "./enveloped.js";
+import { ChatError } from "./chat-client.js";
+import type { ExtractionTarget } from "./extractor.js";
+import type { PhaseContext } from "./phase.js";
 
 import { extractGroups, nullEnvelope, presenceNoteKey, wrapGroupEntry } from "./presence-phase.js";
 import type { Group, Leaf, LeafEnvelope } from "./presence-phase.js";
@@ -10,7 +14,7 @@ import { spansNoteKey } from "./span-phase.js";
 import type { SpanMaps } from "./span-phase.js";
 import { classifyPhase, classifyWrappedPhase, unsupportedNoteKey } from "./classify-phase.js";
 import type { UnsupportedLeaves } from "./classify-phase.js";
-import { fakeChat } from "../test-support/fake-chat.js";
+import { fakeChat } from "./test-support/fake-chat.js";
 
 /**
  * Phase-level tests for the classify and wrapped-classify phases, against

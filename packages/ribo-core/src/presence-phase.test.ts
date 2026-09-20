@@ -1,10 +1,14 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
-import { draftSeededNoteKey, emptyDraft, enveloped } from "@azx/ribo-core";
-import type { ExtractionTarget, PhaseContext, PhaseDraft } from "@azx/ribo-core";
+import { emptyDraft } from "./phase-draft.js";
+import type { PhaseDraft } from "./phase-draft.js";
+import { enveloped } from "./enveloped.js";
+import { draftSeededNoteKey } from "./phase-notes.js";
+import type { ExtractionTarget } from "./extractor.js";
+import type { PhaseContext } from "./phase.js";
 
 import { extractGroups, presenceNoteKey, presencePhase } from "./presence-phase.js";
-import { fakeChat } from "../test-support/fake-chat.js";
+import { fakeChat } from "./test-support/fake-chat.js";
 
 /**
  * Phase-level tests for the presence phase, against hand-built drafts — the
