@@ -195,6 +195,14 @@ When true, `plan` skips a job whose leaves are already committed in the draft â€
 `findAbstainedLeaves` answers for gap-fill, asked at job granularity rather than leaf granularity.
 A second fill then re-asks only about what the first did not get.
 
+**The merge needed a fix for this to be safe, and the reason is worth recording.** This design
+argued narrowing is sound because `fillPhase.merge` starts from `{ ...draft.fields }`, so earlier
+results survive. That is true for singleton entries and **was false for collection groups**: the
+merge rebuilt each collection array as `new Array(job.instances)` and wrote it over the draft
+wholesale, so a narrowed second fill blanked the slots it had skipped. Narrowing would have
+destroyed data. The base is now the draft's own array when it holds one. A full fill is unaffected,
+because every slot's job runs.
+
 **Default false, because true changes behaviour for every existing caller** and the three-phase and
 scoped-instance presets were measured with the current semantics.
 
