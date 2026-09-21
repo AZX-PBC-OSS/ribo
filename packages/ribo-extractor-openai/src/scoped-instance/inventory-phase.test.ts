@@ -6,7 +6,7 @@ import { describe, expect, test } from "vitest";
 import { inventoryPhase, rosterNoteKey } from "./inventory-phase.js";
 import { prepareGroups } from "./instance-fill.js";
 import type { PreparedGroup } from "./instance-fill.js";
-import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
+import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
 
 /**
  * Phase-level tests for the inventory phase, against hand-built drafts — the

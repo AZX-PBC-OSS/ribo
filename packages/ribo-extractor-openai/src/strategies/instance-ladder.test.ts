@@ -18,7 +18,7 @@ import type {
 } from "@azx/ribo-core";
 import { instanceLadder } from "./instance-ladder.js";
 import { perGroupArrayExtractor, perGroupSingletonExtractor } from "./per-group.js";
-import type { FillScope } from "./instance-fill.js";
+import type { FillScope } from "../scoped-instance/instance-fill.js";
 
 /**
  * Must-fail tests for Task 16 — the instance-modeling strategy ladder. Every call

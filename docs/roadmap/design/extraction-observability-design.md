@@ -13,7 +13,7 @@ because four of its entries contradict the request.
 
 These were settled against the tree at `258e4af`, not assumed.
 
-**0.1 A sixth unit, not five.** `gapFillExtractor` (`ribo-extractor-openai/src/gap-fill.ts`) is a
+**0.1 A sixth unit, not five.** `gapFillExtractor` (`ribo-extractor-openai/src/gap-fill/gap-fill.ts`) is a
 strategy the request does not list. It wraps any base extractor and makes ONE focused follow-up
 call over the leaves the base left as `value: null` with a non-null `sourceSpan`. That call is a
 unit of work, it is invisible today, and it is none of the other five. It gets `unit: "gapfill"`

@@ -29,8 +29,8 @@ import type {
 
 import { perGroupArrayExtractor, perGroupSingletonExtractor } from "./per-group.js";
 import type { PerGroupOptions } from "./per-group.js";
-import { scopedInstanceExtractor } from "./instance-fill.js";
-import type { ScopedFillOptions } from "./instance-fill.js";
+import { scopedInstanceExtractor } from "../scoped-instance/instance-fill.js";
+import type { ScopedFillOptions } from "../scoped-instance/instance-fill.js";
 
 /** Options for {@link instanceLadder}. */
 export interface InstanceLadderOptions<

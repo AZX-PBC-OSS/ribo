@@ -53,12 +53,12 @@ import type {
   RosterCandidate,
 } from "@azx/ribo-core";
 
-import { assertWireSafeSchemaName, narrowToLeaves } from "./extraction-common.js";
+import { assertWireSafeSchemaName, narrowToLeaves } from "../prompt/extraction-common.js";
 import { fillPhase } from "./fill-phase.js";
 import { inventoryPhase } from "./inventory-phase.js";
-import { partitionedLeafKeys } from "./per-group.js";
-import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
-import type { ExtractionGroup } from "./split-schema.js";
+import { partitionedLeafKeys } from "../strategies/per-group.js";
+import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
+import type { ExtractionGroup } from "../schema/split-schema.js";
 
 // Re-export the generic inventory/fill vocabulary from core, where both the
 // adapter and the extractor strategy can reach it without a package cycle.

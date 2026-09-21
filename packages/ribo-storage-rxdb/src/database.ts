@@ -1,20 +1,20 @@
 import { addRxPlugin, createRxDatabase, removeRxDatabase } from "rxdb";
-import type { RxCollection, RxDatabase, RxDocument, RxStorage } from "rxdb";
+import type { RxCollection, RxDatabase, RxStorage } from "rxdb";
 import { RxDBAttachmentsPlugin } from "rxdb/plugins/attachments";
 import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 
 import {
   CAPTURES_COLLECTION_NAME,
+  CAPTURE_DOCUMENT_UPGRADES,
   PLUGIN_STORAGE_COLLECTION_NAME,
   SESSION_COLLECTION_NAME,
+  backfillSessions,
 } from "@azx/ribo-core";
-import type {
-  CaptureDocument,
-  PersistedReviewOutcome,
-  PluginStorageDocument,
-  SessionDocument,
-} from "@azx/ribo-core";
+import type { CaptureDocument, PluginStorageDocument, SessionDocument } from "@azx/ribo-core";
+
+import { createRxdbBackend } from "./backend.js";
+import { toMigrationStrategies } from "./migration-strategies.js";
 
 import {
   PLUGIN_STORAGE_MIGRATION_STRATEGIES,
@@ -55,90 +55,6 @@ export type OutboxDatabase = RxDatabase<{
   sessions: SessionCollection;
   pluginStorage: PluginStorageCollection;
 }>;
-
-/**
- * The v5 session-level fields, carried on the recording document by the v6
- * migration until {@link backfillSessions} has lifted them onto a session and
- * cleared it.
- *
- * A single optional bag rather than six loose properties, so no new code can
- * accidentally read a v5 field as if it were current, and so clearing it is one
- * delete. Nothing outside migration writes this. It is persisted rather than
- * held in memory because a crash between the migration finishing and the
- * backfill running would otherwise lose the data for good.
- */
-export interface LegacySessionFields {
-  extracted?: Record<string, unknown>;
-  extractedBy?: string;
-  reviewOutcome?: PersistedReviewOutcome;
-  writeResult?: Record<string, unknown>;
-  writtenInstances?: Record<string, boolean[]>;
-  idempotencyKey?: string;
-}
-
-/** Read the migration carrier off a recording document. */
-function legacyOf(doc: CaptureDocument): LegacySessionFields | undefined {
-  return doc.legacy;
-}
-
-/**
- * Derive a deterministic session id from the recording's `ctx.assessmentId`.
- * Recordings with no `assessmentId` get a singleton session.
- *
- * Deterministic (not a random UUID) is load-bearing twice over: it is what
- * groups a job's recordings into one session, and it is what lets the backfill
- * re-run without creating a second session for work it already lifted.
- *
- * `ref` now carries the "what this session is for" meaning the id-as-
- * assessment-id trick was reaching for; the session keeps its own generated
- * id, and `ref` is the indexed query target. This function stays because its
- * output is still the session id that groups recordings together.
- */
-export function migratedSessionId(ctx: unknown): string {
-  if (typeof ctx === "object" && ctx !== null && "assessmentId" in ctx) {
-    const assessmentId = (ctx as Record<string, unknown>).assessmentId;
-    if (typeof assessmentId === "string" && assessmentId.length > 0) {
-      return `migrated-session-${assessmentId}`;
-    }
-  }
-  // Recordings with no assessmentId share one singleton session per storage.
-  return `migrated-session-singleton`;
-}
-
-/**
- * Derive a `ref` from the recording's `ctx.assessmentId`, with the same
- * singleton fallback {@link migratedSessionId} uses. This is the same recovery
- * the relay used to do on every write — done once at migration time instead.
- */
-/**
- * The write destination for a migrated session, or an empty object when the
- * recording carried none.
- *
- * `sessionRxSchema` types `ctx` as an object and lists it as required, so a
- * minted session whose `ctx` is `undefined` or a primitive is rejected at
- * insert — and that insert happens inside `openOutboxDatabase`, so the failure
- * is a device that will not open its own storage. An empty object keeps the
- * failure where it belongs: the write step parses `ctx` through the adapter's
- * `ctxSchema`, refuses it terminally, and the session goes `dead` with an error
- * a human can read. That is what the same recording did before the session
- * owned its destination.
- */
-function migratedCtx(ctx: unknown): Record<string, unknown> {
-  return typeof ctx === "object" && ctx !== null ? (ctx as Record<string, unknown>) : {};
-}
-
-function migratedSessionRef(ctx: unknown): string {
-  if (typeof ctx === "object" && ctx !== null && "assessmentId" in ctx) {
-    const assessmentId = (ctx as Record<string, unknown>).assessmentId;
-    if (typeof assessmentId === "string" && assessmentId.length > 0) {
-      return assessmentId;
-    }
-  }
-  return "migrated-session-singleton";
-}
-
-/** v5 recording statuses that the session, not the recording, now owns. */
-const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "writing", "done"]);
 
 /**
  * Schema-migration strategies for the storage collection, keyed by the schema
@@ -234,54 +150,7 @@ const V5_SESSION_OWNED_STATUSES = new Set(["extracting", "awaiting-review", "wri
  * Exported (rather than inlined into `addCollections`) so a test can exercise
  * the strategy function directly, independent of a real migration run.
  */
-export const CAPTURE_MIGRATION_STRATEGIES = {
-  1: (doc: CaptureDocument) => doc,
-  2: (doc: CaptureDocument) => doc,
-  3: (doc: CaptureDocument) => doc,
-  4: (doc: CaptureDocument) => doc,
-  5: (doc: CaptureDocument) => doc,
-  6: (doc: Record<string, unknown>) => {
-    // v5 → v6, the EXPAND half of the split. Per-document, no side effects, and
-    // idempotent: running it twice on the same document yields the same result,
-    // which is what a checkpoint-resumed migration requires.
-    const next: Record<string, unknown> = { ...doc };
-
-    const legacy: LegacySessionFields = {};
-    if (doc.extracted !== undefined) legacy.extracted = doc.extracted as Record<string, unknown>;
-    if (doc.extractedBy !== undefined) legacy.extractedBy = doc.extractedBy as string;
-    if (doc.reviewOutcome !== undefined)
-      legacy.reviewOutcome = doc.reviewOutcome as PersistedReviewOutcome;
-    if (doc.writeResult !== undefined)
-      legacy.writeResult = doc.writeResult as Record<string, unknown>;
-    if (doc.writtenInstances !== undefined)
-      legacy.writtenInstances = doc.writtenInstances as Record<string, boolean[]>;
-    if (doc.idempotencyKey !== undefined) legacy.idempotencyKey = doc.idempotencyKey as string;
-
-    delete next.extracted;
-    delete next.extractedBy;
-    delete next.reviewOutcome;
-    delete next.writeResult;
-    delete next.writtenInstances;
-    delete next.idempotencyKey;
-    next.legacy = legacy;
-
-    // The recording state machine narrows to capture + transcription. A row
-    // parked in a status the session now owns has, by definition, been
-    // transcribed already.
-    if (V5_SESSION_OWNED_STATUSES.has(next.status as string)) next.status = "transcribed";
-
-    // The RECORDING'S CTX, not the recording. `migratedSessionId` reads
-    // `ctx.assessmentId`, and a recording has no `assessmentId` of its own —
-    // handing it the whole recording made the `"assessmentId" in ctx` test
-    // always false, so every row on a device fell through to the singleton and
-    // one session swallowed every job the auditor had ever captured. The
-    // parameter is `unknown`, so nothing failed; the storage simply grouped
-    // wrongly and silently.
-    next.sessionId = migratedSessionId((doc.recording as { ctx?: unknown } | undefined)?.ctx);
-    return next as CaptureDocument;
-  },
-  7: (doc: CaptureDocument) => doc,
-};
+export const CAPTURE_MIGRATION_STRATEGIES = toMigrationStrategies(CAPTURE_DOCUMENT_UPGRADES);
 
 /**
  * Default IndexedDB database name.
@@ -389,155 +258,14 @@ export async function openOutboxDatabase(
     },
   });
 
-  await backfillSessions(database);
+  // The cross-collection half of the v5 → v6 migration, which the per-document
+  // strategies above structurally cannot do. It lives in core and is written
+  // against the port, so it runs over a backend rather than over RxDB — this
+  // package supplies the backend and decides *when*, which is the whole split.
+  // Safe to run unconditionally: it is a no-op on a database with no carriers.
+  await backfillSessions(createRxdbBackend(database, name));
 
   return database;
-}
-
-/**
- * Create the session documents the v6 migration's `legacy` bags imply.
- *
- * The **backfill** half of expand/contract. Runs after `addCollections`, so both
- * collections are open and this is ordinary application code rather than
- * anything RxDB has an opinion about.
- *
- * Idempotent, and that is the whole design. A session is created only if one
- * does not already exist under its deterministic id, so this may run on every
- * open, after a half-finished migration, or twice in a race, and converge on the
- * same result: a group whose session already exists is left alone, and clearing
- * an already-cleared carrier is a no-op.
- *
- * Because it groups whole sessions rather than folding one document at a time,
- * it can do three things a per-document migration structurally cannot:
- *
- * 1. **Find the extraction wherever it is.** v5 extracted per recording, so the
- *    auditor's cached work may sit on any of them — not necessarily the first
- *    one the migration happens to visit.
- * 2. **Derive status from every recording**, so "no extraction because the
- *    recordings are still queued" (→ `open`, work preserved) is distinguishable
- *    from "no extraction because every recording was discarded" (→ `done`,
- *    genuinely finished). A per-document fold sees one row and cannot tell.
- * 3. **Record honest provenance.** `extractedFromRecordingIds` names only the
- *    recording that actually produced the extraction, never the whole set. A
- *    salvaged v5 extraction came from one recording's transcript and a
- *    session-wide one joins them all, so the two are not interchangeable and the
- *    field should not claim otherwise. Note this does not yet *cause* anything:
- *    `recordingSetChanged` is the check that would act on it and nothing calls
- *    it, so a migrated session keeps its salvaged extraction until the reopen
- *    path is wired. The field is honest now so that path is correct when it is.
- */
-export async function backfillSessions(database: OutboxDatabase): Promise<void> {
-  const recordings = await database.collections.outbox.find().exec();
-  if (recordings.length === 0) return;
-
-  const groups = new Map<string, RxDocument<CaptureDocument>[]>();
-  for (const doc of recordings) {
-    // Only migrated rows carry a legacy bag. A recording enqueued by current
-    // code already has a real session and must not be swept into a synthetic one.
-    if (legacyOf(doc.toJSON() as CaptureDocument) === undefined) continue;
-    const { sessionId } = doc;
-    const group = groups.get(sessionId);
-    if (group) group.push(doc);
-    else groups.set(sessionId, [doc]);
-  }
-
-  for (const [sessionId, group] of groups) {
-    const data = group.map((doc) => doc.toJSON() as CaptureDocument);
-    // The idempotency hinge. A crash between the insert below and the clear that
-    // follows it leaves the carriers in place with the session already built, so
-    // the next open finds this group again — and must leave it alone rather than
-    // colliding on the primary key.
-    const existing = await database.collections.sessions.findOne(sessionId).exec();
-    if (!existing) {
-      await database.collections.sessions.insert(sessionDocumentFromMigratedGroup(sessionId, data));
-    }
-    // Contract, folded into the same step. v6 is not deployed, so the carrier
-    // never has to outlive the backfill that consumes it and no second schema
-    // version is needed to tidy it away. Ordered strictly after the session
-    // exists: the session is built from the whole group before anything is
-    // cleared, so losing this write costs only tidiness, never data.
-    for (const doc of group) {
-      await doc.incrementalModify((current) => {
-        const next = { ...current };
-        delete (next as { legacy?: unknown }).legacy;
-        return next;
-      });
-    }
-  }
-}
-
-/** Build one session document from every recording that migrated into it. */
-function sessionDocumentFromMigratedGroup(
-  sessionId: string,
-  group: readonly CaptureDocument[],
-): SessionDocument {
-  const bagOf = (doc: CaptureDocument): LegacySessionFields => legacyOf(doc) ?? {};
-  const bySeq = [...group].sort((a, b) => a.seq - b.seq);
-
-  // The extraction can be on any recording. Prefer the one the human actually
-  // reviewed; failing that the most recent, which is the closest thing v5 has to
-  // "the current answer".
-  const withExtraction = bySeq.filter((doc) => bagOf(doc).extracted !== undefined);
-  const source =
-    withExtraction.find((doc) => bagOf(doc).reviewOutcome !== undefined) ??
-    withExtraction[withExtraction.length - 1];
-
-  const reviewed = bySeq.find((doc) => bagOf(doc).reviewOutcome !== undefined);
-  const written = bySeq.find((doc) => bagOf(doc).writeResult !== undefined);
-
-  const everyRecordingIsGone = bySeq.every(
-    (doc) => doc.status === "discarded" || doc.status === "dead",
-  );
-  const status: SessionDocument["status"] = written
-    ? "done"
-    : reviewed
-      ? "writing"
-      : source
-        ? "awaiting-review"
-        : everyRecordingIsGone
-          ? "done"
-          : // Nothing extracted and recordings still live: the auditor was
-            // mid-capture when they upgraded. `open` keeps the work reachable —
-            // `done` is terminal, so it would transcribe and then strand, while
-            // `summarizeWork` counted it as synced and told them it was safe.
-            "open";
-
-  const openedAt = bySeq[0]!.enqueuedAt;
-
-  return {
-    id: sessionId,
-    status,
-    openedAt,
-    // The session owns its write destination. `ctx` from the first recording
-    // in the group — the same recording the relay used to pick — and `ref`
-    // from the `assessmentId` `migratedSessionId` already extracts.
-    //
-    // `migratedCtx` rather than the raw value, because a v5 recording is not
-    // guaranteed to carry one. `Recording["ctx"]` is `unknown`, and zod's
-    // `strictObject` rejects a MISSING key while accepting an explicit
-    // `undefined` — so `ctx: undefined` was legal to enqueue, and JSON storage
-    // then drops the key entirely. Minting a session from such a recording with
-    // no `ctx` produces a document `sessionRxSchema` refuses at insert, which
-    // rejects `openOutboxDatabase` on every launch: an un-bootable app, not a
-    // degraded one. Substituting an empty object reproduces exactly what that
-    // recording did before this change — the write step's `ctxSchema.safeParse`
-    // refuses it, the session goes `dead`, and the rest of the storage works.
-    ctx: migratedCtx(bySeq[0]!.recording.ctx),
-    ref: migratedSessionRef(bySeq[0]!.recording.ctx),
-    // A session past `open` had, by definition, stopped accepting recordings.
-    ...(status === "open" ? {} : { closedAt: bySeq[bySeq.length - 1]!.enqueuedAt }),
-    attempts: 0,
-    nextAttemptAt: openedAt,
-    // Deterministic so a re-run cannot mint a second key for the same session.
-    idempotencyKey: bagOf(bySeq[0]!).idempotencyKey ?? `migrated-${sessionId}`,
-    ...(source ? { extracted: bagOf(source).extracted } : {}),
-    ...(source && bagOf(source).extractedBy !== undefined
-      ? { extractedBy: bagOf(source).extractedBy }
-      : {}),
-    ...(source ? { extractedFromRecordingIds: [source.id] } : {}),
-    ...(reviewed ? { reviewOutcome: bagOf(reviewed).reviewOutcome } : {}),
-    ...(written ? { writeResult: bagOf(written).writeResult } : {}),
-  };
 }
 
 /**

@@ -27,6 +27,21 @@ export {
 } from "./backoff.js";
 export type { BackoffOptions } from "./backoff.js";
 
+// The upgrade ladders: per collection, the shape version and the ordered list of
+// changes that reached it. Data, not behaviour — a backend imports these the way
+// it imports the zod schemas, applies the rungs with its own engine, and owns
+// when. See `docs/roadmap/design/storage-migrations-design.md`.
+export type { ShapeUpgrade } from "./upgrades/rung.js";
+export { captureV5ToV6Upgrade } from "./upgrades/v5-to-v6.js";
+export { backfillSessions } from "./upgrades/backfill.js";
+export type { LegacySessionFields } from "./upgrades/backfill.js";
+export { CAPTURE_DOCUMENT_UPGRADES, CAPTURE_DOCUMENT_VERSION } from "./upgrades/captures.js";
+export { SESSION_DOCUMENT_UPGRADES, SESSION_DOCUMENT_VERSION } from "./upgrades/sessions.js";
+export {
+  PLUGIN_STORAGE_DOCUMENT_UPGRADES,
+  PLUGIN_STORAGE_DOCUMENT_VERSION,
+} from "./upgrades/plugin-storage.js";
+
 export { openStorage, Storage } from "./storage.js";
 export type { OpenStorageOptions } from "./storage.js";
 export { CaptureStore } from "./captures.js";

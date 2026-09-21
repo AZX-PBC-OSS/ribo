@@ -52,7 +52,7 @@ import type {
   NoProvenance,
 } from "@azx/ribo-core";
 
-import type { UsageTotals } from "./extraction-common.js";
+import type { UsageTotals } from "../prompt/extraction-common.js";
 import {
   addUsage,
   assertStopFinishReason,
@@ -60,7 +60,7 @@ import {
   completeOrClassify,
   parseJsonContent,
   parseWithSchema,
-} from "./extraction-common.js";
+} from "../prompt/extraction-common.js";
 
 /** The default retry budget. Small and bounded on purpose: every retry is a real, paid model call. */
 const DEFAULT_MAX_RETRIES = 1;
