@@ -8,16 +8,22 @@
  */
 
 // The adapter: both field schemas + the ctx schema + instructions + examples +
-// write, as a `ToolAdapter`. `rankCandidates` and `HVAC_IDENTIFYING_FIELDS` are
-// public too — the R1.6 Task 11 changeset states this package provides
-// `rankCandidates`, and a consumer ranking existing records for a dictated
-// instance needs both through the barrel, not by reaching into the module.
+// write, as a `ToolAdapter`. `createSnuggProAdapter({ fetchImpl })` builds the
+// adapter with a real write over the host's credential-attaching transport —
+// the published `snuggProAdapter` const is the factory called with no
+// transport, so its write rejects naming the factory as the fix.
+// `rankCandidates` and `HVAC_IDENTIFYING_FIELDS` are public too — the R1.6
+// Task 11 changeset states this package provides `rankCandidates`, and a
+// consumer ranking existing records for a dictated instance needs both through
+// the barrel, not by reaching into the module.
 export {
+  createSnuggProAdapter,
   HVAC_IDENTIFYING_FIELDS,
   SNUGGPRO_ADAPTER_NAME,
   rankCandidates,
   snuggProAdapter,
 } from "./adapter.js";
+export type { ReadExistingRecordsOptions, SnuggProAdapterOptions } from "./adapter.js";
 
 // The two field schemas, the per-endpoint groups they nest, and the enums
 // they are built from. `snuggValuesSchema` is the hand-written writable patch and

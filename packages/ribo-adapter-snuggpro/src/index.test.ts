@@ -67,4 +67,15 @@ test("re-exports the adapter, both schemas, the ctx schema, instructions, exampl
   // And the identifying fields with it, as data — the declaration a host without the
   // adapter object still needs to name the same fields the ranking vetoes on.
   expect(api.HVAC_IDENTIFYING_FIELDS).toContain("hvacSystemEquipmentType");
+  // The wired adapter factory: the way a host gets an adapter whose write really
+  // writes, over the host's own credential-attaching transport. This pin is the
+  // reason it cannot silently drop from the barrel — this test is presence-based,
+  // not exhaustive, so a new export passes unpinned.
+  expect(typeof api.createSnuggProAdapter).toBe("function");
+  const wired = api.createSnuggProAdapter({
+    fetchImpl: async () => new Response(JSON.stringify({ uuid: "pin" }), { status: 201 }),
+  });
+  expect(wired.name).toBe(api.SNUGGPRO_ADAPTER_NAME);
+  // The bare const stays the no-transport instance — same surface, rejecting write.
+  expect(api.snuggProAdapter.name).toBe(wired.name);
 });
