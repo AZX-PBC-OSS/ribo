@@ -167,14 +167,22 @@ export interface WriteMetadata {
    */
   readonly idempotencyKey: string;
   /**
-   * The existing record this write should UPDATE, when a human linked the instance
-   * at review; absent means create — an optional member rather than `LinkTarget`'s
-   * `string | null`, because an optional member is what keeps every adapter written
-   * before linking existed compiling, and `WriteMetadata` is a published contract.
+   * The existing record this write should UPDATE; absent means create — an optional
+   * member rather than `LinkTarget`'s `string | null`, because an optional member is
+   * what keeps every adapter written before linking existed compiling, and
+   * `WriteMetadata` is a published contract.
+   *
+   * **Two things produce it, and an adapter cannot tell them apart — by design.**
+   * `toInstanceWriteStep` resolves it as: a human's link decision at review if there
+   * is one, otherwise the receipt an earlier attempt recorded for this instance. The
+   * human's decision wins because it says what the record *is*, while the receipt
+   * only says what we wrote. Either way the adapter's job is identical — update that
+   * record — so it receives one resolved target rather than a policy to re-implement.
    *
    * The type cannot enforce that an adapter honours this, and it must say so: an
-   * adapter that ignores it will silently create duplicates once a host starts
-   * linking, so honouring it is not optional for an adapter that supports updates.
+   * adapter that ignores it will silently create duplicates on the first retry after
+   * an interrupted write, so honouring it is not optional for an adapter that
+   * supports updates.
    */
   readonly linkTarget?: string;
 }
