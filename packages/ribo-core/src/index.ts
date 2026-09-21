@@ -564,8 +564,12 @@ export { stripOptionalNullable } from "./provenance/field-path.js";
 // Field-path grammar: one shared implementation for building and parsing dotted
 // and bracketed paths. Object-key and instance-key segments are distinct at the
 // type level so `resolveReview` cannot silently rebuild `hvac[k3].leaf` as an
-// object whose key is the literal text `hvac[k3]`.
-export { buildFieldPath, parseFieldPath } from "./provenance/field-path.js";
+// object whose key is the literal text `hvac[k3]`. `childPath` is exported
+// beside them because the schema-shape derivation composes further walks over
+// the same schemas — the derivation and the mapping-back in
+// `@azx/ribo-extractor-openai` — and every walk must refuse the same
+// path-breaking key shapes, not copy the validation.
+export { buildFieldPath, childPath, parseFieldPath } from "./provenance/field-path.js";
 export type { FieldPathSegment } from "./provenance/field-path.js";
 
 // Retry-budget derivation: the shared worst-case-fit calculation every managed
