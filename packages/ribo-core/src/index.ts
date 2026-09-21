@@ -582,9 +582,10 @@ export type { NoteKey, Notes } from "./phase-notes.js";
 // The draft a phased run's phases progressively fill, and its homomorphic deep partial —
 // the shape that lets a phase write one leaf's `sourceSpan` without claiming its siblings.
 // `readonly` throughout: `merge` owns every write, and a `run` cannot write through the
-// draft it is handed.
+// draft it is handed. `PhaseFold` is the shared spelling for a phase's own typed write
+// into the draft — the caller's fold, at the caller's value type.
 export { emptyDraft } from "./phase-draft.js";
-export type { DeepPartial, PhaseDraft } from "./phase-draft.js";
+export type { DeepPartial, PhaseDraft, PhaseFold } from "./phase-draft.js";
 // What one item's work produced and how it settled — the per-item vocabulary a phase's
 // `run` and `merge` speak. Discriminated on `outcome`, matching `arbitration.ts`'s
 // `ExtractionOutcome` rather than inventing a second outcome vocabulary.
@@ -629,6 +630,11 @@ export type {
   ChatUnavailableReason,
   ChatUsage,
 } from "./chat-client.js";
+// The managed-completion call-and-parse chain, moved from the same package's
+// `extraction-common` (which re-exports it) so `askPhase` composes the chain its managed
+// cousins do — one copy of the terminal/transient classification semantics, beside the
+// seam.
+export { assertStopFinishReason, completeOrClassify, parseJsonContent } from "./chat-parse.js";
 
 // The three-phase walk, moved here from `@azx/ribo-extractor-ondevice` (SP4a wave 5):
 // the phases ask a `ChatClient` which leaves are present, what spans support them, and
@@ -649,6 +655,18 @@ export type { ClassifyPhaseOptions } from "./classify-phase.js";
 // narrowing steps rather than a bespoke loop.
 export { phasedExtractor } from "./phased-extractor.js";
 export type { PhasedExtractorOptions } from "./phased-extractor.js";
+
+// The caller-owned kinds beside the shipped ones: a deterministic, model-free fold
+// between passes (`computePhase` — one marker item, no I/O, no usage), and one model
+// call against the CALLER'S own schema, result type and note key (`askPhase` — the
+// curried factory whose `T` unifies `z.ZodType<T>` and `NoteKey<T>` in one options
+// object). Neither declares a `requires` of its own, so the option is the whole list
+// (ADR 0008); a fold's completeness is checked at the closing parse, not mid-list
+// (ADR 0012).
+export { askPhase } from "./ask-phase.js";
+export type { AskPhaseBase, AskPhaseOptions, AskPhaseSink } from "./ask-phase.js";
+export { computePhase } from "./compute-phase.js";
+export type { ComputePhaseOptions } from "./compute-phase.js";
 
 // Chunking was built here and REMOVED after measurement. `chunkedExtractor` split a
 // transcript past a context window, extracted each piece and merged. Measured against
