@@ -35,7 +35,8 @@ export type {
 // over the extraction shape into one over the derived patch. Model-free: a
 // model-driven derivation composes the same applier over its own proposal.
 export { deriveExtractionShape } from "./shape-operations.js";
-export type { DeriveExtractionShapeOptions, ShapeOperation } from "./shape-operations.js";
+export type { DeriveExtractionShapeOptions } from "./shape-operations.js";
+export type { ShapeOperation } from "./shape-operation.js";
 export type { DerivedExtractionShape } from "./derived-shape.js";
 export { assertShapeMapping, retypeToPatchValue } from "./shape-mapping.js";
 export type { LeafKind, LeafMapping, Retype, ShapeMapping } from "./shape-mapping.js";
