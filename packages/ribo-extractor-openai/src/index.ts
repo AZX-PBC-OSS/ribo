@@ -8,8 +8,8 @@
  */
 
 // The single-shot managed-LLM extractor (the built default) and its options.
-export { singleShotExtractor } from "./single-shot.js";
-export type { SingleShotOptions } from "./single-shot.js";
+export { singleShotExtractor } from "./strategies/single-shot.js";
+export type { SingleShotOptions } from "./strategies/single-shot.js";
 
 // The per-group schema split — the pure, model-free half of R3. Takes a target's
 // `extractionSchema` and returns one entry per top-level group (or one fallback
@@ -17,38 +17,38 @@ export type { SingleShotOptions } from "./single-shot.js";
 // split packs against two caps — nullable unions and, when the caller supplies
 // it, serialized size — both as options (`SplitOptions`); the library carries no
 // provider's byte cap.
-export { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
-export type { ExtractionGroup, SplitOptions } from "./split-schema.js";
+export { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./schema/split-schema.js";
+export type { ExtractionGroup, SplitOptions } from "./schema/split-schema.js";
 
 // The entry point that takes a RAW zod schema: the `enveloped()` derivation and
 // the single-shot-vs-per-group selection run inside, so a newcomer hands over
 // the schema they wrote, a chat client and a model, and gets an `Extractor`.
-export { schemaExtractor } from "./schema-extractor.js";
+export { schemaExtractor } from "./strategies/schema-extractor.js";
 export type {
   EnvelopedSchemaExtractorOptions,
   RawSchemaExtractorOptions,
-} from "./schema-extractor.js";
+} from "./strategies/schema-extractor.js";
 
 // The derived extraction shape: apply explicit shape operations to a caller's
 // plain zod schema and get the artifact pair — an extraction schema, and the
 // mapping back as data — plus the reversal combinator that turns an extractor
 // over the extraction shape into one over the derived patch. Model-free: a
 // model-driven derivation composes the same applier over its own proposal.
-export { deriveExtractionShape } from "./shape-operations.js";
-export type { DeriveExtractionShapeOptions } from "./shape-operations.js";
-export type { ShapeOperation } from "./shape-operation.js";
-export type { DerivedExtractionShape } from "./derived-shape.js";
-export { assertShapeMapping, retypeToPatchValue } from "./shape-mapping.js";
-export type { LeafKind, LeafMapping, Retype, ShapeMapping } from "./shape-mapping.js";
-export { reverseShapedFields } from "./shape-reverse.js";
-export { reshapedExtractor } from "./reshaped-extractor.js";
-export { generateShapedValue } from "./shape-generate.js";
-export type { GenerateOptions } from "./shape-generate.js";
+export { deriveExtractionShape } from "./shape/shape-operations.js";
+export type { DeriveExtractionShapeOptions } from "./shape/shape-operations.js";
+export type { ShapeOperation } from "./shape/shape-operation.js";
+export type { DerivedExtractionShape } from "./shape/derived-shape.js";
+export { assertShapeMapping, retypeToPatchValue } from "./shape/shape-mapping.js";
+export type { LeafKind, LeafMapping, Retype, ShapeMapping } from "./shape/shape-mapping.js";
+export { reverseShapedFields } from "./shape/shape-reverse.js";
+export { reshapedExtractor } from "./shape/reshaped-extractor.js";
+export { generateShapedValue } from "./shape/shape-generate.js";
+export type { GenerateOptions } from "./shape/shape-generate.js";
 
 // Projection of an extraction target onto one top-level group key — the pure
 // narrow half of per-group prompt assembly, reusable by any strategy.
-export { projectTarget } from "./project-target.js";
-export type { ProjectTargetOptions } from "./project-target.js";
+export { projectTarget } from "./prompt/project-target.js";
+export type { ProjectTargetOptions } from "./prompt/project-target.js";
 
 // The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level
 // group, concurrently with a bounded pool, assembled into one result. The
@@ -64,14 +64,19 @@ export {
   perGroupExtractor,
   perGroupPlan,
   perGroupSingletonExtractor,
-} from "./per-group.js";
-export type { GroupOverride, GroupTargets, PerGroupOptions, PerGroupPlan } from "./per-group.js";
+} from "./strategies/per-group.js";
+export type {
+  GroupOverride,
+  GroupTargets,
+  PerGroupOptions,
+  PerGroupPlan,
+} from "./strategies/per-group.js";
 
 // Task 16 — the R1.6 instance-modeling strategy ladder: three tiers composed
 // through `fallbackExtractor` so that the strongest strategy can fall back to
 // weaker ones, with the accepted tier stamped on `usage.strategy`.
-export { instanceLadder } from "./instance-ladder.js";
-export type { InstanceLadderOptions } from "./instance-ladder.js";
+export { instanceLadder } from "./strategies/instance-ladder.js";
+export type { InstanceLadderOptions } from "./strategies/instance-ladder.js";
 
 // The gap-fill combinator: wraps a base extractor with one bounded follow-up
 // call over leaves that abstained despite quoting evidence. It is a
@@ -85,34 +90,34 @@ export {
   formatLeafPath,
   gapFillExtractor,
   mergeGapFilledLeaves,
-} from "./gap-fill.js";
-export type { AbstainedLeaf, GapFillOptions, GapFillTarget } from "./gap-fill.js";
+} from "./gap-fill/gap-fill.js";
+export type { AbstainedLeaf, GapFillOptions, GapFillTarget } from "./gap-fill/gap-fill.js";
 
 // The gap-fill follow-up phase itself — the second phase of the
 // `gapFillExtractor` preset, exported so a host can assemble and extend the
 // phase list by hand (design `phased-extraction-design.md` §4.7).
-export { gapFillPhase } from "./gap-fill-phase.js";
-export type { GapFillPhaseOptions } from "./gap-fill-phase.js";
+export { gapFillPhase } from "./gap-fill/gap-fill-phase.js";
+export type { GapFillPhaseOptions } from "./gap-fill/gap-fill-phase.js";
 
 // The scoped-instance inventory phase — the first phase of the
 // `scopedInstanceExtractor` port, exported (with the note key its roster
 // crosses the phase boundary under) so a host can assemble and extend the
 // phase list by hand.
-export { inventoryPhase, rosterNoteKey } from "./inventory-phase.js";
-export type { InventoryPhaseOptions } from "./inventory-phase.js";
+export { inventoryPhase, rosterNoteKey } from "./scoped-instance/inventory-phase.js";
+export type { InventoryPhaseOptions } from "./scoped-instance/inventory-phase.js";
 
 // The scoped-instance fill phase — the second phase of the port: one job per
 // `(group, piece, instance)`, recombined with `mergeGroupPieces`. Exported for
 // the same hand-assembly a host may want.
-export { fillPhase } from "./fill-phase.js";
-export type { FillPhaseOptions } from "./fill-phase.js";
+export { fillPhase } from "./scoped-instance/fill-phase.js";
+export type { FillPhaseOptions } from "./scoped-instance/fill-phase.js";
 
 // The schema-retry combinator: wraps a base extractor with a bounded
 // self-correction loop that feeds a `SchemaParseError` back to the model as
 // conversation turns — the failed output as an assistant turn, the validation
 // error as a user turn — never by touching the transcript.
-export { schemaRetryExtractor } from "./schema-retry.js";
-export type { SchemaRetryOptions } from "./schema-retry.js";
+export { schemaRetryExtractor } from "./strategies/schema-retry.js";
+export type { SchemaRetryOptions } from "./strategies/schema-retry.js";
 
 // Per-group prompt assembly: `buildGroupMessages` builds per-group chat messages
 // (instructions + projected examples + transcript), and `projectExample` narrows
@@ -126,13 +131,13 @@ export {
   parseJsonContent,
   parseWithSchema,
   projectExample,
-} from "./extraction-common.js";
+} from "./prompt/extraction-common.js";
 
 // The Task 9 inventory-pass extraction phase: one house-wide call that returns a
 // roster of candidate instances per collection group, parsed through a supplied
 // roster schema.
-export { extractInventory } from "./inventory.js";
-export type { InventoryOptions } from "./inventory.js";
+export { extractInventory } from "./scoped-instance/inventory.js";
+export type { InventoryOptions } from "./scoped-instance/inventory.js";
 
 // Task 10 — scoped per-instance fills and assembly: one inventory call followed by
 // one fill call per current instance, with a scope block that names siblings and
@@ -146,24 +151,24 @@ export {
   prepareGroups,
   projectFillExample,
   scopedInstanceExtractor,
-} from "./instance-fill.js";
+} from "./scoped-instance/instance-fill.js";
 export type {
   FillScope,
   PreparedGroup,
   Roster,
   RosterCandidate,
   ScopedFillOptions,
-} from "./instance-fill.js";
+} from "./scoped-instance/instance-fill.js";
 
 // The OpenAI-compatible chat transport and its options.
-export { openAiChat } from "./openai-chat.js";
-export type { OpenAiChatOptions } from "./openai-chat.js";
+export { openAiChat } from "./chat/openai-chat.js";
+export type { OpenAiChatOptions } from "./chat/openai-chat.js";
 
 // The Helix platform LLM route transport and its options — a second
 // `ChatClient` beside `openAiChat`, for the provider-neutral `/_api/llm/chat`
 // route (not OpenAI-compatible).
-export { helixChat } from "./helix-chat.js";
-export type { HelixChatOptions } from "./helix-chat.js";
+export { helixChat } from "./chat/helix-chat.js";
+export type { HelixChatOptions } from "./chat/helix-chat.js";
 
 // The chat transport seam now lives in `@azx/ribo-core` (the phases moved there
 // with it, SP4a wave 5). This re-export is compatibility for existing consumers;

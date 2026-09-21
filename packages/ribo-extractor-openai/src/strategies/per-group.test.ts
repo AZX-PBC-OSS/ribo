@@ -22,7 +22,7 @@ import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
 import { perGroupExtractor } from "./per-group.js";
-import { splitExtractionSchema } from "./split-schema.js";
+import { splitExtractionSchema } from "../schema/split-schema.js";
 
 /**
  * Key-free CI tests for the per-group extractor, exercised against a small,

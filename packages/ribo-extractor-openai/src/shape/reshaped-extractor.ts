@@ -41,7 +41,7 @@ import type {
   NoProvenance,
 } from "@azx/ribo-core";
 
-import { parseWithSchema } from "./extraction-common.js";
+import { parseWithSchema } from "../prompt/extraction-common.js";
 import { assertShapeMapping } from "./shape-mapping.js";
 import { reverseShapedFields } from "./shape-reverse.js";
 import type { DerivedExtractionShape } from "./derived-shape.js";
