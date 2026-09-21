@@ -55,7 +55,7 @@ existence/separation/exclusion/absence claims — a discriminating description t
 quote — rather than inventing a second identity mechanism.
 
 **Why this fits without changing the mechanism.** `RosterCandidate`
-(`packages/ribo-extractor-openai/src/instance-fill.ts:46-52`) already carries `mentionSpan`,
+(`packages/ribo-extractor-openai/src/scoped-instance/instance-fill.ts:46-52`) already carries `mentionSpan`,
 `discriminator`, and `distinguishedBy` (plus `eligibility`/`eligibilitySpan` from the
 roster-absence work), and `Roster` is keyed by `groupKey: string` generically — it assumes
 nothing about what a group _is_. Extending this to, say, estimates or contacts means: the

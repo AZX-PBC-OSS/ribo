@@ -480,6 +480,6 @@ Three-phase itself remains NO-GO for managed, per §6.
 - [Doc 19](19-ondevice-extraction-strategies.md) — the on-device measurement that selected
   three-phase, and the source of the quality claims this document tests on a different model.
 - `packages/ribo-extractor-ondevice/src/three-phase-extractor.ts`,
-  `packages/ribo-extractor-openai/src/per-group.ts`,
-  `packages/ribo-extractor-openai/src/helix-chat.ts`,
+  `packages/ribo-extractor-openai/src/strategies/per-group.ts`,
+  `packages/ribo-extractor-openai/src/chat/helix-chat.ts`,
   `packages/ribo-adapter-snuggpro/src/per-group-cap.test.ts`.

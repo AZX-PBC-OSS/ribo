@@ -8,7 +8,7 @@ verbatim-grounded none-stated signal)" (task 1218261411732237).
 ## 1. The problem
 
 An untouched roster group and a group the auditor explicitly said was empty both
-collapse to the same `[]` today. `Roster` (`ribo-extractor-openai/src/instance-fill.ts:46-57`)
+collapse to the same `[]` today. `Roster` (`ribo-extractor-openai/src/scoped-instance/instance-fill.ts:46-57`)
 is `{ [groupKey]: RosterCandidate[] }` — there is no value that means "the transcript
 states there are none of these," only the absence of any candidate. The gap is a named,
 accepted-for-now loss in `r1.6-instance-extraction-design.md` §5.3: "An eligibility
@@ -43,7 +43,7 @@ RosterGroupResult<T> = readonly T[] | { readonly stated: "none"; readonly span: 
 ```
 
 applied to both the generic TS interface
-(`ribo-extractor-openai/src/instance-fill.ts:46-57`) and the vendor-specific zod
+(`ribo-extractor-openai/src/scoped-instance/instance-fill.ts:46-57`) and the vendor-specific zod
 schema (`ribo-adapter-snuggpro/src/inventory.ts`'s `rosterGroupSchema`, currently
 `z.array(rosterCandidateSchema)`). `span` follows the same verbatim-substring-or-null
 discipline as the roster's existing three spans (`inventory.ts:107-111`: "If you
