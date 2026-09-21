@@ -60,10 +60,13 @@ type AgeBand = (typeof DhwAgeBand.options)[number];
  * This table is the first entry in the per-enum lookup that doc 17 §3 forecasts
  * for ~25 of 34 enum-typed fields. It is **not** applied by `normalizeFields`:
  * the deterministic pass runs on the extraction shape (before review), and the
- * vendor literal is a write-time concern. `adapter.write` — unimplemented today,
- * gated on HMAC signing — will consume this table when egress lands. The mapping
- * exists and is tested now precisely because a divergence nobody recorded is one
- * nobody will remember: when write ships, it must send the vendor's literal.
+ * vendor literal is a write-time concern. Its consumer is now real:
+ * `write/body.ts`'s body builder resolves every `hvacDuctInsulation` value
+ * through `resolveDuctInsulationVendorLiteral` before the body reaches the
+ * wire — egress signing is confirmed (verified against staging 2026-09-21), so
+ * the mapping is live rather than kept for a future write. A divergence nobody
+ * recorded is one nobody will remember: the write must send the vendor's
+ * literal.
  *
  * The three members without a quote (`No Insulation`, `Reflective bubble wrap`,
  * `Measured (R Value)`) are intentionally absent: their alias IS their wire
