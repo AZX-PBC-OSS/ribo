@@ -13,6 +13,12 @@ import { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-wr
 import { restrictToKind } from "../transcription/restrict-to-kind.js";
 
 /**
+ * `SessionWriteInput.recordReceipt` is required, so every input literal here supplies
+ * one. A test that cares what was checkpointed passes its own recorder instead.
+ */
+const noRecordReceipt = async (): Promise<void> => {};
+
+/**
  * @file `toInstanceWriteStep` — per-instance write-back and resumability.
  *
  * The sibling of `toWriteStep`: it writes each collection instance separately
@@ -169,6 +175,7 @@ test("each instance's derived key is stable across retries and distinct between 
   );
 
   const input = {
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -211,6 +218,7 @@ test("singleton groups are written once with the session's original idempotency 
   );
 
   const result = await step({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -248,6 +256,7 @@ test("a patch with an empty collection group writes nothing for that group", asy
   );
 
   await step({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -281,6 +290,7 @@ test("an instance with a link target passes it to write as `meta.linkTarget`", a
   );
 
   await step({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -312,6 +322,7 @@ test("an instance whose decision is `null` gets no `linkTarget` member at all", 
   );
 
   await step({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -343,6 +354,7 @@ test("a group with no entry in `linkTargets` writes every instance as a create",
   );
 
   await step({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -375,6 +387,7 @@ test("two instances in one group with different decisions each get their own", a
   );
 
   await step({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -409,6 +422,7 @@ test("an outcome with no `linkTargets` at all writes creates and does not throw"
 
   await expect(
     step({
+      recordReceipt: noRecordReceipt,
       session,
       reviewed: reviewFields(session),
       idempotencyKey: session.idempotencyKey,
@@ -679,6 +693,7 @@ test("a patch the adapter's schema rejects is terminal, and write is never calle
     adapter: makeAdapter(written),
     collectionGroups: ["hvac"],
   })({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -711,6 +726,7 @@ test("a recording ctx the adapter's ctxSchema rejects is terminal, and write is 
     adapter: makeAdapter(written),
     collectionGroups: ["hvac"],
   })({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -746,6 +762,7 @@ test("a failing write propagates unchanged — the relay's retry contract is not
     adapter,
     collectionGroups: ["hvac"],
   })({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: reviewFields(session),
     idempotencyKey: session.idempotencyKey,
@@ -887,6 +904,7 @@ test("after reopening from dead and removing the first instance, the survivor re
   // SessionWriteResult, so call the step directly with the same inputs.
   const postRemoval = await storage.sessions.get(session.id);
   const receiptResult = await step2({
+    recordReceipt: noRecordReceipt,
     session: postRemoval!,
     reviewed: reviewFields(postRemoval!),
     idempotencyKey: postRemoval!.idempotencyKey,

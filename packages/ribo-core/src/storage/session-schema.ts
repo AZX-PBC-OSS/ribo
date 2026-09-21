@@ -199,8 +199,15 @@ export const sessionDocumentSchema = z.strictObject({
   statedEmptyGroups: z.record(z.string(), z.string()).optional(),
   /**
    * The vendor write idempotency key. Generated once at session open and reused
-   * on every retry — same guarantee as the recording's old `idempotencyKey`:
-   * an ambiguous success (write landed, response lost) cannot double-write.
+   * on every retry, and sent as `Idempotency-Key`.
+   *
+   * **It guarantees nothing.** Measured 2026-09-21 against Snugg Pro's staging
+   * API: replaying a byte-identical create with the same key returned a new
+   * uuid, and their spec declares no idempotency support at all. So an ambiguous
+   * success (write landed, response lost) very much CAN double-write, which is
+   * what `receipts` above exists to prevent — a retry updates the uuid a
+   * previous attempt recorded. This key is sent because it is harmless and free
+   * if a vendor ever honours it; never reason from it.
    */
   idempotencyKey: z.string().min(1),
 });

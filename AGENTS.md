@@ -60,8 +60,12 @@ understanding API behind the host's transport with no capacity to authenticate, 
 pdf.js in a `fallbackTranscriber` ladder. `@azx/ribo-ui-react` is now the **headless hook layer**: `RiboProvider` plus
 the `use*` hooks over core's engine listed in its barrel (`packages/ribo-ui-react/src/index.ts`) —
 `useRecorder`, `useCaptures`, `useReview`, `useSessions`, `useConnectivity`, `useWorkSafety` and
-`useStoragePersistence` — no components beyond the provider, no markup, no stylesheet. **Write-back is scaffolded but gated** on a Helix platform ask (egress HMAC
-signing — `docs/implementation/13-helix-platform-asks.md`). The consuming **field app lives in a
+`useStoragePersistence` — no components beyond the provider, no markup, no stylesheet. **Write-back
+is scaffolded, and no longer gated:** the Helix egress layer signs each Snugg Pro request
+server-side and injects its stored credential, verified 2026-09-21 against staging, so ask A1 is
+confirmed (`docs/implementation/13-helix-platform-asks.md`). What remains is the adapter's own HTTP
+layer. **Snugg Pro ignores `Idempotency-Key`** — measured, so duplicate protection on a retry rests
+on the write receipt, never on that header. The consuming **field app lives in a
 separate repo** and is not built here; the `playground/` app is this repo's stand-in for a consumer.
 
 Background reading: [implementation proposal](docs/implementation/00-overview.md) and

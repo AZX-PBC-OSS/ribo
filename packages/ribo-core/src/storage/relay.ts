@@ -100,13 +100,31 @@ export interface SessionWriteInput {
   ctx: unknown;
   /**
    * Durably record one collection instance's vendor uuid the moment it is
-   * earned, so a throw later in the step's loop cannot discard it. The input
-   * the relay constructs always carries it — each call patches the session's
-   * receipts additively — and the receipt is what the next attempt UPDATEs
-   * instead of creating again. A step invoked outside the relay may omit it;
-   * receipts then still travel by the result's `receipts` return.
+   * earned, so a throw later in the step's loop cannot discard it. Each call
+   * patches the session's receipts additively, and the receipt is what the next
+   * attempt UPDATEs instead of creating again.
+   *
+   * **Required, not optional, and that is the point.** Snugg Pro ignores
+   * `Idempotency-Key` (measured 2026-09-21), so this checkpoint is the only
+   * thing standing between an interrupted write and a duplicate record on a
+   * customer's audit. An optional member reads as a convenience and behaves as
+   * an opt-out: `recordReceipt?.(…)` short-circuits silently, so any caller
+   * that forgot it would accumulate receipts in a local closure, lose them all
+   * to a mid-loop throw, and re-create every instance on retry — reinstating
+   * the exact defect this exists to close, with no error to notice. Required
+   * makes that a compile failure instead.
+   *
+   * Nothing is asked of a host by this: `SessionWriteInput` is what the relay
+   * *passes in*, so a host-supplied `SessionWriteStep` simply ignores what it
+   * does not use. Only a caller CONSTRUCTING the input — the relay, and tests —
+   * has to supply it.
+   *
+   * Singleton receipts are deliberately not checkpointed through this. A
+   * singleton endpoint is an upsert addressed by job (`GET` returns one object,
+   * not an array), so re-sending it rewrites the same record and cannot
+   * duplicate — there is nothing a lost singleton receipt would cost.
    */
-  recordReceipt?: (group: string, instanceKey: string, uuid: string) => Promise<void>;
+  recordReceipt: (group: string, instanceKey: string, uuid: string) => Promise<void>;
 }
 
 /**

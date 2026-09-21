@@ -183,7 +183,7 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
         receipts.instances[group][instanceKey] = uuid;
         // Checkpoint the receipt as it is earned, not just at the end: a throw
         // on a later instance must not discard the ones that already landed.
-        await recordReceipt?.(group, instanceKey, uuid);
+        await recordReceipt(group, instanceKey, uuid);
       }
     }
 

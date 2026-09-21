@@ -255,12 +255,17 @@ export class SessionStore {
    * `closeSession` refuses anything but `open`, and this method used to refuse
    * anything but `done`/`dead`. The reviewer would open a draft with the later
    * clip missing and nothing saying so. Re-parking from `awaiting-review` with an
-   * unchanged recording set is a deliberate no-op beyond resetting `attempts`. The guard's reasoning for `done` was that
-   * reopening would double-write; that is sound and currently vacuous — vendor
-   * egress is gated, so nothing has reached the host tool. When egress lands,
-   * a second review of an already-written session must update the records it
-   * created rather than create more, which requires the vendor identifier
-   * `write` does not return yet (tracked as its own Asana ticket).
+   * unchanged recording set is a deliberate no-op beyond resetting `attempts`.
+   *
+   * The guard's reasoning for `done` used to be that reopening would double-write,
+   * and that a second review could not update what a first one created because
+   * `write` returned no vendor identifier. **Both halves are now out of date.**
+   * `write` returns the created record's uuid, `toInstanceWriteStep` checkpoints it
+   * through `recordReceipt` as each instance lands, and a later attempt updates the
+   * receipted uuid rather than creating again — so a reopened `done` session
+   * amends its own records instead of duplicating them. What still justifies the
+   * guard is narrower: a reopen is a human decision, and the receipts it will
+   * amend against must exist before one is taken.
    *
    * Also refused: a session missing `extracted` OR missing
    * `extractedFromRecordingIds`. Both are needed to re-present the extraction
