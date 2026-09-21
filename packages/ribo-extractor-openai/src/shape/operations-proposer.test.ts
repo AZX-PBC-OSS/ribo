@@ -192,6 +192,93 @@ describe("proposer — the leaf inventory", () => {
     expect(text).toContain("- hvac (array)");
     expect(text).toContain("maker (string)");
   });
+
+  test("renderLeafInventory handles a flat schema: every leaf's name, kind and description, no phantom header", () => {
+    // A flat schema — every leaf at the root, no nested objects, no arrays of
+    // objects — is the case `renderLeafInventory` was broken on. The walk
+    // produces one entry per leaf, and bucketing by `path.split(".")[0]`
+    // made every leaf its own single-entry bucket; the renderer then emitted
+    // a `- <leafPath> (object)` header for each, and `inside =
+    // leaf.path.slice(group.length + 1)` for a dot-free path was the empty
+    // string, so the leaf line was nameless. On the real Snugg Pro probe
+    // (294 leaves), that produced 294 phantom `(object)` headers and 294
+    // nameless leaf lines.
+    const flat = z.object({
+      yearBuilt: z
+        .string()
+        .describe("Year the home or building was constructed.")
+        .nullable()
+        .optional(),
+      squareMeters: z.number().describe("Indoor floor area in square meters.").nullable().optional(),
+      heatingType: z.enum(["gas", "oil", "electric"]).nullable().optional(),
+      hasGarage: z.boolean().nullable().optional(),
+    });
+    const text = renderLeafInventory(walkLeafInventory(flat));
+
+    // No phantom group headers — a flat schema has no group scope, so the
+    // "this is a group you can address" header does not apply.
+    expect(text).not.toMatch(/\(object\)/);
+    expect(text).not.toMatch(/\(array\)/);
+
+    // Every leaf appears by its full name with its kind and description. Pin
+    // them end to end — the prompt a real model reads to choose what to drop
+    // and retype must be inspectable.
+    expect(text).toContain("- yearBuilt (string) — \"Year the home or building was constructed.\"");
+    expect(text).toContain(
+      "- squareMeters (number) — \"Indoor floor area in square meters.\"",
+    );
+    expect(text).toContain("- heatingType (enum)");
+    expect(text).toContain("- hasGarage (boolean)");
+
+    // No nameless leaf line — the old bug emitted `    -  (string) — "..."`
+    // on every flat leaf.
+    expect(text).not.toMatch(/^ {4}-\s+\(/m);
+  });
+
+  test("renderLeafInventory on a flat schema: every leaf appears exactly once with no duplicates", () => {
+    // A header-only assertion (e.g. "no `(object)` line") could pass under
+    // either bug fix candidate — but only a fix that lays every leaf at the
+    // top level produces a usable inventory. Counting each leaf line once
+    // pins the renderer to the per-leaf structure, not the per-group one.
+    const flat = z.object({
+      a: z.string().nullable().optional(),
+      b: z.number().nullable().optional(),
+      c: z.boolean().nullable().optional(),
+    });
+    const text = renderLeafInventory(walkLeafInventory(flat));
+    expect(text).toContain("- a (string)");
+    expect(text).toContain("- b (number)");
+    expect(text).toContain("- c (boolean)");
+    // Each leaf appears exactly once — the renderer does not duplicate the
+    // leaf under a header line and a separate leaf line.
+    expect(text.match(/^- a \(string\)$/gm)).toHaveLength(1);
+    expect(text.match(/^- b \(number\)$/gm)).toHaveLength(1);
+    expect(text.match(/^- c \(boolean\)$/gm)).toHaveLength(1);
+  });
+
+  test("renderLeafInventory on a mixed schema: flat leaves and grouped leaves render without conflict", () => {
+    // Mixed: some leaves are ground-level, others live under a top-level
+    // group. The ground leaves render flat; the grouped leaves keep their
+    // header (only with leaves under it). The two forms must not collide —
+    // a ground leaf must not appear as if it were a header.
+    const mixed = z.object({
+      visitId: z.string().describe("A stable identifier for the visit.").nullable().optional(),
+      visit: z.object({
+        summary: z.string().describe("A one-sentence summary of the visit.").nullable().optional(),
+        durationMin: z.number().nullable().optional(),
+      }),
+    });
+    const text = renderLeafInventory(walkLeafInventory(mixed));
+
+    // Ground leaf: no header, full-name line.
+    expect(text).toContain("- visitId (string) — \"A stable identifier for the visit.\"");
+    // Grouped leaves: header retains its structural label, leaves indented.
+    expect(text).toContain("- visit (object)");
+    expect(text).toContain("    - summary (string)");
+    expect(text).toContain("    - durationMin (number)");
+    // The ground leaf must not appear indented as if under a phantom header.
+    expect(text).not.toMatch(/^ {4}- visitId/m);
+  });
 });
 
 describe("proposer — chat-call discipline", () => {

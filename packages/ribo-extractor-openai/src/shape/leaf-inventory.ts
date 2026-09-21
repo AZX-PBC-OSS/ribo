@@ -117,12 +117,31 @@ const walkField = (
  *   - **No count summary or totals** — the proposal schema bounds the
  *     operation count, not the inventory. A model's reasoning lives in the
  *     leaves, not in how many there are.
+ *
+ * **Ground leaves render flat, not under a phantom header.** A leaf whose
+ * path has no dot — i.e. one that lives at the schema's root rather than
+ * under a nested object — is the inventory's basic case, not a group. The
+ * header carries "this is a group you can address" (it shapes what
+ * `regroup` can move), and a top-level field is not a group: rendering
+ * `- <leaf> (object)\n    -  (kind)` would have asserted the leaf is an
+ * object and produced a nameless leaf line, neither of which is true.
+ * Such leaves appear at the inventory's top level alongside their kind
+ * and description.
  */
 export function renderLeafInventory(entries: readonly LeafInventoryEntry[]): string {
   if (entries.length === 0) return "Schema has no leaves.";
 
+  // Bucket the entries: a leaf with no dot in its path is "ground" (it lives
+  // at the schema root) and renders flat; the rest still groups by its
+  // top-level segment as before, since a nested object is the kind of
+  // structural scope `regroup` addresses.
+  const ground: LeafInventoryEntry[] = [];
   const grouped = new Map<string, LeafInventoryEntry[]>();
   for (const entry of entries) {
+    if (!entry.path.includes(".")) {
+      ground.push(entry);
+      continue;
+    }
     const key = entry.path.split(".")[0]!;
     const bucket = grouped.get(key);
     if (bucket === undefined) grouped.set(key, [entry]);
@@ -130,6 +149,10 @@ export function renderLeafInventory(entries: readonly LeafInventoryEntry[]): str
   }
 
   const lines: string[] = [];
+  for (const leaf of ground) {
+    const tail = leaf.description === undefined ? "" : ` — "${leaf.description}"`;
+    lines.push(`- ${leaf.path} (${leaf.kind})${tail}`);
+  }
   for (const [group, leaves] of grouped) {
     const sample = entries.find((entry) => entry.path === leaves[0]!.path)!;
     const shape = sample.inArray ? "array" : "object";
