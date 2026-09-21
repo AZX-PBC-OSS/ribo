@@ -158,10 +158,12 @@ export interface ToolAdapterExample<F> {
  */
 export interface WriteMetadata {
   /**
-   * Send as `Idempotency-Key`. **Stable across every retry of this queue item**,
-   * so a retry after an ambiguous success (the request landed, the response did
-   * not) is recognised by the host tool as the same write rather than a second
-   * one. Generated once, with the item, by the queue.
+   * Send as `Idempotency-Key`. Generated once, with the item, by the queue, and
+   * stable across every retry of it — but **nothing rests on that**: measured
+   * 2026-09-21 against Snugg Pro's staging API, replaying a byte-identical
+   * create with the same key returned a new uuid. The key is still sent
+   * (harmless, and free if a vendor ever honours it); duplicate protection is
+   * the write receipt a retry UPDATEs, not this header.
    */
   readonly idempotencyKey: string;
   /**
