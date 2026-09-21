@@ -1,26 +1,37 @@
 import type { RxJsonSchema } from "rxdb";
 
+import {
+  CAPTURE_DOCUMENT_VERSION,
+  PLUGIN_STORAGE_DOCUMENT_UPGRADES,
+  PLUGIN_STORAGE_DOCUMENT_VERSION,
+  SESSION_DOCUMENT_UPGRADES,
+  SESSION_DOCUMENT_VERSION,
+} from "@azx/ribo-core";
 import type { CaptureDocument, PluginStorageDocument, SessionDocument } from "@azx/ribo-core";
 
+import { toMigrationStrategies } from "./migration-strategies.js";
+
 /**
- * @file The RxDB schema layer: the hand-written JSON schemas and the migration
- * strategies that carry a device's data between their versions.
+ * @file The RxDB schema layer: the hand-written JSON schemas, and the adapter
+ * call that turns core's upgrade ladders into RxDB's migration strategies.
  *
- * These live here, not in `@azx/ribo-core`, because they describe how *this*
- * backend lays data out. A different backend has a different migration story, or
- * none at all, and core should not carry either.
+ * The **shapes** live here because they describe how *this* backend lays data
+ * out — `primaryKey`, `indexes`, `attachments`, and the bounds RxDB uses to
+ * build fixed-width index keys, none of which zod has a concept of.
  *
- * The **zod** document schemas stay in core and are imported above. They are the
- * contract and the read-time parse; these are storage metadata zod has no
- * concept of — `primaryKey`, `indexes`, `attachments`, and the bounds RxDB uses
- * to build fixed-width index keys. Core's `schema.test.ts` pins the two
- * descriptions of each document against each other so they cannot drift apart.
+ * The **versions and the transformations do not.** Both come from
+ * `@azx/ribo-core`: a version is a fact about the document, not about RxDB, and
+ * every transformation was already a pure function of the document. Each
+ * `version` below is core's constant, so a bump happens in one place and reaches
+ * every backend, and each strategy map is `toMigrationStrategies` over the
+ * matching ladder.
  *
- * **Every schema change here needs a version bump plus a strategy.** RxDB
+ * **A shape change here still needs a version bump plus a rung in core.** RxDB
  * validates a declared schema against the one the collection was created with,
  * so a changed property at the same version fails `addCollections` with DB6 —
  * and all three collections are added in one call on one database, so that
- * failure takes the capture store with it.
+ * failure takes the capture store with it. Core's `upgrades/signature.test.ts`
+ * is the guard that makes forgetting it a red test rather than a stranded device.
  */
 
 /**
@@ -33,7 +44,7 @@ import type { CaptureDocument, PluginStorageDocument, SessionDocument } from "@a
  * document against each other so they cannot drift apart unnoticed.
  */
 export const captureRxSchema: RxJsonSchema<CaptureDocument> = {
-  version: 7,
+  version: CAPTURE_DOCUMENT_VERSION,
   primaryKey: "id",
   type: "object",
   properties: {
@@ -102,24 +113,10 @@ export const captureRxSchema: RxJsonSchema<CaptureDocument> = {
  * (v1→v2, v2→v3, v3→v4 `extractedBy`, v4→v5): declared and exercised rather
  * than skipped, so the migration path exists and is proven to run.
  */
-export const SESSION_MIGRATION_STRATEGIES = {
-  1: (doc: SessionDocument) => doc,
-  2: (doc: SessionDocument): SessionDocument => {
-    const { reviewOutcome } = doc;
-    if (reviewOutcome === undefined || reviewOutcome.status === "discarded") return doc;
-    const fields = reviewOutcome.fields;
-    const instanceKeys: Record<string, string[]> = { ...reviewOutcome.instanceKeys };
-    for (const [group, groupFields] of Object.entries(fields)) {
-      if (!Array.isArray(groupFields) || groupFields.length === 0) continue;
-      if (instanceKeys[group] !== undefined) continue;
-      instanceKeys[group] = Array.from({ length: groupFields.length }, (_, i) => `k${i + 1}`);
-    }
-    return { ...doc, reviewOutcome: { ...reviewOutcome, instanceKeys } };
-  },
-};
+export const SESSION_MIGRATION_STRATEGIES = toMigrationStrategies(SESSION_DOCUMENT_UPGRADES);
 
 export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
-  version: 2,
+  version: SESSION_DOCUMENT_VERSION,
   primaryKey: "id",
   type: "object",
   properties: {
@@ -168,57 +165,10 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
   attachments: {},
 };
 
-/**
- * Schema-migration strategies for the plugin-storage collection.
- *
- * The collection starts at version 0, so no strategies are needed yet. When a
- * future change adds or removes a field, the version bumps and a strategy is
- * added here — the same pattern `CAPTURE_MIGRATION_STRATEGIES` and
- * `SESSION_MIGRATION_STRATEGIES` follow. Declared and exported rather than
- * inlined so a test can exercise it directly.
- */
-export const PLUGIN_STORAGE_MIGRATION_STRATEGIES: Record<string, (doc: unknown) => unknown> = {
-  /**
-   * v0 → v1: the scope becomes a kind and an id, and the owner stops being a
-   * plugin.
-   *
-   * Field-only. The primary key's composition is deliberately unchanged, because
-   * a primary-key rewrite fails by making rows unreachable rather than by
-   * erroring — see `plugin-storage-schema.ts` for the whole argument.
-   *
-   * **This strategy is required even though no user depends on a v0 entry.**
-   * RxDB validates a declared schema against the one the collection was CREATED
-   * with, so changing the shape at the same version fails `addCollections` with
-   * DB6 on any device that has merely opened the app since the collection
-   * landed — whether or not it ever wrote a row. And because all three
-   * collections are added in one call on one database, that failure is not
-   * scoped to this collection: the capture store becomes unreachable too, and an
-   * auditor's recordings are stranded with clearing the origin's IndexedDB as
-   * the only way out.
-   *
-   * "The collection holds no data" answers the data question and leaves the
-   * schema question unasked. This repo has shipped that mistake once already.
-   */
-  1: (doc: unknown) => {
-    const v0 = doc as {
-      id: string;
-      captureId: string;
-      pluginId: string;
-      key: string;
-      value: string;
-    };
-    return {
-      id: v0.id,
-      // Everything that exists at v0 is capture-scoped: there was nowhere to
-      // record any other kind, so there cannot be one.
-      scopeKind: "capture",
-      scopeId: v0.captureId,
-      owner: v0.pluginId,
-      key: v0.key,
-      value: v0.value,
-    };
-  },
-};
+/** Schema-migration strategies for the key-value collection. */
+export const PLUGIN_STORAGE_MIGRATION_STRATEGIES = toMigrationStrategies(
+  PLUGIN_STORAGE_DOCUMENT_UPGRADES,
+);
 
 /**
  * The RxDB JSON schema for the key-value collection.
@@ -233,7 +183,7 @@ export const PLUGIN_STORAGE_MIGRATION_STRATEGIES: Record<string, (doc: unknown) 
  * was required even with nothing on disk depending on it.
  */
 export const pluginStorageRxSchema: RxJsonSchema<PluginStorageDocument> = {
-  version: 1,
+  version: PLUGIN_STORAGE_DOCUMENT_VERSION,
   primaryKey: "id",
   type: "object",
   properties: {

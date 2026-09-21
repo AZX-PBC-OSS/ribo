@@ -77,6 +77,7 @@ export default defineConfig({
             { text: "Review", link: "/guide/review" },
             { text: "Write-back", link: "/guide/write-back" },
             { text: "Offline & Storage", link: "/guide/offline-and-storage" },
+            { text: "Migrations", link: "/guide/migrations" },
             { text: "Arbitration & Fallback", link: "/guide/arbitration" },
             { text: "Plugin Storage", link: "/guide/plugin-storage" },
             { text: "React Hooks", link: "/guide/react" },

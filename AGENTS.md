@@ -392,7 +392,7 @@ wrong somewhere. `createMemoryBackend` for tests and development; `openRxdbBacke
 `@azx/ribo-storage-rxdb` for a browser host, which is the production path. Core's dependencies are
 `rxjs` and `zod`: it could not construct the RxDB one if it wanted to.
 
-The port is ~14 mechanical operations over three logical collections, with a **closed set of three
+The port is fifteen mechanical operations over three logical collections, with a **closed set of three
 finders** rather than a query language. What makes an implementation real is not the types but the
 six behavioural obligations in `docs/roadmap/design/storage-port-design.md` §4.2, made executable as
 the conformance kit published at `@azx/ribo-core/testing`. Two backends pass it: the in-memory one
@@ -415,6 +415,31 @@ The durability tests stay on real IndexedDB in `@azx/ribo-storage-rxdb`
 they assert that bytes reach disk and survive a reopen, and the memory backend is durable across a
 close-and-reopen too — obligation 2 requires it — so running them there would pass while proving
 something else entirely. When a test's header says memory would fake the property, believe it.
+
+### Changing a persisted shape
+
+**Three things move together, and none of them is optional.** The zod schema in
+`packages/ribo-core/src/storage/`, the version constant in `storage/upgrades/`, and a rung appended
+to the matching ladder. Then record the new signature in `upgrades/signature.test.ts`.
+
+The version constant is written by hand and **must never be derived** from the ladder's length —
+derived, the length invariant asserts a value against itself and checks nothing.
+
+**The signature table is a stop sign, not a formality.** RxDB validates a declared schema against the
+one the collection was _created_ with, so a changed shape at an unchanged version is refused at
+`addCollections` with **DB6** — on every device that has ever opened the app, whether or not it holds
+a row of the collection you touched. All three collections are added in one call on one database, so
+that refusal takes the captures with it and an auditor's recordings become unreachable. This repo
+shipped exactly that in #38 and fixed it in #40; read `cec0c87` before deciding a red signature test
+is noise. A declared version with no rung fails **COL12** instead — an app that will not open, with
+an error that never mentions migrations.
+
+Migrations themselves live in core, not in the backend: `storage/upgrades/` holds the ladders, the
+per-document rungs and `backfillSessions`, the cross-collection phase written against the port.
+`@azx/ribo-storage-rxdb` is an adapter over them (`toMigrationStrategies`) and its `RxJsonSchema`
+versions are core's constants. **Rungs are deterministic but not idempotent** — re-applying one
+destroys data silently — so a backend owes an at-most-once-per-document guarantee. `docs/guide/migrations.md`
+is the contract as third parties read it.
 
 **This was deferred once, on the reasoning that a contract with one implementation locks in that
 implementation's shape while pretending not to.** That reasoning was sound, and the premise it
