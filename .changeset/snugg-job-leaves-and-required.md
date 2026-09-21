@@ -29,8 +29,5 @@ types the job's `id` an integer and the value interpolates into
 `/jobs/{jobId}`, so a malformed context fails the trust boundary instead of
 building a URL that 404s at write time.
 
-Known fallout, to be handled by the follow-up tasks that own those files: the
-few-shot example in `examples.ts` still carries the removed leaves (failing
-typecheck and every test that parses the example against the extraction schema,
-including the playground's `extractor-store.test.ts`), and `per-group-cap.test.ts`
-/ `split-schema.test.ts` still pin the old leaf counts (job: 30, total: 467).
+The few-shot example in `examples.ts` is trimmed to the same four leaves, so a
+consumer regenerating prompts regenerates the schema and the example together.

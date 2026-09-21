@@ -193,10 +193,14 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     return Object.keys(shapeOf(candidate)).length;
   }
 
-  test("before partitioning, basedata, hvac, attic, vault, window, dhw, health, job, utilities and refrigerator all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
+  test("before partitioning, basedata, hvac, attic, vault, window, dhw, health, utilities and refrigerator all exceed the 8-leaf cap — the bug this guard exists to catch", () => {
     // No `maxNullableUnionsPerGroup` — the one-entry-per-group split `perGroupExtractor` would
     // send if it never partitioned. This pins the starting problem: without the fix
     // below, these groups would send an over-cap schema to an Anthropic-family model.
+    //
+    // `job` is no longer in this list: trimmed to `PUT /jobs/{jobId}`'s four writable
+    // leaves, it sits under the cap and needs no partitioning (pinned in the untouched
+    // test below).
     const unpartitioned = splitExtractionSchema(snuggExtractionSchema);
     const basedata = unpartitioned.find((g) => g.key === "basedata")!;
     const hvac = unpartitioned.find((g) => g.key === "hvac")!;
@@ -206,7 +210,6 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     const windowGroup = unpartitioned.find((g) => g.key === "window")!;
     const dhw = unpartitioned.find((g) => g.key === "dhw")!;
     const health = unpartitioned.find((g) => g.key === "health")!;
-    const job = unpartitioned.find((g) => g.key === "job")!;
     const utilities = unpartitioned.find((g) => g.key === "utilities")!;
     const refrigerator = unpartitioned.find((g) => g.key === "refrigerator")!;
 
@@ -218,7 +221,6 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     expect(groupLeafCount(windowGroup)).toBe(32);
     expect(groupLeafCount(dhw)).toBe(37);
     expect(groupLeafCount(health)).toBe(16);
-    expect(groupLeafCount(job)).toBe(30);
     expect(groupLeafCount(utilities)).toBe(27);
     expect(groupLeafCount(refrigerator)).toBe(9);
     expect(groupLeafCount(basedata)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
@@ -229,7 +231,6 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     expect(groupLeafCount(windowGroup)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
     expect(groupLeafCount(dhw)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
     expect(groupLeafCount(health)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
-    expect(groupLeafCount(job)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
     expect(groupLeafCount(utilities)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
     expect(groupLeafCount(refrigerator)).toBeGreaterThan(MAX_ENVELOPED_LEAVES);
   });
@@ -291,7 +292,6 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
     expect(byKey.get("window")).toHaveLength(4);
     expect(byKey.get("dhw")).toHaveLength(5);
     expect(byKey.get("health")).toHaveLength(2);
-    expect(byKey.get("job")).toHaveLength(4);
     expect(byKey.get("utilities")).toHaveLength(4);
     expect(byKey.get("refrigerator")).toHaveLength(2);
     for (const key of [
@@ -303,12 +303,19 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       "range",
       "pv",
       "stage",
+      "job",
       "report",
     ]) {
       const pieces = byKey.get(key)!;
       expect(pieces, `group "${key}"`).toHaveLength(1);
       expect(pieces[0]!.part, `group "${key}" should not be partitioned`).toBeUndefined();
     }
+
+    // `job` was trimmed to `PUT /jobs/{jobId}`'s four writable leaves — under the cap
+    // now, hence untouched above; its leaf count stays pinned here so the trim is loud
+    // rather than silent.
+    const jobPiece = byKey.get("job")![0]!;
+    expect(groupLeafCount(jobPiece)).toBe(4);
 
     // Each partitioned key's pieces are labelled 0..parts-1, in order, and their leaf
     // counts sum back to the original — no leaf lost or duplicated across the split.
@@ -321,7 +328,6 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       ["window", 32],
       ["dhw", 37],
       ["health", 16],
-      ["job", 30],
       ["utilities", 27],
       ["refrigerator", 9],
     ] as const) {
