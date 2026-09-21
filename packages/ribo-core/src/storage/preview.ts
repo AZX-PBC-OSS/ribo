@@ -1,4 +1,4 @@
-import type { Transcript } from "../transcript.js";
+import type { Transcript } from "../capture/transcript.js";
 import type { CaptureDocument, CapturePatch } from "./capture-schema.js";
 
 /**

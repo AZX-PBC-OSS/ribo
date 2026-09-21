@@ -1,4 +1,4 @@
-import type { CapableChatClient, ChatRequest } from "../chat-client.js";
+import type { CapableChatClient, ChatRequest } from "../phases/chat-client.js";
 
 /**
  * A plain {@link CapableChatClient} double for the phase-level tests, which drive

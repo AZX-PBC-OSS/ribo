@@ -204,7 +204,7 @@ authority for everything in §5 and §6 below.
   adding an inline disable, is a change to what the codebase guarantees and needs the same
   justification as changing the code would. A repeated suppression is a missing helper: the same
   disable with the same reason at six call sites is one type problem, not six judgements — `fieldAt`
-  in `packages/ribo-core/src/enveloped.ts` narrows zod's `any`-indexing `.shape` once and is the
+  in `packages/ribo-core/src/provenance/enveloped.ts` narrows zod's `any`-indexing `.shape` once and is the
   worked example. If a rule is genuinely wrong for a case, the narrowest possible scope (a line, not
   a file) plus a reason that names the specific technical obstacle, not a category — "this file
   walks internals" is not a reason; "this test throws a non-Error sentinel on purpose, and the

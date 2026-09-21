@@ -1,7 +1,7 @@
 import { createMemoryBackend, removeMemoryDatabase } from "./memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
-import type { Recording } from "../recording.js";
+import type { Recording } from "../capture/recording.js";
 import { openStorage, type Storage } from "./storage.js";
 
 // Plugin-scoped storage: isolation and sweep, proven with memory storage.

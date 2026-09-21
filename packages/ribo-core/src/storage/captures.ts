@@ -1,10 +1,10 @@
 import type { Observable } from "rxjs";
 import { switchMap } from "rxjs";
 
-import { basePayloadSchema } from "../capture-item.js";
-import type { CapturePayload } from "../capture-item.js";
-import type { Recording } from "../recording.js";
-import { baseRecordingSchema } from "../recording.js";
+import { basePayloadSchema } from "../capture/capture-item.js";
+import type { CapturePayload } from "../capture/capture-item.js";
+import type { Recording } from "../capture/recording.js";
+import { baseRecordingSchema } from "../capture/recording.js";
 import { isChunkOf } from "./chunk-names.js";
 import { commitRegion, handoffTranscript, writeTail } from "./preview.js";
 import {
@@ -17,7 +17,7 @@ import {
   type CapturePatch,
   type CaptureStatus,
 } from "./capture-schema.js";
-import type { Transcript } from "../transcript.js";
+import type { Transcript } from "../capture/transcript.js";
 import { sweepCaptureEntries } from "./entries.js";
 import type { BlobDescriptor, Finders, StorageBackend, StoredDocument } from "./port.js";
 import type { StoreDeps } from "./deps.js";

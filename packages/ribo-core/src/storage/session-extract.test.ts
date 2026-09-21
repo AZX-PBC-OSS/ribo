@@ -1,11 +1,11 @@
 import { createMemoryBackend, removeMemoryDatabase } from "./memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
-import type { DocumentCapture } from "../capture-item.js";
-import { FakeExtractor, toSessionExtractStep } from "../extractor.js";
-import { isSpanGrounded } from "../provenance.js";
-import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
-import type { Recording } from "../recording.js";
+import type { DocumentCapture } from "../capture/capture-item.js";
+import { FakeExtractor, toSessionExtractStep } from "../extraction/extractor.js";
+import { isSpanGrounded } from "../provenance/provenance.js";
+import { createDefaultTranscriptCombiner } from "../capture/transcript-combiner.js";
+import type { Recording } from "../capture/recording.js";
 import { openStorage, type Storage } from "./storage.js";
 import { joinSessionTranscript, listSessionTranscriptParts } from "./session-extract.js";
 

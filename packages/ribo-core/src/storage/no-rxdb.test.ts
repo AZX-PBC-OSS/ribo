@@ -1,9 +1,9 @@
 import { createMemoryBackend, removeMemoryDatabase } from "./memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
-import type { DocumentCapture } from "../capture-item.js";
-import type { Recording } from "../recording.js";
-import type { PersistedReviewOutcome } from "../review.js";
+import type { DocumentCapture } from "../capture/capture-item.js";
+import type { Recording } from "../capture/recording.js";
+import type { PersistedReviewOutcome } from "../review/review.js";
 import { openStorage, type Storage } from "./storage.js";
 
 // The proof that `@azx/ribo-core` runs with no RxDB anywhere.

@@ -1,8 +1,8 @@
 import { createMemoryBackend, removeMemoryDatabase } from "./memory-backend.js";
 import { afterEach, expect, test, vi } from "vitest";
 
-import type { Recording } from "../recording.js";
-import type { Transcript } from "../transcript.js";
+import type { Recording } from "../capture/recording.js";
+import type { Transcript } from "../capture/transcript.js";
 import { openStorage, type Storage } from "./storage.js";
 
 // The preview field, its committed+tail shape, and its handoff. Tests 3 and 4

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { basePayloadSchema } from "../capture-item.js";
-import { transcriptSchema } from "../transcript.js";
+import { basePayloadSchema } from "../capture/capture-item.js";
+import { transcriptSchema } from "../capture/transcript.js";
 
 /** The RxDB collection name. One collection for storage items (audio or document); sessions have their own. */
 export const CAPTURES_COLLECTION_NAME = "outbox";

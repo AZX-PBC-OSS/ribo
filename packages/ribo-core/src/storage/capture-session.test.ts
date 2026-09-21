@@ -5,7 +5,7 @@ import { firstValueFrom } from "rxjs";
 import { openCaptureSession } from "./capture-session.js";
 import type { Storage } from "./storage.js";
 import type { Capture } from "./capture-schema.js";
-import type { Recording } from "../recording.js";
+import type { Recording } from "../capture/recording.js";
 
 const recording: Recording = {
   id: "rec-1",
