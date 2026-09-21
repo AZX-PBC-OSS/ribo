@@ -570,41 +570,15 @@ const fields: SnuggExtraction = {
   },
 
   job: {
-    // This dictation is the auditor walking the basement alone — no customer name,
-    // address, contact, appointment, assignee, program or income tier is spoken
-    // anywhere in it, so every job-identity leaf is an unforced `null`. Requiredness
-    // (this endpoint has required fields) is surfaced at review via the adapter's
-    // `requiredOnCreate`, never invented by the model — the same lesson the
-    // required-but-null `hvacUpgradeAction` above demonstrates.
-    firstName: env(null, null),
-    lastName: env(null, null),
-    renterOwner: env(null, null),
+    // This dictation is the auditor walking the basement alone — no appointment,
+    // assignee, note or income tier is spoken anywhere in it, so every job leaf is an
+    // unforced `null`. The group carries only PUT /jobs/{jobId}'s update surface (job
+    // creation is out of scope), which requires nothing; requiredness is surfaced at
+    // review via the adapter's `requiredOnCreate`, never invented by the model — the
+    // same lesson the required-but-null `hvacUpgradeAction` above demonstrates.
     serviceTime: env(null, null),
-    email: env(null, null),
-    homePhone: env(null, null),
-    address1: env(null, null),
-    address2: env(null, null),
-    city: env(null, null),
-    state: env(null, null),
-    zip: env(null, null),
     accountId: env(null, null),
-    stageId: env(null, null),
-    jobType: env(null, null),
-    programId: env(null, null),
-    altId: env(null, null),
-    buildingId: env(null, null),
-    propertyOwnerFirstName: env(null, null),
-    propertyOwnerLastName: env(null, null),
-    propertyOwnerAddress1: env(null, null),
-    propertyOwnerAddress2: env(null, null),
-    propertyOwnerEmail: env(null, null),
-    propertyOwnerPhone: env(null, null),
-    propertyOwnerCity: env(null, null),
-    propertyOwnerState: env(null, null),
-    propertyOwnerZip: env(null, null),
-    auditType: env(null, null),
     note: env(null, null),
-    useStrictBpi2400Calibration: env(null, null),
     householdIncomeTier: env(null, null),
   },
 

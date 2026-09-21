@@ -116,7 +116,7 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
 // rubber stamp.
 
 const validCtx = {
-  assessmentId: "assessment-1",
+  assessmentId: "588613",
   companyId: "company-1",
   apiBaseUrl: "https://api.snuggpro.com",
 };
@@ -135,7 +135,7 @@ test("ctxSchema rejects a context that would target nowhere", () => {
   expect(
     snuggProAdapter.ctxSchema.safeParse({ ...validCtx, apiBaseUrl: "api.snuggpro.com" }).success,
   ).toBe(false);
-  expect(snuggProAdapter.ctxSchema.safeParse({ assessmentId: "a-1" }).success).toBe(false);
+  expect(snuggProAdapter.ctxSchema.safeParse({ assessmentId: "42" }).success).toBe(false);
 });
 
 test("ctxSchema tolerates host extras — a Recording.ctx may carry more than this adapter needs", () => {
@@ -143,6 +143,17 @@ test("ctxSchema tolerates host extras — a Recording.ctx may carry more than th
   // metadata in it. Zod strips extras rather than failing the write.
   const parsed = snuggProAdapter.ctxSchema.parse({ ...validCtx, hostBookkeeping: { seen: true } });
   expect(parsed).toEqual(validCtx);
+});
+
+test("ctxSchema rejects a non-numeric assessmentId — job ids are integers on the wire", () => {
+  // assessmentId is interpolated into /jobs/{jobId}: a malformed id must fail the
+  // trust boundary here, not build a nonsense URL that 404s at write time.
+  expect(
+    snuggProAdapter.ctxSchema.safeParse({ ...validCtx, assessmentId: "assessment-1" }).success,
+  ).toBe(false);
+  expect(snuggProAdapter.ctxSchema.safeParse({ ...validCtx, assessmentId: "588613" }).success).toBe(
+    true,
+  );
 });
 
 test("write is scaffolded, not faked: it rejects rather than silently succeeding", async () => {
@@ -200,41 +211,92 @@ test("every requiredOnCreate group and leaf is declared in the values schema", (
   }
 });
 
-test("the required leaves are exactly hvac's and job's, declared per group", () => {
+test("the required leaves are exactly hvac's and incentive's, declared per group", () => {
   // POST /jobs/{jobId}/hvac is Snugg Pro's only COMPONENT endpoint with required capture
-  // fields, and POST /jobs is the one singleton that genuinely refuses a create without
-  // its required leaves (doc 20 §4.6). A leaf added here — or one from any other group —
-  // means someone read the spec's `required` flags wrong. `companyId` is required on
-  // POST /jobs but excluded from capture (tenancy fk), so it is deliberately absent.
+  // fields, and POST /jobs/{jobId}/incentives refuses a create without fromTemplateUuid
+  // (required: true in the spec) — declared even though the incentive group is excluded
+  // from writing in this release, because the declaration is about what the API refuses.
+  // A leaf added here — or one from any other group — means someone read the spec's
+  // `required` flags wrong. The job singleton declares nothing: PUT /jobs/{jobId}
+  // requires nothing and job creation is out of scope.
   expect(snuggProAdapter.requiredOnCreate).toEqual({
     hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
-    job: [
-      "firstName",
-      "lastName",
-      "address1",
-      "city",
-      "state",
-      "zip",
-      "accountId",
-      "stageId",
-      "jobType",
-      "programId",
-    ],
+    incentive: ["fromTemplateUuid"],
   });
 });
 
 test("no other group declares a required leaf — a partial dictation writes cleanly", () => {
-  // Every other endpoint accepts a create with nothing set, so an auditor who only did
-  // the basement is never blocked on the attic.
+  // Every group other than hvac and incentive accepts a create with nothing set, so an
+  // auditor who only did the basement is never blocked on the attic.
   const groups = Object.keys(snuggProAdapter.requiredOnCreate ?? {});
-  expect(groups.filter((g) => g !== "hvac" && g !== "job")).toEqual([]);
+  expect(groups.filter((g) => g !== "hvac" && g !== "incentive")).toEqual([]);
+});
+
+test("create-only job leaves are absent from the values schema", () => {
+  // Measured against the vendor spec: PUT /jobs/{jobId} — the only way to update an
+  // existing job, and the only write this adapter targets — accepts exactly
+  // serviceTime, accountId, companyId, note and householdIncomeTier. Snugg Pro launches
+  // the app with an existing jobId, so the POST /jobs leaves are write-once at creation
+  // and can never be written; extracting them costs prompt budget and review attention
+  // on data with nowhere to go.
+  const leaves = groupLeafNames(snuggValuesSchema).job ?? [];
+  for (const removed of [
+    "firstName",
+    "lastName",
+    "renterOwner",
+    "email",
+    "homePhone",
+    "address1",
+    "address2",
+    "city",
+    "state",
+    "zip",
+    "stageId",
+    "jobType",
+    "programId",
+    "altId",
+    "buildingId",
+    "propertyOwnerFirstName",
+    "propertyOwnerLastName",
+    "propertyOwnerAddress1",
+    "propertyOwnerAddress2",
+    "propertyOwnerEmail",
+    "propertyOwnerPhone",
+    "propertyOwnerCity",
+    "propertyOwnerState",
+    "propertyOwnerZip",
+    "auditType",
+    "useStrictBpi2400Calibration",
+  ]) {
+    expect(leaves, `"job.${removed}" is create-only and must not be captured`).not.toContain(
+      removed,
+    );
+  }
+});
+
+test("the job group is exactly the PUT-writable leaves, serviceTime among them", () => {
+  // PUT /jobs/{jobId}'s parameter list minus companyId (the tenancy fk, excluded from
+  // capture): the four leaves a launched-with-a-jobId write can actually send.
+  const leaves = [...(groupLeafNames(snuggValuesSchema).job ?? [])].sort();
+  expect(leaves).toEqual(["accountId", "householdIncomeTier", "note", "serviceTime"]);
+});
+
+test("requiredOnCreate is exactly hvac's pair plus incentive's required template name", () => {
+  // POST /jobs/{jobId}/incentives marks fromTemplateUuid required: true — declared here
+  // so the auditor is asked at review rather than the create failing at the API. The job
+  // singleton declares nothing: PUT /jobs/{jobId} requires nothing, and job creation is
+  // out of scope.
+  expect(snuggProAdapter.requiredOnCreate).toEqual({
+    hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
+    incentive: ["fromTemplateUuid"],
+  });
 });
 
 test("requiredOnCreate is typed against the values schema", () => {
   // Valid groups and leaves compile.
   expectTypeOf({
     hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
-    job: ["firstName"],
+    incentive: ["fromTemplateUuid"],
   } as const).toMatchTypeOf<RequiredOnCreate<SnuggValues>>();
 
   // @ts-expect-error - "notAGroup" is not a top-level group of the Snugg values schema.
