@@ -194,8 +194,14 @@ export type {
 // nothing about the engine". Terminal for the queue (so it does not burn the
 // retry budget) but not for the item (a composition layer routes to the next
 // engine). See D4 in the document-transcription plan.
-export { UNSUPPORTED_ITEM_REASONS, UnsupportedItemError } from "./transcription/unsupported-item.js";
-export type { UnsupportedItemInit, UnsupportedItemReason } from "./transcription/unsupported-item.js";
+export {
+  UNSUPPORTED_ITEM_REASONS,
+  UnsupportedItemError,
+} from "./transcription/unsupported-item.js";
+export type {
+  UnsupportedItemInit,
+  UnsupportedItemReason,
+} from "./transcription/unsupported-item.js";
 
 // restrictToKind: lift a narrow transcriber into a slot that can see any
 // CapturePayload, refusing other kinds with UnsupportedItemError. The compiler is
@@ -205,7 +211,12 @@ export { restrictToKind } from "./transcription/restrict-to-kind.js";
 // Live transcription: the streaming seam — utterance-level preview during
 // recording. Defined here, implemented by the on-device engine. Not composed
 // through `firstCapable`; held directly by the live orchestrator.
-export type { LiveSegment, LiveSegmentKind, LiveSession, LiveTranscriber } from "./transcription/live.js";
+export type {
+  LiveSegment,
+  LiveSegmentKind,
+  LiveSession,
+  LiveTranscriber,
+} from "./transcription/live.js";
 
 // Selection: try engines in preference order, first one ready wins. The
 // sequential combinator — deliberately the only one until hedging was added.
@@ -247,7 +258,10 @@ export type {
 // ladder, where settlement order IS preference order). preferEngineOrder is the
 // alternative a concurrent combinator wants: a race breaks that identity, so it
 // accepts the best-ranked success instead of the fastest one.
-export { preferEngineOrder, unsupportedFallsThrough } from "./transcription/transcription-arbitration.js";
+export {
+  preferEngineOrder,
+  unsupportedFallsThrough,
+} from "./transcription/transcription-arbitration.js";
 export type {
   TranscriptionArbiter,
   TranscriptionArbiterInput,
@@ -638,7 +652,11 @@ export type {
 // `extraction-common` (which re-exports it) so `askPhase` composes the chain its managed
 // cousins do — one copy of the terminal/transient classification semantics, beside the
 // seam.
-export { assertStopFinishReason, completeOrClassify, parseJsonContent } from "./phases/chat-parse.js";
+export {
+  assertStopFinishReason,
+  completeOrClassify,
+  parseJsonContent,
+} from "./phases/chat-parse.js";
 
 // The three-phase walk, moved here from `@azx/ribo-extractor-ondevice` (SP4a wave 5):
 // the phases ask a `ChatClient` which leaves are present, what spans support them, and
@@ -649,7 +667,11 @@ export { extractGroups, presencePhase, presenceNoteKey } from "./phases/presence
 export type { Group, JsonSchema, Leaf, PresencePhaseOptions } from "./phases/presence-phase.js";
 export { spanPhase, spansNoteKey } from "./phases/span-phase.js";
 export type { SpanPhaseOptions } from "./phases/span-phase.js";
-export { classifyPhase, classifyWrappedPhase, unsupportedNoteKey } from "./phases/classify-phase.js";
+export {
+  classifyPhase,
+  classifyWrappedPhase,
+  unsupportedNoteKey,
+} from "./phases/classify-phase.js";
 export type { ClassifyPhaseOptions } from "./phases/classify-phase.js";
 
 // The phased-extraction engine (wave 3b): run a list of phases in order, fanning each

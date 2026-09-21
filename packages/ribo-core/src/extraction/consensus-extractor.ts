@@ -1,7 +1,11 @@
 import { assertLeafGranularity } from "./assert-leaf-granularity.js";
 import { isCancellation } from "../async/cancellation.js";
 import { unanimousValues, type ConsensusArbiter } from "./consensus-arbiter.js";
-import { isExtractedLeaf, mapExtractedLeaves, type LeafPath } from "../provenance/extracted-leaves.js";
+import {
+  isExtractedLeaf,
+  mapExtractedLeaves,
+  type LeafPath,
+} from "../provenance/extracted-leaves.js";
 import type { Enveloped, NoProvenance } from "../provenance/enveloped.js";
 import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
 import type {

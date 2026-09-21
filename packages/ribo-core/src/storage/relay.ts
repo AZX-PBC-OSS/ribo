@@ -17,7 +17,11 @@ import type { SessionItem, SessionPatch } from "./session-schema.js";
 import { listSessionTranscriptParts } from "./session-extract.js";
 import { createDefaultTranscriptCombiner } from "../capture/transcript-combiner.js";
 import type { TranscriptCombiner } from "../capture/transcript-combiner.js";
-import type { ConnectivityState, ConnectivityStatus, Unsubscribe } from "../connectivity/connectivity.js";
+import type {
+  ConnectivityState,
+  ConnectivityStatus,
+  Unsubscribe,
+} from "../connectivity/connectivity.js";
 
 /** Structured fields produced by extraction. */
 export type ExtractedFieldMap = Record<string, unknown>;
