@@ -19,7 +19,7 @@
  */
 
 import type { CaptureDocument } from "../capture-schema.js";
-import type { PersistedReviewOutcome } from "../../review.js";
+import type { PersistedReviewOutcome } from "../../review/review.js";
 import type { SessionDocument } from "../session-schema.js";
 import type { StorageBackend } from "../port.js";
 

@@ -11,7 +11,7 @@
  * lives in the RxDB package as `backfillSessions` and moves here later.
  */
 
-import type { PersistedReviewOutcome } from "../../review.js";
+import type { PersistedReviewOutcome } from "../../review/review.js";
 
 interface LegacySessionFields {
   extracted?: Record<string, unknown>;
