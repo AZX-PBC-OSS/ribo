@@ -28,6 +28,12 @@ test("re-exports the adapter, both schemas, the ctx schema, instructions, exampl
   // A resource group is exported too: a UI rendering one endpoint's card needs the
   // group schema, not just the whole field set.
   expect(typeof api.HvacFields.parse).toBe("function");
+  // The persisted-outcome pruner is public because the wiring is the HOST's: it runs
+  // over a persisted `reviewOutcome.fields` before a write is attempted. Pinned here
+  // for the reason this whole test exists — if it fell out of the barrel, the break
+  // would surface at a consumer as a session dying on a strict-parse failure, which
+  // is a long way from the missing export that caused it.
+  expect(typeof api.prunePersistedValues).toBe("function");
   // The concern job-collection group is in the barrel as well — the first
   // job-collection resource (doc 20 tranche 2) must not fall out of the exports.
   expect(typeof api.ConcernFields.parse).toBe("function");
