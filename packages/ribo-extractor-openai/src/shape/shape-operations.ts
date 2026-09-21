@@ -399,7 +399,18 @@ function applyRegroup(
   }
   for (const a of destinations) {
     for (const b of destinations) {
-      if (a.from !== b.from && isPrefixOf(a.segments, b.segments)) {
+      if (a.from === b.from) continue;
+      if (
+        a.segments.length === b.segments.length &&
+        a.segments.every((segment, i) => segment === b.segments[i])
+      ) {
+        throw new Error(
+          `deriveExtractionShape(): regroup on "${group}" moves "${a.from}" and "${b.from}" ` +
+            "to the same destination — one move's source would overwrite the other's, " +
+            "and there is no insert order that keeps both.",
+        );
+      }
+      if (isPrefixOf(a.segments, b.segments)) {
         throw new Error(
           `deriveExtractionShape(): regroup on "${group}" moves "${a.from}" and "${b.from}" ` +
             "to destinations, one under the other — the insert order would decide the shape.",
