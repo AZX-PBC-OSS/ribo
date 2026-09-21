@@ -3,7 +3,7 @@ import { BehaviorSubject } from "rxjs";
 
 import type { Storage } from "./storage.js";
 import type { Capture } from "./capture-schema.js";
-import type { Recording } from "../recording.js";
+import type { Recording } from "../capture/recording.js";
 import { chunkName, sliceOversized } from "./chunk-names.js";
 
 /**

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { reviewOutcomeSchema } from "../review.js";
+import { reviewOutcomeSchema } from "../review/review.js";
 
 /** The RxDB collection name for sessions. Sits beside `storage` in the same database. */
 export const SESSION_COLLECTION_NAME = "sessions";

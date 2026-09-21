@@ -1,0 +1,325 @@
+import { isTransientFailure } from "../storage/backoff.js";
+import type { Transcript } from "../capture/transcript.js";
+import { TranscriberUnavailableError } from "./transcriber.js";
+import { UnsupportedItemError } from "./unsupported-item.js";
+
+/**
+ * @file The transcription arbiter: a caller-supplied classifier that decides
+ * whether a transcriber candidate's outcome is good enough, whether to try the
+ * next candidate, or whether to give up and let the relay's backoff handle the
+ * failure.
+ *
+ * This is a **sibling** of `arbitration.ts | arbitration.ts`, not a
+ * generalisation of it. The extractor engine is parameterised by the field map
+ * `F`, stamps `usage.strategy` on accept, and recognises `SchemaParseError`;
+ * none of that applies here. A `Transcript` carries its own `engine` (required,
+ * set by the implementation that ran), so there is nothing to stamp, and the
+ * transcriber side's error vocabulary is `UnsupportedItemError` and
+ * `TranscriberUnavailableError`, not `TerminalError` and `SchemaParseError`.
+ * What is shared is a _pattern_ — outcomes in settlement order, an `exhausted`
+ * flag, an accept/continue/give-up verdict, exhaustion checked first — not a
+ * type. See the document-transcription plan Task 4's Intent for the full
+ * argument.
+ *
+ * The honest residual risk of a sibling rather than a shared module is **drift**:
+ * a fourth lesson learned on one side now has two homes. If you fix a bug here,
+ * check whether `arbitration.ts | arbitration.ts` has the same one, and
+ * vice versa.
+ */
+
+/**
+ * One settled candidate: either a produced transcript or the error it failed
+ * with.
+ *
+ * The two branches are mutually exclusive at the type level (`error` and
+ * `result` are `never` on the opposite branch) so a constructed outcome cannot
+ * silently carry both.
+ */
+export type TranscriptionOutcome =
+  | { readonly candidate: string; readonly result: Transcript; readonly error?: never }
+  | { readonly candidate: string; readonly error: unknown; readonly result?: never };
+
+/** The success branch of {@link TranscriptionOutcome}. */
+type TranscriptionResultOutcome = Extract<TranscriptionOutcome, { result: Transcript }>;
+/** The failure branch of {@link TranscriptionOutcome}. */
+type TranscriptionErrorOutcome = Extract<TranscriptionOutcome, { error: unknown }>;
+
+/**
+ * What the arbiter receives each time a candidate settles.
+ *
+ * `outcomes` is in settlement order. Under the sequential ladder there is no
+ * divergence between settlement and dispatch order, but the contract says
+ * settlement order so a future concurrent combinator would not need to change
+ * the vocabulary.
+ */
+export interface TranscriptionArbiterInput {
+  /** Every outcome so far, in the order they settled. */
+  readonly outcomes: readonly TranscriptionOutcome[];
+  /** True once every candidate has settled. The arbiter must then accept or give up. */
+  readonly exhausted: boolean;
+}
+
+/**
+ * The arbiter's verdict: accept a transcript, try the next candidate, or stop
+ * and throw an error. The three discriminants are named so a mistyped verdict
+ * is a compile-time error rather than a silent `continue`.
+ */
+export type TranscriptionArbiterVerdict =
+  { readonly accept: Transcript } | { readonly continue: true } | { readonly giveUp: unknown };
+
+export type TranscriptionArbiter = (
+  input: TranscriptionArbiterInput,
+) => TranscriptionArbiterVerdict;
+
+// ---
+// Outcome discrimination — carried over from arbitration.ts.
+//
+// Discriminate on the `result` VALUE, never on key presence.  `result?: never`
+// permits an explicit `result: undefined`, so an error outcome written with the
+// key present would read as a success under a `"result" in outcome` test.  The
+// guard tests the value, and `result` is the discriminant rather than `error`
+// because `throw undefined` is legal (an error outcome can carry `undefined`)
+// but a `Transcript` is always an object.
+// ---
+
+function isResultOutcome(outcome: TranscriptionOutcome): outcome is TranscriptionResultOutcome {
+  return outcome.result !== undefined;
+}
+
+function isErrorOutcome(outcome: TranscriptionOutcome): outcome is TranscriptionErrorOutcome {
+  return outcome.result === undefined;
+}
+
+/**
+ * The default arbiter, mirroring `terminalFallsThrough`'s shape but with
+ * different rules. Rules, in this order (D7):
+ *
+ * 1. First success → **accept** it.
+ * 2. **Exhausted** → give up with the first _retryable_ error if there is one,
+ *    else with the first error. The retryable-first preference matters: a
+ *    ladder where pdf.js said `no-text-layer` (terminal) and OCR then failed
+ *    on a dropped uplink (retryable) must be retried, not buried in `dead`.
+ * 3. First `UnsupportedItemError` **or** `TranscriberUnavailableError` →
+ *    **continue**. Both mean "not this engine"; they differ only in whether
+ *    the verdict is cached, and the ladder caches nothing. Demotion is
+ *    `firstCapable`'s job — say so, and say that the two compose (a ladder of
+ *    `firstCapable` composites, or a `firstCapable` roster of ladders).
+ * 4. Any other error → **give up** with it. That is an attempt failure, the
+ *    queue already owns it, and letting it route to a different engine is
+ *    precisely the bug non-negotiable #2 exists to prevent.
+ *
+ * Rule 2 is a **deliberate divergence** from `terminalFallsThrough`, which at
+ * exhaustion gives up with the first error full stop. Do not describe this as
+ * mirroring that; it does not.
+ *
+ * Exhaustion is checked before every "keep going" branch, and the ordering is
+ * load-bearing — `arbitration.ts` carries a comment about the version that got
+ * this backwards and died with a `TypeError` instead of the real error on the
+ * primary case it existed for. Do not reorder.
+ */
+export function unsupportedFallsThrough(
+  input: TranscriptionArbiterInput,
+): TranscriptionArbiterVerdict {
+  // Rule 1: first success → accept.
+  const firstResult = input.outcomes.find(isResultOutcome);
+  if (firstResult) {
+    return { accept: firstResult.result };
+  }
+
+  // EXHAUSTION IS CHECKED FIRST, and the ordering is load-bearing. `continue`
+  // is illegal once every candidate has settled — the engine rejects it as a
+  // caller bug — so every "keep going" branch below must be unreachable at
+  // exhaustion. An earlier version of this pattern (on the extractor side,
+  // arbitration.ts) checked a continue-branch before this one and died with a
+  // TypeError instead of surfacing the real error.
+  if (input.exhausted) {
+    // Rule 2: prefer a retryable error over a terminal one.
+    const firstRetryable = input.outcomes.find(
+      (outcome): outcome is TranscriptionErrorOutcome =>
+        isErrorOutcome(outcome) && isTransientFailure(outcome.error),
+    );
+    if (firstRetryable) {
+      return { giveUp: firstRetryable.error };
+    }
+    const firstError = input.outcomes.find(isErrorOutcome);
+    if (firstError) {
+      return { giveUp: firstError.error };
+    }
+  }
+
+  // Rule 3: UnsupportedItemError or TranscriberUnavailableError → continue.
+  // Both mean "not this engine"; they differ only in whether the verdict is
+  // cached, and the ladder caches nothing. Demotion is firstCapable's job.
+  // The two compose: a ladder of firstCapable composites, or a firstCapable
+  // roster of ladders.
+  const firstUnsupported = input.outcomes.find(
+    (outcome): outcome is TranscriptionErrorOutcome =>
+      isErrorOutcome(outcome) &&
+      (outcome.error instanceof UnsupportedItemError ||
+        outcome.error instanceof TranscriberUnavailableError),
+  );
+  if (firstUnsupported) {
+    return { continue: true };
+  }
+
+  // Rule 4: any other error → give up with it. That is an attempt failure, the
+  // queue already owns it, and letting it route to a different engine is
+  // precisely the bug non-negotiable #2 exists to prevent.
+  const firstOther = input.outcomes.find(isErrorOutcome);
+  if (firstOther) {
+    return { giveUp: firstOther.error };
+  }
+
+  return { continue: true };
+}
+
+// ---
+// The preference-order arbiter — the concurrent ladder's default alternative.
+// ---
+
+/**
+ * An arbiter that honours a preference order instead of settlement order —
+ * the default a concurrent combinator wants, and the reason it must exist at
+ * all: under a sequential ladder, settlement order **is** preference order, so
+ * {@link unsupportedFallsThrough}'s "first success wins" means "best success
+ * wins". A race breaks that identity — a worse engine can settle first — and
+ * under the default the race would then accept whichever engine happened to be
+ * fastest.
+ *
+ * A factory closing over the ranking, because `TranscriptionArbiterInput`
+ * carries `outcomes` and `exhausted` and no preference order. An engine absent
+ * from `ranking` sorts after every named one, in settlement order among
+ * themselves.
+ *
+ * Rules, in this order — the ordering is load-bearing, for the same reason as
+ * {@link unsupportedFallsThrough}'s: `continue` is illegal once every candidate
+ * has settled, so every "keep going" branch below must be unreachable at
+ * exhaustion. An earlier version of this pattern (on the extractor side,
+ * arbitration.ts) checked a continue-branch before exhaustion and died with a
+ * TypeError instead of surfacing the real error.
+ *
+ * 1. **Exhausted** → accept the best-ranked success, or give up with the first
+ *    error if there is none. Unlike {@link unsupportedFallsThrough} there is no
+ *    retryable-first preference at exhaustion — the ranking owns the choice, and
+ *    "first" is settlement order.
+ * 2. No success yet → **continue**. A first error before exhaustion does not
+ *    give up: the race's other lanes may still produce a success, which is the
+ *    reading of "continue while a better-ranked candidate is unsettled" that
+ *    keeps this arbiter distinguishable from giving up on first failure.
+ * 3. A success whose every better-ranked engine has settled → **accept** it.
+ *    Only an engine ranked above it could beat it, the ranking names every
+ *    engine that could rank above anything, and each of those has settled — so
+ *    no unsettled candidate can arrive and win.
+ * 4. Otherwise → **continue**, while a better-ranked candidate is unsettled.
+ */
+export function preferEngineOrder(ranking: readonly string[]): TranscriptionArbiter {
+  const rankOf = (engine: string): number => {
+    const at = ranking.indexOf(engine);
+    return at === -1 ? ranking.length : at;
+  };
+
+  return (input) => {
+    // EXHAUSTION IS CHECKED FIRST — see the doc comment above; do not reorder.
+    if (input.exhausted) {
+      const best = bestRankedSuccess(input.outcomes, rankOf);
+      if (best) return { accept: best.result };
+      // Prefer a RETRYABLE error over a terminal one — `unsupportedFallsThrough`'s
+      // rule 2, and the reasoning transfers to a race unchanged. A race where one
+      // engine fails terminally (pdf.js: no text layer) and another transiently (OCR:
+      // dropped uplink) must be retried, not buried in `dead`; giving up with
+      // whichever happened to settle first decides that by timing. The ranking
+      // orders SUCCESSES, and has nothing to say about which failure is the more
+      // useful one to report.
+      const firstRetryable = input.outcomes.find(
+        (outcome): outcome is TranscriptionErrorOutcome =>
+          isErrorOutcome(outcome) && isTransientFailure(outcome.error),
+      );
+      if (firstRetryable) return { giveUp: firstRetryable.error };
+      const firstError = input.outcomes.find(isErrorOutcome);
+      if (firstError) return { giveUp: firstError.error };
+      // Exhausted with zero outcomes cannot come from an engine (exhaustion
+      // means every candidate settled), so this matches
+      // unsupportedFallsThrough's shape for the same degenerate input: continue,
+      // which applyTranscriptionVerdict rejects as a caller bug.
+      return { continue: true };
+    }
+
+    const best = bestRankedSuccess(input.outcomes, rankOf);
+    if (!best) return { continue: true };
+
+    // Could an unsettled better-ranked candidate still beat it? Only engines
+    // ranked above it could, the ranking names all of them, and any that has
+    // not settled is exactly the one this waits for.
+    const settled = new Set(input.outcomes.map((outcome) => outcome.candidate));
+    const betterRanked = ranking.slice(0, rankOf(best.candidate));
+    if (betterRanked.some((engine) => !settled.has(engine))) {
+      return { continue: true };
+    }
+    return { accept: best.result };
+  };
+}
+
+/**
+ * The best-ranked success in settlement order, or `undefined` when none.
+ *
+ * Strict `<` keeps the earlier-settled success on a tie — the only ties are
+ * unranked engines, whose tie-break is settlement order.
+ */
+function bestRankedSuccess(
+  outcomes: readonly TranscriptionOutcome[],
+  rankOf: (engine: string) => number,
+): TranscriptionResultOutcome | undefined {
+  let best: TranscriptionResultOutcome | undefined;
+  for (const outcome of outcomes) {
+    if (!isResultOutcome(outcome)) continue;
+    if (!best || rankOf(outcome.candidate) < rankOf(best.candidate)) best = outcome;
+  }
+  return best;
+}
+
+// ---
+// Verdict validation — carried over from arbitration.ts.
+//
+// `isResultOutcome` first is load-bearing. Comparing `outcome.result ===
+// verdict.accept` alone matches an ERROR outcome against an arbiter that
+// accepted `undefined`, because both sides are `undefined` — the guard is
+// bypassed and the engine returns a transcript that does not exist. Narrowing
+// to result outcomes first makes an `undefined` accept match nothing.
+// ---
+
+/**
+ * Apply an arbiter's verdict, validating it. Returns the accepted transcript or
+ * `"continue"`; throws on `giveUp` or on an invalid verdict.
+ *
+ * No result stamping: `Transcript.engine` is already required and set by the
+ * implementation that ran, so "which engine produced this?" is answerable off
+ * `storage.captures.list()` for free. A second copy of that truth is a defect.
+ */
+export function applyTranscriptionVerdict(
+  verdict: TranscriptionArbiterVerdict,
+  input: TranscriptionArbiterInput,
+  arbiter: TranscriptionArbiter,
+): Transcript | "continue" {
+  if ("accept" in verdict) {
+    const acceptedOutcome = input.outcomes.find(
+      (outcome): outcome is TranscriptionResultOutcome =>
+        isResultOutcome(outcome) && outcome.result === verdict.accept,
+    );
+    if (!acceptedOutcome) {
+      throw new TypeError(
+        `arbiter ${arbiter.name || "(anonymous)"} returned a transcript not produced by any candidate`,
+      );
+    }
+    return acceptedOutcome.result;
+  }
+
+  if ("giveUp" in verdict) {
+    throw verdict.giveUp;
+  }
+
+  if (input.exhausted) {
+    throw new TypeError(`arbiter ${arbiter.name || "(anonymous)"} returned continue at exhaustion`);
+  }
+
+  return "continue";
+}

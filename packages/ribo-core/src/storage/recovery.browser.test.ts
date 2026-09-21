@@ -5,7 +5,7 @@ import { openStorage, type Storage } from "./storage.js";
 import { chunkName } from "./chunk-names.js";
 import { CAPTURE_LOCK, holdLock } from "./capture-lock.js";
 import { recoverInterrupted } from "./recovery.js";
-import type { Recording } from "../recording.js";
+import type { Recording } from "../capture/recording.js";
 
 const recording: Recording = {
   id: "rec-1",

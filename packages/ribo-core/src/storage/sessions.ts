@@ -1,7 +1,7 @@
 import type { Observable } from "rxjs";
 import { map } from "rxjs";
 
-import { reviewOutcomeSchema, type PersistedReviewOutcome } from "../review.js";
+import { reviewOutcomeSchema, type PersistedReviewOutcome } from "../review/review.js";
 import {
   ACTIVE_SESSION_STATUSES,
   sessionDocumentSchema,

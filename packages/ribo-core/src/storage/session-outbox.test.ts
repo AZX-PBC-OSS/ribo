@@ -1,7 +1,7 @@
 import { createMemoryBackend, removeMemoryDatabase } from "./memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
-import type { PersistedReviewOutcome } from "../review.js";
+import type { PersistedReviewOutcome } from "../review/review.js";
 import { openStorage, type Storage } from "./storage.js";
 
 // Session lifecycle operations, driven through the public Storage API over

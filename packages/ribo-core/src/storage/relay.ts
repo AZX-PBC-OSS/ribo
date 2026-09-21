@@ -1,8 +1,8 @@
-import type { ExtractionUsage, ExtractOptions } from "../extractor.js";
-import type { AnnotatedTranscript } from "../annotated-transcript.js";
-import type { CapturePayload } from "../capture-item.js";
-import type { Transcriber } from "../transcriber.js";
-import { transcriptSchema } from "../transcript.js";
+import type { ExtractionUsage, ExtractOptions } from "../extraction/extractor.js";
+import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
+import type { CapturePayload } from "../capture/capture-item.js";
+import type { Transcriber } from "../transcription/transcriber.js";
+import { transcriptSchema } from "../capture/transcript.js";
 import {
   fullJitterDelay,
   isTransientFailure,
@@ -15,9 +15,9 @@ import { isActiveStatus } from "./capture-schema.js";
 import type { Capture, CapturePatch } from "./capture-schema.js";
 import type { SessionItem, SessionPatch } from "./session-schema.js";
 import { listSessionTranscriptParts } from "./session-extract.js";
-import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
-import type { TranscriptCombiner } from "../transcript-combiner.js";
-import type { ConnectivityState, ConnectivityStatus, Unsubscribe } from "../connectivity.js";
+import { createDefaultTranscriptCombiner } from "../capture/transcript-combiner.js";
+import type { TranscriptCombiner } from "../capture/transcript-combiner.js";
+import type { ConnectivityState, ConnectivityStatus, Unsubscribe } from "../connectivity/connectivity.js";
 
 /** Structured fields produced by extraction. */
 export type ExtractedFieldMap = Record<string, unknown>;

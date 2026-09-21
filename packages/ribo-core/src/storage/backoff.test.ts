@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { SchemaParseError } from "../schema-parse-error.js";
+import { SchemaParseError } from "../extraction/schema-parse-error.js";
 import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,

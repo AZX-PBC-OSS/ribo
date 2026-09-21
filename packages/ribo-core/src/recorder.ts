@@ -1,4 +1,4 @@
-import { baseRecordingSchema, type Recording } from "./recording.js";
+import { baseRecordingSchema, type Recording } from "./capture/recording.js";
 import { CAPTURE_LOCK, holdLock } from "./storage/capture-lock.js";
 import type { CaptureSession } from "./storage/capture-session.js";
 

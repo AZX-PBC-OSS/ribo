@@ -1,6 +1,6 @@
 import { createMemoryBackend } from "./storage/memory-backend.js";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { baseRecordingSchema } from "./recording.js";
+import { baseRecordingSchema } from "./capture/recording.js";
 import {
   DEFAULT_MIME_TYPE_PREFERENCES,
   negotiateMimeType,
@@ -19,7 +19,7 @@ import {
   openStorage,
 } from "./storage/index.js";
 import type { CaptureSession } from "./storage/index.js";
-import type { Recording } from "./recording.js";
+import type { Recording } from "./capture/recording.js";
 
 // Browser mode, not jsdom, and the filename says so: `*.browser.test.ts` is the
 // discovery contract in vitest.config.ts. Renaming this file to `*.test.ts`

@@ -1,8 +1,8 @@
 import type { Storage } from "./storage.js";
 import type { SessionItem } from "./session-schema.js";
-import type { AnnotatedTranscript } from "../annotated-transcript.js";
-import type { TranscriptCombiner } from "../transcript-combiner.js";
-import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
+import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
+import type { TranscriptCombiner } from "../capture/transcript-combiner.js";
+import { createDefaultTranscriptCombiner } from "../capture/transcript-combiner.js";
 
 /**
  * @file Session-level extraction: list a session's transcribed captures in

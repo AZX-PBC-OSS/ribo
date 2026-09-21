@@ -1,18 +1,18 @@
 import { createMemoryBackend, removeMemoryDatabase } from "./memory-backend.js";
 import { afterEach, beforeEach, expect, expectTypeOf, test, vi } from "vitest";
 
-import type { CapturePayload, DocumentCapture } from "../capture-item.js";
-import type { AnnotatedTranscript } from "../annotated-transcript.js";
-import type { ExtractOptions } from "../extractor.js";
-import { createDefaultTranscriptCombiner } from "../transcript-combiner.js";
-import type { TranscriptCombiner } from "../transcript-combiner.js";
-import type { Recording } from "../recording.js";
-import { FakeTranscriber } from "../fake-transcriber.js";
-import { firstCapable } from "../first-capable.js";
-import { restrictToKind } from "../restrict-to-kind.js";
+import type { CapturePayload, DocumentCapture } from "../capture/capture-item.js";
+import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
+import type { ExtractOptions } from "../extraction/extractor.js";
+import { createDefaultTranscriptCombiner } from "../capture/transcript-combiner.js";
+import type { TranscriptCombiner } from "../capture/transcript-combiner.js";
+import type { Recording } from "../capture/recording.js";
+import { FakeTranscriber } from "../transcription/fake-transcriber.js";
+import { firstCapable } from "../transcription/first-capable.js";
+import { restrictToKind } from "../transcription/restrict-to-kind.js";
 import { TerminalError } from "./backoff.js";
 import { openStorage, type Storage } from "./storage.js";
-import { reviewOutcomeSchema } from "../review.js";
+import { reviewOutcomeSchema } from "../review/review.js";
 import {
   createRelay,
   type ExtractedFieldMap,
@@ -24,9 +24,9 @@ import {
 } from "./relay.js";
 import type { Capture } from "./capture-schema.js";
 import type { SessionItem } from "./session-schema.js";
-import type { Transcriber } from "../transcriber.js";
-import { createConnectivity } from "../connectivity.js";
-import type { ScheduleTimer } from "../schedule-timer.js";
+import type { Transcriber } from "../transcription/transcriber.js";
+import { createConnectivity } from "../connectivity/connectivity.js";
+import type { ScheduleTimer } from "../async/schedule-timer.js";
 
 // Browser mode because the relay drives the real RxDB/IndexedDB storage. The
 // state machine is only interesting *against durable storage* — the assertions
