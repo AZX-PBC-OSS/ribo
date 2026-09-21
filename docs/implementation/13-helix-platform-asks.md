@@ -32,7 +32,7 @@ dependency (we just aren't worried it won't land), and an **[open]** ask can be 
 
 | #   | Ask                                                                                    | Blocks pilot                               | Status                                   | Source                                                                                       |
 | --- | -------------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------- |
-| A1  | **Egress signs each request (HMAC), not a static header**                              | **Yes** — Phase 4 Snugg Pro write-back     | **[open]**                               | [12 §1](12-snuggpro-data-model.md), corrects [05]/[06]                                       |
+| A1  | **Egress signs each request (HMAC), not a static header**                              | **Yes** — Phase 4 Snugg Pro write-back     | **[confirmed]** (verified 2026-09-21)    | [12 §1](12-snuggpro-data-model.md), corrects [05]/[06]                                       |
 | A2  | **OpenAI-compatible LLM route with `response_format` (json_schema) + model allowlist** | **Yes** — extraction                       | **[confirmed]** (coming)                 | [06](06-field-app-helix.md), [03](03-ribo-core.md)                                           |
 | A3  | **CSP allows `blob:` in `script-src` / `worker-src`**                                  | **Yes** — on-device transcription on Helix | **[open]**                               | [10 §4.1](10-build-and-packaging.md), [06](06-field-app-helix.md)                            |
 | A4  | **Service worker servable at root scope**                                              | **Yes** — offline app load                 | **[confirmed]** (verify scope at deploy) | [09](09-offline-first.md)                                                                    |
@@ -42,10 +42,21 @@ dependency (we just aren't worried it won't land), and an **[open]** ask can be 
 
 ---
 
-## A1 — Egress must **sign** each request, not inject a static header **[open]**
+## A1 — Egress must **sign** each request, not inject a static header **[confirmed]**
 
-> **This is the highest-value ask, and it changes a design we had already written.** It is the only
-> ask that reports a platform capability we need that does not exist today as we'd assumed.
+> **This is the highest-value ask, and it changed a design we had already written.** It is the only
+> ask that reported a platform capability we needed that did not exist as we'd assumed — and the
+> design conclusion it forced is the one that shipped.
+
+> **Update (2026-09-21) — confirmed by measurement; the reasoning below stands.** The Helix
+> gateway's egress already signs each outbound request server-side and injects its stored Snugg Pro
+> credential. A read issued through the gateway's fetch-proxy route to the Snugg Pro staging API
+> returned HTTP 200 with real data — `GET /programs` returned one program, and a job listing
+> returned a populated list — and the consuming field app already depends on this working in
+> production shape. So the ask's central argument is exactly what serves traffic: the signature is
+> a function of a per-request timestamp, egress signs per request rather than injecting a static
+> `X-Api-Key`, and the secret never reaches the browser or the edge. This is a status change from
+> `[open]`, not a retraction.
 
 **What we need.** The Helix egress layer must compute a **per-request HMAC-SHA256 signature
 server-side** — holding the Snugg Pro private key, generating a fresh `X-Date` timestamp and the
@@ -85,9 +96,14 @@ pilot's value lands.
 
 **Action / open items.**
 
-- Confirm the exact signing string (is it `X-Date` alone, or a canonical request per AWS SigV4?)
+- ~~Confirm the exact signing string (is it `X-Date` alone, or a canonical request per AWS SigV4?)
   against `https://app.snuggpro.com/apidocs/` with a **real API key** — the Swagger UI is
-  login-gated and could not be read unauthenticated ([12 sources](12-snuggpro-data-model.md)).
+  login-gated~~ — superseded twice over. The login-gate premise was wrong: the raw `swagger.json`
+  is served publicly and unauthenticated —
+  [15](15-snuggpro-api-verified.md)'s redaction-reversal note records that history, and it is the
+  place to read it, not this list. And the signing question is no longer ours to answer: the
+  gateway signs server-side, verified end to end (update note above). The exact construction stays
+  in the private integration notes and out of this repo.
 - Confirm the assessment create/update/PATCH endpoint shape at the same time; the
   `PATCH /assessments/{jobId}` in [05] is still a **placeholder** ([12 §1](12-snuggpro-data-model.md),
   Assessment CRUD row = **[unknown]**).
