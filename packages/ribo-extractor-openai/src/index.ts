@@ -13,9 +13,21 @@ export type { SingleShotOptions } from "./single-shot.js";
 
 // The per-group schema split — the pure, model-free half of R3. Takes a target's
 // `extractionSchema` and returns one entry per top-level group (or one fallback
-// entry covering the whole schema). The per-group extractor consumes this.
+// entry covering the whole schema). The per-group extractor consumes this. The
+// split packs against two caps — nullable unions and, when the caller supplies
+// it, serialized size — both as options (`SplitOptions`); the library carries no
+// provider's byte cap.
 export { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
-export type { ExtractionGroup } from "./split-schema.js";
+export type { ExtractionGroup, SplitOptions } from "./split-schema.js";
+
+// The entry point that takes a RAW zod schema: the `enveloped()` derivation and
+// the single-shot-vs-per-group selection run inside, so a newcomer hands over
+// the schema they wrote, a chat client and a model, and gets an `Extractor`.
+export { schemaExtractor } from "./schema-extractor.js";
+export type {
+  EnvelopedSchemaExtractorOptions,
+  RawSchemaExtractorOptions,
+} from "./schema-extractor.js";
 
 // Projection of an extraction target onto one top-level group key — the pure
 // narrow half of per-group prompt assembly, reusable by any strategy.
@@ -91,6 +103,7 @@ export type { SchemaRetryOptions } from "./schema-retry.js";
 // a few-shot example to a single group's key. Exported for testing (R3 Task 4).
 export {
   assertStopFinishReason,
+  assertWireSafeSchemaName,
   buildGroupMessages,
   buildMessages,
   completeOrClassify,
@@ -109,8 +122,15 @@ export type { InventoryOptions } from "./inventory.js";
 // one fill call per current instance, with a scope block that names siblings and
 // excluded candidates. Exports the extractor, prompt assembly helpers, and the
 // generic roster/fill-scope types that the adapter's `buildFillInstructions` consumes.
-// `PreparedGroup` is the per-piece shape the two scoped-instance phases take.
-export { buildFillMessages, projectFillExample, scopedInstanceExtractor } from "./instance-fill.js";
+// `PreparedGroup` is the per-piece shape the two scoped-instance phases take, and
+// `prepareGroups` is its ONE construction site — a host composing its own phase
+// list builds the same groups the preset builds.
+export {
+  buildFillMessages,
+  prepareGroups,
+  projectFillExample,
+  scopedInstanceExtractor,
+} from "./instance-fill.js";
 export type {
   FillScope,
   PreparedGroup,

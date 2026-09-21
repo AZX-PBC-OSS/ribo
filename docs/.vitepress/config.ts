@@ -71,6 +71,7 @@ export default defineConfig({
             { text: "Sessions", link: "/guide/sessions" },
             { text: "Extraction", link: "/guide/extraction" },
             { text: "Schema at Scale", link: "/guide/schema-at-scale" },
+            { text: "From a Schema", link: "/guide/from-a-schema" },
             { text: "Per-Group Composition", link: "/guide/per-group" },
             { text: "Provenance", link: "/guide/provenance" },
             { text: "Review", link: "/guide/review" },

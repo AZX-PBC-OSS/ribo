@@ -58,6 +58,22 @@
  * limit is real and model-family-specific — is what makes the option pay. A
  * caller tuning the number is tuning the same unit: a byte-capped route sets a
  * bound it measured in unions, not in leaves.
+ *
+ * **Serialized size is the other cap, and it is a caller's option for the same
+ * reason.** The structured-output route rejects a schema that serializes past a
+ * character ceiling — `schema must serialize to <= 32768 characters and nest
+ * <= 12 levels` — and a schema with few unions and many bytes sails through
+ * every union check straight into that 400, which is the failure a newcomer
+ * actually meets. `maxSerializedCharsPerGroup` makes the split pack against the
+ * measured serialized size of each piece as well. The library carries no
+ * provider's number for it: the ceiling is named by ONE route's error text and
+ * differs by route, so the caller whose chat client chose the route supplies the
+ * number (see `SplitOptions.maxSerializedCharsPerGroup`). Whether the caps
+ * interact — a piece small enough in bytes is usually small enough in unions —
+ * is not assumed: both are checked, because checking one is not checking the
+ * other. The structured-output property-count and enum-value caps, and the
+ * nesting-depth cap named in the same error text, are NOT packed against here —
+ * see `docs/guide/schema-at-scale.md` for what they are.
  */
 
 import { z } from "zod";
@@ -144,6 +160,72 @@ export interface ExtractionGroup {
  * produces now.
  */
 export const MAX_NULLABLE_UNIONS_PER_CALL = 16;
+
+/**
+ * The caps {@link splitExtractionSchema} packs against, as an options bag.
+ *
+ * A bare number as the second argument is still accepted and means
+ * `{ maxNullableUnionsPerGroup: number }` — every caller written before the byte
+ * cap existed keeps working untouched.
+ *
+ * Both members are optional, and an absent member means THAT CAP IS OFF — the
+ * split packs against only the caps the caller supplied. The library carries no
+ * provider's number for the byte cap (see the file header): the caller whose
+ * chat client chose the route supplies the route's own. `perGroupPlan` and
+ * `scopedInstanceExtractor` default the union cap to
+ * {@link MAX_NULLABLE_UNIONS_PER_CALL}; the byte cap reaches them as a
+ * pass-through option where their caller knows the route.
+ */
+export interface SplitOptions {
+  /**
+   * Max nullable unions per piece before a group is partitioned across multiple
+   * entries sharing its key. Omitted, the split keeps one-entry-per-group
+   * behaviour (the pre-option behaviour, and today's default for a bare
+   * positional call).
+   */
+  readonly maxNullableUnionsPerGroup?: number;
+  /**
+   * Max serialized JSON Schema characters per piece, measured with
+   * `z.toJSONSchema(schema, { target: "draft-2020-12" })` — the same rendering
+   * the request's `response_format` carries. A group whose piece exceeds it is
+   * partitioned further, exactly as the union cap partitions. Omitted, size is
+   * not measured and nothing packs against it.
+   *
+   * A single property that cannot fit any piece — its own serialized size is
+   * over the cap — throws at construction, naming the group, the property, the
+   * measured size, the cap and this option: a silent over-cap piece would fail
+   * later at the provider with a 400 indistinguishable from other schema
+   * rejections (see the file header), and the schema author is present at
+   * construction.
+   */
+  readonly maxSerializedCharsPerGroup?: number;
+}
+
+/** Normalize the second argument: a bare number is the pre-options positional union cap. */
+function normalizeOptions(options?: number | SplitOptions): SplitOptions {
+  if (typeof options === "number") return { maxNullableUnionsPerGroup: options };
+  return options ?? {};
+}
+
+/**
+ * The serialized size of a schema, in the exact rendering a request's
+ * `response_format` carries. Exported for the extraction strategies above this
+ * module, which must measure the WHOLE schema against the same caps the split
+ * packs its pieces against.
+ */
+export function serializedCharCount(schema: z.ZodType): number {
+  return JSON.stringify(z.toJSONSchema(schema, { target: "draft-2020-12" })).length;
+}
+
+/**
+ * How many nullable unions a whole schema costs the response schema — the
+ * per-call unit {@link MAX_NULLABLE_UNIONS_PER_CALL} counts in. Exported beside
+ * {@link serializedCharCount} for the same reason: a strategy deciding between
+ * one call and a split asks this of the whole schema.
+ */
+export function nullableUnionCount(schema: z.ZodType): number {
+  return nullableUnions(schema);
+}
 
 /**
  * How many nullable unions one property of a group costs the response schema.
@@ -257,6 +339,22 @@ function partitionGroup(
     return [{ key, schema: z.strictObject({ [key]: value }) }];
   }
 
+  // A single property whose own weight exceeds the cap cannot fit any piece —
+  // `fewestPieces` would emit it alone, over the cap, and the request would die
+  // at the provider with a 400 indistinguishable from every other schema
+  // rejection. Fail at construction instead, where the schema author is present.
+  // (No test or caller of the shipped schemas hits this: every enveloped leaf
+  // is two unions, half the default cap.)
+  const overweight = propertyKeys.findIndex((_, i) => weights[i]! > maxUnions);
+  if (overweight >= 0) {
+    throw new Error(
+      `splitExtractionSchema: group "${key}" has a property ` +
+        `"${propertyKeys[overweight]}" that cannot fit any piece — it costs ` +
+        `${weights[overweight]} nullable unions, over the maxNullableUnionsPerGroup cap of ` +
+        `${maxUnions}. Narrow the schema or raise the cap.`,
+    );
+  }
+
   const minimal = fewestPieces(weights, maxUnions);
   const even = equalCounts(propertyKeys.length, minimal.length);
   const sizes = fits(weights, even, maxUnions) ? even : minimal;
@@ -295,6 +393,96 @@ const groupCandidate = (value: z.ZodType): z.ZodType =>
   value instanceof z.ZodArray ? arrayElement(value) : value;
 
 /**
+ * Split one top-level group's properties into pieces that satisfy BOTH caps,
+ * greedily in declaration order. Used when a byte cap is supplied; the
+ * union-only path keeps {@link partitionGroup}'s even-sizing exactly, because
+ * the request regression gates pin the boundaries it produces.
+ *
+ * Greedy rather than two-pass even: the even pass re-slices by property COUNT
+ * and verifies unions after the fact, which cannot see bytes. Here a piece is
+ * closed the first time the NEXT property would push it over either cap, and
+ * every emitted piece was measured under both caps when it was closed — the
+ * measurement is the final piece's own serialized form, so `$defs` folding and
+ * wrapper overhead are counted exactly, not estimated from per-property sums.
+ * The cost is O(n²) serializations in the group's property count, paid once at
+ * construction.
+ *
+ * The even-sizing nicety is deliberately not reproduced here: a piece layout
+ * that fits exact bytes is a fact about the schema, not a tidiness target, and
+ * a cap is never traded for even pieces.
+ */
+function partitionGroupTwoCaps(
+  key: string,
+  value: z.ZodType,
+  candidate: z.ZodObject,
+  maxUnions: number | undefined,
+  maxChars: number,
+): ExtractionGroup[] {
+  const propertyKeys = Object.keys(candidate.shape);
+  const isArray = value instanceof z.ZodArray;
+  const pieceSchema = (keys: readonly string[]): z.ZodObject => {
+    const pieceShape: Record<string, z.ZodType> = {};
+    for (const leafKey of keys) pieceShape[leafKey] = fieldAt(candidate.shape, leafKey);
+    const pieceCandidate = z.strictObject(pieceShape);
+    return z.strictObject({ [key]: isArray ? z.array(pieceCandidate) : pieceCandidate });
+  };
+  const unionWeight = (keys: readonly string[]): number =>
+    keys.reduce((sum, k) => sum + nullableUnions(fieldAt(candidate.shape, k)), 0);
+  const charWeight = (keys: readonly string[]): number =>
+    keys.length === 0 ? 0 : serializedCharCount(pieceSchema(keys));
+
+  const fits = (keys: readonly string[]): boolean =>
+    (maxUnions === undefined || unionWeight(keys) <= maxUnions) && charWeight(keys) <= maxChars;
+
+  const pieces: string[][] = [];
+  let current: string[] = [];
+  for (const leafKey of propertyKeys) {
+    if (!fits([leafKey])) {
+      // A single property that fits no piece: every partition carries it over
+      // the cap, so the split cannot serve this schema. Fail here, where the
+      // schema author is present — the alternative is a request that fails at
+      // the provider with a 400 that reads identically to every other schema
+      // rejection. See `SplitOptions`'s members for both caps' phrasing.
+      const measured = [
+        ...(maxUnions === undefined ? [] : [`${unionWeight([leafKey])} nullable unions`]),
+        `${charWeight([leafKey])} serialized characters`,
+      ].join(" and ");
+      const caps =
+        maxUnions === undefined
+          ? `the maxSerializedCharsPerGroup cap of ${maxChars}`
+          : `the caps (maxNullableUnionsPerGroup ${maxUnions}, maxSerializedCharsPerGroup ${maxChars})`;
+      throw new Error(
+        `splitExtractionSchema: group "${key}" has a property "${leafKey}" that cannot fit any ` +
+          `piece — one piece carrying it alone is ${measured}, over ${caps}. ` +
+          `Narrow the schema or raise the cap.`,
+      );
+    }
+    const trial = [...current, leafKey];
+    if (fits(trial)) {
+      current = trial;
+    } else {
+      pieces.push(current);
+      current = [leafKey];
+    }
+  }
+  if (current.length > 0) pieces.push(current);
+
+  // A group that fits as one piece carries NO part/parts — the same shape the
+  // union-only path emits for an unpartitioned group, so names, examples and
+  // `leafKeys` downstream cannot tell the two paths apart.
+  if (pieces.length === 1) {
+    return [{ key, schema: pieceSchema(pieces[0]!) }];
+  }
+
+  return pieces.map((pieceKeys, part) => ({
+    key,
+    schema: pieceSchema(pieceKeys),
+    part,
+    parts: pieces.length,
+  }));
+}
+
+/**
  * Whether a `ZodObject` is a **group** (a nested object of leaves or sub-groups)
  * rather than an **envelope** (a `{ value, confidence, sourceSpan }` leaf wrapper).
  *
@@ -326,20 +514,24 @@ const isGroupObject = (obj: z.ZodObject): boolean =>
  * top-level properties are leaf envelopes, a top-level array of envelopes, a
  * non-object schema, or an empty object — yields a single entry whose `key` is
  * `""` and whose `schema` is the whole input. That is today's behaviour (one call
- * carrying everything) and the correct fallback, not an error.
+ * carrying everything) and the correct fallback, not an error. **The fallback is
+ * not cap-checked and not partitioned**: there are no groups to pack, and the
+ * flat schema is the shape the measured-good single-shot path exists for — a
+ * caller whose flat schema is over a route's caps narrows the schema, because no
+ * partition of it exists at this layer.
  *
- * @param maxNullableUnionsPerGroup - When supplied, a group carrying more nullable
- *   unions than this is further partitioned into multiple entries sharing its
- *   `key` (see the file header's "Nullable-union partitioning" and
- *   `partitionGroup`). Omitted, the split keeps one-entry-per-group
- *   behaviour; both extractor callers pass a value (defaulting to
- *   {@link MAX_NULLABLE_UNIONS_PER_CALL}) so their per-call schemas stay under the
- *   provider limits regardless.
+ * @param options - The caps to pack against, as a {@link SplitOptions} bag — or
+ *   a bare number, which is the pre-options positional form and means
+ *   `maxNullableUnionsPerGroup`. Absent members mean those caps are off; see the
+ *   interface for both defaults and why the byte cap carries no provider's
+ *   number.
  */
 export function splitExtractionSchema(
   schema: z.ZodType,
-  maxNullableUnionsPerGroup?: number,
+  options?: number | SplitOptions,
 ): readonly ExtractionGroup[] {
+  const { maxNullableUnionsPerGroup, maxSerializedCharsPerGroup } = normalizeOptions(options);
+
   if (!(schema instanceof z.ZodObject)) {
     return [{ key: "", schema }];
   }
@@ -361,6 +553,21 @@ export function splitExtractionSchema(
 
   if (!everyKeyIsGroup) {
     return [{ key: "", schema }];
+  }
+
+  if (maxSerializedCharsPerGroup !== undefined) {
+    // The byte cap is supplied: pack against both caps. The pieces are measured
+    // exactly (see `partitionGroupTwoCaps`), so the request's own rendering is
+    // what was verified.
+    return keys.flatMap((key) =>
+      partitionGroupTwoCaps(
+        key,
+        fieldAt(shape, key),
+        groupCandidate(fieldAt(shape, key)) as z.ZodObject,
+        maxNullableUnionsPerGroup,
+        maxSerializedCharsPerGroup,
+      ),
+    );
   }
 
   if (maxNullableUnionsPerGroup === undefined) {

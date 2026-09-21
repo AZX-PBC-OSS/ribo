@@ -95,6 +95,7 @@ import type {
 
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 import type { ExtractionGroup } from "./split-schema.js";
+import { assertWireSafeSchemaName } from "./extraction-common.js";
 import { projectTarget } from "./project-target.js";
 import { singleShotExtractor } from "./single-shot.js";
 
@@ -193,6 +194,14 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
    * costs one. A leaf count would split a 15-leaf row group for no gain.
    */
   readonly maxNullableUnionsPerGroup?: number;
+  /**
+   * Max serialized JSON Schema characters per piece, passed through to
+   * {@link splitExtractionSchema}'s byte cap — see `SplitOptions` for why the
+   * caller, not the library, supplies the number. Omitted, the split packs
+   * against the union cap alone and requests are byte-identical to what they
+   * have always been.
+   */
+  readonly maxSerializedCharsPerGroup?: number;
 }
 
 /**
@@ -318,6 +327,7 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
     groupInstructions,
     singleton = false,
     maxNullableUnionsPerGroup,
+    maxSerializedCharsPerGroup,
   } = options;
 
   // Split at plan time — the group list is a pure function of the schema and
@@ -325,10 +335,10 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
   // to MAX_NULLABLE_UNIONS_PER_CALL) so a group that would overflow one call's
   // response schema is partitioned rather than rejected provider-side. A
   // non-grouped schema yields one fallback entry with key "".
-  const pieces = splitExtractionSchema(
-    target.extractionSchema,
-    maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
-  );
+  const pieces = splitExtractionSchema(target.extractionSchema, {
+    maxNullableUnionsPerGroup: maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
+    ...(maxSerializedCharsPerGroup === undefined ? {} : { maxSerializedCharsPerGroup }),
+  });
 
   // The non-grouped fallback: the schema is not an object of groups, so there
   // are no pieces to compose — one entry covering the whole schema, keyed "",
@@ -389,9 +399,12 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
       // with a generic `400 validation_failed`, which reads identically to an
       // over-cap schema and costs an afternoon to tell apart). A partitioned
       // piece appends `-<part>` (0-based) so two calls sharing a group key
-      // still get distinct names.
+      // still get distinct names. Guarded at construction — a colon in the
+      // target's name OR a schema property's key lands here and must fail
+      // where the schema author is present, not at the route.
       const partSuffix = group.part !== undefined ? `-${group.part}` : "";
       const name = `${target.name}-${group.key}${partSuffix}`;
+      assertWireSafeSchemaName(name, "perGroupPlan");
 
       // When `groupInstructions` is provided the call gets its own instructions
       // and a projected example (narrowed to this piece's leaves under

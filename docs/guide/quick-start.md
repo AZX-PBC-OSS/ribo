@@ -82,7 +82,9 @@ const extractor = singleShotExtractor({
 
 `target` bundles what an extractor needs — the same `extractionSchema` from step 4, plus a name
 and instructions. A `ToolAdapter` supplies this already, so a real host wires its
-adapter straight in rather than building a `target` literal by hand.
+adapter straight in rather than building a `target` literal by hand. Or skip the target
+entirely: [From a Schema](/guide/from-a-schema) is the constructor that takes the plain zod
+schema you wrote and derives the rest.
 
 ## Next
 
