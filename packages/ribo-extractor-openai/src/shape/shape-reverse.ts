@@ -150,9 +150,9 @@ const collectWrites = (
   const patchTail = patchKey === undefined ? sourceRest : sourceRest.slice(1);
   if (Array.isArray(child)) {
     if (patchKey === undefined) {
-      throw new Error(
-        "shape reversal: the extraction data crosses a collection the patch path has already " +
-          "passed — the mapping does not preserve collection-ness.",
+      throw new SchemaParseError(
+        `shape reversal: the extraction data crosses a collection at "${extractionPath}.${segment}" ` +
+          "the patch path has already passed — the mapping does not preserve collection-ness.",
       );
     }
     // The seed first, so a collection the model emptied still exists; writes
@@ -226,9 +226,9 @@ const mergeWrite = (
       return;
     }
     if (existing.length !== piece.length) {
-      throw new Error(
-        "shape reversal: two mapping entries wrote different-length arrays to one patch " +
-          "position — the mapping does not preserve collection-ness.",
+      throw new SchemaParseError(
+        `shape reversal: two mapping entries wrote different-length arrays to the same patch ` +
+          `position "${path}" — the mapping does not preserve collection-ness.`,
       );
     }
     const target = existing as unknown as Record<string, unknown>;

@@ -173,6 +173,27 @@ type WalkAccumulator = {
 };
 
 /**
+ * The structural array pattern a leaf path runs under, expressed as the
+ * depths-from-leaf at which an array ancestor appears. The leaf at
+ * `g.arr.f1` has `[0]` — one array directly above; `g.outer.arr.f1`
+ * has `[1]` — one array two segments above; `g.top` has `[]`.
+ *
+ * Length and depth, not names — so a regroup that re-hangs a subtree
+ * beneath a new prefix keeps the same pattern on both sides, while a
+ * mapping that crosses a collection boundary on one side (the construction
+ * check we pin below) cannot possibly keep them equal.
+ */
+const arrayDepthsFromLeaf = (path: string, arrayPaths: ReadonlySet<string>): number[] => {
+  const leafSegments = path.split(".").length;
+  return [...arrayPaths]
+    .filter(
+      (arrayPath) => arrayPath.split(".").length < leafSegments && path.startsWith(`${arrayPath}.`),
+    )
+    .map((arrayPath) => leafSegments - arrayPath.split(".").length - 1)
+    .sort((a, b) => a - b);
+};
+
+/**
  * Walk the PATCH schema — the derived patch, pre-envelope — enumerating its
  * leaves. Arrays are transparent at schema time (indices do not exist until
  * data arrives), so a leaf inside a collection is recorded once, at its
@@ -283,6 +304,19 @@ const walkExtractionField = (
         "schema was not derived by enveloping this position.",
     );
   }
+  // The same rule `enveloped()`'s validateProvenance applies on the patch
+  // schema, mirrored here on the EXTRACTION schema for hand-written mappings:
+  // a row-provenance top-level leaf has no row object to hang the citation on.
+  // `enveloped()` refuses this input upstream (a caller threading this far is
+  // either using a hand-crafted extraction schema or running its own validation),
+  // so the check duplicates the rule rather than re-implementing it.
+  if (granularity === "row" && isRow) {
+    throw new Error(
+      `shape mapping: "row" provenance on group "${path}" needs an object (or an array of ` +
+        "them) to hang the row's sourceSpan on, but that group is a leaf at this position " +
+        '— use "none" if the leaf should carry no provenance.',
+    );
+  }
   walk.leaves.set(path, {
     kind: leafKindOf(stripped),
     vocabulary: leafVocabularyOf(stripped),
@@ -326,26 +360,31 @@ const assertObjectKeyPath = (path: string, side: "extraction" | "patch"): void =
  *
  * Called at construction by the reversal combinator — which receives a mapping
  * that may be hand-written — and as a post-condition by the derivation that
- * builds one. Five checks, each against a silent failure:
+ * builds one. Each check is against a silent failure:
  *
- *   1. every leaf of the extraction schema has a mapping entry — a missing one
- *      would drop that leaf's data on the floor at reversal;
- *   2. every mapping key IS an extraction leaf — a stale entry would write a
- *      value nowhere;
- *   3. the sources are exactly the patch's leaves, bijectively — a patch leaf
- *      with no entry would present a permanent sentinel at review, and an
- *      unknown source would write outside the patch;
- *   4. both schemas' arrays are the same arrays — collection-ness is preserved
- *      by every supported operation, so a disagreement means the mapping was
- *      written against a different pair of schemas;
- *   5. each entry's retype names the two kinds the schemas actually have, and
- *      an unretyped entry's kinds agree — including enum and literal
- *      vocabulary, which a kind-only check would let swap;
- *   6. every entry's source shares the entry's first path segment — the
- *      top-level key. Regrouping within a top-level key is the supported move;
- *      one that crossed the boundary would strand a row-provenance span with no
- *      data-determined place to land, and `validateProvenance` and
- *      `statedEmptyGroups` are both keyed by the group.
+ *   - both endpoints are pure object-key paths — schema-time paths have no
+ *     instances, and a bracketed path addresses nothing either walk produced;
+ *   - every leaf of the extraction schema has a mapping entry — a missing one
+ *     would drop that leaf's data on the floor at reversal;
+ *   - every mapping key IS an extraction leaf — a stale entry would write a
+ *     value nowhere;
+ *   - the sources are exactly the patch's leaves, bijectively — a patch leaf
+ *     with no entry would present a permanent sentinel at review, and an
+ *     unknown source would write outside the patch;
+ *   - each entry's retype names the two kinds the schemas actually have, and
+ *     an unretyped entry's kinds agree — including enum and literal
+ *     vocabulary, which a kind-only check would let swap;
+ *   - every entry's source shares the entry's first path segment — the
+ *     top-level key. Regrouping within a top-level key is the supported move;
+ *     one that crossed the boundary would strand a row-provenance span with no
+ *     data-determined place to land, and `validateProvenance` and
+ *     `statedEmptyGroups` are both keyed by the group;
+ *   - each entry's two sides run under the same array-depth pattern from the
+ *     leaf — measured in depths-from-leaf, not in path names, so a regroup
+ *     that re-hangs an array-containing subtree under a new prefix keeps the
+ *     pattern on both sides. A difference means the entry crosses a
+ *     collection boundary on one side and not the other, and reversal would
+ *     write data to an array the patch never declares.
  */
 export const assertShapeMapping = (
   mapping: ShapeMapping,
@@ -403,6 +442,29 @@ export const assertShapeMapping = (
         );
       }
     }
+    // An entry may not cross a collection boundary on one side and not the
+    // other. Reversal walks each side independently, so the two patch-side
+    // writes that would result either share an array index they shouldn't
+    // (`g.top` written at `g.arr[0]` when `g.arr[0]` came from a different
+    // entry) or seed an array the patch never declares. The check is by
+    // STRUCTURAL depth pattern, not by path name: a regroup that re-hangs
+    // an array-containing subtree under a new prefix keeps the pattern on
+    // both sides, even though the names diverge.
+    const extractionDepths = arrayDepthsFromLeaf(path, extractionWalk.arrayPaths);
+    const patchDepths = arrayDepthsFromLeaf(entry.source, patchWalk.arrayPaths);
+    if (
+      extractionDepths.length !== patchDepths.length ||
+      extractionDepths.some((d, i) => d !== patchDepths[i])
+    ) {
+      throw new Error(
+        `shape mapping: the entry at "${path}" crosses a collection boundary the source ` +
+          `"${entry.source}" does not — the entry's extraction array-depth pattern ` +
+          `[${extractionDepths.join(",")}] disagrees with its patch array-depth pattern ` +
+          `[${patchDepths.join(",")}]. An entry's two sides must run under the same ` +
+          "collections, even after a regrouping renames their prefix, or reversal writes " +
+          "data to a position the patch never declared.",
+      );
+    }
   }
 
   for (const path of extractionWalk.leaves.keys()) {
@@ -420,15 +482,5 @@ export const assertShapeMapping = (
           "a permanent sentinel at review. The mapping and the patch must be bijective.",
       );
     }
-  }
-
-  const extractionArrays = [...extractionWalk.arrayPaths].sort().join(", ");
-  const patchArrays = [...patchWalk.arrayPaths].sort().join(", ");
-  if (extractionArrays !== patchArrays) {
-    throw new Error(
-      `shape mapping: the two schemas' collections disagree — extraction [${extractionArrays}] ` +
-        `against patch [${patchArrays}]. Collection-ness is preserved by every supported ` +
-        "operation, so the mapping was written against a different pair of schemas.",
-    );
   }
 };

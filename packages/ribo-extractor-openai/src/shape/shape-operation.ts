@@ -36,9 +36,16 @@
  *     duplicate is refused, not silently overwritten;
  *   - `retype` and a move compose on the same leaf (retype the kind, move the
  *     position — orthogonal dimensions);
- *   - a move's destination must not exist after its group's sources are
- *     removed, no two destinations may prefix one another, and no destination
- *     may lie under a dropped path — so insert order cannot change the result.
+ *   - the destinations of one regroup's moves are pairwise distinct, no two
+ *     destinations may prefix one another, and no destination may lie under a
+ *     dropped path — so insert order cannot change the result.
+ *
+ *     The "pairwise distinct" rule is its own check, not the prefix rule: equal
+ *     destinations are reported as a same-destination collision, not as "one
+ *     under the other". `isPrefixOf` says equal arrays prefix one another,
+ *     which is the wrong name for the case; a same-destination pair would
+ *     silently fall through to the ambiguous prefix message without an
+ *     independent check.
  *
  * **The refusals the derivation owes.** A scalar array, a union or a record is
  * refused HERE, naming the path — review refuses a scalar array outright, and

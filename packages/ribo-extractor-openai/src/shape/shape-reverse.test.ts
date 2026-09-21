@@ -49,3 +49,42 @@ test("the envelope-mismatch path is instance style under a collection group", ()
   expect(() => reverseShapedFields(data, mapping)).toThrowError(SchemaParseError);
   expect(() => reverseShapedFields(data, mapping)).toThrow(/at "g\.arr\[1\]\.f1"/);
 });
+
+test("crossing a collection the patch path has passed is a SchemaParseError naming the collection", () => {
+  // Reachable only when `reverseShapedFields` runs without an `assertShapeMapping`
+  // pass — `assertShapeMapping` refuses the entry (item 1's check refuses an
+  // entry whose two sides run under different array-depth patterns). The error
+  // type is what an extractor ladder can recognise and fall through on, and
+  // the path names where the data stopped matching the schema.
+  //
+  // Source is just the top-level key (no rest). Extraction rest crosses `arr`
+  // first. `patchKey` is undefined at the array; the throw fires.
+  const mapping: ShapeMapping = {
+    leaves: { "g.arr.X": { source: "g" } },
+    provenance: { g: "leaf" },
+  };
+  const data = {
+    g: {
+      arr: [{ X: { value: "a", confidence: 1, sourceSpan: "a" } }],
+    },
+  };
+  expect(() => reverseShapedFields(data, mapping)).toThrowError(SchemaParseError);
+  expect(() => reverseShapedFields(data, mapping)).toThrow(/at "g\.arr"/);
+});
+
+test("the collection-crossing throw keeps the offending path under a row-provenance group", () => {
+  // The same shape of failure under row provenance: instance-style path,
+  // row span written for the row first. The throw fires before the row span
+  // write is committed — but a malformed mapping can still reach this.
+  const mapping: ShapeMapping = {
+    leaves: { "g.arr.X": { source: "g" } },
+    provenance: { g: "row" },
+  };
+  const data = {
+    g: {
+      arr: [{ X: "a" }],
+    },
+  };
+  expect(() => reverseShapedFields(data, mapping)).toThrowError(SchemaParseError);
+  expect(() => reverseShapedFields(data, mapping)).toThrow(/g\.arr/);
+});

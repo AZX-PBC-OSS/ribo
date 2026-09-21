@@ -322,6 +322,27 @@ test("refusals: moves that cross collections, overlap, or resurrect drops", () =
     }),
   ).toThrow(/the insert order would decide the shape/);
 
+  // Two moves to the SAME destination: isPrefixOf says equal arrays prefix one
+  // another, so without an independent same-destination check the error would
+  // blame the prefix rule. The rule is its own line in shape-operation.ts's
+  // header and rejected with its own message — listing both moves and the
+  // destination collision — so the schema author can see the failure is not
+  // about ordering but about ambiguous ownership of the destination.
+  expect(() =>
+    deriveExtractionShape(surveySchema, {
+      operations: [
+        {
+          op: "regroup",
+          group: "vessel",
+          moves: {
+            "identification.name": "papers.name",
+            "dimensions.lengthM": "papers.name",
+          },
+        },
+      ],
+    }),
+  ).toThrow(/moves "identification\.name" and "dimensions\.lengthM" to the same destination/);
+
   // A destination that resurrects a dropped path.
   expect(() =>
     deriveExtractionShape(surveySchema, {

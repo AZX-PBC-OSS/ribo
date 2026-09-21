@@ -185,7 +185,23 @@ const expectFaithfulReverse = (
 test("the value property: everything the extraction space admits reverses into the patch", () => {
   // One run per pool member, so the retype's canonical encoding is exercised on
   // the numbers whose String form is least forgiving: 0, a fraction, a decimal.
-  for (const n of [0, 12.5, 125, 1972, 0.001]) {
+  for (const n of [
+    0,
+    12.5,
+    125,
+    1972,
+    0.001,
+    // The precision edges below are why the encoding is pinned to `String`,
+    // not `(n).toFixed(N)` for any N. toFixed(20) silently changes the
+    // encoding on each: `1e21` reads back as the same number, but `5e-324`
+    // reads back as `0`; `1e-7` reads back as `1e-7` from toFixed(20) becomes
+    // "0.00000010000000000000", a digit-fixed encoding the Zod schema
+    // accepts but the canonical contract forbids.
+    1e21,
+    1e-7,
+    Number.MIN_VALUE,
+    Number.MAX_SAFE_INTEGER,
+  ]) {
     const generated = generateShapedValue(shape.extractionSchema, { number: n }) as Record<
       string,
       unknown
@@ -302,6 +318,85 @@ test("a hand-written mapping with two sources swapped passes construction — th
   );
 });
 
+test("an array-crossing mapping is refused at construction, naming both arrays and both paths", () => {
+  // The exact counterexample that used to slip past `assertShapeMapping`: the
+  // patch has a top-level leaf `top` and a collection `arr`; the entry pairs
+  // `g.top` with `g.arr.f1`, and `g.arr.f1` with `g.top`. Both sides are real
+  // leaves, the bijection holds, the kind check holds, the array-path set
+  // check holds — and reversal then crashes blaming a write collision, with a
+  // parenthetical claim ("not bijective") that the mapping actually IS.
+  const leaf = z.string().nullable().optional();
+  const patchSchema = z.object({
+    g: z.object({
+      top: leaf,
+      arr: z.array(z.object({ f1: leaf, f2: leaf })),
+    }),
+  });
+  const extractionSchema = enveloped(patchSchema, { provenance: {} });
+  const crossing: ShapeMapping = {
+    leaves: {
+      "g.top": { source: "g.arr.f1" },
+      "g.arr.f1": { source: "g.top" },
+      "g.arr.f2": { source: "g.arr.f2" },
+    },
+    provenance: {},
+  };
+
+  // Construction refuses — neither side sneaks past any longer.
+  expect(() => assertShapeMapping(crossing, extractionSchema, patchSchema)).toThrowError(
+    /crosses a collection boundary/,
+  );
+  // The refusal names the extraction path AND the source, so the schema author
+  // can see what collision the mapping was about to cause without re-reading.
+  expect(() => assertShapeMapping(crossing, extractionSchema, patchSchema)).toThrow(
+    /"g\.top".*"g\.arr\.f1"/,
+  );
+  // And lists the disagreeing array-depth patterns — `[0]` on the source
+  // side (one collection, immediately above), `[]` on the extraction side —
+  // so the message localises the rule at fault.
+  expect(() => assertShapeMapping(crossing, extractionSchema, patchSchema)).toThrow(/\[0\]/);
+});
+
+test("a regroup that re-hangs a subtree containing an array is supported — the array travels intact", () => {
+  // The exact counterexample that used to crash at the post-condition with the
+  // false blame "the mapping was written against a different pair of schemas":
+  // a regroup moves `house.details` under `house.meta`, taking the `rooms`
+  // array with it. The docs promise "may deepen, flatten or rename", and the
+  // array survives the move unchanged — every room is still a room — so the
+  // move is supported, and the post-condition must follow the rename.
+  const schema = z.object({
+    house: z.object({
+      details: z.object({
+        rooms: z.array(z.object({ color: z.string().nullable().optional() })),
+      }),
+    }),
+  });
+  const shape = deriveExtractionShape(schema, {
+    operations: [{ op: "regroup", group: "house", moves: { details: "meta" } }],
+  });
+
+  // The mapping pairs the moved leaf with its caller path, on the right array.
+  expect(shape.mapping.leaves["house.meta.rooms.color"]?.source).toBe("house.details.rooms.color");
+
+  // And the move survives a real roundtrip — the model's data, reversed,
+  // parses against the enveloped patch (the codomain's own boundary schema),
+  // with the array landing on the original caller path. Per-element envelope
+  // values travel intact under "leaf" provenance.
+  const outputSchema = enveloped(shape.patchSchema, { provenance: shape.mapping.provenance });
+  const generated = generateShapedValue(shape.extractionSchema, {
+    arrayElements: 2,
+  }) as Record<string, unknown>;
+  const reversed = reverseShapedFields(generated, shape.mapping);
+  const parsed = outputSchema.safeParse(reversed);
+  expect(
+    parsed.success,
+    `roundtrip: ${JSON.stringify(parsed.success ? null : parsed.error.issues)}`,
+  ).toBe(true);
+  expect(
+    (parsed.data as { house: { details: { rooms: unknown[] } } }).house.details.rooms,
+  ).toHaveLength(2);
+});
+
 test("the exhaustive property has teeth: one corrupted leaf fails it, naming the entry", () => {
   const generated = generateShapedValue(shape.extractionSchema) as Record<string, unknown>;
   const reversed = reverseShapedFields(generated, shape.mapping);
@@ -315,6 +410,65 @@ test("the exhaustive property has teeth: one corrupted leaf fails it, naming the
   expect(() => expectFaithfulReverse(generated, reversed, shape.mapping)).toThrowError(
     /the entry "vessel\.identification\.name" <- "vessel\.identification\.name"/,
   );
+});
+
+test('"row" provenance on a top-level leaf is independently pinned in assertShapeMapping\'s walk', () => {
+  // The shape of the refusal is the same one `enveloped()`'s `validateProvenance`
+  // emits on the patch schema, mirrored here on the EXTRACTION schema — so
+  // loosening either without the other noticing would weaken the schema's
+  // top-level-leaf guard. A caller reaching this far either built a
+  // hand-crafted extraction schema (no enveloped() guard) or wired one in
+  // from outside; in either case the mapping walk catches the same shape the
+  // patch walker does, and pin BOTH so this is the failure, not a silent
+  // acceptance that later collapses review into a sentinel.
+  const extractionSchema = z.object({
+    note: z.string().nullable().optional(),
+  });
+  const patchSchema = z.object({
+    note: z.string().nullable().optional(),
+  });
+  const mapping: ShapeMapping = {
+    leaves: { note: { source: "note" } },
+    provenance: { note: "row" },
+  };
+  expect(() => assertShapeMapping(mapping, extractionSchema, patchSchema)).toThrow(
+    /"row" provenance on group "note".*needs an object/,
+  );
+});
+
+test("the retype's canonical encoding is exact: `String(value)`, not any toFixed-variants", () => {
+  // The pool above round-trips through the patch parse, which is necessary but
+  // not sufficient — a `toFixed(N)` alternative on any N plausibly passes too
+  // for many of the same values. The encoding is pinned to `String(value)` by
+  // contract (see shape-mapping.ts's header). Each edge below has a different
+  // `String` form from `toFixed(20)` — an implementation that uses the latter
+  // would diverge on the exact string here.
+  expect(retypeToPatchValue(0)).toBe("0");
+  expect(retypeToPatchValue(12.5)).toBe("12.5");
+  expect(retypeToPatchValue(125)).toBe("125");
+  expect(retypeToPatchValue(1972)).toBe("1972");
+  expect(retypeToPatchValue(0.001)).toBe("0.001");
+  // `String(1e21)` is `"1e+21"` — the exponential form JavaScript picks for
+  // values past the threshold where decimal-point forms lose precision. A
+  // toFixed(20) alternative on the model side would produce the same string
+  // today, but the contract binds us to `String` so we don't have to keep up
+  // with the threshold's quiet relocation.
+  expect(retypeToPatchValue(1e21)).toBe("1e+21");
+  // Same reason under the bottom edge: `String(1e-7)` is `"1e-7"`, where
+  // toFixed(20) says `"0.00000010000000000000"` (a different string, even
+  // though `Number(...)` parses both back to the same value).
+  expect(retypeToPatchValue(1e-7)).toBe("1e-7");
+  // The smallest subnormal: `String(5e-324)` is `"5e-324"`, where toFixed(20)
+  // rounds to zero — a value-loose result the round-trip pool happens to pass
+  // because the parser accepts `"0"`. The string-level pin catches this.
+  expect(retypeToPatchValue(Number.MIN_VALUE)).toBe("5e-324");
+  // The largest safe integer: the canonical contract carries its exact value
+  // round-trippable without loss. toFixed would append a decimal tail here
+  // too.
+  expect(retypeToPatchValue(Number.MAX_SAFE_INTEGER)).toBe("9007199254740991");
+  // `null` passes through untouched — "not stated" is "not stated", never the
+  // string "null" the patch would refuse to parse.
+  expect(retypeToPatchValue(null)).toBe(null);
 });
 
 test("the schema property: the derived schema the model would see is the derivation's", () => {
