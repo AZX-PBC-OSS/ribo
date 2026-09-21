@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * @file Vendor field descriptions for the Snugg Pro extraction schema.
+ * @file Vendor field descriptions and write-endpoints for the Snugg Pro adapter.
  *
- *   pnpm snugg:refresh   regenerate `descriptions.generated.ts` from the live spec
+ *   pnpm snugg:refresh   regenerate `descriptions.generated.ts` and
+ *                        `endpoints.generated.ts` from the live spec
  *   pnpm snugg:check     fail if what we have no longer matches the live spec
  *
  * ## Why the vendor's own words, and not ours
@@ -15,6 +16,13 @@
  * Our own notes are still worth having, but they say a different thing: what mistake NOT
  * to make ("never ACH50, never CFM25"). `schema.ts` composes vendor-sentence-then-ours,
  * so the model gets the definition and the prohibition.
+ *
+ * ## Why an endpoint table too
+ *
+ * The write-back layer needs to know, per `snuggValuesSchema` group, which endpoint the
+ * vendor accepts a write on and with which parameters — the spec never names which
+ * operation belongs to which group, so the derivation matches them by path shape.
+ * Everything said below about derived-not-committed text applies to it verbatim.
  *
  * ## Why the spec is NOT committed
  *
@@ -36,6 +44,10 @@ import { fileURLToPath } from "node:url";
 const SPEC_URL = "https://app.snuggpro.com/apidocs/swagger.json";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outFile = path.join(repoRoot, "packages/ribo-adapter-snuggpro/src/descriptions.generated.ts");
+const endpointsFile = path.join(
+  repoRoot,
+  "packages/ribo-adapter-snuggpro/src/endpoints.generated.ts",
+);
 const schemaFile = path.join(repoRoot, "packages/ribo-adapter-snuggpro/src/schema.ts");
 
 /** Every `properties.<name>.description` in the spec, first occurrence wins. */
@@ -95,6 +107,243 @@ ${entries}
 `;
 }
 
+// --- The endpoint table -------------------------------------------------------
+
+/**
+ * The resource groups, in `snuggValuesSchema` order. `endpoints.test.ts` pins the
+ * table's keys to the schema's top-level keys, so a group added there fails a test
+ * until this list names it.
+ */
+const GROUPS = [
+  "basedata",
+  "hvac",
+  "attic",
+  "vault",
+  "wall",
+  "window",
+  "door",
+  "dhw",
+  "health",
+  "concern",
+  "incentive",
+  "clothesDryer",
+  "freezer",
+  "range",
+  "refrigerator",
+  "pv",
+  "stage",
+  "job",
+  "report",
+  "utilities",
+];
+
+/**
+ * The vendor never names which operation belongs to which group, so operations are
+ * matched to groups by path shape. A collection's create lives at
+ * `/jobs/{jobId}/<group>` and its update at `/jobs/<group>/{uuid}` — except that one
+ * path segment may be the group's plural (`incentive` writes to `incentives`), and a
+ * slug may be case-insensitive or spaced (`clothesDryer` is titled "Clothes Dryer").
+ * A group with a create-shaped operation but NO update twin is a singleton: its one
+ * `POST /jobs/{jobId}/<group>` serves both create and update. `job` is the exception
+ * that keeps the rule honest — its update is `PUT /jobs/{jobId}`, a path carrying no
+ * group name at all, which is exactly why a naive "find the update twin" heuristic
+ * hands every singleton's update to it.
+ */
+function slugMatches(group, slug) {
+  const g = group.toLowerCase();
+  const s = slug.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return s === g || s === `${g}s`;
+}
+
+function writeOperations(spec) {
+  const ops = [];
+  for (const [route, pathItem] of Object.entries(spec.paths)) {
+    for (const verb of ["post", "put"]) {
+      const op = pathItem[verb];
+      if (op && typeof op === "object") ops.push({ verb: verb.toUpperCase(), path: route, op });
+    }
+  }
+  return ops;
+}
+
+/**
+ * The parameters a write operation accepts, name → declared spec type. Path parameters
+ * are excluded — the path template carries them as placeholders. A parameter with no
+ * declared type (or a `body` parameter, which none of these operations use) throws
+ * rather than emitting a guess.
+ */
+function acceptedParams(operation) {
+  const params = {};
+  for (const param of operation.op.parameters ?? []) {
+    if (param.in === "path") continue;
+    if (typeof param.type !== "string") {
+      throw new Error(
+        `parameter ${param.name} on ${operation.verb} ${operation.path} has no declared type`,
+      );
+    }
+    params[param.name] = param.type;
+  }
+  return params;
+}
+
+function deriveGroup(group, ops) {
+  if (group === "job") {
+    const update = ops.find((o) => o.verb === "PUT" && o.path === "/jobs/{jobId}");
+    if (!update)
+      throw new Error("the job group's update endpoint moved — expected PUT /jobs/{jobId}");
+    return { kind: "job", update: toOperation(update), requiredOnCreate: [], createOnly: [] };
+  }
+
+  const creates = ops.filter((o) => {
+    const match = /^\/jobs\/\{jobId\}\/([^/]+)$/.exec(o.path);
+    return o.verb === "POST" && match !== null && slugMatches(group, match[1]);
+  });
+  const updates = ops.filter((o) => {
+    const match = /^\/jobs\/(?:\{jobId\}\/)?([^/]+)\/\{uuid\}$/.exec(o.path);
+    return match !== null && slugMatches(group, match[1]);
+  });
+
+  if (creates.length === 1 && updates.length === 0) {
+    return {
+      kind: "singleton",
+      upsert: toOperation(creates[0]),
+      requiredOnCreate: [],
+      createOnly: [],
+    };
+  }
+  if (creates.length === 1 && updates.length === 1) {
+    const create = toOperation(creates[0]);
+    const update = toOperation(updates[0]);
+    const createParams = creates[0].op.parameters ?? [];
+    return {
+      kind: "collection",
+      create,
+      update,
+      requiredOnCreate: createParams
+        .filter((p) => p.in !== "path" && p.required === true)
+        .map((p) => p.name),
+      createOnly: Object.keys(create.params).filter((name) => !(name in update.params)),
+    };
+  }
+  throw new Error(
+    `group ${group}: found ${creates.length} create and ${updates.length} update operations`,
+  );
+}
+
+function toOperation(writeOp) {
+  return { verb: writeOp.verb, path: writeOp.path, params: acceptedParams(writeOp) };
+}
+
+function deriveEndpoints(spec) {
+  const ops = writeOperations(spec);
+  return Object.fromEntries(GROUPS.map((group) => [group, deriveGroup(group, ops)]));
+}
+
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+/** Unquoted when a valid identifier — what Prettier's `quoteProps` would leave behind. */
+function propertyName(name) {
+  return IDENTIFIER.test(name) ? name : JSON.stringify(name);
+}
+
+function renderGroup(name, entry) {
+  const lines = [`  ${name}: {`, `    kind: ${JSON.stringify(entry.kind)},`];
+  for (const key of ["create", "update", "upsert"]) {
+    const op = entry[key];
+    if (!op) continue;
+    lines.push(`    ${key}: {`);
+    lines.push(`      verb: ${JSON.stringify(op.verb)},`);
+    lines.push(`      path: ${JSON.stringify(op.path)},`);
+    lines.push(`      params: {`);
+    for (const [param, type] of Object.entries(op.params)) {
+      lines.push(`        ${propertyName(param)}: ${JSON.stringify(type)},`);
+    }
+    lines.push(`      },`);
+    lines.push(`    },`);
+  }
+  lines.push(`    requiredOnCreate: [${entry.requiredOnCreate.map(JSON.stringify).join(", ")}],`);
+  lines.push(`    createOnly: [${entry.createOnly.map(JSON.stringify).join(", ")}],`);
+  lines.push(`  },`);
+  return lines.join("\n");
+}
+
+function renderEndpoints(table) {
+  const body = GROUPS.map((name) => renderGroup(name, table[name])).join("\n");
+  return `// GENERATED by \`pnpm snugg:refresh\` — do not edit by hand.
+//
+// Source:    ${SPEC_URL}
+// Refreshed: ${new Date().toISOString().slice(0, 10)}
+// Groups:    ${GROUPS.length}
+//
+// What the vendor's write API accepts for each group of \`snuggValuesSchema\`: the verb
+// and path template of every write operation — \`{jobId}\` and \`{uuid}\` stay placeholders
+// for the writer to interpolate — the accepted parameter names with their declared spec
+// types, the names required on create, and the create-only names (present on create,
+// absent from update).
+//
+// The singleton groups have no separate update endpoint: their single
+// \`POST /jobs/{jobId}/<group>\` serves both create and update. It is NOT
+// \`PUT /jobs/{jobId}\` — that path belongs to the \`job\` group alone.
+//
+// \`pnpm snugg:check\` fails when this no longer matches the live spec. Regeneration is
+// deliberate rather than automatic — see \`scripts/snugg-descriptions.mjs\`.
+
+export type SnuggEndpointKind = "collection" | "singleton" | "job";
+
+export interface SnuggEndpointOperation {
+  readonly verb: "POST" | "PUT";
+  readonly path: string;
+  readonly params: Readonly<Record<string, string>>;
+}
+
+export interface SnuggGroupEndpoints {
+  readonly kind: SnuggEndpointKind;
+  /** Collections only. Singletons upsert instead; \`job\` has no create. */
+  readonly create?: SnuggEndpointOperation;
+  /** Collections, and \`job\` alone at \`PUT /jobs/{jobId}\`. */
+  readonly update?: SnuggEndpointOperation;
+  /** Singletons only: one POST serves both create and update. */
+  readonly upsert?: SnuggEndpointOperation;
+  readonly requiredOnCreate: readonly string[];
+  readonly createOnly: readonly string[];
+}
+
+/** The vendor's write endpoints, keyed by the group names of \`snuggValuesSchema\`. */
+export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Object.freeze({
+${body}
+} as const);
+`;
+}
+
+/**
+ * Structural diff of plain JSON data, reported as dot paths. Records compare
+ * order-insensitively; arrays elementwise. One human-readable string per difference.
+ */
+function dataDiffs(committed, live, at) {
+  if (Array.isArray(committed) || Array.isArray(live)) {
+    return JSON.stringify(committed) === JSON.stringify(live)
+      ? []
+      : [`${at}: ${JSON.stringify(committed)} → ${JSON.stringify(live)}`];
+  }
+  if (
+    typeof committed === "object" &&
+    typeof live === "object" &&
+    committed !== null &&
+    live !== null
+  ) {
+    const diffs = [];
+    for (const key of new Set([...Object.keys(committed), ...Object.keys(live)])) {
+      if (!(key in live)) diffs.push(`${at}.${key} — vendor no longer has this`);
+      else if (!(key in committed)) diffs.push(`${at}.${key} — vendor now has this`);
+      else diffs.push(...dataDiffs(committed[key], live[key], `${at}.${key}`));
+    }
+    return diffs;
+  }
+  return committed === live
+    ? []
+    : [`${at}: ${JSON.stringify(committed)} → ${JSON.stringify(live)}`];
+}
+
 const mode = process.argv.includes("--refresh") ? "refresh" : "check";
 
 let spec;
@@ -115,11 +364,15 @@ const vendor = collectDescriptions(spec);
 const pairs = ourLeafNames()
   .filter((name) => vendor.has(name))
   .map((name) => [name, vendor.get(name)]);
+const endpoints = deriveEndpoints(spec);
 
 if (mode === "refresh") {
   writeFileSync(outFile, render(pairs), "utf8");
   console.log(`snugg:refresh — wrote ${pairs.length} vendor descriptions to`);
   console.log(`  ${path.relative(repoRoot, outFile)}`);
+  writeFileSync(endpointsFile, renderEndpoints(endpoints), "utf8");
+  console.log(`snugg:refresh — wrote ${GROUPS.length} endpoint groups to`);
+  console.log(`  ${path.relative(repoRoot, endpointsFile)}`);
   const missing = ourLeafNames().filter((name) => !vendor.has(name));
   if (missing.length > 0) {
     console.log(`\n  ${missing.length} leaves have no vendor description: ${missing.join(", ")}`);
@@ -134,34 +387,73 @@ if (mode === "refresh") {
 // rewraps the generated file after it is written, so a byte comparison reported formatting
 // as vendor drift, and the line-regex used to parse it back silently dropped any entry
 // Prettier had wrapped. Importing the module compares what the code actually uses.
-let committed;
+let failed = false;
+
+let committedDescriptions;
 try {
-  ({ VENDOR_DESCRIPTIONS: committed } = await import(outFile));
+  ({ VENDOR_DESCRIPTIONS: committedDescriptions } = await import(outFile));
 } catch (cause) {
   console.error(`\n  snugg:check FAILED — cannot read ${path.relative(repoRoot, outFile)}.`);
   console.error(`  ${String(cause)}`);
   console.error("  Run `pnpm snugg:refresh`.\n");
-  process.exit(1);
+  failed = true;
 }
 
-const live = Object.fromEntries(pairs);
-const changed = Object.keys(live).filter((k) => committed[k] !== live[k]);
-const removed = Object.keys(committed).filter((k) => !(k in live));
-const added = Object.keys(live).filter((k) => !(k in committed));
+if (committedDescriptions !== undefined) {
+  const live = Object.fromEntries(pairs);
+  const changed = Object.keys(live).filter((k) => committedDescriptions[k] !== live[k]);
+  const removed = Object.keys(committedDescriptions).filter((k) => !(k in live));
+  const added = Object.keys(live).filter((k) => !(k in committedDescriptions));
 
-if (changed.length === 0 && removed.length === 0 && added.length === 0) {
-  console.log(`snugg:check — ${pairs.length} vendor descriptions match the live spec.`);
-  process.exit(0);
+  if (changed.length === 0 && removed.length === 0 && added.length === 0) {
+    console.log(`snugg:check — ${pairs.length} vendor descriptions match the live spec.`);
+  } else {
+    console.error(
+      "\n  snugg:check FAILED — the vendor spec no longer matches what we committed.\n",
+    );
+    for (const name of added) console.error(`    + ${name} — vendor now describes this field`);
+    for (const name of removed)
+      console.error(`    - ${name} — vendor no longer describes this field`);
+    for (const name of changed) {
+      console.error(`    ~ ${name}`);
+      console.error(`        ours:   ${String(committedDescriptions[name]).slice(0, 100)}`);
+      console.error(`        vendor: ${live[name].slice(0, 100)}`);
+    }
+    console.error(
+      "\n  This is a real change on the vendor's side, not a flake. Read the diff, then",
+    );
+    console.error("  run `pnpm snugg:refresh` and review what it does to the extraction prompt.\n");
+    failed = true;
+  }
 }
 
-console.error("\n  snugg:check FAILED — the vendor spec no longer matches what we committed.\n");
-for (const name of added) console.error(`    + ${name} — vendor now describes this field`);
-for (const name of removed) console.error(`    - ${name} — vendor no longer describes this field`);
-for (const name of changed) {
-  console.error(`    ~ ${name}`);
-  console.error(`        ours:   ${String(committed[name]).slice(0, 100)}`);
-  console.error(`        vendor: ${live[name].slice(0, 100)}`);
+let committedEndpoints;
+try {
+  ({ SNUGG_ENDPOINTS: committedEndpoints } = await import(endpointsFile));
+} catch (cause) {
+  console.error(`\n  snugg:check FAILED — cannot read ${path.relative(repoRoot, endpointsFile)}.`);
+  console.error(`  ${String(cause)}`);
+  console.error("  Run `pnpm snugg:refresh`.\n");
+  failed = true;
 }
-console.error("\n  This is a real change on the vendor's side, not a flake. Read the diff, then");
-console.error("  run `pnpm snugg:refresh` and review what it does to the extraction prompt.\n");
-process.exit(1);
+
+if (committedEndpoints !== undefined) {
+  const diffs = dataDiffs(committedEndpoints, endpoints, "SNUGG_ENDPOINTS");
+  if (diffs.length === 0) {
+    console.log(`snugg:check — the endpoint table matches the live spec.`);
+  } else {
+    console.error(
+      "\n  snugg:check FAILED — the vendor spec no longer matches the committed endpoint table.\n",
+    );
+    for (const diff of diffs) console.error(`    ${diff}`);
+    console.error(
+      "\n  This is a real change on the vendor's side, not a flake. Read the diff, then",
+    );
+    console.error(
+      "  run `pnpm snugg:refresh` and review what the write-back layer would now send.\n",
+    );
+    failed = true;
+  }
+}
+
+if (failed) process.exit(1);
