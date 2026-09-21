@@ -326,8 +326,12 @@ export type {
   ConnectivityProbe,
   ConnectivityState,
   ConnectivityStatus,
-  ScheduleTimer,
 } from "./connectivity.js";
+
+// The cancellable timer seam the connectivity model and the hedging/timeout
+// combinators share — its consumers span the transcription and extraction
+// combinator families, so the type lives beside neither of them.
+export type { ScheduleTimer } from "./schedule-timer.js";
 
 // A model response that parsed as JSON but violated the extraction schema.
 // Thrown by the managed extractors and read by the default arbiter, so it lives

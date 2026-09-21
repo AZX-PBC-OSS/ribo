@@ -1,4 +1,4 @@
-import type { ScheduleTimer } from "./connectivity.js";
+import type { ScheduleTimer } from "./schedule-timer.js";
 import {
   DEFAULT_CAPABILITY_TTL_MS,
   type CompositeTranscriber,

@@ -47,6 +47,8 @@
  * `setEventListener(onChange => cleanup)` seam, not the dependency.
  */
 
+import type { ScheduleTimer } from "./schedule-timer.js";
+
 /** The three states. `probing` is deliberately not collapsible to a boolean. */
 export type ConnectivityStatus = "offline" | "probing" | "online";
 
@@ -78,17 +80,6 @@ export type ConnectivityProbe = (signal: AbortSignal) => Promise<Response>;
  * the callback carries no payload.
  */
 export type ConnectivityEventBinder = (onChange: () => void) => () => void;
-
-/**
- * Schedules `fn` to run after `delayMs`, returning a **canceller**.
- *
- * A canceller rather than an opaque handle so the model never has to name a
- * timer id type that differs between node and the browser. Defaults to
- * `setTimeout`/`clearTimeout`; a test injects a hand-driven clock so it can
- * advance the stability window without a real wait and without faking timers
- * around IndexedDB.
- */
-export type ScheduleTimer = (fn: () => void, delayMs: number) => () => void;
 
 /** Detaches a {@link Connectivity.subscribe} listener. Safe to call twice. */
 export type Unsubscribe = () => void;

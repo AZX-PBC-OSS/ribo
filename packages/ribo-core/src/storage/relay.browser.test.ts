@@ -25,7 +25,8 @@ import {
 import type { Capture } from "./capture-schema.js";
 import type { SessionItem } from "./session-schema.js";
 import type { Transcriber } from "../transcriber.js";
-import { createConnectivity, type ScheduleTimer } from "../connectivity.js";
+import { createConnectivity } from "../connectivity.js";
+import type { ScheduleTimer } from "../schedule-timer.js";
 
 // Browser mode because the relay drives the real RxDB/IndexedDB storage. The
 // state machine is only interesting *against durable storage* — the assertions

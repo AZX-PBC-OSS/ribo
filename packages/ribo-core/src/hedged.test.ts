@@ -3,7 +3,7 @@ import { expect, test, vi } from "vitest";
 import { FakeTranscriber } from "./fake-transcriber.js";
 import { hedgeDelay, hedged } from "./hedged.js";
 import type { TranscriberHedgeEvent } from "./hedged.js";
-import type { ScheduleTimer } from "./connectivity.js";
+import type { ScheduleTimer } from "./schedule-timer.js";
 import { isTransientFailure, TerminalError } from "./storage/backoff.js";
 import type { Recording } from "./recording.js";
 import {

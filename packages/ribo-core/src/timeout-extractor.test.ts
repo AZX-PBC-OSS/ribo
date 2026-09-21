@@ -4,7 +4,7 @@ import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { CancellationError, isCancellation } from "./cancellation.js";
 import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js";
 import { ExtractionTimeoutError, timeoutExtractor } from "./timeout-extractor.js";
-import type { ScheduleTimer } from "./connectivity.js";
+import type { ScheduleTimer } from "./schedule-timer.js";
 
 // The test runs in Vitest's node environment, but `ribo-core` is a browser library and
 // does not include `@types/node`. Declaring `process` locally keeps the test scoped

@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { AnnotatedTranscript } from "./annotated-transcript.js";
 import { CancellationError, isCancellation } from "./cancellation.js";
-import type { ScheduleTimer } from "./connectivity.js";
+import type { ScheduleTimer } from "./schedule-timer.js";
 import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js";
 import { hedgedExtractor } from "./hedged-extractor.js";
 import type { ExtractionHedgeEvent } from "./hedged-extractor.js";
