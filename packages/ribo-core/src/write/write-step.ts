@@ -59,6 +59,10 @@ import { describeLocated, zodIssues } from "../review/zod-issues.js";
  *      checked `V` and not whatever a UI happened to persist;
  *   3. calls `adapter.write(fields, ctx, { idempotencyKey: input.idempotencyKey })`.
  *
+ * The relay-constructed input also carries `recordReceipt`, which this step
+ * ignores: it writes one patch, so there is no loop whose earned receipts a
+ * mid-way throw could discard.
+ *
  * **`write`'s own rejection is passed through untouched**, and the `await` is deliberately
  * not wrapped. A network failure from a real adapter is the single most common thing this
  * step will ever see, and it is exactly what must be retried.

@@ -98,6 +98,15 @@ export interface SessionWriteInput {
    * The session owns the destination; the relay does not read recordings for it.
    */
   ctx: unknown;
+  /**
+   * Durably record one collection instance's vendor uuid the moment it is
+   * earned, so a throw later in the step's loop cannot discard it. The input
+   * the relay constructs always carries it — each call patches the session's
+   * receipts additively — and the receipt is what the next attempt UPDATEs
+   * instead of creating again. A step invoked outside the relay may omit it;
+   * receipts then still travel by the result's `receipts` return.
+   */
+  recordReceipt?: (group: string, instanceKey: string, uuid: string) => Promise<void>;
 }
 
 /**
@@ -606,18 +615,33 @@ class QueueRelay implements Relay {
       );
     }
 
+    // Receipts earned so far. `recordReceipt` patches each one through as it
+    // is earned — a throw later in the step's loop must not discard it — and
+    // the accumulator doubles as the base of the final merge below, so even a
+    // step that only checkpoints (returning no receipts) keeps them.
+    let receipts: SessionItem["receipts"] = session.receipts;
+    const recordReceipt = async (
+      group: string,
+      instanceKey: string,
+      uuid: string,
+    ): Promise<void> => {
+      receipts = mergeReceipts(receipts, { instances: { [group]: { [instanceKey]: uuid } } });
+      await this.#patchSession(session.id, { receipts });
+    };
+
     const result = await withTimeout(
       this.#options.sessionWrite({
         session,
         reviewed: outcome.fields,
         idempotencyKey: session.idempotencyKey,
         ctx: session.ctx,
+        recordReceipt,
       }),
       this.#options.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS,
       "session-write",
     );
 
-    const receipts = mergeReceipts(session.receipts, result?.receipts);
+    const merged = mergeReceipts(receipts, result?.receipts);
 
     await this.#patchSession(session.id, {
       status: "done",
@@ -627,7 +651,7 @@ class QueueRelay implements Relay {
       // current. Nothing else clears this field.
       lastError: undefined,
       ...(result?.fields ? { writeResult: result.fields } : {}),
-      ...(receipts ? { receipts } : {}),
+      ...(merged ? { receipts: merged } : {}),
     });
   }
 

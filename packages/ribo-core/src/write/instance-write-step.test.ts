@@ -16,16 +16,18 @@ import { restrictToKind } from "../transcription/restrict-to-kind.js";
  * @file `toInstanceWriteStep` — per-instance write-back and resumability.
  *
  * The sibling of `toWriteStep`: it writes each collection instance separately
- * and derives a stable idempotency key per instance, so a vendor honouring
- * `Idempotency-Key` recognises a retried instance rather than creating a second
- * record.
+ * and derives a stable idempotency key per instance. The key is still sent as
+ * `Idempotency-Key`, but nothing rests on it — no vendor here honours it
+ * (measured 2026-09-21 against Snugg Pro's staging API). Duplicate protection
+ * is the receipt: each earned uuid is checkpointed through `recordReceipt`, and
+ * a retry UPDATEs the receipted uuid instead of creating again.
  *
  * It no longer persists per-instance progress. That marker was positional, and
  * position is not identity: `reopenSessionForReview` preserves progress across
  * a review cycle while `resolveReview` renumbers the instances that survived
  * it, so a reviewer who deleted an instance could silently strand its
  * neighbour. The reopen case below pins exactly that, and it is the test that
- * should stop positional identity coming back when receipts land.
+ * should stop positional identity coming back now that receipts have landed.
  */
 
 // --- The adapter under test -------------------------------------------------
@@ -418,13 +420,78 @@ test("an outcome with no `linkTargets` at all writes creates and does not throw"
   expect(written.map((w) => "linkTarget" in w.meta)).toEqual([false, false]);
 });
 
+// --- Checkpointed receipts ---------------------------------------------------
+
+test("each earned instance receipt is checkpointed before the next write runs, and before a failure propagates", async () => {
+  const storage = await openTestOutbox();
+  const written: Write[] = [];
+  const base = makeAdapter(written);
+  const failure = Object.assign(new Error("snuggpro returned 503"), { status: 503 });
+  const events: string[] = [];
+  const adapter: ToolAdapter<Values, JobContext> = {
+    ...base,
+    write: async (fields, ctx, meta) => {
+      events.push(`write:${meta.idempotencyKey}`);
+      if (meta.idempotencyKey.endsWith(":instance:hvac:2")) throw failure;
+      return base.write(fields, ctx, meta);
+    },
+  };
+
+  const { session, ctx } = await seedSession(
+    storage,
+    { jobId: "job-7" },
+    {
+      hvac: [
+        { hvacSystemEquipmentType: "Furnace" },
+        { hvacSystemEquipmentType: "AC" },
+        { hvacSystemEquipmentType: "Heat Pump" },
+      ],
+    },
+    // Real instance keys, deliberately not the indices they sit at.
+    { hvac: ["hvac-a", "hvac-b", "hvac-c"] },
+  );
+
+  const checkpointed: Array<[string, string, string]> = [];
+  const thrown = await toInstanceWriteStep({
+    adapter,
+    collectionGroups: ["hvac"],
+  })({
+    session,
+    reviewed: reviewFields(session),
+    idempotencyKey: session.idempotencyKey,
+    ctx,
+    recordReceipt: async (group, instanceKey, uuid) => {
+      events.push(`receipt:${instanceKey}`);
+      checkpointed.push([group, instanceKey, uuid]);
+    },
+  }).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+
+  expect(thrown).toBe(failure);
+  // Exactly the two instances that wrote successfully, keyed by the review
+  // outcome's real instance keys, each checkpointed before the next write ran
+  // and so before the third write's rejection propagated.
+  expect(events).toEqual([
+    `write:${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0)}`,
+    "receipt:hvac-a",
+    `write:${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1)}`,
+    "receipt:hvac-b",
+    `write:${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 2)}`,
+  ]);
+  expect(checkpointed).toEqual([
+    ["hvac", "hvac-a", `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0)}`],
+    ["hvac", "hvac-b", `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1)}`],
+  ]);
+});
+
 // --- Relay-driven retry -----------------------------------------------------
 
 test("a write failing on the second of three instances, then retrying, re-attempts the first", async () => {
-  // Without the positional skip, every instance is written every attempt —
-  // resting on the per-instance idempotency key alone. The first instance
-  // IS re-attempted on retry; a vendor honouring Idempotency-Key recognises
-  // it rather than creating a duplicate.
+  // Without the positional skip, every instance is written every attempt. The
+  // first instance IS re-attempted on retry — as an UPDATE of the receipt it
+  // earned, not a second create.
   const clock = new TestClock();
   const storage = await openTestOutbox(clock);
   const written: Write[] = [];
@@ -513,6 +580,86 @@ test("a write failing on the second of three instances, then retrying, re-attemp
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:2"))).toHaveLength(1);
   expect(calls.filter((c) => c.key.endsWith(":instance:hvac:1") && c.failed)).toHaveLength(1);
   expect(written.filter((w) => w.meta.idempotencyKey.endsWith(":instance:hvac:1"))).toHaveLength(1);
+});
+
+test("a mid-collection failure leaves its earned receipts on the session, and the retry updates instead of re-creating", async () => {
+  const clock = new TestClock();
+  const storage = await openTestOutbox(clock);
+  const written: Write[] = [];
+  const base = makeAdapter(written);
+  let firstAttempt = true;
+  const failingAdapter: ToolAdapter<Values, JobContext> = {
+    ...base,
+    write: async (fields, ctx, meta) => {
+      if (firstAttempt && meta.idempotencyKey.endsWith(":instance:hvac:2")) {
+        firstAttempt = false;
+        throw Object.assign(new Error("transient"), { status: 503 });
+      }
+      return base.write(fields, ctx, meta);
+    },
+  };
+
+  const { session } = await seedSession(
+    storage,
+    { jobId: "job-7" },
+    {
+      hvac: [
+        { hvacSystemEquipmentType: "Furnace" },
+        { hvacSystemEquipmentType: "AC" },
+        { hvacSystemEquipmentType: "Heat Pump" },
+      ],
+    },
+    { hvac: ["k1", "k2", "k3"] },
+  );
+
+  const relay = createRelay({
+    storage,
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
+    sessionExtract: () => Promise.reject(new Error("session extraction should not run")),
+    sessionWrite: toInstanceWriteStep({
+      adapter: failingAdapter,
+      collectionGroups: ["hvac"],
+    }),
+    now: clock.now,
+    random: () => 1,
+    baseMs: 500,
+  });
+
+  await relay.syncNow();
+  const failed = await storage.sessions.get(session.id);
+  expect(failed?.status).toBe("failed");
+  // The two receipts earned before the throw are already durable on the
+  // session document — not waiting on an end-of-step return that never came.
+  expect(failed?.receipts?.instances?.hvac).toEqual({
+    k1: `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0)}`,
+    k2: `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1)}`,
+  });
+
+  clock.advance(501);
+  await relay.syncNow();
+  const done = await storage.sessions.get(session.id);
+  expect(done?.status).toBe("done");
+  // The consequence the receipts are for: the retry resolves the receipted
+  // instances to UPDATES of the records it already created, not new creates.
+  const first = written.filter((w) => w.meta.idempotencyKey.endsWith(":instance:hvac:0"));
+  expect(first).toHaveLength(2);
+  expect("linkTarget" in first[0]!.meta).toBe(false);
+  expect(first[1]?.meta.linkTarget).toBe(
+    `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0)}`,
+  );
+  const second = written.filter((w) => w.meta.idempotencyKey.endsWith(":instance:hvac:1"));
+  expect(second).toHaveLength(2);
+  expect("linkTarget" in second[0]!.meta).toBe(false);
+  expect(second[1]?.meta.linkTarget).toBe(
+    `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1)}`,
+  );
+  // k3 never earned a receipt; its one write is still a create.
+  expect(written.filter((w) => w.meta.idempotencyKey.endsWith(":instance:hvac:2"))).toHaveLength(1);
+  expect(done?.receipts?.instances?.hvac).toEqual({
+    k1: `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0)}`,
+    k2: `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 1)}`,
+    k3: `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 2)}`,
+  });
 });
 
 // --- The same trust boundary as toWriteStep --------------------------------
