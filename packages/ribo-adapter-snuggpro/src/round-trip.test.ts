@@ -56,9 +56,12 @@ const noRecordReceipt = async (): Promise<void> => {};
  *
  * ## Why a stub adapter
  *
- * `snuggProAdapter.write` throws by design — Snugg Pro egress is gated on the Helix
- * HMAC ask — so a round trip through the real adapter could only assert that the write
- * failed. {@link stubAdapter} shares the REAL `schema`, `extractionSchema`, `ctxSchema`,
+ * `snuggProAdapter` is the NO-TRANSPORT instance: `createSnuggProAdapter()` with no
+ * `fetchImpl`, so its `write` rejects by design and a round trip through it could only
+ * assert that the write failed. (Egress signing is no longer the reason — the gateway
+ * signs, and the wired adapter comes from `createSnuggProAdapter({ fetchImpl })`. What
+ * this file is testing is the SHAPE round trip, which wants no network at all.)
+ * {@link stubAdapter} shares the REAL `schema`, `extractionSchema`, `ctxSchema`,
  * `instructions` and `examples` by reference and replaces only `write` with a sink, so
  * everything under test is the production article. The first test below pins that
  * identity by reference: a stub that drifted onto a copy would make every assertion
