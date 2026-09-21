@@ -332,10 +332,53 @@ test("an array-crossing mapping is refused at construction, naming both arrays a
   );
   // The refusal names the extraction path AND the source, so the schema author
   // can see what collision the mapping was about to cause without re-reading.
-  expect(() => assertShapeMapping(crossing, extractionSchema, patchSchema)).toThrow(/"g\.top".*"g\.arr\.f1"/);
-  // And lists the disagreeing array ancestries — `g.arr` on one side, none on
-  // the other — so the message localises the rule at fault.
-  expect(() => assertShapeMapping(crossing, extractionSchema, patchSchema)).toThrow(/g\.arr/);
+  expect(() => assertShapeMapping(crossing, extractionSchema, patchSchema)).toThrow(
+    /"g\.top".*"g\.arr\.f1"/,
+  );
+  // And lists the disagreeing array-depth patterns — `[0]` on the source
+  // side (one collection, immediately above), `[]` on the extraction side —
+  // so the message localises the rule at fault.
+  expect(() => assertShapeMapping(crossing, extractionSchema, patchSchema)).toThrow(/\[0\]/);
+});
+
+test("a regroup that re-hangs a subtree containing an array is supported — the array travels intact", () => {
+  // The exact counterexample that used to crash at the post-condition with the
+  // false blame "the mapping was written against a different pair of schemas":
+  // a regroup moves `house.details` under `house.meta`, taking the `rooms`
+  // array with it. The docs promise "may deepen, flatten or rename", and the
+  // array survives the move unchanged — every room is still a room — so the
+  // move is supported, and the post-condition must follow the rename.
+  const schema = z.object({
+    house: z.object({
+      details: z.object({
+        rooms: z.array(z.object({ color: z.string().nullable().optional() })),
+      }),
+    }),
+  });
+  const shape = deriveExtractionShape(schema, {
+    operations: [{ op: "regroup", group: "house", moves: { details: "meta" } }],
+  });
+
+  // The mapping pairs the moved leaf with its caller path, on the right array.
+  expect(shape.mapping.leaves["house.meta.rooms.color"]?.source).toBe(
+    "house.details.rooms.color",
+  );
+
+  // And the move survives a real roundtrip — the model's data, reversed,
+  // parses against the enveloped patch (the codomain's own boundary schema),
+  // with the array landing on the original caller path. Per-element envelope
+  // values travel intact under "leaf" provenance.
+  const outputSchema = enveloped(shape.patchSchema, { provenance: shape.mapping.provenance });
+  const generated = generateShapedValue(shape.extractionSchema, {
+    arrayElements: 2,
+  }) as Record<string, unknown>;
+  const reversed = reverseShapedFields(generated, shape.mapping);
+  const parsed = outputSchema.safeParse(reversed);
+  expect(
+    parsed.success,
+    `roundtrip: ${JSON.stringify(parsed.success ? null : parsed.error.issues)}`,
+  ).toBe(true);
+  expect((parsed.data as { house: { details: { rooms: unknown[] } } }).house.details.rooms).toHaveLength(2);
 });
 
 test("the exhaustive property has teeth: one corrupted leaf fails it, naming the entry", () => {
