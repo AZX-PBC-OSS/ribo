@@ -188,6 +188,81 @@ out of scope, the results assemble into the array your schema declares, and a `s
 entry seeds the group empty with its span recorded. A roster naming more current instances than
 `instanceCap` throws rather than truncating.
 
+## Letting a model propose shape operations
+
+The `schemaExtractor` example above uses the schema as-is: every leaf becomes a fillable field, and
+the model's job is to map a dictation onto it. For unfamiliar schemas — anything the user's domain
+tuned against a fill-rate corpus — that misses the auditing scope the corpus produced. Asking a
+human to write out the operations by hand works; asking a model to propose the same operations also
+works, and is one call.
+
+`proposeExtractionShape` is a model-driven counterpart to `deriveExtractionShape`. Same inputs, same
+applier — the model emits the operations, and the same Stage 1 applier applies them:
+
+```ts
+import { proposeExtractionShape, openAiChat } from "@azx/ribo-extractor-openai";
+
+const chat = openAiChat({ apiKey, baseUrl, fetchImpl: /* origin-injecting, see above */ });
+
+const shape = await proposeExtractionShape(visitSchema, {
+  chat,
+  model: "gpt-5.6-sol",
+  context: "visit-propose",
+  instructions:
+    "Audit a service-visit dictation. Drop any field that is virtually never dictated.",
+});
+
+// Wire straight into the rest of the pipeline:
+const extractor = schemaExtractor({
+  schema: visitSchema,
+  name: "service-visit",
+  instructions: "Extract the visit fields. Quote spans verbatim.",
+  chat,
+  model: "gpt-5.6-sol",
+  extractionSchema: shape.extractionSchema,
+});
+```
+
+The model sees the schema's leaves and kinds — paths, the closed set of leaf kinds (string, number,
+boolean, enum, literal), each leaf's `.describe` text verbatim — and proposes a list of `drop`,
+`retype string→number`, or `regroup` operations within one top-level group. The cap is **not** in
+the prompt — proposing as many or as few operations as warranted is the model's call; the schema
+packing is `schemaExtractor`'s downstream concern. The wave's ADR (0016) records the cap-policy
+argument.
+
+How it lands on a working extraction at every failure mode:
+
+- **A successful proposal returns the operations**; the applier's `assertShapeMapping` post-condition
+  fires on the same path the hand-written call takes, so the proposed shape and a hand-written shape
+  are interchangeable from the rest of the pipeline's perspective.
+- **A proposal the applier refuses is repaired on the next turn** — the applier's own precise
+  refusal text becomes the user-turn feedback, the model's previous (rejected) answer becomes the
+  assistant turn, and the schema's pre-`strict` JSON path travels unchanged.
+- **At exhaustion (no repair budget, transport verdict repeats) the function returns `[]`** — a
+  valid operation set, just unshaped. The applier accepts it as pure normalization, and the
+  extraction runs end-to-end without dropping on a model verdict the host cannot inspect mid-talk.
+  The argument for `[]` over a thrown error is a newcomer: handing them a working extraction either
+  way is the goal the wave locked.
+
+Two entry points are exposed for hosts that want different lifecycles:
+
+- **`proposeShapeOperations(schema, …)`** returns the operations array — pure data, cacheable,
+  diffable, persistable.
+- **`proposeExtractionShape(schema, …)`** composes the operations with `deriveExtractionShape` and
+  returns the full `DerivedExtractionShape` artifact, ready for `schemaExtractor`'s
+  `extractionSchema` passthrough.
+
+What this does **not** claim to do: a model's first-pass proposal on a fresh schema does not match
+what the Snugg Pro pilot adapter produces, because the pilot's scoping was grown from real
+fill-rate data — auditors who actually speak which fields, on 14 transcripts. A model that sees
+only a schema cannot reproduce that, and the wave pinned the claim to "gets a newcomer to a
+**working** extraction over their own schema"; not "matches a tuned-against-corpus shape".
+
+The cached-extractor pattern still applies: call `proposeShapeOperations` once per schema, cache
+the `ShapeOperation[]` however you cache other schema-derived data, and pass it to
+`deriveExtractionShape` to compose the artifact. The `PluginStorage`-aligned cache this repo uses
+for other per-schema derivations is one of many ways; the lifecycle is yours.
+
 ## Next
 
 [Schema at Scale](/guide/schema-at-scale) explains why the caps bind and what the measurements

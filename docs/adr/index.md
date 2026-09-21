@@ -58,3 +58,4 @@ receives.
 | [0013](./0013-a-leaf-that-cannot-fit-any-piece-fails-the-split.md)             | A leaf that cannot fit any piece fails the split at construction                          | Accepted |
 | [0014](./0014-the-schema-entry-point-composes-the-presets.md)                  | The schema entry point composes the presets; it does not widen `perGroupExtractor`        | Accepted |
 | [0015](./0015-the-library-carries-no-provider-byte-cap.md)                     | The library carries no provider byte cap                                                  | Accepted |
+| [0016](./0016-shape-proposer-one-shot-with-repair.md)                          | The shape-operation proposer is one-shot with one repair attempt, not a multi-turn move loop | Accepted |
