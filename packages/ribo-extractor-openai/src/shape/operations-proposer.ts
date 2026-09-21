@@ -131,6 +131,15 @@ export interface ProposeOptions {
  *
  * `retype.to` is the closed set's lone member, verbatim: a string→number
  * retype. Widening the set in {@link ShapeOperation} widens it here.
+ *
+ * **`moves` is an array of `{from, to}` pairs, not a record.** A `z.record`
+ * would emit a JSON Schema with `propertyNames` and `additionalProperties`
+ * (the value-type schema) — keywords the Helix platform's structured-output
+ * route rejects as outside its strict subset (`HTTP 400: responseFormat.schema
+ * failed validation`). The transformation to a {@link ShapeOperation} happens
+ * in {@link movesToRecord} below, where the array is collapsed back into a
+ * record for the applier. The change is wire-only: callers' {@link ShapeOperation}
+ * objects still carry `moves: Readonly<Record<string, string>>`.
  */
 const proposedOperationsSchema = z.object({
   operations: z.array(
@@ -140,11 +149,29 @@ const proposedOperationsSchema = z.object({
       z.object({
         op: z.literal("regroup"),
         group: z.string(),
-        moves: z.record(z.string(), z.string()),
+        moves: z.array(z.object({ from: z.string(), to: z.string() })).min(1),
       }),
     ]),
   ),
 });
+
+/**
+ * Convert the wire-format array of `{from, to}` pairs into the record the
+ * applier accepts. The duplicate-`from` case would already have been refused
+ * by the applier as ambiguous; we collapse cleanly, last-write-wins the
+ * duplicate just as `Object.fromEntries` does. The array form is a wire
+ * accommodation for a platform-route constraint; the record form is what
+ * the operation set's vocabulary actually means.
+ */
+const movesToRecord = (
+  pairs: ReadonlyArray<{ readonly from: string; readonly to: string }>,
+): Readonly<Record<string, string>> => {
+  const out: Record<string, string> = {};
+  for (const pair of pairs) {
+    out[pair.from] = pair.to;
+  }
+  return out;
+};
 
 type ProposedOperations = z.infer<typeof proposedOperationsSchema>;
 
@@ -211,8 +238,8 @@ const buildProposeRequest = (
       // `Record<string, unknown>` the `json_schema.schema` slot expects.
       // The runtime value is a JSON Schema object either way; suppression
       // matches the same move `single-shot.ts` and `schema-retry.ts` make.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- widening unknown to Record<string, unknown>; see comment above
       schema: z.toJSONSchema(proposedOperationsSchema, { target: "draft-2020-12" }) as Record<
-        // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion -- widening unknown to Record<string, unknown>; see comment above
         string,
         unknown
       >,
@@ -351,9 +378,17 @@ const runAttempt = async (
 
   // The shape apply runs against the user's schema with the proposed ops.
   // Refusal text from this path names the offending path precisely — that's
-  // what makes it the right feedback for a repair turn.
+  // what makes it the right feedback for a repair turn. The wire-format moves
+  // (array of pairs, see `proposedOperationsSchema`'s header) are converted
+  // back to records before the applier sees them.
   try {
-    deriveExtractionShape(schema, { operations: parsed.operations });
+    const operations: ShapeOperation[] = parsed.operations.map((op) => {
+      if (op.op === "regroup")
+        return { op: "regroup", group: op.group, moves: movesToRecord(op.moves) };
+      return op;
+    });
+    deriveExtractionShape(schema, { operations });
+    return { ok: true, operations };
   } catch (cause) {
     return {
       ok: false,
@@ -362,8 +397,6 @@ const runAttempt = async (
       priorOutput: JSON.stringify(raw),
     };
   }
-
-  return { ok: true, operations: parsed.operations };
 };
 
 const repairFeedback = (

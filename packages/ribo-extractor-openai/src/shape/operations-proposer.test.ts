@@ -11,6 +11,7 @@ import type { DeriveExtractionShapeOptions } from "./shape-operations.js";
 import { proposeExtractionShape, proposeShapeOperations } from "./operations-proposer.js";
 import { renderLeafInventory, walkLeafInventory } from "./leaf-inventory.js";
 import { schemaExtractor } from "../strategies/schema-extractor.js";
+import type { EnvelopedSchemaExtractorOptions } from "../strategies/schema-extractor.js";
 import { reshapedExtractor } from "./reshaped-extractor.js";
 
 /**
@@ -470,6 +471,43 @@ describe("proposer — the closed overlap with deriveExtractionShape", () => {
     expect(requests).toHaveLength(1);
   });
 
+  test("a regroup's moves come in as an array of {from, to} pairs and go out as a record", async () => {
+    // The wire-format discrepancy: the model's response schema uses an array
+    // of pairs (because `additionalProperties` typed on a record is outside
+    // the platform route's strict subset; see proposedOperationsSchema's
+    // header). The applier expects a record. The proposer converts on
+    // accept.
+    const { chat } = scriptedChat([
+      completion({
+        operations: [
+          {
+            op: "regroup",
+            group: "vessel",
+            moves: [
+              { from: "identification.buildYear", to: "papers.yearOfBuild" },
+              { from: "dimensions.lengthM", to: "dimensions.loa" },
+            ],
+          },
+        ],
+      }),
+    ]);
+    const ops = await proposeShapeOperations(surveySchema, {
+      chat,
+      model: "m",
+      context: "array-to-record",
+      instructions: "",
+    });
+    expect(ops).toHaveLength(1);
+    const regroup = ops[0];
+    expect(regroup?.op).toBe("regroup");
+    if (regroup?.op === "regroup") {
+      expect(regroup.moves).toEqual({
+        "identification.buildYear": "papers.yearOfBuild",
+        "dimensions.lengthM": "dimensions.loa",
+      });
+    }
+  });
+
   test("a JSON parse failure on the first response is repaired via a JSON-shaped user turn", async () => {
     // Malformed JSON content; the second turn answers with a valid one.
     const malformed: ChatCompletion = { content: "{not-json", finishReason: "stop" };
@@ -616,8 +654,17 @@ describe("end-to-end: schema in → propose → apply → schemaExtractor → re
       Object.values(shape.mapping.leaves).some((entry) => entry.source === "visit.notes"),
     ).toBe(false);
 
+    // The extraction-schema passthrough is overloaded — without help, TS picks
+    // the raw patch overload because our proposed patch is a plain `z.ZodObject`,
+    // and the raw overload refuses `extractionSchema`. The V-erased passthrough
+    // type tells it the schema's `_output` is `Record<string, unknown>` so V
+    // inference resolves against the enveloped overload. The same move
+    // `reshaped-extractor.test.ts` makes for its row-granularity schema.
+    type PassthroughSchema = EnvelopedSchemaExtractorOptions<
+      Record<string, unknown>
+    >["extractionSchema"];
     const inner = schemaExtractor({
-      extractionSchema: shape.extractionSchema,
+      extractionSchema: shape.extractionSchema as PassthroughSchema,
       name: "visit-e2e",
       instructions: "Fill the proposed visit schema.",
       chat,
