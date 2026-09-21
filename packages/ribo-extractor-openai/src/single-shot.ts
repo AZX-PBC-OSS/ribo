@@ -46,6 +46,7 @@ import type { UsageTotals } from "./extraction-common.js";
 import {
   addUsage,
   assertStopFinishReason,
+  assertWireSafeSchemaName,
   buildMessages,
   completeOrClassify,
   parseJsonContent,
@@ -123,6 +124,10 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
   normalize = (fields) => fields,
   onUnit,
 }: SingleShotOptions<V, P>): Extractor<Enveloped<V, P>> {
+  // The target's name IS this request's `json_schema.name` — guard it at
+  // construction, where the schema author is present, rather than at the route
+  // as a 400 that reads identically to an over-cap schema.
+  assertWireSafeSchemaName(target.name, "singleShotExtractor");
   const jsonSchema = z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" }) as Record<
     string,
     unknown

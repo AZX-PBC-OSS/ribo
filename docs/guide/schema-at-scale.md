@@ -78,6 +78,13 @@ const groups = splitExtractionSchema(target.extractionSchema, MAX_NULLABLE_UNION
 // one entry per group, or several sharing a key for a group over the cap
 ```
 
+The split packs against **two** caps: the union cap above and — when the caller supplies it — a
+serialized-character ceiling measured on each piece's rendered JSON Schema. The byte cap is an
+option without a library default: the ceiling is named by one route's error text and differs by
+route, so the caller whose chat client chose the route supplies the number.
+[From a Schema](/guide/from-a-schema) shows the entry point that takes it, and a newcomer's whole
+path from a plain zod schema to a parsed extraction.
+
 `perGroupExtractor` turns that split into calls: one chat request per group (or per partition), run
 concurrently against a bounded pool, each response parsed against its own group schema before the
 whole is reassembled and parsed again against the full `extractionSchema` — a second trust-boundary

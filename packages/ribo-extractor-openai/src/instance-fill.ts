@@ -53,11 +53,12 @@ import type {
   RosterCandidate,
 } from "@azx/ribo-core";
 
-import { narrowToLeaves } from "./extraction-common.js";
+import { assertWireSafeSchemaName, narrowToLeaves } from "./extraction-common.js";
 import { fillPhase } from "./fill-phase.js";
 import { inventoryPhase } from "./inventory-phase.js";
 import { partitionedLeafKeys } from "./per-group.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
+import type { ExtractionGroup } from "./split-schema.js";
 
 // Re-export the generic inventory/fill vocabulary from core, where both the
 // adapter and the extractor strategy can reach it without a package cycle.
@@ -292,6 +293,84 @@ export function singletonFillScope(groupKey: string): FillScope {
 }
 
 /**
+ * Build the prepared groups the scoped-instance phases consume, from the split's
+ * {@link ExtractionGroup} list.
+ *
+ * This is the ONE construction site for {@link PreparedGroup} — lifted out of
+ * `scopedInstanceExtractor` and exported so a host composing its own phase list
+ * builds the same groups the preset builds, and the test fixtures build them the
+ * same way. The members the split provides (key, schema, part, parts) become the
+ * full prepared shape here: the collection array unwrap (a collection
+ * group's fill schema is ONE instance, never the array — that is what makes "a
+ * fill cannot add an instance" true), the `draft-2020-12` rendering, the
+ * wire-safe name, the error context, and `leafKeys` for a partitioned piece.
+ *
+ * **The wire name is the FILL variant** — `${target.name}-${key}-fill${partSuffix}`,
+ * not `perGroupPlan`'s `${target.name}-${key}${partSuffix}`. Same charset rule,
+ * same part suffix; the `-fill` infix keeps the scoped fill call for a key from
+ * carrying the same `response_format.json_schema.name` as the per-group call for
+ * that key, which is the name a log or a route-side error cites — the two
+ * strategies name the same group differently so their calls are distinguishable.
+ * The name is guarded here: a colon in the target's name or a schema property's
+ * key throws at construction naming the character (see
+ * `assertWireSafeSchemaName`).
+ */
+export function prepareGroups<V extends Record<string, unknown>, P = NoProvenance>(
+  target: ExtractionTarget<V, P>,
+  groups: readonly ExtractionGroup[],
+): readonly PreparedGroup[] {
+  return groups.map((group) => {
+    let schema: z.ZodType;
+    let isCollection = false;
+
+    if (group.key !== "" && group.schema instanceof z.ZodObject) {
+      const shape = (group.schema as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodType>;
+      const value = shape[group.key];
+      if (value instanceof z.ZodArray) {
+        isCollection = true;
+        schema = z.strictObject({ [group.key]: value.element });
+      } else {
+        schema = group.schema;
+      }
+    } else {
+      schema = group.schema;
+    }
+
+    const jsonSchema = z.toJSONSchema(schema, { target: "draft-2020-12" }) as Record<
+      string,
+      unknown
+    >;
+    // A partitioned piece appends `-<part>` so fill calls sharing a group key
+    // still get distinct schema names — the same charset-safe suffixing
+    // perGroupPlan uses, and for the same reason.
+    const partSuffix = group.part !== undefined ? `-${group.part}` : "";
+    const name = group.key
+      ? `${target.name}-${group.key}-fill${partSuffix}`
+      : `${target.name}-fill`;
+    assertWireSafeSchemaName(name, "prepareGroups");
+    const context = group.key
+      ? group.part !== undefined
+        ? `scopedInstanceExtractor: fill for "${target.name}" group "${group.key}" (part ${group.part + 1}/${group.parts})`
+        : `scopedInstanceExtractor: fill for "${target.name}" group "${group.key}"`
+      : `scopedInstanceExtractor: fill for "${target.name}"`;
+    // Only a partitioned piece needs its few-shot example narrowed — an
+    // unpartitioned group's example already carries exactly its leaves.
+    const leafKeys = group.part !== undefined ? partitionedLeafKeys(group) : undefined;
+    return {
+      key: group.key,
+      isCollection,
+      schema,
+      jsonSchema,
+      name,
+      context,
+      part: group.part,
+      parts: group.parts,
+      leafKeys,
+    };
+  });
+}
+
+/**
  * Build a scoped per-instance {@link Extractor} for a target.
  *
  * A {@link phasedExtractor} preset of two phases. On each `extract`:
@@ -354,54 +433,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
     target.extractionSchema,
     maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
   );
-  const prepared: readonly PreparedGroup[] = groups.map((group) => {
-    let schema: z.ZodType;
-    let isCollection = false;
-
-    if (group.key !== "" && group.schema instanceof z.ZodObject) {
-      const shape = (group.schema as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodType>;
-      const value = shape[group.key];
-      if (value instanceof z.ZodArray) {
-        isCollection = true;
-        schema = z.strictObject({ [group.key]: value.element });
-      } else {
-        schema = group.schema;
-      }
-    } else {
-      schema = group.schema;
-    }
-
-    const jsonSchema = z.toJSONSchema(schema, { target: "draft-2020-12" }) as Record<
-      string,
-      unknown
-    >;
-    // A partitioned piece appends `-<part>` so fill calls sharing a group key
-    // still get distinct schema names — the same charset-safe suffixing
-    // perGroupExtractor uses, and for the same reason.
-    const partSuffix = group.part !== undefined ? `-${group.part}` : "";
-    const name = group.key
-      ? `${target.name}-${group.key}-fill${partSuffix}`
-      : `${target.name}-fill`;
-    const context = group.key
-      ? group.part !== undefined
-        ? `scopedInstanceExtractor: fill for "${target.name}" group "${group.key}" (part ${group.part + 1}/${group.parts})`
-        : `scopedInstanceExtractor: fill for "${target.name}" group "${group.key}"`
-      : `scopedInstanceExtractor: fill for "${target.name}"`;
-    // Only a partitioned piece needs its few-shot example narrowed — an
-    // unpartitioned group's example already carries exactly its leaves.
-    const leafKeys = group.part !== undefined ? partitionedLeafKeys(group) : undefined;
-    return {
-      key: group.key,
-      isCollection,
-      schema,
-      jsonSchema,
-      name,
-      context,
-      part: group.part,
-      parts: group.parts,
-      leafKeys,
-    };
-  });
+  const prepared = prepareGroups(target, groups);
 
   const engine = phasedExtractor<V, P>({
     target,

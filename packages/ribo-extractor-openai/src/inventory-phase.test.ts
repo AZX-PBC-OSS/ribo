@@ -4,13 +4,19 @@ import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
 import { inventoryPhase, rosterNoteKey } from "./inventory-phase.js";
+import { prepareGroups } from "./instance-fill.js";
 import type { PreparedGroup } from "./instance-fill.js";
+import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 
 /**
  * Phase-level tests for the inventory phase, against hand-built drafts — the
  * engine is not involved here, so `plan`/`run`/`merge` are driven directly
  * through the phase's `with` (the same fold `gap-fill-phase.test.ts` uses).
  * The caller-supplied `inventory` is a fake returning a fixed {@link Roster}.
+ *
+ * The `PreparedGroup`s come from `prepareGroups` over a real split — the same
+ * construction site the preset uses — not from hand-rolled literals. The
+ * inventory merge reads only `key` and `isCollection` off them.
  */
 
 const widgetValues = z
@@ -34,25 +40,10 @@ const target: ExtractionTarget<DemoValues> = {
   instructions: "Demo extraction instructions.",
 };
 
-/** A minimal but valid PreparedGroup — the inventory merge reads key and isCollection. */
-function preparedGroup(key: string, isCollection: boolean): PreparedGroup {
-  const schema = isCollection
-    ? z.strictObject({ [key]: z.array(widgetValues) })
-    : z.strictObject({ [key]: widgetValues });
-  return {
-    key,
-    isCollection,
-    schema,
-    jsonSchema: z.toJSONSchema(schema, { target: "draft-2020-12" }),
-    name: `demo-${key}-fill`,
-    context: `inventory demo "${key}"`,
-  };
-}
-
-const prepared: readonly PreparedGroup[] = [
-  preparedGroup("widgets", true),
-  preparedGroup("house", false),
-];
+const prepared: readonly PreparedGroup[] = prepareGroups(
+  target,
+  splitExtractionSchema(target.extractionSchema, MAX_NULLABLE_UNIONS_PER_CALL),
+);
 
 const ctx: PhaseContext<DemoValues> = {
   transcript: { text: "the full transcript", annotations: {} },
@@ -277,10 +268,10 @@ const onlyCollectionsTarget: ExtractionTarget<OnlyCollectionsValues> = {
   instructions: "Demo extraction instructions.",
 };
 
-const onlyCollectionsPrepared: readonly PreparedGroup[] = [
-  preparedGroup("widgets", true),
-  preparedGroup("gadgets", true),
-];
+const onlyCollectionsPrepared: readonly PreparedGroup[] = prepareGroups(
+  onlyCollectionsTarget,
+  splitExtractionSchema(onlyCollectionsTarget.extractionSchema, MAX_NULLABLE_UNIONS_PER_CALL),
+);
 
 test("[inventory] alone runs green over an all-stated-empty roster", async () => {
   const extractor = phasedExtractor<OnlyCollectionsValues>({

@@ -225,3 +225,27 @@ export function buildGroupMessages<V extends Record<string, unknown>, P = NoProv
   });
   return buildMessages(projected, transcript);
 }
+
+/**
+ * The charset a structured-output schema name may use: `[A-Za-z0-9_-]`. At least
+ * one platform route (Helix) rejects anything else — a colon included — with a
+ * generic `400 validation_failed` that reads identically to an over-cap schema
+ * and costs an afternoon to tell apart. Every name a request's
+ * `response_format.json_schema.name` carries is built from a target's `name`
+ * plus schema-derived group keys, so the guard runs where those names are BUILT
+ * — at construction, where the schema author is present — never on the wire.
+ *
+ * Throws naming the offending character and the name, so the fix (rename the
+ * target, or the schema property whose key contributed the character) is stated
+ * in the error itself.
+ */
+export function assertWireSafeSchemaName(name: string, builtBy: string): void {
+  if (/^[A-Za-z0-9_-]+$/.test(name)) return;
+  const offender = [...name].find((ch) => !/[A-Za-z0-9_-]/.test(ch)) ?? "(empty)";
+  throw new Error(
+    `${builtBy}: structured-output schema name "${name}" uses "${offender}" — the name is ` +
+      `constrained to [A-Za-z0-9_-] by at least one platform route (Helix rejects a colon ` +
+      `with a generic 400 validation_failed, which reads identically to an over-cap schema). ` +
+      `Rename the target — or the schema property that contributed this character.`,
+  );
+}

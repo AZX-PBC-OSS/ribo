@@ -22,7 +22,9 @@ import { describe, expect, test } from "vitest";
 
 import { inventoryPhase, rosterNoteKey } from "./inventory-phase.js";
 import { fillPhase } from "./fill-phase.js";
+import { prepareGroups } from "./instance-fill.js";
 import type { PreparedGroup } from "./instance-fill.js";
+import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
 
 /**
  * Phase-level tests for the scoped-instance fill phase, against hand-built
@@ -32,12 +34,19 @@ import type { PreparedGroup } from "./instance-fill.js";
  * `mapWithPool` returns an index-ordered array, so outcomes always reach
  * `merge` in plan order and an extract-level "reversed outcomes" test would
  * pass against any implementation, including one that pushes in arrival order.
+ *
+ * The `PreparedGroup`s come from `prepareGroups` over real splits — the same
+ * construction site the preset uses — not from hand-rolled literals, so a
+ * change to how fill schemas are derived fails here instead of drifting.
  */
 
 const widgetValues = z
   .object({
     color: z.string().nullable().optional(),
-    size: z.number().nullable().optional(),
+    // A string, not a number: the fill-response fixtures answer with string
+    // values ("1", "0-size"), and the prepared fill schemas parse against the
+    // real leaves now that the PreparedGroups are derived, not hand-rolled.
+    size: z.string().nullable().optional(),
   })
   .strict();
 
@@ -45,7 +54,16 @@ const demoValuesSchema = z
   .object({
     widgets: z.array(widgetValues).optional(),
     gadgets: z.array(widgetValues).optional(),
-    house: z.object({ name: z.string().nullable().optional() }).strict().optional(),
+    // color/size rather than a lone `name`, so the shared `leafEnvelope`
+    // response fixture parses against this group's prepared fill schema too.
+    // Both leaves are strings, for the same reason `widgetValues.size` is.
+    house: z
+      .object({
+        color: z.string().nullable().optional(),
+        size: z.string().nullable().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -58,55 +76,63 @@ const target: ExtractionTarget<DemoValues> = {
   examples: [],
 };
 
-/** A minimal but valid PreparedGroup; `leafKeys` only for a partitioned piece. */
-function preparedGroup(
-  key: string,
-  isCollection: boolean,
-  leaves: readonly string[] = ["color", "size"],
-  part?: number,
-  parts?: number,
-): PreparedGroup {
-  // Each leaf is an envelope ({ value, sourceSpan, confidence }) — the shape a
-  // fill response carries, as in the instance-fill suite.
-  const leafShape = z.strictObject(
-    Object.fromEntries(
-      leaves.map((leaf) => [
-        leaf,
-        z.strictObject({
-          value: z.string().nullable().optional(),
-          sourceSpan: z.string().nullable().optional(),
-          confidence: z.number().optional(),
-        }),
-      ]),
-    ),
-  );
-  // A fill's piece schema is the SINGLE-INSTANCE wrapper — `z.strictObject({
-  // [key]: element })` for a collection group (isCollection true), never an
-  // array — which is what makes "a fill cannot add an instance" true.
-  const schema = z.strictObject({ [key]: leafShape });
-  const partSuffix = part !== undefined ? `-${part}` : "";
-  return {
-    key,
-    isCollection,
-    schema,
-    jsonSchema: z.toJSONSchema(schema, { target: "draft-2020-12" }),
-    name: key ? `demo-${key}-fill${partSuffix}` : "demo-fill",
-    context: `fill demo "${key}"`,
-    part,
-    parts,
-    leafKeys: part !== undefined ? leaves : undefined,
-  };
-}
+const prepared: readonly PreparedGroup[] = prepareGroups(
+  target,
+  splitExtractionSchema(target.extractionSchema, MAX_NULLABLE_UNIONS_PER_CALL),
+);
 
-const prepared: readonly PreparedGroup[] = [
-  preparedGroup("widgets", true),
-  preparedGroup("gadgets", true),
-  preparedGroup("house", false),
-];
+/**
+ * A partitioned group's pieces, derived the way the preset derives them: two
+ * string leaves = four unions, and a cap of 3 splits the group into two
+ * 1-leaf pieces sharing the key. String `size` because the recombine fixtures
+ * answer with string values.
+ */
+const stringLeafValues = z
+  .object({
+    color: z.string().nullable().optional(),
+    size: z.string().nullable().optional(),
+  })
+  .strict();
+const systemsPatch = z.object({ systems: z.array(stringLeafValues).optional() }).strict();
+type SystemsValues = z.infer<typeof systemsPatch>;
+const systemsTarget: ExtractionTarget<SystemsValues> = {
+  name: "demo",
+  extractionSchema: enveloped(systemsPatch),
+  instructions: "Demo extraction instructions.",
+  examples: [],
+};
+const partitionedSystems = prepareGroups(
+  systemsTarget,
+  splitExtractionSchema(systemsTarget.extractionSchema, { maxNullableUnionsPerGroup: 3 }),
+);
+
+/** The non-grouped fallback's single entry, derived from a flat schema. */
+const flatPatch = z
+  .object({
+    color: z.string().nullable().optional(),
+    size: z.number().nullable().optional(),
+  })
+  .strict();
+type FlatValues = z.infer<typeof flatPatch>;
+const flatTarget: ExtractionTarget<FlatValues> = {
+  name: "demo",
+  extractionSchema: enveloped(flatPatch),
+  instructions: "Demo extraction instructions.",
+  examples: [],
+};
+const fallbackPrepared = prepareGroups(
+  flatTarget,
+  splitExtractionSchema(flatTarget.extractionSchema, MAX_NULLABLE_UNIONS_PER_CALL),
+);
 
 const ctx: PhaseContext<DemoValues> = {
   transcript: { text: "the full transcript", annotations: {} },
   target,
+};
+
+const flatCtx: PhaseContext<FlatValues> = {
+  transcript: { text: "the full transcript", annotations: {} },
+  target: flatTarget,
 };
 
 const currentCandidate = (name: string) => ({
@@ -202,16 +228,12 @@ describe("fillPhase — plan", () => {
   });
 
   test("yields one job per piece for a partitioned group, sharing group and instance, distinct request names", () => {
-    const partitioned: readonly PreparedGroup[] = [
-      preparedGroup("systems", true, ["color"], 0, 2),
-      preparedGroup("systems", true, ["size"], 1, 2),
-    ];
     const roster: Roster = { systems: [currentCandidate("a"), currentCandidate("b")] };
     const partitionedPhase = fillPhase<DemoValues>({
       target,
       chat: {} as ChatClient,
       model: "m",
-      prepared: partitioned,
+      prepared: partitionedSystems,
       buildFillInstructions,
     });
     partitionedPhase.with((def) => {
@@ -242,19 +264,26 @@ describe("fillPhase — plan", () => {
   });
 
   test("the \"\" fallback group's messages come from buildMessages — the target's own instructions", async () => {
-    const fallback: readonly PreparedGroup[] = [preparedGroup("", false)];
-    const { chat, requests } = fakeChat(() => ({ "": leafEnvelope("x") }));
-    const fallbackPhase = fillPhase<DemoValues>({
-      target,
+    const { chat, requests } = fakeChat(() => ({
+      color: { value: "x", sourceSpan: "span", confidence: 1 },
+      size: { value: null, sourceSpan: null, confidence: 1 },
+    }));
+    const fallbackPhase = fillPhase<FlatValues>({
+      target: flatTarget,
       chat,
       model: "m",
-      prepared: fallback,
+      prepared: fallbackPrepared,
       buildFillInstructions,
     });
     await fallbackPhase.with(async (def) => {
-      const draft = draftWith({});
-      const [item] = def.plan(draft, ctx);
-      await def.run(item!, draft, ctx);
+      // The fill plan demands the roster note even on the "" path (ADR 0008's
+      // demandNote) — the note's absence is what throws, not the group's shape.
+      const draft: PhaseDraft<FlatValues> = {
+        ...emptyDraft<FlatValues>(),
+        notes: emptyNotes().set(rosterNoteKey, {}),
+      };
+      const [item] = def.plan(draft, flatCtx);
+      await def.run(item!, draft, flatCtx);
       const system = requests[0]!.messages[0]!;
       expect(system.role).toBe("system");
       // buildMessages carries the target's instructions verbatim; the scoped
@@ -275,16 +304,12 @@ function twoWidgets(): Roster {
 
 describe("fillPhase — describeItem", () => {
   test("reports the job's key, instance, instances, part, parts", () => {
-    const partitioned: readonly PreparedGroup[] = [
-      preparedGroup("systems", true, ["color"], 0, 2),
-      preparedGroup("systems", true, ["size"], 1, 2),
-    ];
     const roster: Roster = { systems: [currentCandidate("a"), currentCandidate("b")] };
     const partitionedPhase = fillPhase<DemoValues>({
       target,
       chat: {} as ChatClient,
       model: "m",
-      prepared: partitioned,
+      prepared: partitionedSystems,
       buildFillInstructions,
     });
     partitionedPhase.with((def) => {
@@ -358,12 +383,8 @@ describe("fillPhase — merge", () => {
   }
 
   test("recombines two pieces of one slot with mergeGroupPieces — every leaf of every instance survives", async () => {
-    const partitioned: readonly PreparedGroup[] = [
-      preparedGroup("systems", true, ["color"], 0, 2),
-      preparedGroup("systems", true, ["size"], 1, 2),
-    ];
     const roster: Roster = { systems: [currentCandidate("a"), currentCandidate("b")] };
-    const merged = await fold(roster, partitioned, (requestName) => {
+    const merged = await fold(roster, partitionedSystems, (requestName) => {
       const [, part, instance] = /-(\d+)-(\d+)$/.exec(requestName)!;
       const leaf = part === "0" ? "color" : "size";
       return {
