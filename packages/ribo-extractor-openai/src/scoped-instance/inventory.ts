@@ -18,7 +18,7 @@ import {
   completeOrClassify,
   parseJsonContent,
   parseWithSchema,
-} from "./extraction-common.js";
+} from "../prompt/extraction-common.js";
 
 /** Options for {@link extractInventory}. */
 export interface InventoryOptions<R> {

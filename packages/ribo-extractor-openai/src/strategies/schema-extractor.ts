@@ -58,12 +58,12 @@ import type {
   WholeUnit,
 } from "@azx/ribo-core";
 
-import { assertWireSafeSchemaName } from "./extraction-common.js";
+import { assertWireSafeSchemaName } from "../prompt/extraction-common.js";
 import {
   MAX_NULLABLE_UNIONS_PER_CALL,
   nullableUnionCount,
   serializedCharCount,
-} from "./split-schema.js";
+} from "../schema/split-schema.js";
 import { perGroupExtractor } from "./per-group.js";
 import { singleShotExtractor } from "./single-shot.js";
 

@@ -42,7 +42,7 @@ import type {
   WholeUnit,
 } from "@azx/ribo-core";
 
-import type { UsageTotals } from "./extraction-common.js";
+import type { UsageTotals } from "../prompt/extraction-common.js";
 import {
   addUsage,
   assertStopFinishReason,
@@ -51,7 +51,7 @@ import {
   completeOrClassify,
   parseJsonContent,
   parseWithSchema,
-} from "./extraction-common.js";
+} from "../prompt/extraction-common.js";
 
 /**
  * Options for {@link singleShotExtractor}.

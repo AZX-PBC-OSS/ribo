@@ -1,95 +1,37 @@
 /**
- * @file The operation set, and the applier that turns a caller's plain zod
- * schema plus an explicit list of those operations into the derived artifact —
- * an extraction schema, and the mapping back.
+ * @file The derivation entry point: `deriveExtractionShape`, its options, and
+ * the operation-application helpers (`opSegments`, `remapThroughMoves`,
+ * `applyRegroup` with `removeSubtree` and `insertAt`).
  *
- * The operation set is what a human did when they built the pilot adapter by
- * hand, made minimal and explicit: **drop** (the pilot's scoping — fields no
- * dictation ever fills), **retype** (the pilot's KNOWN DIVERGENCES — numeric
- * fields the vendor types as form-input strings, modelled as what they mean),
- * and **regroup within a top-level key** (re-nesting leaves for extraction).
- * Beside the three value-space operations, the artifact carries the four
- * declarations review and write need — required-on-create, identifying fields,
- * provenance granularity and the leaves' own descriptions — validated against
- * the derived patch rather than trusted.
- *
- * **`group()` may not cross a top-level boundary.** A row-provenance derived
- * group has one span with no data-determined place to land across two original
- * groups; `validateProvenance` and `statedEmptyGroups` are both keyed by the
- * top-level group. Regrouping *within* a top-level key is the supported move,
- * and the mapping's construction-time check refuses an entry whose source
- * names a different top-level key.
- *
- * **No `markCollection`.** Collection-ness is structural — a `ZodArray` of
- * objects is a collection to `enveloped()`, to the split and to review, none of
- * which takes a declaration — so there is no such operation, and a move may not
- * touch an array: its source and destination must both live below the group's
- * own element, never passing through or landing on an array, or one extraction
- * value would have to fill every element.
- *
- * **The composition rule.** The operations are a SET, not a sequence, and the
- * applier owns the state machine that makes ambiguity unreachable:
- *
- *   - `drop` composes with nothing — a dropped path is gone, and a `retype` or
- *     a move naming it is refused as not-found;
- *   - at most one `retype` per path and at most one `regroup` per group — a
- *     duplicate is refused, not silently overwritten;
- *   - `retype` and a move compose on the same leaf (retype the kind, move the
- *     position — orthogonal dimensions);
- *   - a move's destination must not exist after its group's sources are
- *     removed, no two destinations may prefix one another, and no destination
- *     may lie under a dropped path — so insert order cannot change the result.
- *
- * **The refusals the derivation owes.** A scalar array, a union or a record is
- * refused HERE, naming the path — review refuses a scalar array outright, and
- * `enveloped()`'s allowlist rejects unions and records — and an error at
- * derivation, where the schema author is present, beats the same failure at
- * extraction, where it surfaces as an opaque route error far from its cause.
+ * The operation set itself — the vocabulary and the composition rule it is
+ * validated against — is documented in `shape-operation.ts`; the plain node
+ * tree the operations run over, and the zod rebuild, live in `shape-tree.ts`.
+ * This module owns the applier's state machine: bucket the operations, apply
+ * them to the tree, derive the mapping back, and verify the artifact against
+ * itself.
  */
 
 import { z } from "zod";
 
-import { childPath, enveloped, parseFieldPath, stripOptionalNullable } from "@azx/ribo-core";
+import { enveloped, parseFieldPath, stripOptionalNullable } from "@azx/ribo-core";
 import type { ProvenanceGranularity } from "@azx/ribo-core";
 
 import type { DerivedExtractionShape } from "./derived-shape.js";
+import type { ShapeOperation } from "./shape-operation.js";
+import {
+  buildObjectNode,
+  cloneObjectNode,
+  collectLeafPaths,
+  isPrefixOf,
+  pathTouchesArray,
+  refuseEmptyObjects,
+  resolveContainer,
+  resolveNode,
+  treeToZod,
+} from "./shape-tree.js";
+import type { ObjectNode, ShapeNode } from "./shape-tree.js";
 import { assertShapeMapping } from "./shape-mapping.js";
 import type { Retype, ShapeMapping } from "./shape-mapping.js";
-
-/** `shape[key]` for a key that came from `Object.keys(shape)` — narrowed once, the `enveloped.ts` move. */
-const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
-
-/**
- * One operation on the caller's schema. See the file header for the set, the
- * composition rule, and why there is no `markCollection`.
- */
-export type ShapeOperation =
-  | /** Remove the leaf (or whole subtree) at the dotted path from both the
-     * derived patch and the extraction schema. The pilot's scoping. */
-    {
-      readonly op: "drop";
-      /** Dotted path from the schema root; a whole group may be dropped. */
-      readonly path: string;
-    } /** Extract the leaf at the dotted path as a number. The closed set's only
-     * member: the patch leaf must be a `string` (the pilot's form-input
-     * divergence), and reversal applies the pinned `String` encoding. */
-  | {
-      readonly op: "retype";
-      /** Dotted path of a patch LEAF. */
-      readonly path: string;
-      /** The extraction kind. The closed set has one member; widening it widens this union. */
-      readonly to: "number";
-    } /** Re-nest leaves within one top-level key: each key of `moves` is a
-   * dotted path relative to the group, moved to the destination it names —
-   * also relative. May deepen, flatten or rename, but never cross the
-   * group's top-level boundary and never touch an array. */
-  | {
-      readonly op: "regroup";
-      /** The top-level group key the moves live under. */
-      readonly group: string;
-      /** Group-relative source path → group-relative destination path. */
-      readonly moves: Readonly<Record<string, string>>;
-    };
 
 /** Options for {@link deriveExtractionShape}. */
 export interface DeriveExtractionShapeOptions {
@@ -112,201 +54,6 @@ export interface DeriveExtractionShapeOptions {
    */
   readonly identifyingFields?: Readonly<Record<string, readonly string[]>>;
 }
-
-// --- The shape tree ----------------------------------------------------------
-// The applier works on a plain tree of nodes and rebuilds zod schemas from it,
-// because schema surgery on zod objects in place is how strictness and
-// descriptions get lost silently. Leaves carry their (already patch-normalized)
-// zod schema; objects carry the strictness their original declared.
-
-type Strictness = "strip" | "strict" | "loose";
-
-interface LeafNode {
-  readonly kind: "leaf";
-  readonly leaf: z.ZodType;
-}
-
-interface ObjectNode {
-  readonly kind: "object";
-  readonly children: Map<string, ShapeNode>;
-  readonly strictness: Strictness;
-}
-
-interface ArrayNode {
-  readonly kind: "array";
-  readonly element: ObjectNode;
-}
-
-type ShapeNode = LeafNode | ObjectNode | ArrayNode;
-
-/** Is this a supported leaf kind — the kinds `enveloped()`'s allowlist wraps? */
-const isSupportedLeaf = (schema: z.ZodType): boolean =>
-  schema instanceof z.ZodEnum ||
-  schema instanceof z.ZodLiteral ||
-  schema instanceof z.ZodString ||
-  schema instanceof z.ZodNumber ||
-  schema instanceof z.ZodBoolean;
-
-/**
- * Read an object's strictness back off its catchall: `z.object` declares none,
- * `z.strictObject` a never-catchall, `z.looseObject` an unknown-catchall. The
- * derived patch preserves it — the patch is published, and silently changing
- * how it parses at write would be a lie about the caller's own schema.
- */
-const strictnessOf = (obj: z.ZodObject): Strictness => {
-  const catchall = obj.def.catchall;
-  if (catchall === undefined) return "strip";
-  // A never-catchall is what `z.strictObject` declares; anything else that
-  // declares one is `z.looseObject`'s unknown-catchall.
-  return catchall instanceof z.ZodNever ? "strict" : "loose";
-};
-
-/** The patch form of a leaf: `.nullable().optional()`, description kept. */
-const patchLeaf = (inner: z.ZodType): z.ZodType => inner.nullable().optional();
-
-const buildObjectNode = (obj: z.ZodObject, path: string): ObjectNode => {
-  const children = new Map<string, ShapeNode>();
-  for (const key of Object.keys(obj.shape)) {
-    children.set(key, buildFieldNode(fieldAt(obj.shape, key), childPath(path, key)));
-  }
-  return { kind: "object", children, strictness: strictnessOf(obj) };
-};
-
-/**
- * Normalize one field of the caller's schema into a tree node — refusing, at
- * derivation, everything the extraction pipeline cannot serve.
- */
-const buildFieldNode = (field: z.ZodType, path: string): ShapeNode => {
-  const stripped = stripOptionalNullable(field);
-  if (stripped instanceof z.ZodObject) return buildObjectNode(stripped, path);
-  if (stripped instanceof z.ZodArray) {
-    const element = stripOptionalNullable(stripped.element as z.ZodType);
-    if (!(element instanceof z.ZodObject)) {
-      throw new Error(
-        `deriveExtractionShape(): the array at "${path}" has a ${element.constructor.name} ` +
-          "element — a scalar array gives review no leaf fields to walk per instance, and " +
-          "review refuses it outright. Model the element as an object.",
-      );
-    }
-    return { kind: "array", element: buildObjectNode(element, path) };
-  }
-  if (isSupportedLeaf(stripped)) return { kind: "leaf", leaf: patchLeaf(stripped) };
-  throw new Error(
-    `deriveExtractionShape(): unsupported shape at "${path}" (${stripped.constructor.name}) — ` +
-      "records and unions (including discriminated unions) cannot be enveloped, so the " +
-      "derivation refuses them here, at the schema author's desk, rather than at extraction. " +
-      "Narrow the schema, or drop this path and capture the value another way.",
-  );
-};
-
-/** Deep-copy the tree structure; leaf zod schemas are immutable and shared. */
-const cloneNode = (node: ShapeNode): ShapeNode => {
-  if (node.kind === "leaf") return node;
-  if (node.kind === "array") return { kind: "array", element: cloneObjectNode(node.element) };
-  return cloneObjectNode(node);
-};
-
-const cloneObjectNode = (node: ObjectNode): ObjectNode => ({
-  kind: "object",
-  strictness: node.strictness,
-  children: new Map([...node.children].map(([key, child]) => [key, cloneNode(child)])),
-});
-
-/** Resolve a path (arrays transparent, the schema-time convention) to its node. */
-const resolveNode = (root: ObjectNode, segments: readonly string[]): ShapeNode | undefined => {
-  let node: ShapeNode = root;
-  for (const segment of segments) {
-    if (node.kind === "array") node = node.element;
-    if (node.kind !== "object") return undefined;
-    const child = node.children.get(segment);
-    if (child === undefined) return undefined;
-    node = child;
-  }
-  return node;
-};
-
-/** Resolve a path to the object that holds its last segment, arrays transparent. */
-const resolveContainer = (
-  root: ObjectNode,
-  segments: readonly string[],
-): { container: ObjectNode; key: string } | undefined => {
-  if (segments.length === 0) return undefined;
-  const parentSegments = segments.slice(0, -1);
-  const key = segments[segments.length - 1]!;
-  const parent = resolveNode(root, parentSegments);
-  if (parent === undefined) return undefined;
-  // The container of a path under an array is the element object.
-  const container = parent.kind === "array" ? parent.element : parent;
-  if (container.kind !== "object") return undefined;
-  return { container, key };
-};
-
-/**
- * Would walking this path pass through or land on an array (below the group's
- * own element, which the caller has already descended into)? A move that
- * touched an array would make one extraction value fill every element — not
- * data-determined, so refused rather than silently resolved.
- */
-const pathTouchesArray = (root: ObjectNode, segments: readonly string[]): boolean => {
-  let node: ShapeNode = root;
-  for (const segment of segments) {
-    if (node.kind === "array") return true;
-    if (node.kind !== "object") return true;
-    const child = node.children.get(segment);
-    if (child === undefined) return false;
-    node = child;
-  }
-  return node.kind === "array";
-};
-
-const isPrefixOf = (a: readonly string[], b: readonly string[]): boolean =>
-  a.length <= b.length && a.every((segment, i) => segment === b[i]);
-
-/** Refuse any object the operations emptied — an empty object hangs nothing. */
-const refuseEmptyObjects = (node: ObjectNode, path: string): void => {
-  if (node.children.size === 0) {
-    throw new Error(
-      `deriveExtractionShape(): the object at "${path === "" ? "<root>" : path}" has no ` +
-        "fields left. An empty object serves nothing — drop its parent key instead of its " +
-        "last leaf, or keep a leaf in it.",
-    );
-  }
-  for (const [key, child] of node.children) {
-    const childPathText = childPath(path, key);
-    if (child.kind === "object") refuseEmptyObjects(child, childPathText);
-    if (child.kind === "array") refuseEmptyObjects(child.element, `${childPathText}[]`);
-  }
-};
-
-const treeToZod = (node: ObjectNode, isRoot = true): z.ZodObject => {
-  const shape: Record<string, z.ZodType> = {};
-  for (const [key, child] of node.children) {
-    const built =
-      child.kind === "leaf"
-        ? child.leaf
-        : child.kind === "array"
-          ? z.array(treeToZod(child.element, false))
-          : treeToZod(child, false);
-    // Top-level keys stay optional — a group whose every leaf was rejected is
-    // absent from the reviewed patch, and the patch must parse without it.
-    shape[key] = isRoot ? built.optional() : built;
-  }
-  return node.strictness === "strict"
-    ? z.strictObject(shape)
-    : node.strictness === "loose"
-      ? z.looseObject(shape)
-      : z.object(shape);
-};
-
-/** Every leaf path of the tree, arrays transparent (element-relative). */
-const collectLeafPaths = (node: ObjectNode, path: string, out: string[]): void => {
-  for (const [key, child] of node.children) {
-    const childPathText = childPath(path, key);
-    if (child.kind === "leaf") out.push(childPathText);
-    else if (child.kind === "object") collectLeafPaths(child, childPathText, out);
-    else collectLeafPaths(child.element, childPathText, out);
-  }
-};
 
 /**
  * Parse an operation's dotted path into object-key segments, refusing instance

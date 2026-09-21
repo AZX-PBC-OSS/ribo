@@ -9,7 +9,7 @@ import type {
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { gapFillExtractor } from "./gap-fill.js";
+import { gapFillExtractor } from "../gap-fill/gap-fill.js";
 import { overrideGroups, perGroupPlan } from "./per-group.js";
 import type { PerGroupPlan } from "./per-group.js";
 import { singleShotExtractor } from "./single-shot.js";

@@ -26,7 +26,7 @@ import {
   mergeGapFilledLeaves,
 } from "./gap-fill.js";
 import { gapFillPhase } from "./gap-fill-phase.js";
-import { singleShotExtractor } from "./single-shot.js";
+import { singleShotExtractor } from "../strategies/single-shot.js";
 
 /**
  * Key-free CI tests for the gap-fill combinator, against a small self-contained

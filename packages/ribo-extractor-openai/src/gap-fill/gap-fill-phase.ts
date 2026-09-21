@@ -44,14 +44,14 @@ import type {
   PhaseDef,
 } from "@azx/ribo-core";
 
-import type { UsageTotals } from "./extraction-common.js";
+import type { UsageTotals } from "../prompt/extraction-common.js";
 import {
   addUsage,
   assertStopFinishReason,
   completeOrClassify,
   parseJsonContent,
   parseWithSchema,
-} from "./extraction-common.js";
+} from "../prompt/extraction-common.js";
 import type { AbstainedLeaf, GapFillTarget } from "./gap-fill.js";
 import {
   acceptImprovements,

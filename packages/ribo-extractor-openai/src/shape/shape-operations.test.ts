@@ -2,7 +2,7 @@ import { z } from "zod";
 import { expect, test } from "vitest";
 
 import { deriveExtractionShape } from "./shape-operations.js";
-import type { ShapeOperation } from "./shape-operations.js";
+import type { ShapeOperation } from "./shape-operation.js";
 import { stripOptionalNullable } from "@azx/ribo-core";
 
 /**

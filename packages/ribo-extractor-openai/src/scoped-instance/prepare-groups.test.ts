@@ -3,10 +3,10 @@ import type { ExtractionTarget } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
+import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
 import { prepareGroups } from "./instance-fill.js";
-import { perGroupPlan } from "./per-group.js";
-import { singleShotExtractor } from "./single-shot.js";
+import { perGroupPlan } from "../strategies/per-group.js";
+import { singleShotExtractor } from "../strategies/single-shot.js";
 
 /**
  * @file `prepareGroups` — the exported prepared-groups builder — and the

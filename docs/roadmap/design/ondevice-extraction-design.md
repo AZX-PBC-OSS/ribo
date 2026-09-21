@@ -38,19 +38,19 @@ The number this design is still uncomfortable about is the **53% miss rate** (§
 
 ## 1. Context: what already exists
 
-| Piece                         | Where                                          | Relevance                                                                                                     |
-| ----------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `Extractor<F>` seam           | `ribo-core/src/extractor.ts`                   | Explicitly "a plain builder, not a capability contract". Stays that way.                                      |
-| `ExtractStep`                 | `ribo-core/src/queue/relay.ts:25`              | What the relay calls. Drops everything but `fields` — see §3.6.                                               |
-| `ChatClient` seam             | `ribo-extractor-openai/src/chat-client.ts`     | The injected transport. Where on-device plugs in.                                                             |
-| `perGroupExtractor`           | `ribo-extractor-openai/src/per-group.ts`       | Seven-group split, prompt assembly, examples, envelope parsing, merge, bounded pool, retry-budget derivation. |
-| `deriveMaxRetries`            | `per-group.ts:200`                             | Sizes the retry budget from `ceil(G / concurrency)`. Load-bearing — see §3.5.                                 |
-| `PER_CALL_CEILING_MS`         | `per-group.ts:170`                             | Module constant, 120,000. **Must become configurable** — see §3.5.                                            |
-| `helixChat()`                 | `helix-chat.ts:98`                             | Managed transport. Returns a bare `ChatClient`, no capability notion.                                         |
-| `firstCapable`                | `ribo-core/src/first-capable.ts`               | Sequential selection, TTL cache, `invalidate()`, never auto-selects `needs-download`.                         |
-| `hedged`                      | `ribo-core/src/hedged.ts`                      | Races primary against fallback on a latency budget. **Does not apply** — §3.4.                                |
-| `OnDeviceTranscriber.prime()` | `ribo-transcriber-ondevice/src/index.ts`       | Download-on-explicit-request, with progress. Copied in spirit.                                                |
-| RTF verdict / `too-slow`      | `ribo-transcriber-ondevice/src/rtf-verdict.ts` | A measured-throughput capability gate. Lesson transfers; remedy does not — §3.5.                              |
+| Piece                         | Where                                               | Relevance                                                                                                     |
+| ----------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `Extractor<F>` seam           | `ribo-core/src/extractor.ts`                        | Explicitly "a plain builder, not a capability contract". Stays that way.                                      |
+| `ExtractStep`                 | `ribo-core/src/queue/relay.ts:25`                   | What the relay calls. Drops everything but `fields` — see §3.6.                                               |
+| `ChatClient` seam             | `ribo-extractor-openai/src/chat-client.ts`          | The injected transport. Where on-device plugs in.                                                             |
+| `perGroupExtractor`           | `ribo-extractor-openai/src/strategies/per-group.ts` | Seven-group split, prompt assembly, examples, envelope parsing, merge, bounded pool, retry-budget derivation. |
+| `deriveMaxRetries`            | `per-group.ts:200`                                  | Sizes the retry budget from `ceil(G / concurrency)`. Load-bearing — see §3.5.                                 |
+| `PER_CALL_CEILING_MS`         | `per-group.ts:170`                                  | Module constant, 120,000. **Must become configurable** — see §3.5.                                            |
+| `helixChat()`                 | `helix-chat.ts:98`                                  | Managed transport. Returns a bare `ChatClient`, no capability notion.                                         |
+| `firstCapable`                | `ribo-core/src/first-capable.ts`                    | Sequential selection, TTL cache, `invalidate()`, never auto-selects `needs-download`.                         |
+| `hedged`                      | `ribo-core/src/hedged.ts`                           | Races primary against fallback on a latency budget. **Does not apply** — §3.4.                                |
+| `OnDeviceTranscriber.prime()` | `ribo-transcriber-ondevice/src/index.ts`            | Download-on-explicit-request, with progress. Copied in spirit.                                                |
+| RTF verdict / `too-slow`      | `ribo-transcriber-ondevice/src/rtf-verdict.ts`      | A measured-throughput capability gate. Lesson transfers; remedy does not — §3.5.                              |
 
 `ribo-ui-react` is headless and the consuming field app is a separate repo, so this repo ships
 capability states and a `prime()` affordance, not a download screen. The playground is the

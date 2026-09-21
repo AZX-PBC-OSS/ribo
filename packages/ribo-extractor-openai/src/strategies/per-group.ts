@@ -93,10 +93,10 @@ import type {
   RetryBudgetObserver,
 } from "@azx/ribo-core";
 
-import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
-import type { ExtractionGroup } from "./split-schema.js";
-import { assertWireSafeSchemaName } from "./extraction-common.js";
-import { projectTarget } from "./project-target.js";
+import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
+import type { ExtractionGroup } from "../schema/split-schema.js";
+import { assertWireSafeSchemaName } from "../prompt/extraction-common.js";
+import { projectTarget } from "../prompt/project-target.js";
 import { singleShotExtractor } from "./single-shot.js";
 
 /** Options for {@link perGroupExtractor} and {@link perGroupPlan}. */

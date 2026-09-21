@@ -3,9 +3,9 @@ import type { ChatClient, ChatRequest, Transcript } from "@azx/ribo-core";
 import { z } from "zod";
 import { expect, test } from "vitest";
 
-import { schemaExtractor } from "./schema-extractor.js";
+import { schemaExtractor } from "../strategies/schema-extractor.js";
 import { reshapedExtractor } from "./reshaped-extractor.js";
-import type { EnvelopedSchemaExtractorOptions } from "./schema-extractor.js";
+import type { EnvelopedSchemaExtractorOptions } from "../strategies/schema-extractor.js";
 import { assertShapeMapping } from "./shape-mapping.js";
 import type { ShapeMapping } from "./shape-mapping.js";
 import type { DerivedExtractionShape } from "./derived-shape.js";
