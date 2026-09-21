@@ -173,6 +173,25 @@ type WalkAccumulator = {
 };
 
 /**
+ * The array paths a given schema-time leaf path runs under — the strict-prefix
+ * array ancestors recorded by the walk, joined by `.`. The leaf at `g.arr.f1`
+ * has `g.arr` as its single array ancestor; `g.top` has none. Sorted so two
+ * leaves can be compared by string equality, the way a render slots them in.
+ *
+ * Strict prefix on purpose: an array path that IS the leaf's own path would
+ * belong to a walk that recorded an array AS a leaf, and the schema walks here
+ * never do — arrays are walked through, and the leaf under one is recorded at
+ * the array's own path.
+ */
+const arrayAncestryOf = (path: string, arrayPaths: ReadonlySet<string>): string => {
+  const leafSegments = path.split(".").length;
+  return [...arrayPaths]
+    .filter((arrayPath) => arrayPath.split(".").length < leafSegments && path.startsWith(`${arrayPath}.`))
+    .sort()
+    .join(".");
+};
+
+/**
  * Walk the PATCH schema — the derived patch, pre-envelope — enumerating its
  * leaves. Arrays are transparent at schema time (indices do not exist until
  * data arrives), so a leaf inside a collection is recorded once, at its
@@ -402,6 +421,23 @@ export const assertShapeMapping = (
             `extraction ${extractionLeaf.kind} against patch ${patchLeaf.kind}.`,
         );
       }
+    }
+    // An entry may not cross a collection boundary on one side and not the
+    // other. Reversal walks each side independently, so the two patch-side
+    // writes that would result either share an array index they shouldn't
+    // (`g.top` written at `g.arr[0]` when `g.arr[0]` came from a different
+    // entry) or seed an array the patch never declares. Caught here so the
+    // failure blames the mapping, not a downstream collider.
+    const extractionArrays = arrayAncestryOf(path, extractionWalk.arrayPaths);
+    const patchArrays = arrayAncestryOf(entry.source, patchWalk.arrayPaths);
+    if (extractionArrays !== patchArrays) {
+      throw new Error(
+        `shape mapping: the entry at "${path}" crosses a collection boundary the source ` +
+          `"${entry.source}" does not — the entry's extraction array ancestry ` +
+          `[${extractionArrays}] disagrees with its patch array ancestry [${patchArrays}]. ` +
+          "An entry's two sides must run under the same collections, or reversal writes data " +
+          "to a position the patch never declared.",
+      );
     }
   }
 

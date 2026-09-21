@@ -302,6 +302,42 @@ test("a hand-written mapping with two sources swapped passes construction — th
   );
 });
 
+test("an array-crossing mapping is refused at construction, naming both arrays and both paths", () => {
+  // The exact counterexample that used to slip past `assertShapeMapping`: the
+  // patch has a top-level leaf `top` and a collection `arr`; the entry pairs
+  // `g.top` with `g.arr.f1`, and `g.arr.f1` with `g.top`. Both sides are real
+  // leaves, the bijection holds, the kind check holds, the array-path set
+  // check holds — and reversal then crashes blaming a write collision, with a
+  // parenthetical claim ("not bijective") that the mapping actually IS.
+  const leaf = z.string().nullable().optional();
+  const patchSchema = z.object({
+    g: z.object({
+      top: leaf,
+      arr: z.array(z.object({ f1: leaf, f2: leaf })),
+    }),
+  });
+  const extractionSchema = enveloped(patchSchema, { provenance: {} });
+  const crossing: ShapeMapping = {
+    leaves: {
+      "g.top": { source: "g.arr.f1" },
+      "g.arr.f1": { source: "g.top" },
+      "g.arr.f2": { source: "g.arr.f2" },
+    },
+    provenance: {},
+  };
+
+  // Construction refuses — neither side sneaks past any longer.
+  expect(() => assertShapeMapping(crossing, extractionSchema, patchSchema)).toThrowError(
+    /crosses a collection boundary/,
+  );
+  // The refusal names the extraction path AND the source, so the schema author
+  // can see what collision the mapping was about to cause without re-reading.
+  expect(() => assertShapeMapping(crossing, extractionSchema, patchSchema)).toThrow(/"g\.top".*"g\.arr\.f1"/);
+  // And lists the disagreeing array ancestries — `g.arr` on one side, none on
+  // the other — so the message localises the rule at fault.
+  expect(() => assertShapeMapping(crossing, extractionSchema, patchSchema)).toThrow(/g\.arr/);
+});
+
 test("the exhaustive property has teeth: one corrupted leaf fails it, naming the entry", () => {
   const generated = generateShapedValue(shape.extractionSchema) as Record<string, unknown>;
   const reversed = reverseShapedFields(generated, shape.mapping);
