@@ -105,6 +105,31 @@ for (const alias of DUCT_INSULATION_VENDOR_LITERALS.keys()) {
 }
 
 /**
+ * The converse, and the direction that actually bites: a member whose alias
+ * spells out the inch mark must HAVE a table entry, or the write sends the
+ * quote-free alias and the vendor rejects it.
+ *
+ * The check above only proves table→enum. Adding an aliased member without a
+ * table row passed it silently, and the failure would have surfaced a layer
+ * away as a vendor 400 on a real write. An alias is recognisable without the
+ * table: it spells the unit ("1.5 inch") where the vendor writes a quote, so
+ * any member containing " inch" needs a mapping and any member without one
+ * must not have a row.
+ */
+for (const member of HvacDuctInsulation.options) {
+  const aliased = member.includes(" inch");
+  const mapped = DUCT_INSULATION_VENDOR_LITERALS.has(member);
+  if (aliased !== mapped) {
+    throw new Error(
+      `normalization: HvacDuctInsulation member ${JSON.stringify(member)} ` +
+        `${aliased ? "spells out an inch mark but has no" : "has an unexpected"} ` +
+        "DUCT_INSULATION_VENDOR_LITERALS entry. An aliased member must map to the " +
+        "vendor's quoted literal, or write-back sends a value the vendor rejects.",
+    );
+  }
+}
+
+/**
  * Clamp a self-reported confidence into the intended 0..1 range. The schema cannot
  * express the bound (strict structured-output rejects `minimum`/`maximum`), so a
  * model that emits `1.4` or `-0.1` is corrected here. A non-finite input collapses

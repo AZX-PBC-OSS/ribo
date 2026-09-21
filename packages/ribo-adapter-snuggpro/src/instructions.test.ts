@@ -48,7 +48,7 @@ const RULE_MARKERS: readonly string[] = [
   "is the SPOKEN rebate name",
   "A vault is a vaulted / cathedral ceiling",
   "closer to an aggregate than an instance",
-  "The `job` group is the job itself",
+  "The `job` group is four leaves on an EXISTING job",
   "is AUTHORED report copy",
   "Appliances: one record per appliance",
   "PV: one record per array",

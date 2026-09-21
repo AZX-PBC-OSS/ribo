@@ -400,32 +400,22 @@ usual discipline: dictated upgrade intent is captured ("put in an ENERGY STAR do
   {
     number: 18,
     groups: ["job"],
-    text: `**18. The \`job\` group is the job itself — ONE job, two distinct contacts, and never an invented id.**
+    text: `**18. The \`job\` group is four leaves on an EXISTING job — never an invented id, never a computed date.**
 
-The \`job\` group records the job's own identity, contacts, scheduling and program wiring. It is a
-SINGLETON: one recording session is one job, so there is never a second instance to tell apart.
+The \`job\` group is a SINGLETON: one recording session is one job, so there is never a second
+instance to tell apart. It carries exactly four leaves — \`serviceTime\`, \`accountId\`, \`note\` and
+\`householdIncomeTier\`.
 
-**Two people, one set of bare contact fields.** The bare contact leaves (\`firstName\`, \`lastName\`,
-\`email\`, \`homePhone\`, \`address1\`/\`address2\`, \`city\`, \`state\`, \`zip\`) are the OCCUPANT — the
-customer or job contact at the audited property. The \`propertyOwner*\` leaves are a SECOND, distinct
-person: the owner, when the auditor explicitly identifies the owner as someone else ("the owner lives
-in Akron, her number is five-five-five…"). A contact fact goes on the person being spoken about,
-never on both: "her number is …" during a tenant conversation is the tenant's phone on \`homePhone\`,
-and the same words about the out-of-state owner are \`propertyOwnerPhone\`. \`renterOwner\` is the
-hint — a rental means the occupant is the tenant — but fill the owner side only from speech that
-identifies the owner, never from \`renterOwner\` alone.
+**Why it is only four.** Snugg Pro opens this app on a job that already exists, and its update
+endpoint accepts only these. The customer's name, the address, the contacts, the property-owner
+block, the stage and the job type are set once when a job is CREATED and cannot be changed
+afterwards — so there is nowhere to put them and nothing said about them is captured. If you hear a
+name or an address, that is not a miss: it belongs to a field this tool cannot write.
 
-**Spoken forms map to wire codes.** A full state name becomes its two-letter code ("the home is in
-Massachusetts" → \`state: "MA"\`, and the same mapping on \`propertyOwnerState\`). \`renterOwner\` is
-integer 0 (Renter) or 1 (Owner) from an explicit statement — "she owns it" → 1, "there's a tenant" →
-0 — never inferred from who answered the door. \`stageId\` and \`jobType\` are label→code integers
-("mark it bid proposed" → \`stageId: 3\`; "this is a score job" → \`jobType: 2\`), set only when the
-label was actually said — never a default because audits are the common case.
-
-**Names, not ids.** \`accountId\` and \`programId\` are integer ids on the wire, but you capture the
-SPOKEN NAME as free text — "give this one to Dave" → \`accountId: "Dave"\`; "this one's NYSERDA" →
-\`programId: "NYSERDA"\` — exactly the discipline of rule 15. Never emit, invent or guess a numeric
-id; resolving the name against the real account/program list is a later, human-supervised step.
+**A name, not an id.** \`accountId\` is an integer id on the wire, but you capture the SPOKEN NAME as
+free text — "give this one to Dave" → \`accountId: "Dave"\` — exactly the discipline of rule 15.
+Never emit, invent or guess a numeric id; resolving the name against the real account list is a
+later, human-supervised step.
 
 **Scheduling without a calendar.** \`serviceTime\` takes the wire format \`YYYY-MM-DD HH:MM:SS\`, and
 you fill it only when the transcript itself states an absolute date and time. A purely relative day
@@ -433,8 +423,8 @@ you fill it only when the transcript itself states an absolute date and time. A 
 it to a calendar date is a later step, and a date you compute is a date you invented.
 
 **Verbatim strings.** \`householdIncomeTier\` members carry percent signs, spaces and a spaced hyphen
-(\`"LMI 80 - 120"\`) — reproduce them character for character. \`auditType\` has NO published value
-list ("only enabled for select programs"): capture what was said as free text, never a picked value.`,
+(\`"LMI 80 - 120"\`) — reproduce them character for character. \`note\` is free text: the auditor's own
+words about the job as a whole, not a place to restate a value that has its own leaf elsewhere.`,
   },
   {
     number: 19,
