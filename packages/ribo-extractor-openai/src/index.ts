@@ -29,6 +29,21 @@ export type {
   RawSchemaExtractorOptions,
 } from "./schema-extractor.js";
 
+// The derived extraction shape: apply explicit shape operations to a caller's
+// plain zod schema and get the artifact pair — an extraction schema, and the
+// mapping back as data — plus the reversal combinator that turns an extractor
+// over the extraction shape into one over the derived patch. Model-free: a
+// model-driven derivation composes the same applier over its own proposal.
+export { deriveExtractionShape } from "./shape-operations.js";
+export type { DeriveExtractionShapeOptions, ShapeOperation } from "./shape-operations.js";
+export type { DerivedExtractionShape } from "./derived-shape.js";
+export { assertShapeMapping, retypeToPatchValue } from "./shape-mapping.js";
+export type { LeafKind, LeafMapping, Retype, ShapeMapping } from "./shape-mapping.js";
+export { reverseShapedFields } from "./shape-reverse.js";
+export { reshapedExtractor } from "./reshaped-extractor.js";
+export { generateShapedValue } from "./shape-generate.js";
+export type { GenerateOptions } from "./shape-generate.js";
+
 // Projection of an extraction target onto one top-level group key — the pure
 // narrow half of per-group prompt assembly, reusable by any strategy.
 export { projectTarget } from "./project-target.js";
