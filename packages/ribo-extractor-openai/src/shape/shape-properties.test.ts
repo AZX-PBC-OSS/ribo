@@ -412,6 +412,30 @@ test("the exhaustive property has teeth: one corrupted leaf fails it, naming the
   );
 });
 
+test("\"row\" provenance on a top-level leaf is independently pinned in assertShapeMapping's walk", () => {
+  // The shape of the refusal is the same one `enveloped()`'s `validateProvenance`
+  // emits on the patch schema, mirrored here on the EXTRACTION schema — so
+  // loosening either without the other noticing would weaken the schema's
+  // top-level-leaf guard. A caller reaching this far either built a
+  // hand-crafted extraction schema (no enveloped() guard) or wired one in
+  // from outside; in either case the mapping walk catches the same shape the
+  // patch walker does, and pin BOTH so this is the failure, not a silent
+  // acceptance that later collapses review into a sentinel.
+  const extractionSchema = z.object({
+    note: z.string().nullable().optional(),
+  });
+  const patchSchema = z.object({
+    note: z.string().nullable().optional(),
+  });
+  const mapping: ShapeMapping = {
+    leaves: { note: { source: "note" } },
+    provenance: { note: "row" },
+  };
+  expect(() => assertShapeMapping(mapping, extractionSchema, patchSchema)).toThrow(
+    /"row" provenance on group "note".*needs an object/,
+  );
+});
+
 test("the retype's canonical encoding is exact: `String(value)`, not any toFixed-variants", () => {
   // The pool above round-trips through the patch parse, which is necessary but
   // not sufficient — a `toFixed(N)` alternative on any N plausibly passes too

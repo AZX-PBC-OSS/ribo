@@ -305,6 +305,19 @@ const walkExtractionField = (
         "schema was not derived by enveloping this position.",
     );
   }
+  // The same rule `enveloped()`'s validateProvenance applies on the patch
+  // schema, mirrored here on the EXTRACTION schema for hand-written mappings:
+  // a row-provenance top-level leaf has no row object to hang the citation on.
+  // `enveloped()` refuses this input upstream (a caller threading this far is
+  // either using a hand-crafted extraction schema or running its own validation),
+  // so the check duplicates the rule rather than re-implementing it.
+  if (granularity === "row" && isRow) {
+    throw new Error(
+      `shape mapping: "row" provenance on group "${path}" needs an object (or an array of ` +
+        "them) to hang the row's sourceSpan on, but that group is a leaf at this position " +
+        '— use "none" if the leaf should carry no provenance.',
+    );
+  }
   walk.leaves.set(path, {
     kind: leafKindOf(stripped),
     vocabulary: leafVocabularyOf(stripped),
