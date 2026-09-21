@@ -34,7 +34,7 @@
  * the value-side property asserts, and it is why the retype set is closed.
  */
 
-import { ROW_SOURCE_SPAN_KEY } from "@azx/ribo-core";
+import { ROW_SOURCE_SPAN_KEY, SchemaParseError } from "@azx/ribo-core";
 import type { ProvenanceGranularity } from "@azx/ribo-core";
 
 import { retypeToPatchValue } from "./shape-mapping.js";
@@ -70,17 +70,23 @@ interface IndexedLeaf {
  * confidence and span are copied verbatim. Under `"row"`/`"none"` the data
  * carries a bare value and reversal writes a bare value — the citation, where
  * one exists, is the row's, and the row's is copied at the row.
+ *
+ * `extractionPath` is the leaf's instance path in the extraction data, for the
+ * structural-failure message: a `SchemaParseError` an extractor ladder can
+ * recognise, naming where the data stopped matching the schema.
  */
 const reverseLeafValue = (
   child: unknown,
   entry: IndexedLeaf,
   granularity: ProvenanceGranularity,
+  extractionPath: string,
 ): unknown => {
   if (granularity === "leaf") {
     if (!isPlainObject(child)) {
-      throw new Error(
-        'shape reversal: expected a leaf envelope under "leaf" provenance — the extraction ' +
-          "data does not match the schema the mapping was built against.",
+      throw new SchemaParseError(
+        `shape reversal: expected a leaf envelope under "leaf" provenance at ` +
+          `"${extractionPath}" — the extraction data does not match the schema the mapping ` +
+          "was built against.",
       );
     }
     return {
@@ -123,13 +129,14 @@ const collectWrites = (
   granularity: ProvenanceGranularity,
   patchPrefix: readonly (string | number)[],
   writes: PatchWrite[],
+  extractionPath: string,
 ): void => {
   if (rest.length === 0) {
     // The extraction leaf is here; the patch path is whatever remains of the
     // source path — a regroup may have left it deeper or shallower.
     writes.push({
       segments: [...patchPrefix, ...sourceRest],
-      value: reverseLeafValue(node, entry, granularity),
+      value: reverseLeafValue(node, entry, granularity, extractionPath),
     });
     return;
   }
@@ -166,6 +173,7 @@ const collectWrites = (
         granularity,
         [...patchPrefix, patchKey, index],
         writes,
+        `${extractionPath}.${segment}[${index}]`,
       );
     });
     return;
@@ -178,6 +186,7 @@ const collectWrites = (
     granularity,
     patchKey === undefined ? patchPrefix : [...patchPrefix, patchKey],
     writes,
+    `${extractionPath}.${segment}`,
   );
 };
 
@@ -189,9 +198,15 @@ const collectWrites = (
  * per row unit, and several entries crossing the same array each record it.
  * Arrays seed empty and merge element-wise; anything else at the same position
  * is a double leaf write the bijection should have refused — thrown, never
- * overwritten.
+ * overwritten. `path` is the absolute patch position of the write, instance
+ * style, for the collision's message.
  */
-const mergeWrite = (out: Record<string, unknown>, key: string, piece: unknown): void => {
+const mergeWrite = (
+  out: Record<string, unknown>,
+  key: string,
+  piece: unknown,
+  path: string,
+): void => {
   const existing = out[key];
   if (existing === undefined) {
     out[key] = piece;
@@ -200,7 +215,7 @@ const mergeWrite = (out: Record<string, unknown>, key: string, piece: unknown): 
   if (existing === piece) return;
   if (isPlainObject(existing) && isPlainObject(piece)) {
     for (const [inner, value] of Object.entries(piece)) {
-      mergeWrite(existing, inner, value);
+      mergeWrite(existing, inner, value, `${path}.${inner}`);
     }
     return;
   }
@@ -218,12 +233,12 @@ const mergeWrite = (out: Record<string, unknown>, key: string, piece: unknown): 
     }
     const target = existing as unknown as Record<string, unknown>;
     for (let i = 0; i < piece.length; i++) {
-      mergeWrite(target, String(i), piece[i]);
+      mergeWrite(target, String(i), piece[i], `${path}[${i}]`);
     }
     return;
   }
-  throw new Error(
-    `shape reversal: two mapping entries wrote a leaf to the same patch position "${key}" — ` +
+  throw new SchemaParseError(
+    `shape reversal: two mapping entries wrote a leaf to the same patch position "${path}" — ` +
       "the mapping is not bijective (assertShapeMapping should have refused it at construction).",
   );
 };
@@ -250,7 +265,13 @@ const writeAt = (
     }
   }
   const last = segments[segments.length - 1]!;
-  mergeWrite(node, String(last), value);
+  // The instance-style label of the position, for a collision's message.
+  const path = segments
+    .map((segment, i) =>
+      typeof segment === "number" ? `[${segment}]` : `${i === 0 ? "" : "."}${segment}`,
+    )
+    .join("");
+  mergeWrite(node, String(last), value, path);
 };
 
 /**
@@ -281,7 +302,7 @@ export const reverseShapedFields = (
       // A top-level leaf: the value is the top-level key's data itself.
       writes.push({
         segments: entry.source.split("."),
-        value: reverseLeafValue(fields[top], indexed, granularity),
+        value: reverseLeafValue(fields[top], indexed, granularity, top),
       });
       continue;
     }
@@ -305,6 +326,7 @@ export const reverseShapedFields = (
           granularity,
           [top, index],
           writes,
+          `${top}[${index}]`,
         );
       });
       continue;
@@ -316,7 +338,7 @@ export const reverseShapedFields = (
         value: readRowSpan(groupData),
       });
     }
-    collectWrites(groupData, rest, indexed.sourceRest, indexed, granularity, [top], writes);
+    collectWrites(groupData, rest, indexed.sourceRest, indexed, granularity, [top], writes, top);
   }
 
   const out: Record<string, unknown> = {};

@@ -24,6 +24,20 @@
  * correspondences are bijective. A dropped caller leaf is in neither schema and
  * so in neither side of the bijection — drops are expressible only by the
  * schemas, never by a hole in the map.
+ *
+ * **What construction cannot validate: the pairing itself.** The checks are of
+ * existence and bijectivity — never of what each entry MEANS. Whether an entry
+ * pairs the two leaves that mean the same field is intent, and the mapping is
+ * the only place that intent lives: a hand-written mapping that swaps two
+ * same-kind leaves of one array element passes every construction check,
+ * reverses faithfully, and parses — a confident, grounded envelope on the wrong
+ * leaf, with no signal anything is off. No property over (generated, reversed,
+ * mapping) catches it either, because faithful reversal satisfies such
+ * properties for any bijective mapping, right or wrong. The pairing is
+ * checkable only against the intent, which is what the value property in
+ * `shape-properties.test.ts` does for a derived artifact — one exhaustive
+ * assertion per mapping entry — and what a human must supply for a hand-written
+ * one.
  */
 
 import { z } from "zod";
