@@ -177,6 +177,13 @@ export {
   yearsToDhwAgeBand,
 } from "./normalization.js";
 
+// Prunes a persisted review outcome's fields down to the keys `snuggValuesSchema`
+// still declares. A host's job: run it over a persisted session's
+// `reviewOutcome.fields` once, before a write is attempted — after a field-set
+// change, an un-pruned outcome fails the write step's strict parse and strands the
+// session as dead. Kept here because which leaves a group keeps is adapter knowledge.
+export { prunePersistedValues } from "./write/prune-persisted.js";
+
 // The single-shot managed-LLM extractor (`singleShotExtractor`), its OpenAI-compatible
 // transport (`openAiChat`) and the `ChatClient` seam are tool-agnostic — they now live in
 // `@azx/ribo-extractor-openai`. A consumer composes them with `snuggProAdapter` as the target.
