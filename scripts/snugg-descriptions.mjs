@@ -316,8 +316,16 @@ ${body}
 }
 
 /**
- * Structural diff of plain JSON data, reported as dot paths. Records compare
- * order-insensitively; arrays elementwise. One human-readable string per difference.
+ * Structural diff of plain JSON data, reported as dot paths. One human-readable
+ * string per difference.
+ *
+ * Records compare order-insensitively, key by key. An array compares as a whole
+ * and **order-sensitively** — a reordering is reported as drift, and the whole
+ * array is rendered rather than the element that moved. That is deliberate:
+ * these arrays are vendor parameter and required-field lists, so a reordering
+ * is a change in the spec we want to see rather than noise to absorb. It does
+ * mean a pure reorder reads as a bigger diff than it is; the alternative
+ * (sorting both sides) would hide it entirely.
  */
 function dataDiffs(committed, live, at) {
   if (Array.isArray(committed) || Array.isArray(live)) {
