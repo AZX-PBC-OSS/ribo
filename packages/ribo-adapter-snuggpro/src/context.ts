@@ -47,9 +47,12 @@ export const snuggCtxSchema = z.object({
   /**
    * The Snugg Pro assessment (a.k.a. job) the accepted fields are written into —
    * the record the write PATCHes. Doc 05's placeholder called this `jobId`.
-   * Non-empty: an empty id would target the collection, not a record.
+   * Non-empty, and digits-only: the spec types the job's `id` an integer and the
+   * value is interpolated into /jobs/{jobId}, so a malformed id fails here at the
+   * trust boundary rather than building a nonsense URL that 404s at write time.
+   * Still a string — the persisted shape is not this check's to change.
    */
-  assessmentId: z.string().min(1),
+  assessmentId: z.string().min(1).regex(/^\d+$/),
 
   /**
    * The Snugg Pro company the API key was provisioned under (Settings > Your

@@ -56,21 +56,19 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
    * leaves apply to every emitted instance of a collection, and to the singleton
    * groups directly.
    *
-   * `POST /jobs/{jobId}/hvac` is the **only** component endpoint with required
-   * capture fields — every other component endpoint (attic, wall, window, DHW,
-   * health, concern) has none, which is why a partial dictation of a component
-   * writes cleanly (doc 17 §"The required-field surface", doc 20 §5.7). It
-   * requires exactly two, and both are now extracted.
+   * `POST /jobs/{jobId}/hvac` requires exactly two capture fields, and both are
+   * extracted; every other component endpoint (attic, wall, window, DHW, health,
+   * concern) has none, which is why a partial dictation of a component writes
+   * cleanly (doc 17 §"The required-field surface", doc 20 §5.7).
    *
-   * `POST /jobs` is the exception among the singletons: creating the job itself
-   * genuinely requires the customer's name and address, the state, zip, and the
-   * assignee, stage, job-type and program references (doc 20 §4.6 — "a job
-   * cannot be created from dictation alone", because the reference fields need
-   * their name→id resolution first). Every one of those required fields that is
-   * in the capture surface is declared here; the two required fields NOT here
-   * are the ones doc 20 excludes from capture entirely (`fromTemplateId` is not
-   * required, and `companyId` — the tenancy fk fixed per credential — is).
-   * `PUT /jobs/{jobId}` requires nothing, so the update twin adds no leaves.
+   * `POST /jobs/{jobId}/incentives` refuses a create without `fromTemplateUuid`
+   * (`required: true` in the spec) — declared even though the incentive group is
+   * excluded from writing in this release, because the declaration is about what
+   * the API refuses, not about what ships.
+   *
+   * The `job` singleton declares nothing: Snugg Pro launches the app with an
+   * existing `jobId`, job creation is out of scope, and `PUT /jobs/{jobId}` — the
+   * only way to update an existing job — requires nothing.
    *
    * Declared per group rather than as full paths because `hvac` is a collection:
    * a house with N systems has N × 2 required fields, and the instance keys
@@ -90,18 +88,7 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
    */
   requiredOnCreate: {
     hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
-    job: [
-      "firstName",
-      "lastName",
-      "address1",
-      "city",
-      "state",
-      "zip",
-      "accountId",
-      "stageId",
-      "jobType",
-      "programId",
-    ],
+    incentive: ["fromTemplateUuid"],
   },
 
   /**

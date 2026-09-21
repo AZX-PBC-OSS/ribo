@@ -3937,63 +3937,22 @@ export const StageFields = z
 // roster/instance-identity wiring.
 
 /**
- * `POST /jobs` (createJob) plus its `PUT /jobs/{jobId}` update twin — the job
- * itself: identity, contacts, scheduling and program wiring. The update twin is
- * a strict subset of the create (`serviceTime`, `accountId`, `note`,
- * `householdIncomeTier`), so one flat group covers both operations; name,
- * address and the property-owner block are create-only (doc 20 §5.1).
+ * `PUT /jobs/{jobId}` — the only way to update an existing job, and the only
+ * job-write in scope: Snugg Pro launches the app with an existing `jobId`, so job
+ * creation is out of scope. The update endpoint accepts exactly `serviceTime`,
+ * `accountId`, `note` and `householdIncomeTier` (plus `companyId`, the tenancy fk
+ * fixed per credential, excluded from capture like every other system field), so
+ * the group carries only those four. The `POST /jobs` create surface — name,
+ * address block, zip, job type, program, the property-owner block and the rest —
+ * is write-once at creation with no update path, so it is not captured.
  *
- * Every field of the two operations in extraction scope minus the two excluded
- * ones: `fromTemplateId` (a job template is picked in setup, never dictated)
- * and `companyId` (system/tenancy fk, fixed per credential).
- *
- * This is the one job-collection resource with REQUIRED fields: `POST /jobs`
- * refuses a create without the customer's name and address, the state, zip,
- * assignee, stage, job type and program (doc 20 §4.6). Requiredness lives in
- * `adapter.ts`'s `requiredOnCreate` — the repo's per-group mechanism surfaced
- * at review — not in the patch shape, whose leaves stay
+ * Requiredness: `PUT /jobs/{jobId}` requires nothing, so the group declares
+ * nothing in `adapter.ts`'s `requiredOnCreate`; the patch leaves stay
  * `.nullable().optional()` by construction like every other group's.
- *
- * The nine `propertyOwner*` leaves are a singleton sub-group, not a collection:
- * a second contact on the same job, distinguished from the occupant only by the
- * field-name prefix. The disambiguation hazard is doc 20's: the same utterance
- * ("her number is …") can target either the occupant or the owner, and
- * `renterOwner` is the hint — see rule 17 of the instructions.
  */
 export const JobFields = z
   .object(
     withVendorDescriptions({
-      /** The customer's first name — the occupant/contact, not the property owner. */
-      firstName: z
-        .string()
-        .describe(
-          "The customer's first name — the occupant or job contact. The property owner's name, when a different person, goes in propertyOwnerFirstName.",
-        )
-        .nullable()
-        .optional(),
-
-      /** The customer's last name. */
-      lastName: z
-        .string()
-        .describe(
-          "The customer's last name — the occupant or job contact. The property owner's name, when a different person, goes in propertyOwnerLastName.",
-        )
-        .nullable()
-        .optional(),
-
-      /**
-       * Own vs. rent. The spec types this `string` but publishes INTEGER enum
-       * members — the same divergence `energyStarColdClimateHeatPump` has, and
-       * the same treatment: `z.number()`, vocabulary in the description.
-       */
-      renterOwner: z
-        .number()
-        .describe(
-          'Whether the customer owns or rents this property; the wire value is integer 0 (Renter) or 1 (Owner). Set it only from an explicit statement — "she owns it" → 1, "it\'s a rental" / "there\'s a tenant" → 0 — never inferred from who answered the door.',
-        )
-        .nullable()
-        .optional(),
-
       /** Appointment time; the wire format is `YYYY-MM-DD HH:MM:SS`. */
       serviceTime: z
         .string()
@@ -4003,67 +3962,11 @@ export const JobFields = z
         .nullable()
         .optional(),
 
-      /** Email of the homeowner (or tenant). */
-      email: z
-        .string()
-        .describe(
-          "Email of the homeowner or tenant — the job's regular contact. The property owner's own email, when different, goes in propertyOwnerEmail.",
-        )
-        .nullable()
-        .optional(),
-
-      /** Phone of the home, wire format `(555) 555-5555`. */
-      homePhone: z
-        .string()
-        .describe(
-          "Phone of the home, wire format (555) 555-5555. The property owner's own phone, when different, goes in propertyOwnerPhone.",
-        )
-        .nullable()
-        .optional(),
-
-      /** First line of the home address. */
-      address1: z
-        .string()
-        .describe(
-          "First line of the HOME address — the property being audited, street number and name.",
-        )
-        .nullable()
-        .optional(),
-
-      /** Second line of the home address. */
-      address2: z
-        .string()
-        .describe("Second line of the home address (unit, apartment, suite).")
-        .nullable()
-        .optional(),
-
-      /** City of the home. */
-      city: z
-        .string()
-        .describe("City of the home — the property being audited.")
-        .nullable()
-        .optional(),
-
-      /** State of the home — spoken as a full state name, stored as the code. */
-      state: UsState.describe(
-        'State of the home, as the two-letter code — map the spoken full state name onto it ("the home is in Massachusetts" → "MA").',
-      )
-        .nullable()
-        .optional(),
-
-      /** Zip code of the home. */
-      zip: z
-        .string()
-        .describe("Zip code of the home — the property being audited.")
-        .nullable()
-        .optional(),
-
       /**
-       * REQUIRED by the API at create, and captured as PLAIN FREE TEXT despite
-       * the integer wire type: the spoken assignee name, per
-       * `runtime-reference-resolution-design.md`. The name→account-id lookup is
-       * a review/write-time step that must be able to fail visibly — the model
-       * never invents the integer.
+       * Captured as PLAIN FREE TEXT despite the integer wire type: the spoken
+       * assignee name, per `runtime-reference-resolution-design.md`. The
+       * name→account-id lookup is a review/write-time step that must be able to
+       * fail visibly — the model never invents the integer.
        */
       accountId: z
         .string()
@@ -4073,164 +3976,11 @@ export const JobFields = z
         .nullable()
         .optional(),
 
-      /**
-       * The job's stage as an integer code. `POST /jobs` publishes a real
-       * INTEGER enum here — but `enveloped()` has no numeric-enum leaf (the
-       * constraint `hasEv` and `stage.stageId` record), so this is
-       * `z.number()` and the label→code vocabulary travels in the description.
-       */
-      stageId: z
-        .number()
-        .describe(
-          "The job's workflow stage; the wire value is an integer code — 1 (Lead), 2 (Audit), 3 (Bid Proposed), 4 (Bid Approved), 5 (Retrofit In Progress), 6 (Retrofit Complete), 7 (QA), 8 (Uncategorized), 9 (Archived Won), 10 (Archived Lost).",
-        )
-        .nullable()
-        .optional(),
-
-      /** Job type as an integer code — the same numeric-enum treatment. */
-      jobType: z
-        .number()
-        .describe(
-          'The job type; the wire value is an integer code — 1 (Audit) or 2 (Score). Set it only from an explicit statement ("this is a score job" → 2), never assumed because an audit is the common case.',
-        )
-        .nullable()
-        .optional(),
-
-      /**
-       * REQUIRED by the API at create, and captured as PLAIN FREE TEXT despite
-       * the integer wire type: the spoken program name, same treatment as
-       * `accountId`. The spec documents `1` as the "no program" sentinel — that
-       * mapping is a write-time concern, never an extracted value.
-       */
-      programId: z
-        .string()
-        .describe(
-          'The program this job is in, as the spoken program name in free text ("this one\'s NYSERDA") — despite the integer wire type, never an invented id. An explicit "no program" statement is captured as spoken; matching the name against the real program list is a later, human-supervised step.',
-        )
-        .nullable()
-        .optional(),
-
-      /** Your own alternate job ID; `maxLength: 44` in the spec. */
-      altId: z
-        .string()
-        .describe(
-          'The company\'s own alternate job or work-order number, read aloud ("work order four-oh-two"). Does not affect the Snugg Pro job ID.',
-        )
-        .nullable()
-        .optional(),
-
-      /** Arbitrary external building ID; `maxLength: 44` in the spec. */
-      buildingId: z
-        .string()
-        .describe(
-          "An externally-assigned building ID when one was read aloud — emitted as the HPXML external building ID (used for DOE Home Energy Score).",
-        )
-        .nullable()
-        .optional(),
-
-      /** Property owner's first name — a different person from the occupant. */
-      propertyOwnerFirstName: z
-        .string()
-        .describe(
-          "The PROPERTY OWNER's first name — filled only when the owner is a distinct person from the occupant/job contact and was named as the owner.",
-        )
-        .nullable()
-        .optional(),
-
-      /** Property owner's last name. */
-      propertyOwnerLastName: z
-        .string()
-        .describe(
-          "The PROPERTY OWNER's last name — filled only when the owner is a distinct person from the occupant/job contact and was named as the owner.",
-        )
-        .nullable()
-        .optional(),
-
-      /** First line of the property owner's address. */
-      propertyOwnerAddress1: z
-        .string()
-        .describe(
-          "First line of the property OWNER's address — for a non-owner-occupied home, or when the owner wants a different contact address.",
-        )
-        .nullable()
-        .optional(),
-
-      /** Second line of the property owner's address. */
-      propertyOwnerAddress2: z
-        .string()
-        .describe("Second line of the property owner's address.")
-        .nullable()
-        .optional(),
-
-      /** Property owner's email — when the job email holds the tenant's. */
-      propertyOwnerEmail: z
-        .string()
-        .describe(
-          "The property OWNER's email — used when the job's regular email holds the tenant's.",
-        )
-        .nullable()
-        .optional(),
-
-      /** Property owner's phone, wire format `(555) 555-5555`. */
-      propertyOwnerPhone: z
-        .string()
-        .describe(
-          "The property OWNER's phone, wire format (555) 555-5555 — used when the job's regular phone holds the tenant's.",
-        )
-        .nullable()
-        .optional(),
-
-      /** City of the property owner (tenant-occupied homes). */
-      propertyOwnerCity: z
-        .string()
-        .describe("City of the property owner — for tenant-occupied homes.")
-        .nullable()
-        .optional(),
-
-      /** State of the property owner — the same STATES vocabulary. */
-      propertyOwnerState: UsState.describe(
-        "State of the property owner, as the two-letter code — map the spoken full state name onto it.",
-      )
-        .nullable()
-        .optional(),
-
-      /** Zip of the property owner. */
-      propertyOwnerZip: z
-        .string()
-        .describe("Zip code of the property owner — for tenant-occupied homes.")
-        .nullable()
-        .optional(),
-
-      /**
-       * Declared `enum: []` in the spec — a named enum with NO published
-       * members, "only enabled for select programs". Per the project
-       * convention that is free-text-into-review, not an invented value list.
-       */
-      auditType: z
-        .string()
-        .describe(
-          "The audit type — Snugg publishes no value list for this field (it is only enabled for select programs), so capture what was said as free text for review rather than choosing from a list that does not exist.",
-        )
-        .nullable()
-        .optional(),
-
       /** Note to the assignee — the most obviously dictated field here. */
       note: z
         .string()
         .describe(
           "The note to the assignee or assigned user, dictated verbatim — the natural dictation target of this endpoint.",
-        )
-        .nullable()
-        .optional(),
-
-      /**
-       * Enhanced BPI 2400 calibration. `type: string` with INTEGER enum members
-       * — the `renterOwner` divergence, and the same `z.number()` treatment.
-       */
-      useStrictBpi2400Calibration: z
-        .number()
-        .describe(
-          'Whether to use enhanced calibration for BPI 2400; the wire value is integer 1 (Yes) or 0 (No). A jargon toggle ("use strict 2400 cal") — set it only from an explicit statement; it is usually a program setting, not a dictated one.',
         )
         .nullable()
         .optional(),
