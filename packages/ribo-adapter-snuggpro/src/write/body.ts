@@ -39,15 +39,25 @@ const UNRESOLVED_REFERENCE_LEAVES: ReadonlySet<string> = new Set([
  */
 const DUCT_INSULATION_LEAF = "hvacDuctInsulation";
 
-const refuseUnresolvedReferences = (group: string, values: Record<string, unknown>): void => {
-  for (const name of UNRESOLVED_REFERENCE_LEAVES) {
-    if (!Object.hasOwn(values, name) || values[name] === undefined) continue;
-    throw new Error(
-      `write/body: \`${group}.${name}\` is captured as spoken free text, never an id — ` +
-        `resolve it against the real id list with a human at review before writing. ` +
-        `Refusing to send an unresolved reference.`,
-    );
-  }
+/**
+ * Refuse a reference leaf that would actually be SENT, rather than one merely
+ * present in the patch.
+ *
+ * The distinction is load-bearing for a create-only reference on a non-create
+ * operation. `incentive.fromTemplateUuid` is create-only, so it is absent from
+ * `incentive.update.params` and the body loop can never emit it — refusing on
+ * its mere presence in `values` would strand an incentive UPDATE over a field
+ * that was never going anywhere. Called from inside the loop, after the
+ * accepted-parameter and create-only filters have already decided the leaf is
+ * bound for the wire.
+ */
+const refuseUnresolvedReference = (group: string, name: string): void => {
+  if (!UNRESOLVED_REFERENCE_LEAVES.has(name)) return;
+  throw new Error(
+    `write/body: \`${group}.${name}\` is captured as spoken free text, never an id — ` +
+      `resolve it against the real id list with a human at review before writing. ` +
+      `Refusing to send an unresolved reference.`,
+  );
 };
 
 /**
@@ -90,8 +100,6 @@ export const buildWriteBody = (
   if (!operation) {
     throw new Error(`write/body: the "${group}" group has no "${operationName}" operation.`);
   }
-  refuseUnresolvedReferences(group, values);
-
   const body: Record<string, unknown> = {};
   for (const [name, specType] of Object.entries(operation.params)) {
     if (!Object.hasOwn(values, name)) continue;
@@ -99,6 +107,9 @@ export const buildWriteBody = (
     // An undefined value is absence, not a null — it never reaches the wire.
     if (value === undefined) continue;
     if (operationName !== "create" && endpoints.createOnly.includes(name)) continue;
+    // Last, so it fires only for a leaf the filters above have already decided
+    // is bound for the wire. See the refusal's own note.
+    refuseUnresolvedReference(group, name);
     body[name] = transformLeaf(name, value, specType);
   }
   return body;

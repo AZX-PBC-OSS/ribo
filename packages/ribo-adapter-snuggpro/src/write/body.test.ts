@@ -100,4 +100,21 @@ describe("buildWriteBody", () => {
     // `job` has no create — the vendor launches the app with an existing job.
     expect(() => buildWriteBody("job", "create", { note: "x" })).toThrow(/create/);
   });
+
+  test("a create-only reference leaf does not refuse an UPDATE it could never be sent on", () => {
+    // `incentive.fromTemplateUuid` is create-only, so it is absent from
+    // `incentive.update.params` and the body loop can never emit it. Refusing on
+    // its mere presence in the patch would strand an incentive UPDATE over a field
+    // that was never going anywhere — so the refusal fires only for a leaf the
+    // accepted-parameter and create-only filters have already passed.
+    //
+    // The create path still refuses it, asserted below, so this is not a hole.
+    expect(
+      buildWriteBody("incentive", "update", { fromTemplateUuid: "the Duke rebate", amount: 1500 }),
+    ).toEqual({ amount: 1500 });
+
+    expect(() =>
+      buildWriteBody("incentive", "create", { fromTemplateUuid: "the Duke rebate", amount: 1500 }),
+    ).toThrow(/incentive\.fromTemplateUuid/);
+  });
 });
