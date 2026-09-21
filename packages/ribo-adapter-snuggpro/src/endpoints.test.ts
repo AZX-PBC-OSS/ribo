@@ -64,6 +64,31 @@ describe("SNUGG_ENDPOINTS", () => {
     }
   });
 
+  test("every collection carries a list path, and it is the PLURAL one — not the create path", () => {
+    // A live write against staging returned 404 on the read because the adapter used
+    // `create.path`. The vendor reads plural and creates singular, so the two are
+    // different paths for every collection, and `incentive` is the reason the fix is
+    // not `create.path + "s"` — its create is already plural, which that rule would
+    // turn into `incentivess`.
+    for (const group of [...uniformCollections, "incentive"]) {
+      const { create, list } = entryFor(group);
+      expect(list?.verb, group).toBe("GET");
+      expect(list?.path, group).toBe(`/jobs/{jobId}/${group}s`);
+      if (group !== "incentive") {
+        expect(list?.path, `${group} list must differ from create`).not.toBe(create?.path);
+      }
+    }
+    // `incentive` is the one group whose list and create paths coincide.
+    const incentive = entryFor("incentive");
+    expect(incentive.list?.path).toBe(incentive.create?.path);
+  });
+
+  test("a non-collection group has no list path", () => {
+    for (const group of [...singletons, "job"]) {
+      expect(entryFor(group).list, group).toBeUndefined();
+    }
+  });
+
   test("incentive is the override: plural create path, PUT update", () => {
     const { create, update, upsert } = entryFor("incentive");
     expect(create?.verb).toBe("POST");

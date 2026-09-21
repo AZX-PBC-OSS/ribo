@@ -16,11 +16,18 @@
 // Task 11 changeset states this package provides `rankCandidates`, and a
 // consumer ranking existing records for a dictated instance needs both through
 // the barrel, not by reaching into the module.
+//
+// `readExistingRecords` is public for the same reason, and its absence was a real
+// gap: `rankCandidates` ranks records a host has to READ first, so exporting the
+// ranker without the reader left the review-time candidate flow unreachable from
+// outside this package. Only a live run through the public entry point found it —
+// every unit test imports by relative path, so none of them could.
 export {
   createSnuggProAdapter,
   HVAC_IDENTIFYING_FIELDS,
   SNUGGPRO_ADAPTER_NAME,
   rankCandidates,
+  readExistingRecords,
   snuggProAdapter,
 } from "./adapter.js";
 export type { ReadExistingRecordsOptions, SnuggProAdapterOptions } from "./adapter.js";

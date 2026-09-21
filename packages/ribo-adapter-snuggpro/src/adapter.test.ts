@@ -384,11 +384,19 @@ describe("readExistingRecords", () => {
     ]);
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe("https://gateway.example/snugg/jobs/123/hvac");
+    // PLURAL. The vendor reads `/hvacs` and creates `/hvac`, and reading the create
+    // path returns 404 — which a live staging run is what actually proved, because
+    // this assertion originally carried the singular path and passed.
+    expect(calls[0]!.url).toBe("https://gateway.example/snugg/jobs/123/hvacs");
     expect(calls[0]!.init.method).toBe("GET");
   });
 
   test("the plural path comes from the endpoint table — the incentive group reads /incentives", async () => {
+    // Worth knowing what this test CANNOT catch: `incentive` is the one collection
+    // whose create path is already plural, so it reads the same URL whether the code
+    // takes `list.path` or `create.path`. It passed throughout the period the reader
+    // was using the wrong one. A group where the two differ — `hvac`, above — is the
+    // only shape that can fail, which is why that one carries the real guard.
     const { fetchImpl, calls } = fetchRecording(
       () => new Response(JSON.stringify([]), { status: 200 }),
     );

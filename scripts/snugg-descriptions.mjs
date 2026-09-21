@@ -158,7 +158,9 @@ function slugMatches(group, slug) {
 function writeOperations(spec) {
   const ops = [];
   for (const [route, pathItem] of Object.entries(spec.paths)) {
-    for (const verb of ["post", "put"]) {
+    // GET is collected for the collection LIST path only (see `deriveGroup`); the
+    // create/update filters below key on POST/PUT, so a GET never matches them.
+    for (const verb of ["post", "put", "get"]) {
       const op = pathItem[verb];
       if (op && typeof op === "object") ops.push({ verb: verb.toUpperCase(), path: route, op });
     }
@@ -215,10 +217,25 @@ function deriveGroup(group, ops) {
     const create = toOperation(creates[0]);
     const update = toOperation(updates[0]);
     const createParams = creates[0].op.parameters ?? [];
+    // The LIST path a host reads existing records from, and it is NOT the create
+    // path: the vendor's read is plural (`/jobs/{jobId}/hvacs`) while the create is
+    // singular (`/jobs/{jobId}/hvac`). Nor is it `create.path + "s"` — `incentive`
+    // creates at an already-plural `/jobs/{jobId}/incentives`, which that rule would
+    // turn into `incentivess`. The group name plus `s` is the rule that holds for all
+    // fourteen, and it is looked up in the spec rather than trusted: a vendor that
+    // renames or drops a list path fails the refresh instead of emitting a 404.
+    const listPath = `/jobs/{jobId}/${group}s`;
+    const list = ops.find((o) => o.verb === "GET" && o.path === listPath);
+    if (!list) {
+      throw new Error(
+        `group ${group}: expected a collection list endpoint at GET ${listPath} and found none`,
+      );
+    }
     return {
       kind: "collection",
       create,
       update,
+      list: toOperation(list),
       requiredOnCreate: createParams
         .filter((p) => p.in !== "path" && p.required === true)
         .map((p) => p.name),
@@ -248,7 +265,7 @@ function propertyName(name) {
 
 function renderGroup(name, entry) {
   const lines = [`  ${name}: {`, `    kind: ${JSON.stringify(entry.kind)},`];
-  for (const key of ["create", "update", "upsert"]) {
+  for (const key of ["create", "update", "upsert", "list"]) {
     const op = entry[key];
     if (!op) continue;
     lines.push(`    ${key}: {`);
@@ -291,7 +308,7 @@ function renderEndpoints(table) {
 export type SnuggEndpointKind = "collection" | "singleton" | "job";
 
 export interface SnuggEndpointOperation {
-  readonly verb: "POST" | "PUT";
+  readonly verb: "POST" | "PUT" | "GET";
   readonly path: string;
   readonly params: Readonly<Record<string, string>>;
 }
@@ -304,6 +321,15 @@ export interface SnuggGroupEndpoints {
   readonly update?: SnuggEndpointOperation;
   /** Singletons only: one POST serves both create and update. */
   readonly upsert?: SnuggEndpointOperation;
+  /**
+   * Collections only: the GET a host reads existing records from, so review can show
+   * an auditor the record already on the job instead of creating a second one.
+   *
+   * **It is not the create path.** The vendor reads plural (\`/jobs/{jobId}/hvacs\`) and
+   * creates singular (\`/jobs/{jobId}/hvac\`), and it is not \`create.path + "s"\` either —
+   * \`incentive\` already creates at a plural path. Reading the create path returns 404.
+   */
+  readonly list?: SnuggEndpointOperation;
   readonly requiredOnCreate: readonly string[];
   readonly createOnly: readonly string[];
 }

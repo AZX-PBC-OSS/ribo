@@ -353,14 +353,17 @@ export async function readExistingRecords(
   if (!endpoints) {
     throw new Error(`readExistingRecords: no Snugg Pro endpoint table entry for group "${group}".`);
   }
-  if (endpoints.kind !== "collection" || endpoints.create === undefined) {
+  if (endpoints.kind !== "collection" || endpoints.list === undefined) {
     throw new Error(
-      `readExistingRecords: the "${group}" group has no plural collection path — only ` +
+      `readExistingRecords: the "${group}" group has no collection list path — only ` +
         `collection groups have existing records to read.`,
     );
   }
+  // `list`, never `create`. The vendor reads plural (`/jobs/{jobId}/hvacs`) and creates
+  // singular (`/jobs/{jobId}/hvac`), so reading the create path is a 404 — which is
+  // exactly what a live run against staging returned before the table carried `list`.
   const url = new URL(
-    `${ctx.apiBaseUrl.replace(/\/+$/, "")}${endpoints.create.path.replaceAll("{jobId}", ctx.assessmentId)}`,
+    `${ctx.apiBaseUrl.replace(/\/+$/, "")}${endpoints.list.path.replaceAll("{jobId}", ctx.assessmentId)}`,
   ).href;
   const response = await doFetch(url, { method: "GET", headers: { accept: "application/json" } });
   if (!response.ok) {

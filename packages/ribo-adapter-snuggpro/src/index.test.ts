@@ -67,6 +67,13 @@ test("re-exports the adapter, both schemas, the ctx schema, instructions, exampl
   // And the identifying fields with it, as data — the declaration a host without the
   // adapter object still needs to name the same fields the ranking vetoes on.
   expect(api.HVAC_IDENTIFYING_FIELDS).toContain("hvacSystemEquipmentType");
+  // The READER that feeds `rankCandidates`. Its absence from the barrel was a real
+  // gap — the ranker was public, the reader was not, so the review-time candidate
+  // flow could not be composed from outside this package at all. The exported
+  // `ReadExistingRecordsOptions` type was the tell: options for a function nobody
+  // could call. A live run through this entry point found it; no unit test could,
+  // because they all import by relative path.
+  expect(typeof api.readExistingRecords).toBe("function");
   // The wired adapter factory: the way a host gets an adapter whose write really
   // writes, over the host's own credential-attaching transport. This pin is the
   // reason it cannot silently drop from the barrel — this test is presence-based,

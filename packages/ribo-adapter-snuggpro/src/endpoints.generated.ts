@@ -20,7 +20,7 @@
 export type SnuggEndpointKind = "collection" | "singleton" | "job";
 
 export interface SnuggEndpointOperation {
-  readonly verb: "POST" | "PUT";
+  readonly verb: "POST" | "PUT" | "GET";
   readonly path: string;
   readonly params: Readonly<Record<string, string>>;
 }
@@ -33,6 +33,15 @@ export interface SnuggGroupEndpoints {
   readonly update?: SnuggEndpointOperation;
   /** Singletons only: one POST serves both create and update. */
   readonly upsert?: SnuggEndpointOperation;
+  /**
+   * Collections only: the GET a host reads existing records from, so review can show
+   * an auditor the record already on the job instead of creating a second one.
+   *
+   * **It is not the create path.** The vendor reads plural (`/jobs/{jobId}/hvacs`) and
+   * creates singular (`/jobs/{jobId}/hvac`), and it is not `create.path + "s"` either —
+   * `incentive` already creates at a plural path. Reading the create path returns 404.
+   */
+  readonly list?: SnuggEndpointOperation;
   readonly requiredOnCreate: readonly string[];
   readonly createOnly: readonly string[];
 }
@@ -503,6 +512,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         customFields: "array",
       },
     },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/hvacs",
+      params: {},
+    },
     requiredOnCreate: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
     createOnly: ["hvacSystemEquipmentType"],
   },
@@ -590,6 +604,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         customFields: "array",
       },
     },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/attics",
+      params: {},
+    },
     requiredOnCreate: [],
     createOnly: [],
   },
@@ -653,6 +672,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         customFields: "array",
       },
     },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/vaults",
+      params: {},
+    },
     requiredOnCreate: [],
     createOnly: [],
   },
@@ -703,6 +727,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         wallContinuousInsulationTypeImproved: "string",
         customFields: "array",
       },
+    },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/walls",
+      params: {},
     },
     requiredOnCreate: [],
     createOnly: [],
@@ -789,6 +818,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         customFields: "array",
       },
     },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/windows",
+      params: {},
+    },
     requiredOnCreate: [],
     createOnly: [],
   },
@@ -821,6 +855,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         doorEnergyStarImproved: "string",
         customFields: "array",
       },
+    },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/doors",
+      params: {},
     },
     requiredOnCreate: [],
     createOnly: [],
@@ -935,6 +974,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         customFields: "array",
       },
     },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/dhws",
+      params: {},
+    },
     requiredOnCreate: [],
     createOnly: [],
   },
@@ -986,6 +1030,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         customFields: "array",
       },
     },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/concerns",
+      params: {},
+    },
     requiredOnCreate: [],
     createOnly: [],
   },
@@ -1007,6 +1056,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         amount: "number",
         recommendations: "array",
       },
+    },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/incentives",
+      params: {},
     },
     requiredOnCreate: ["fromTemplateUuid"],
     createOnly: ["fromTemplateUuid"],
@@ -1051,6 +1105,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         customFields: "array",
       },
     },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/clothesDryers",
+      params: {},
+    },
     requiredOnCreate: [],
     createOnly: [],
   },
@@ -1092,6 +1151,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         customFields: "array",
       },
     },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/freezers",
+      params: {},
+    },
     requiredOnCreate: [],
     createOnly: [],
   },
@@ -1130,6 +1194,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         rangeSerialNumberImproved: "string",
         customFields: "array",
       },
+    },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/ranges",
+      params: {},
     },
     requiredOnCreate: [],
     createOnly: [],
@@ -1178,6 +1247,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         customFields: "array",
       },
     },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/refrigerators",
+      params: {},
+    },
     requiredOnCreate: [],
     createOnly: [],
   },
@@ -1218,6 +1292,11 @@ export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Ob
         pvModuleYear: "string",
         customFields: "array",
       },
+    },
+    list: {
+      verb: "GET",
+      path: "/jobs/{jobId}/pvs",
+      params: {},
     },
     requiredOnCreate: [],
     createOnly: [],
