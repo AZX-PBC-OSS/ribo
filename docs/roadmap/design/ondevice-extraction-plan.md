@@ -163,7 +163,7 @@ Without this, `usage.engine` is computed and discarded (`extractor.ts:72-76`), w
 
 **Interfaces:**
 
-- Produces: a holder that lazily creates one base session with the system prompt and few-shot turns, hands out a **clone** per call, and destroys the base after idle. Timer injectable — reuse `ScheduleTimer`, which is **defined in `ribo-core/src/connectivity.ts`** and reused by `hedged.ts`; do not invent a new one.
+- Produces: a holder that lazily creates one base session with the system prompt and few-shot turns, hands out a **clone** per call, and destroys the base after idle. Timer injectable — reuse `ScheduleTimer`, which is **defined in `ribo-core/src/async/schedule-timer.ts`** and reused by `hedged.ts`; do not invent a new one.
 
 - [ ] **Step 1: Write the failing tests.** (a) Two sequential calls create the base **once** and clone **twice** — the rule preventing group 7 from seeing group 1's context. (b) A clone is destroyed after its call; the base is retained. (c) A clone is destroyed on the **error and abort paths** too, not only on success — otherwise every loop-kill leaks a session. (d) After the idle period the base is destroyed and the next call creates a fresh one. (e) When availability is not `available`, the lazy create is **not attempted** and the caller gets a capability failure — the lazy path has no user gesture, so attempting it throws `NotAllowedError` from inside a queue drain. (f) Concurrent calls share one base session rather than each creating their own.
 - [ ] **Step 2: Run and watch them fail.**

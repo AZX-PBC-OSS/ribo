@@ -9,7 +9,7 @@ import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js
  * A thin combinator over the core `Extractor` seam, following `fallbackExtractor` /
  * `raceExtractor`'s positional shape: an `F`-only generic takes its extractor first and an
  * options object second. The timer seam is the same injectable `ScheduleTimer`
- * `connectivity.ts` exports and `hedged.ts` uses, so tests drive time without sleeping.
+ * `async/schedule-timer.ts` exports and `hedged.ts` uses, so tests drive time without sleeping.
  *
  * **It narrows the options bag's `ExtractOptions.deadline`.** This is the first combinator
  * that holds a budget of its own, so it is the first that must narrow: its effective

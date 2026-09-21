@@ -42,7 +42,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Injectable timer, reusing {@link ScheduleTimer} from `connectivity.ts`.
+ * Injectable timer, reusing {@link ScheduleTimer} from `async/schedule-timer.ts`.
  *
  * The default is `setTimeout`/`clearTimeout`; tests inject a double that
  * stores the callback and fires it on demand. This is the only clock the
