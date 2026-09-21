@@ -187,8 +187,7 @@ const arrayDepthsFromLeaf = (path: string, arrayPaths: ReadonlySet<string>): num
   const leafSegments = path.split(".").length;
   return [...arrayPaths]
     .filter(
-      (arrayPath) =>
-        arrayPath.split(".").length < leafSegments && path.startsWith(`${arrayPath}.`),
+      (arrayPath) => arrayPath.split(".").length < leafSegments && path.startsWith(`${arrayPath}.`),
     )
     .map((arrayPath) => leafSegments - arrayPath.split(".").length - 1)
     .sort((a, b) => a - b);

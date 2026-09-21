@@ -376,9 +376,7 @@ test("a regroup that re-hangs a subtree containing an array is supported — the
   });
 
   // The mapping pairs the moved leaf with its caller path, on the right array.
-  expect(shape.mapping.leaves["house.meta.rooms.color"]?.source).toBe(
-    "house.details.rooms.color",
-  );
+  expect(shape.mapping.leaves["house.meta.rooms.color"]?.source).toBe("house.details.rooms.color");
 
   // And the move survives a real roundtrip — the model's data, reversed,
   // parses against the enveloped patch (the codomain's own boundary schema),
@@ -394,7 +392,9 @@ test("a regroup that re-hangs a subtree containing an array is supported — the
     parsed.success,
     `roundtrip: ${JSON.stringify(parsed.success ? null : parsed.error.issues)}`,
   ).toBe(true);
-  expect((parsed.data as { house: { details: { rooms: unknown[] } } }).house.details.rooms).toHaveLength(2);
+  expect(
+    (parsed.data as { house: { details: { rooms: unknown[] } } }).house.details.rooms,
+  ).toHaveLength(2);
 });
 
 test("the exhaustive property has teeth: one corrupted leaf fails it, naming the entry", () => {
@@ -412,7 +412,7 @@ test("the exhaustive property has teeth: one corrupted leaf fails it, naming the
   );
 });
 
-test("\"row\" provenance on a top-level leaf is independently pinned in assertShapeMapping's walk", () => {
+test('"row" provenance on a top-level leaf is independently pinned in assertShapeMapping\'s walk', () => {
   // The shape of the refusal is the same one `enveloped()`'s `validateProvenance`
   // emits on the patch schema, mirrored here on the EXTRACTION schema — so
   // loosening either without the other noticing would weaken the schema's
