@@ -209,7 +209,11 @@ describe("proposer — the leaf inventory", () => {
         .describe("Year the home or building was constructed.")
         .nullable()
         .optional(),
-      squareMeters: z.number().describe("Indoor floor area in square meters.").nullable().optional(),
+      squareMeters: z
+        .number()
+        .describe("Indoor floor area in square meters.")
+        .nullable()
+        .optional(),
       heatingType: z.enum(["gas", "oil", "electric"]).nullable().optional(),
       hasGarage: z.boolean().nullable().optional(),
     });
@@ -223,10 +227,8 @@ describe("proposer — the leaf inventory", () => {
     // Every leaf appears by its full name with its kind and description. Pin
     // them end to end — the prompt a real model reads to choose what to drop
     // and retype must be inspectable.
-    expect(text).toContain("- yearBuilt (string) — \"Year the home or building was constructed.\"");
-    expect(text).toContain(
-      "- squareMeters (number) — \"Indoor floor area in square meters.\"",
-    );
+    expect(text).toContain('- yearBuilt (string) — "Year the home or building was constructed."');
+    expect(text).toContain('- squareMeters (number) — "Indoor floor area in square meters."');
     expect(text).toContain("- heatingType (enum)");
     expect(text).toContain("- hasGarage (boolean)");
 
@@ -271,7 +273,7 @@ describe("proposer — the leaf inventory", () => {
     const text = renderLeafInventory(walkLeafInventory(mixed));
 
     // Ground leaf: no header, full-name line.
-    expect(text).toContain("- visitId (string) — \"A stable identifier for the visit.\"");
+    expect(text).toContain('- visitId (string) — "A stable identifier for the visit."');
     // Grouped leaves: header retains its structural label, leaves indented.
     expect(text).toContain("- visit (object)");
     expect(text).toContain("    - summary (string)");
@@ -444,7 +446,19 @@ describe("proposer — repair", () => {
     expect(requests).toHaveLength(2);
   });
 
-  test("a transport-level refusal is folded into the repair path; second refusal exhausts the budget to []", async () => {
+  test("a TerminalError refusal (model verdict) is folded into the repair path; second refusal exhausts the budget to []", async () => {
+    // `completeOrClassify` translates `ChatError.refusal` / `ChatError.unsupported`
+    // into a `TerminalError` — a model verdict, not a transport blip. The repair
+    // loop is exactly what a model verdict gets: one retry with the refusal text
+    // as feedback. A second refusal of the same kind exhausts the budget and
+    // returns [] — the model has confirmed the verdict persists.
+    //
+    // This test was originally about "a transport-level refusal" before the
+    // chat-call fix distinguished transport blips (retried silently) from model
+    // verdicts (one repair chance). The behaviour on a model verdict is
+    // unchanged — what changed is the failure mode a 429 takes — so the
+    // original property ("the model verdict still gets one repair chance, and
+    // a second one exhausts") is the property this rewrite still pins.
     const refused = ChatError.refusal("not for this input");
     const { chat, requests } = scriptedChat([refused, refused, completion({ operations: [] })]);
     const ops = await proposeShapeOperations(surveySchema, {
@@ -455,13 +469,16 @@ describe("proposer — repair", () => {
       maxRepairAttempts: 1,
     });
     expect(ops).toEqual([]);
-    // The initial refusal triggers one repair attempt; a second refusal of
-    // the same kind exhausts the budget and returns [] — a transport verdict
-    // is final, the second refusal confirms it persists.
     expect(requests).toHaveLength(2);
   });
 
-  test("a transport-level refusal with no repair budget returns [] without second call", async () => {
+  test("a TerminalError refusal with no repair budget returns [] without second call", async () => {
+    // The original ("a transport-level refusal with no repair budget returns []
+    // without second call") was protecting the call accounting: with
+    // `maxRepairAttempts: 0`, even a model verdict that reached the repair
+    // path must not produce a second chat call. The fix did not touch this
+    // accounting — a model verdict still routes to the repair loop, just once
+    // per attempt, and a zero budget means no second chat call at all.
     const refused = ChatError.refusal("not for this input");
     const { chat, requests } = scriptedChat([refused, completion({ operations: [] })]);
     const ops = await proposeShapeOperations(surveySchema, {
@@ -473,6 +490,101 @@ describe("proposer — repair", () => {
     });
     expect(ops).toEqual([]);
     expect(requests).toHaveLength(1);
+  });
+
+  test("a transient 429 silently retries inside the chat call; success returns ops without consuming repair budget", async () => {
+    // The defect 2 case: a 429 reaches the proposer during a brief rate-limit
+    // window. Today the call folds into `failure: "transport"` and consumes
+    // the (default 1) repair budget. After the fix, the chat-call step wraps
+    // `completeOrClassify` in `retryAsync` — the transient 429 is retried
+    // silently with backoff up to the configured `maxNetworkRetries`. On a
+    // successful retry the repair loop is not consulted, so a hit does not
+    // burn a repair attempt.
+    //
+    // The chat call here throws once with a 429 (`ChatError.http` carries a
+    // status, so `isTransientFailure` returns true and `retryAsync` retries
+    // it); the scripted retry returns a valid proposal. Default
+    // `maxNetworkRetries` is 2, so up to three attempts before exhaustion.
+    // This script settles on the second attempt. `networkRetryDelay` skips
+    // the real-time backoff so the test is fast.
+    const ok = completion({ operations: [{ op: "drop", path: "vessel.notes" }] });
+    const limited = ChatError.http(429, "openAiChat: 429 from /chat/completions");
+    const { chat, requests } = scriptedChat([limited, ok]);
+    const ops = await proposeShapeOperations(surveySchema, {
+      chat,
+      model: "m",
+      context: "transient-retry",
+      instructions: "",
+      maxRepairAttempts: 1,
+      networkRetryDelay: () => Promise.resolve(),
+    });
+    // The proposal landed on the retry: ops are returned and the repair
+    // budget was untouched.
+    expect(ops).toHaveLength(1);
+    expect(ops[0]).toEqual({ op: "drop", path: "vessel.notes" });
+    // Two chat calls: the 429 attempt and the successful retry. The repair
+    // never ran — a 429 is a transport blip, not a model verdict, and
+    // `retryAsync` owns the retry.
+    expect(requests).toHaveLength(2);
+  });
+
+  test("a transient 429 that exhausts network retries returns [] without consuming repair budget", async () => {
+    // The defect 2 case continued: if the route stays busy throughout, the
+    // `retryAsync` budget on the chat-call step runs out. Today that budget
+    // is zero (no retry at all), so the failure reaches the repair path and
+    // burns a repair attempt. After the fix, `retryAsync`'s default 2 retries
+    // (= 3 attempts) handles it, the repair loop is not consulted, and
+    // exhaustion of the network retries returns [] directly.
+    //
+    // A wrong implementation that catches the final 429 and returns []
+    // without distinguishing retryable vs terminal failures passes this test
+    // — but breaks the TerminalError tests above. A wrong implementation that
+    // routes ALL chat-call errors to the repair path also passes the
+    // TerminalError test — but breaks this one (it would do 4 calls, the 4th
+    // being a repair attempt). The two classes of test pin each other.
+    const limited = ChatError.http(429, "openAiChat: 429 from /chat/completions");
+    const { chat, requests } = scriptedChat([limited, limited, limited]);
+    const ops = await proposeShapeOperations(surveySchema, {
+      chat,
+      model: "m",
+      context: "transient-exhaust",
+      instructions: "",
+      maxRepairAttempts: 1,
+      networkRetryDelay: () => Promise.resolve(),
+    });
+    expect(ops).toEqual([]);
+    // Three chat calls: the default 2 retries → 3 attempts. The repair
+    // budget was untouched — a transient blip, even one that exhausts its
+    // own retries, does not consume a repair attempt.
+    expect(requests).toHaveLength(3);
+  });
+
+  test("a transient transport blip mid-repair is retried inside `retryAsync`; the repair loop runs once", async () => {
+    // The repair loop's chat call also goes through `retryAsync` — a 429 on
+    // a repair attempt is identical, in this code, to a 429 on the initial
+    // attempt. Today the second attempt's 429 would consume the remaining
+    // repair budget (here, zero — only one repair attempt is allowed) and
+    // the run would return [] with two calls. After the fix the repair's
+    // 429 is silently retried, succeeds on the retry, and the run returns
+    // the proposal without consuming any further repair budget.
+    const ok = completion({ operations: [{ op: "drop", path: "vessel.notes" }] });
+    const invalid = completion({ operations: [{ op: "drop", path: "missing.path" }] });
+    const limited = ChatError.http(429, "openAiChat: 429 from /chat/completions");
+    // Initial → applier-invalid (failure: shape) → repair attempt → 429 → retry → ok
+    const { chat, requests } = scriptedChat([invalid, limited, ok]);
+    const ops = await proposeShapeOperations(surveySchema, {
+      chat,
+      model: "m",
+      context: "transient-mid-repair",
+      instructions: "",
+      maxRepairAttempts: 1,
+      networkRetryDelay: () => Promise.resolve(),
+    });
+    expect(ops).toHaveLength(1);
+    expect(ops[0]).toEqual({ op: "drop", path: "vessel.notes" });
+    // Three chat calls: invalid proposal, repair that retries after 429,
+    // successful retry.
+    expect(requests).toHaveLength(3);
   });
 
   test("a truncated response (finish_reason 'length') gives one repair chance then []", async () => {
