@@ -33,6 +33,24 @@ export type {
   TopLevelKeyKinds,
 } from "./schema/split-schema.js";
 
+// The dry run of the split: what a schema will become — keys, path, call
+// shape, per-piece measurements, and the refusal construction would raise —
+// reported synchronously, before an extractor is constructed and without a
+// model. Reads everything off the split's own code, so it cannot drift from
+// what construction actually does.
+export { describeExtraction } from "./schema/describe-extraction.js";
+export type {
+  DescribeDerivedSchemaOptions,
+  DescribeExtractionOptions,
+  DescribeRawSchemaOptions,
+  ExtractionDescription,
+  ExtractionFlatReason,
+  ExtractionPieceDescription,
+  ExtractionRefusal,
+  ExtractionRefusalStage,
+  SchemaMeasures,
+} from "./schema/describe-extraction.js";
+
 // The entry point that takes a RAW zod schema: the `enveloped()` derivation and
 // the single-shot-vs-per-group selection run inside, so a newcomer hands over
 // the schema they wrote, a chat client and a model, and gets an `Extractor`.

@@ -669,6 +669,12 @@ export type TopLevelKeyKinds =
       readonly form: "keys";
       readonly schema: z.ZodObject;
       readonly keys: readonly TopLevelKey[];
+      /**
+       * The split's gate, computed where its inputs live: every top-level key
+       * is a group, so the grouped path applies. One loose key makes this
+       * false and the whole schema takes the flat fallback.
+       */
+      readonly everyKeyIsGroup: boolean;
     };
 
 /**
@@ -691,16 +697,18 @@ export function topLevelKeyKinds(schema: z.ZodType): TopLevelKeyKinds {
   if (keys.length === 0) {
     return { form: "empty" };
   }
+  const classified = keys.map((key): TopLevelKey => {
+    const candidate = groupCandidate(fieldAt(shape, key));
+    return {
+      key,
+      kind: candidate instanceof z.ZodObject && isGroupObject(candidate) ? "group" : "loose",
+    };
+  });
   return {
     form: "keys",
     schema,
-    keys: keys.map((key) => {
-      const candidate = groupCandidate(fieldAt(shape, key));
-      return {
-        key,
-        kind: candidate instanceof z.ZodObject && isGroupObject(candidate) ? "group" : "loose",
-      };
-    }),
+    keys: classified,
+    everyKeyIsGroup: classified.every((entry) => entry.kind === "group"),
   };
 }
 
