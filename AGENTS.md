@@ -52,7 +52,15 @@ package. `ribo-core` composes the two with `firstCapable` (sequential) or `hedge
 a latency budget). `@azx/ribo-adapter-snuggpro` is the real Snugg Pro `ToolAdapter`; `@azx/ribo-extractor-openai` is
 the tool-agnostic single-shot managed-LLM extractor (its OpenAI-compatible transport and the
 single-shot strategy); `@azx/ribo-extractor-ondevice` is the on-device extractor (three-phase extraction
-over the platform's on-device Language Model). `@azx/ribo-transcriber-pdfjs` is the PDF document
+over the platform's on-device Language Model). `@azx/ribo-systemone-managed` is the System One
+client — TypeSafe's own SDK behind the host's transport, with no capacity to authenticate, serving
+hosted Jev, a self-hosted kev server or a fine-tune without knowing which; `@azx/ribo-extractor-systemone`
+holds the strategies over it: `corroborateExtractor`, the **second judging combinator** after
+`validateExtractor` (it rejects terminally, so an escalating cascade is an ordinary
+`fallbackExtractor` ladder), and a presence phase at leaf granularity that asks every leaf in one
+request where core's asks one call per group. Its judgement picks a rung and never reaches a
+reviewer — ADR 0021 has the measurements that ruled the alternative out.
+`@azx/ribo-transcriber-pdfjs` is the PDF document
 transcriber — `Transcriber<DocumentCapture>` with engine id `"pdfjs"`, lazy-loaded pdf.js, page
 markers, and a `no-text-layer` guard. `@azx/ribo-transcriber-managed-docs` is the managed document
 transcriber — `Transcriber<DocumentCapture>` with engine id `"managed-docs"`, a hosted document

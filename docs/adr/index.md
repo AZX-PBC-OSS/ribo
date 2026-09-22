@@ -62,3 +62,5 @@ receives.
 | [0017](./0017-duplicate-protection-is-the-receipt-not-the-key.md)              | Duplicate protection is the write receipt, not the idempotency key                           | Accepted |
 | [0018](./0018-write-returns-a-receipt-and-core-never-parses-it.md)             | `write` returns a receipt, core never parses it, and one call carries one group              | Accepted |
 | [0019](./0019-a-probes-finding-and-its-code-have-different-homes.md)           | A probe's finding and its code have different homes                                          | Accepted |
+| [0020](./0020-a-packages-second-segment-names-an-implementation.md)            | A package's second segment names an implementation, never a vendor                           | Accepted |
+| [0021](./0021-corroboration-is-a-judging-combinator-not-a-review-flag.md)      | Corroboration is a judging combinator, not a review flag                                     | Accepted |

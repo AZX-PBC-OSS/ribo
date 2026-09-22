@@ -1,6 +1,7 @@
-import { expect, test } from "vitest";
+import { expect, expectTypeOf, test } from "vitest";
 
 import * as core from "./index.js";
+import type { PresenceMaps } from "./index.js";
 
 // The barrel's job is to be a stable, complete list of what consumers may depend on. This test
 // pins that list: adding an export means adding it here deliberately, and removing one (a
@@ -143,6 +144,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "negotiateMimeType",
     "nextUnitId",
     "noteKey",
+    "nullEnvelope",
     "openCaptureSession",
     "openStorage",
     "parseFieldPath",
@@ -190,5 +192,13 @@ test("the barrel exports the package's public runtime surface", () => {
     "validateExtractor",
     "validatePhases",
     "workSafety",
+    "wrapGroupEntry",
+    "writableGroupEntry",
   ]);
+});
+
+// Type-only exports leave nothing to inspect at runtime — the pin is importing one through the
+// barrel, which fails typecheck with TS2305 if the re-export is dropped.
+test("the barrel exports the presence-phase helpers a host-authored phase needs", () => {
+  expectTypeOf<PresenceMaps>().toEqualTypeOf<Record<string, Record<string, boolean>>>();
 });

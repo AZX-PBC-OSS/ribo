@@ -27,12 +27,14 @@ export function scratchPackageJson(tarballPaths) {
       "@azx/ribo-core": fileSpec("@azx/ribo-core"),
       "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
       "@azx/ribo-extractor-openai": fileSpec("@azx/ribo-extractor-openai"),
+      "@azx/ribo-extractor-systemone": fileSpec("@azx/ribo-extractor-systemone"),
       "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
       "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
       "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
       "@azx/ribo-transcriber-managed-docs": fileSpec("@azx/ribo-transcriber-managed-docs"),
       "@azx/ribo-transcriber-pdfjs": fileSpec("@azx/ribo-transcriber-pdfjs"),
       "@azx/ribo-storage-rxdb": fileSpec("@azx/ribo-storage-rxdb"),
+      "@azx/ribo-systemone-managed": fileSpec("@azx/ribo-systemone-managed"),
       "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       // Exact versions, matching the workspace catalog (pnpm-workspace.yaml) — this app is NOT a
       // workspace member, so it cannot write `catalog:`; these are hand-pinned to the same values.
@@ -56,12 +58,14 @@ export function scratchPackageJson(tarballPaths) {
         "@azx/ribo-core": fileSpec("@azx/ribo-core"),
         "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
         "@azx/ribo-extractor-openai": fileSpec("@azx/ribo-extractor-openai"),
+        "@azx/ribo-extractor-systemone": fileSpec("@azx/ribo-extractor-systemone"),
         "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
         "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
         "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
         "@azx/ribo-transcriber-managed-docs": fileSpec("@azx/ribo-transcriber-managed-docs"),
         "@azx/ribo-transcriber-pdfjs": fileSpec("@azx/ribo-transcriber-pdfjs"),
         "@azx/ribo-storage-rxdb": fileSpec("@azx/ribo-storage-rxdb"),
+        "@azx/ribo-systemone-managed": fileSpec("@azx/ribo-systemone-managed"),
         "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       },
     },
@@ -134,7 +138,8 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
  * CI run which of three unrelated things broke, without opening this script:
  *
  *   - `"setup-before-worker"` — one of ribo-core / ribo-adapter-snuggpro / ribo-extractor-openai /
- *     ribo-extractor-ondevice / ribo-transcriber-managed / ribo-transcriber-managed-docs / ribo-transcriber-pdfjs / ribo-ui-react threw.
+ *     ribo-extractor-systemone / ribo-extractor-ondevice / ribo-transcriber-managed /
+ *     ribo-transcriber-managed-docs / ribo-transcriber-pdfjs / ribo-ui-react threw.
  *     None of this touches the network, so a Hub outage can never explain it —
  *     this is a real packaging regression in one of those packages.
  *   - `"worker-spawn-or-import"` — `prime()` threw and the worker never reported even an `initiate`
@@ -149,15 +154,21 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
  *     rate limit), not a packaging defect. Not a certainty — a heuristic — but the cheapest real
  *     signal available.
  */
-export const MAIN_JS = `import { isSpanGrounded } from "@azx/ribo-core";
-import { normalizeFields, snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
+export const MAIN_JS = `import { isSpanGrounded, TerminalError } from "@azx/ribo-core";
+import {
+  normalizeFields,
+  snuggExtractionSchema,
+  snuggProAdapter,
+} from "@azx/ribo-adapter-snuggpro";
 import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
+import { enumMembersAt } from "@azx/ribo-extractor-systemone";
 import { OnDeviceChat, threePhaseExtractor, ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 import { OnDeviceTranscriber } from "@azx/ribo-transcriber-ondevice";
 import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
 import { ManagedDocsTranscriber, MANAGED_DOCS_ENGINE } from "@azx/ribo-transcriber-managed-docs";
 import { PdfjsTranscriber, PDFJS_ENGINE } from "@azx/ribo-transcriber-pdfjs";
 import { openRxdbBackend, createRxdbBackend } from "@azx/ribo-storage-rxdb";
+import { systemOneClient, SystemOneError, noul } from "@azx/ribo-systemone-managed";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import React from "react";
 import { createRoot } from "react-dom/client";
@@ -195,6 +206,20 @@ async function run() {
       normalize: normalizeFields,
     });
     checks.extractorHasExtractFn = typeof extractor.extract === "function";
+
+    // ribo-extractor-systemone: the schema walk answers a KNOWN enum leaf of a REAL derived
+    // extraction schema, across the tarball boundary — members in declaration order. hvac is a
+    // COLLECTION group, so the index segment is required: it addresses a position in data, and
+    // the walk steps into the array's element schema rather than indexing the schema itself.
+    checks.systemOneExtractorEnumMembers =
+      JSON.stringify(enumMembersAt(snuggExtractionSchema, ["hvac", 0, "hvacDuctLeakage"])) ===
+      JSON.stringify([
+        "30% - Very leaky",
+        "15% - Somewhat leaky",
+        "6% - Well sealed",
+        "3% - Very tight",
+        "Measured (CFM25)",
+      ]);
 
     // ribo-extractor-ondevice: constructed across the tarball boundary, no model touched.
     // \`capability()\` reads globalThis.LanguageModel and never downloads, so this is safe in a
@@ -235,6 +260,23 @@ async function run() {
     }).capability();
     checks.pdfjsReady = pdfjsConfigured.status === "ready";
     checks.pdfjsEngineId = PDFJS_ENGINE === "pdfjs";
+
+    // ribo-systemone-managed: real request shaping and error classing across the tarball
+    // boundary, with an injected fetch so nothing leaves the process. The instanceof is the
+    // point — a duplicated ribo-core in the install would give this package its own
+    // TerminalError class and the arbitration ladders would silently stop falling through.
+    const soClient = systemOneClient({
+      endpoint: "https://example.invalid/v1/systemone",
+      fetch: async () =>
+        new Response(JSON.stringify({ answers: { q: { type: "noul", noul: 0.75 } } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    });
+    const soAnswers = await soClient.ask("some state", { q: noul("is it?") });
+    // The answer is discriminated on \`type\`, the way the wire is — not a bare number.
+    checks.systemOneAnswers = soAnswers.q.type === "noul" && soAnswers.q.noul === 0.75;
+    checks.systemOneTerminalIdentity = new SystemOneError(401, "x") instanceof TerminalError;
 
     // ribo-transcriber-managed-docs: real capability logic across the tarball
     // boundary, and no network — capability() never fetches. Both directions:

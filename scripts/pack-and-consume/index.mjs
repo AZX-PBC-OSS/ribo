@@ -387,6 +387,12 @@ function assertResult({ result, consoleErrors, pageErrors, tarballCount }) {
     ["managedUnconfigured", c.managedUnconfigured === true],
     ["managedReady", c.managedReady === true],
     ["uiReactRendered", c.uiReactRendered === true],
+    ["systemOneAnswers", c.systemOneAnswers === true],
+    // The identity check is the one worth gating: a duplicated ribo-core in the packed install
+    // gives this package its own TerminalError class, and every arbitration ladder silently
+    // stops falling through. A check computed but left out of this list asserts nothing.
+    ["systemOneTerminalIdentity", c.systemOneTerminalIdentity === true],
+    ["systemOneExtractorEnumMembers", c.systemOneExtractorEnumMembers === true],
     ["workerPrimedWithoutThrowing", c.workerPrimedWithoutThrowing === true],
     ["workerReportedProgress", c.workerReportedProgress === true],
   ];

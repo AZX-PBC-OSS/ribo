@@ -1,0 +1,306 @@
+[
+  {
+    "name": "01-attic-r-value-shell",
+    "model": "claude-haiku-4-5",
+    "committed": 23,
+    "scored": [
+      {
+        "path": "basedata.blowerDoorReading",
+        "field": "blowerDoorReading",
+        "value": 3200,
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.05
+      },
+      {
+        "path": "basedata.blowerDoorTestPerformed",
+        "field": "blowerDoorTestPerformed",
+        "value": "Tested",
+        "options": [
+          "Tested",
+          "Estimate"
+        ],
+        "groundedness": "grounded",
+        "unsupported": 0.11
+      },
+      {
+        "path": "basedata.unmodeledBlowerDoorReading",
+        "field": "unmodeledBlowerDoorReading",
+        "value": 3200,
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.59
+      },
+      {
+        "path": "basedata.cazMaxAmbientCo",
+        "field": "cazMaxAmbientCo",
+        "value": 0,
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.48
+      },
+      {
+        "path": "hvac.0.hvacSystemEquipmentType",
+        "field": "hvacSystemEquipmentType",
+        "value": "Furnace with standalone ducts",
+        "options": [
+          "Boiler",
+          "Steam Boiler",
+          "Furnace with standalone ducts",
+          "Electric Resistance",
+          "Direct Heater",
+          "Stove or Insert",
+          "Solar Thermal",
+          "Central AC with standalone ducts",
+          "Room AC",
+          "Evaporative Cooler - Direct",
+          "Evaporative Cooler - Ducted",
+          "Ductless Heat Pump",
+          "Central Heat Pump (shared ducts)",
+          "Deep Loop Ground Source Heat Pump (shared ducts)",
+          "Open Loop Ground Source Heat Pump (shared ducts)",
+          "Shallow Loop Ground Source Heat Pump (shared ducts)",
+          "Furnace / Central AC (shared ducts)"
+        ],
+        "groundedness": "grounded",
+        "unsupported": 0.63
+      },
+      {
+        "path": "hvac.0.hvacHeatingEnergySource",
+        "field": "hvacHeatingEnergySource",
+        "value": "Natural Gas",
+        "options": [
+          "Electricity",
+          "Natural Gas",
+          "Fuel Oil",
+          "Propane",
+          "Pellets",
+          "Wood",
+          "Solar",
+          "None"
+        ],
+        "groundedness": "grounded",
+        "unsupported": 0.09
+      },
+      {
+        "path": "hvac.0.hvacHeatingSystemManufacturer",
+        "field": "hvacHeatingSystemManufacturer",
+        "value": "Trane",
+        "options": [
+          "Unknown",
+          "AirEase",
+          "Amana",
+          "American Standard",
+          "Bosch",
+          "Bryant",
+          "Carrier",
+          "Coleman",
+          "Comfort Master",
+          "Daikin",
+          "Day & Night",
+          "Fujitsu",
+          "General Electric",
+          "Goodman",
+          "Janitrol",
+          "Lennox",
+          "LG",
+          "Luxaire",
+          "Mitsubishi",
+          "Navien",
+          "New Yorker",
+          "Payne",
+          "Panasonic",
+          "Peerless",
+          "Rheem",
+          "RUUD",
+          "Samsung",
+          "Sears Kenmore",
+          "Tappan",
+          "Trane",
+          "Triangle Tube",
+          "Utica",
+          "York",
+          "Other"
+        ],
+        "groundedness": "grounded",
+        "unsupported": 0.05
+      },
+      {
+        "path": "hvac.0.hvacHeatingSystemModel",
+        "field": "hvacHeatingSystemModel",
+        "value": "TUD100",
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.05
+      },
+      {
+        "path": "hvac.0.hvacHeatingSystemModelYear",
+        "field": "hvacHeatingSystemModelYear",
+        "value": 2017,
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.16
+      },
+      {
+        "path": "hvac.0.hvacHeatingCapacity",
+        "field": "hvacHeatingCapacity",
+        "value": 100000,
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.11
+      },
+      {
+        "path": "hvac.0.hvacHeatingSystemIndoorModel",
+        "field": "hvacHeatingSystemIndoorModel",
+        "value": "TUD100",
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.08
+      },
+      {
+        "path": "attic.0.atticInsulationType",
+        "field": "atticInsulationType",
+        "value": "Fiberglass or Rockwool (batts or blown)",
+        "options": [
+          "Fiberglass or Rockwool (batts or blown)",
+          "Cellulose",
+          "Spray Foam",
+          "Don't Know"
+        ],
+        "groundedness": "grounded",
+        "unsupported": 0.05
+      },
+      {
+        "path": "attic.0.atticInsulation",
+        "field": "atticInsulation",
+        "value": 38,
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.06
+      },
+      {
+        "path": "attic.0.atticInsulationTypeImproved",
+        "field": "atticInsulationTypeImproved",
+        "value": "Fiberglass or Rockwool (batts or blown)",
+        "options": [
+          "Fiberglass or Rockwool (batts or blown)",
+          "Cellulose",
+          "Spray Foam",
+          "Don't Know"
+        ],
+        "groundedness": "grounded",
+        "unsupported": 0.79
+      },
+      {
+        "path": "attic.0.atticInsulationImproved",
+        "field": "atticInsulationImproved",
+        "value": 38,
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.86
+      },
+      {
+        "path": "wall.0.wallExteriorWallSiding",
+        "field": "wallExteriorWallSiding",
+        "value": "Brick Veneer",
+        "options": [
+          "Brick Veneer",
+          "Metal/vinyl siding",
+          "Shingle/Composition",
+          "Stone veneer",
+          "Stucco",
+          "Wood/Fiber Cement siding",
+          "Other",
+          "None",
+          "Don't Know"
+        ],
+        "groundedness": "grounded",
+        "unsupported": 0.17
+      },
+      {
+        "path": "window.0.windowType",
+        "field": "windowType",
+        "value": "Double pane",
+        "options": [
+          "Single pane",
+          "Single pane + storm",
+          "Double pane",
+          "Double pane + low e",
+          "Triple pane + low e",
+          "Don't Know"
+        ],
+        "groundedness": "grounded",
+        "unsupported": 0.07
+      },
+      {
+        "path": "window.0.windowFrame",
+        "field": "windowFrame",
+        "value": "Vinyl",
+        "options": [
+          "Metal",
+          "Vinyl",
+          "Wood or metal clad",
+          "Don't Know"
+        ],
+        "groundedness": "grounded",
+        "unsupported": 0.06
+      },
+      {
+        "path": "health.healthAmbientCarbonMonoxide",
+        "field": "healthAmbientCarbonMonoxide",
+        "value": "Passed",
+        "options": [
+          "Passed",
+          "Failed",
+          "Warning",
+          "Not Tested"
+        ],
+        "groundedness": "grounded",
+        "unsupported": 0.16
+      },
+      {
+        "path": "job.address1",
+        "field": "address1",
+        "value": "22 Linden Street",
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.09
+      },
+      {
+        "path": "job.city",
+        "field": "city",
+        "value": "Okafor",
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.94
+      },
+      {
+        "path": "job.altId",
+        "field": "altId",
+        "value": "22 Linden Street",
+        "options": null,
+        "groundedness": "grounded",
+        "unsupported": 0.9
+      },
+      {
+        "path": "utilities.primaryHeatingFuelType",
+        "field": "primaryHeatingFuelType",
+        "value": "Natural Gas",
+        "options": [
+          "Natural Gas",
+          "Electricity",
+          "Fuel Oil",
+          "Propane",
+          "Wood",
+          "Pellets",
+          "Solar",
+          "Coal",
+          "Kerosene"
+        ],
+        "groundedness": "ungrounded",
+        "unsupported": 0.17
+      }
+    ],
+    "fraction": 0.21739130434782608
+  }
+]

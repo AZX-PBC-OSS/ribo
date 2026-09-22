@@ -1,0 +1,2063 @@
+{
+  "basedata": {
+    "yearBuilt": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "conditionedArea": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorsAboveGrade": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfBedrooms": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "typeOfHome": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "blowerDoorReading": {
+      "value": 3200,
+      "confidence": 1,
+      "sourceSpan": "We came in at thirty-two hundred CFM50"
+    },
+    "blowerDoorTestPerformed": {
+      "value": "Tested",
+      "confidence": 1,
+      "sourceSpan": "Blower door, I set it in the side door"
+    },
+    "averageWallHeight": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "houseLength": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "houseWidth": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfOccupants": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "frontOfBuildingOrientation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "tuckUnderGarage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "garageSize": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "programmableThermostatInstalled": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "heatingSetpointHigh": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "heatingSetpointLow": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "coolingSetpointHigh": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "coolingSetpointLow": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "thermostatManufacturer": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "thermostatModel": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "thermostatSerialNumber": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "totalNumberOfLightBulbs": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "sharedWallsNorth": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "percentOfCeilingsShared": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "percentOfFloorsShared": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "foundationBasement": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "foundationAboveGradeHeight": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementWallInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlspaceInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "skylightArea": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "unmodeledBlowerDoorReading": {
+      "value": 3200,
+      "confidence": 1,
+      "sourceSpan": "We came in at thirty-two hundred CFM50. Thirty-two hundred."
+    },
+    "equivalentNach": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "conditionedAirVolume": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "effectiveLeakageArea": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "modeledBasementWallArea": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementCavityInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementContinuousInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementWallAssemblyRValue": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorCavityInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorContinuousInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorAssemblyRValue": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "sharedWallsEast": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "sharedWallsSouth": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "sharedWallsWest": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "foundationCrawlspace": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "foundationSlab": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "foundationFramefloor": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "percentCflsOrLeds": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlCavityInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlWallInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlAssemblyRValue": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlspaceType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "clothesWasherType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "clothesWasherEnergyStar": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "clothesWasherManufacturer": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "clothesWasherModel": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "clothesWasherSerialNumber": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "clothesWasherMef": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "dishwasherEnergyStar": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "dishwasherEnergyFactor": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "percentCflOrLed": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "windZone": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "shielding": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "nFactor": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "dishwasherModel": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "dishwasherManufacturer": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "dishwasherModelYear": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "clothesWasherModelYear": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfIncandescents": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfCflsInstalled": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfCflsOrLeds": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfOutdoorIncandescents": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfOutdoorCfls": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfOutdoorLeds": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "hotTub": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "pool": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "poolPumpType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "poolPumpHorsepower": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementHeating": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementCooling": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "poolSize": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "poolPumpTurnover": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "poolPumpHours": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "poolPumpManufacturer": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "poolPumpModel": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "poolPumpSerialNumber": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "poolPumpDaysPerYear": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "dishwasherInstalled": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "includesBasement": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "heatingDesignLoad": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "coolingSensibleDesignLoad": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "coolingLatentDesignLoad": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "designTempWinterOutdoor": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "designTempSummerOutdoor": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "designTempWinterIndoor": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "designTempSummerIndoor": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfUnits": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "numberOfLeds": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlspaceRimJoistTreatment": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlspaceRimJoistInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlRimJoistAssemblyRValue": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementRimJoistTreatment": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementRimJoistInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementRimJoistAssemblyRValue": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "demandKW": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "demandKWSavings": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "cazMaxAmbientCo": {
+      "value": 0,
+      "confidence": 1,
+      "sourceSpan": "Ambient CO right next to the furnace while it was running read zero"
+    },
+    "ashrae622": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeKitchenFanCfm": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeKitchenWindow": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeNumberOfBathrooms": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeBathroomFan1Cfm": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeBathroom1Window": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeBathroomFan2Cfm": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeBathroom2Window": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeBathroomFan3Cfm": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeBathroom3Window": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeBathroomFan4Cfm": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeBathroom4Window": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ashraeRequiredAdditionalCfm": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorCavityInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorContinuousInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorSkirtPresent": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorWingInsulationCondition": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorBellyInsulationCondition": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorFrameFloorType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "floorInsulationLocation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlCavityInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlWallInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "crawlspaceRimJoistInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementCavityInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementContinuousInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementRimJoistInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "windowVentingUsed": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "modeledSlabFloorArea": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "heatTapeLength": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "heatTapeLoad": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "heatTapeDailyFrequency": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "heatTapeAnnualFrequency": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "hasEv": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "evMilesDrive": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "evEfficiency": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "evHomeChargingPercent": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "evHomeChargingAmount": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "evCalculationMethod": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "evEnergyStarCharger": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "mainServicePanelMaxAmps": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "openBreakerSpots": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementCeilingCavityInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementCeilingCavityInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementCeilingContinuousInsulation": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementCeilingContinuousInsulationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "basementCeilingAssemblyRValue": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ventilationType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ventilationSchedule": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ventilationCycleFrequency": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ventilationCycleDuration": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ventilationFlowRate": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ventilationSensibleRecoveryEfficiency": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ventilationTotalRecoveryEfficiency": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "ventilationFanPower": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "wholeHomeIsProfessionallyAirSealed": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "hvac": [
+    {
+      "hvacSystemEquipmentType": {
+        "value": "Furnace with standalone ducts",
+        "confidence": 0.9,
+        "sourceSpan": "Heat's a gas furnace down in the utility closet, forced hot air"
+      },
+      "hvacUpgradeAction": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingEnergySource": {
+        "value": "Natural Gas",
+        "confidence": 1,
+        "sourceSpan": "gas furnace"
+      },
+      "hvacHeatingSystemManufacturer": {
+        "value": "Trane",
+        "confidence": 1,
+        "sourceSpan": "it's a Trane"
+      },
+      "hvacHeatingSystemModel": {
+        "value": "TUD100",
+        "confidence": 1,
+        "sourceSpan": "Model number off the label — it's a TUD100"
+      },
+      "hvacHeatingSystemModelYear": {
+        "value": 2017,
+        "confidence": 1,
+        "sourceSpan": "manufacture date stamped is twenty seventeen"
+      },
+      "hvacHeatingCapacity": {
+        "value": 100000,
+        "confidence": 1,
+        "sourceSpan": "Output's a hundred thousand BTU on the plate"
+      },
+      "hvacCoolingCapacity": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacDuctLocation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacDuctLeakage": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacDuctLeakageValue": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacDuctInsulation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacSystemName": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingIsCondensing": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacPercentOfTotalHeatingLoad": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacPercentOfTotalCoolingLoad": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingSystemManufacturer": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingSystemModel": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingSystemIndoorModel": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingSystemOutdoorModel": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingSystemModelYear": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingSystemIndoorModel": {
+        "value": "TUD100",
+        "confidence": 1,
+        "sourceSpan": "Model number off the label — it's a TUD100"
+      },
+      "hvacHeatingSystemOutdoorModel": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingSystemSerialNumber": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingSystemIndoorSerialNumber": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingSystemOutdoorSerialNumber": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingSystemSerialNumber": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingSystemIndoorSerialNumber": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingSystemOutdoorSerialNumber": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacDuctInsulationValue": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatPumpInverter": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "energyStarColdClimateHeatPump": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingMaintenanceStarRating": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingMaintenanceStarRating": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacSteadyStateEfficiency": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingSystemEfficiency": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingSystemEfficiency": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingSystemEfficiencyRatingUnit": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingSystemEfficiencyRatingUnit": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingEnergySourceImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatingCapacityImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacCoolingCapacityImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacPercentOfTotalHeatingLoadImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacPercentOfTotalCoolingLoadImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hvacHeatPumpInverterImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "energyStarColdClimateHeatPumpImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      }
+    }
+  ],
+  "attic": [
+    {
+      "atticInsulationDepth": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticInsulationType": {
+        "value": "Fiberglass or Rockwool (batts or blown)",
+        "confidence": 0.95,
+        "sourceSpan": "Insulation up here is blown fiberglass"
+      },
+      "atticInsulation": {
+        "value": 38,
+        "confidence": 0.95,
+        "sourceSpan": "I'd put it at about R-38 up here"
+      },
+      "atticHasKneeWall": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticRoofType": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticModeledAtticArea": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticKneeWallArea": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticKneeWallInsulation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticKneeWallContinuousInsulation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticRadiantBarrier": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticPercent": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticRoofAbsorptance": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticRoofEmissivity": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticCoolRoof": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticKneeWallInsulationType": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticKneeWallContinuousInsulationType": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticRoofColor": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticInsulationTypeImproved": {
+        "value": "Fiberglass or Rockwool (batts or blown)",
+        "confidence": 0.95,
+        "sourceSpan": "Insulation up here is blown fiberglass"
+      },
+      "atticModeledAtticAreaImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticInsulationImproved": {
+        "value": 38,
+        "confidence": 0.95,
+        "sourceSpan": "I'd put it at about R-38 up here"
+      },
+      "atticKneeWallAreaImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticKneeWallInsulationImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticKneeWallContinuousInsulationImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticHasKneeWallImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticRadiantBarrierImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticRoofAbsorptanceImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticRoofEmissivityImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticCoolRoofImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticKneeWallInsulationTypeImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "atticKneeWallContinuousInsulationTypeImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      }
+    }
+  ],
+  "vault": [],
+  "wall": [
+    {
+      "wallsInsulated": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": "I didn't open anything up, it's brick veneer, I'd have to drill and I'm not doing that today, so I can't tell you on the wall insulation"
+      },
+      "wallExteriorWallSiding": {
+        "value": "Brick Veneer",
+        "confidence": 1,
+        "sourceSpan": "it's brick veneer"
+      },
+      "wallCavityInsulation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallCavityInsulationType": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallExteriorWallConstruction": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallContinuousInsulation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallModeledWallArea": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallSystemPercentOfTotal": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallContinuousInsulationType": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallCavityInsulationImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallContinuousInsulationImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallModeledWallAreaImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallCavityInsulationTypeImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "wallContinuousInsulationTypeImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      }
+    }
+  ],
+  "window": [
+    {
+      "windowType": {
+        "value": "Double pane",
+        "confidence": 1,
+        "sourceSpan": "Windows are all double pane, vinyl frames"
+      },
+      "windowFrame": {
+        "value": "Vinyl",
+        "confidence": 1,
+        "sourceSpan": "Windows are all double pane, vinyl frames"
+      },
+      "windowEnergyStar": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowEfficiency": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowAreaNorth": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowAreaEast": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowAreaSouth": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowAreaWest": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowNorthAreaPercent": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowEastAreaPercent": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowSouthAreaPercent": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowWestAreaPercent": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowSolarHeatGainCoefficient": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowNorthOverhangDepth": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowEastOverhangDepth": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowSouthOverhangDepth": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowWestOverhangDepth": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowExteriorTreatmentNorth": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowExteriorTreatmentEast": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowExteriorTreatmentSouth": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowExteriorTreatmentWest": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowEfficiencyImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowAreaNorthImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowAreaEastImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowAreaSouthImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowAreaWestImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowSolarHeatGainCoefficientImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowExteriorTreatmentNorthImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowExteriorTreatmentEastImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowExteriorTreatmentSouthImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowExteriorTreatmentWestImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "windowEnergyStarImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      }
+    }
+  ],
+  "door": [],
+  "dhw": [
+    {
+      "dhwType2": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwFuel2": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwAge": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwLocation": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwTankSize": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwManufacturer": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwTemperatureSettings": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwTemp": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwModel": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwModelYear": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwSerialNumber": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwPercentLoad": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwEnergyStar": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwHeatingCapacity": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwTankWrap": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwTankWrapRValue": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwPipeWrap": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwPipeWrapRValue": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwMaintenanceStarRating": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwSidearmBoiler": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwSidearmStandbyLoss": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwEnergyFactorType": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwEnergyFactor": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwUnifiedEnergyFactor": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwRecoveryEfficiency": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "hesDhwEnergyFactor": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwType2Improved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwFuel2Improved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwTankSizeImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwHeatingCapacityImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwPercentLoadImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwEnergyStarImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwTempImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwTankWrapImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwPipeWrapImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwPipeWrapLengthImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      },
+      "dhwPipeWrapPercentageImproved": {
+        "value": null,
+        "confidence": 1,
+        "sourceSpan": null
+      }
+    }
+  ],
+  "health": {
+    "healthAmbientCarbonMonoxide": {
+      "value": "Passed",
+      "confidence": 1,
+      "sourceSpan": "Ambient CO right next to the furnace while it was running read zero, so that's clean, no carbon monoxide"
+    },
+    "healthNaturalConditionSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthWorstCaseDepressurization": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthWorstCaseSpillage": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthUndilutedFlueCo": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthDraftPressure": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthGasLeak": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthVenting": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthMoldMoisture": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthRadon": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthAsbestos": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthLead": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthElectrical": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthRoofCondition": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthDrainageSystemCondition": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "healthSafetyQuestionsDisclosed": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "concern": [],
+  "incentive": [],
+  "clothesDryer": [],
+  "freezer": [],
+  "range": [],
+  "refrigerator": [],
+  "pv": [],
+  "stage": {
+    "stageId": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "job": {
+    "firstName": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "lastName": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "renterOwner": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "serviceTime": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "email": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "homePhone": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "address1": {
+      "value": "22 Linden Street",
+      "confidence": 0.95,
+      "sourceSpan": "Twenty-two Linden Street"
+    },
+    "address2": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "city": {
+      "value": "Okafor",
+      "confidence": 0.6,
+      "sourceSpan": "the Okafor place"
+    },
+    "state": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "zip": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "accountId": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "stageId": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "jobType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "programId": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "altId": {
+      "value": "22 Linden Street",
+      "confidence": 0.9,
+      "sourceSpan": "Twenty-two Linden Street"
+    },
+    "buildingId": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "propertyOwnerFirstName": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "propertyOwnerLastName": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "propertyOwnerAddress1": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "propertyOwnerAddress2": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "propertyOwnerEmail": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "propertyOwnerPhone": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "propertyOwnerCity": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "propertyOwnerState": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "propertyOwnerZip": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "auditType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "note": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "useStrictBpi2400Calibration": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "householdIncomeTier": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "report": {
+    "coverTextArea": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "additionalNotesOverview": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "safetyOverview": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "titleCover": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "concernsSidebar": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "solutionsTitle": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "titleCustom1": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "titleCustom2": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  },
+  "utilities": {
+    "billEntryType": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "detailedElectricDataSource": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "detailedFuelDataSource": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "electricUtilityProviderName": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "fuelUtilityProviderName": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "additionalFuelUtilityProviderName": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "highestMonthlySummerElectricBill": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "highestMonthlyWinterElectricBill": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "lowestMonthlyElectricBill": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "highestMonthlyWinterNaturalGasBill": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "lowestMonthlyNaturalGasBill": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "simpleFuelUnits": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "totalSimpleFuelUsedInLast12Months": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "primaryHeatingFuelType": {
+      "value": "Natural Gas",
+      "confidence": 1,
+      "sourceSpan": "it's a gas furnace"
+    },
+    "electricBillUnits": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "fuelBillUnits": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "utilityPriceNaturalGas": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "utilityPricePropane": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "utilityPriceFuelOil": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "utilityPriceElectricity": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "utilityPriceWood": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "utilityPricePellets": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "utilityPriceCoal": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "utilityPriceKerosene": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "electricRatePlan": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "fuelRatePlan": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    },
+    "electricRatePlanImproved": {
+      "value": null,
+      "confidence": 1,
+      "sourceSpan": null
+    }
+  }
+}

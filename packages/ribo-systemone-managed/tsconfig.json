@@ -1,0 +1,1 @@
+{ "extends": "@azx/tsconfig/browser-library.json", "include": ["src"] }
