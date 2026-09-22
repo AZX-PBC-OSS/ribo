@@ -615,9 +615,15 @@ importers:
       '@azx/ribo-extractor-openai':
         specifier: workspace:*
         version: link:../packages/ribo-extractor-openai
+      '@azx/ribo-extractor-systemone':
+        specifier: workspace:*
+        version: link:../packages/ribo-extractor-systemone
       '@azx/ribo-storage-rxdb':
         specifier: workspace:*
         version: link:../packages/ribo-storage-rxdb
+      '@azx/ribo-systemone-managed':
+        specifier: workspace:*
+        version: link:../packages/ribo-systemone-managed
       '@azx/ribo-transcriber-managed':
         specifier: workspace:*
         version: link:../packages/ribo-transcriber-managed
