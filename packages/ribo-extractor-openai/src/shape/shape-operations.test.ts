@@ -626,12 +626,11 @@ test("the payoff: splitExtractionSchema groups a nest-derived extraction schema 
   expect(groups.map((group) => group.key).sort()).toEqual(["client", "construction", "systems"]);
 });
 
-test("the payoff is CONDITIONAL: one unmoved top-level leaf collapses the split to the flat fallback", () => {
-  // The limit, pinned in code rather than only in ADR 0022's prose. The split's
-  // gate is `everyKeyIsGroup`, so a nest group earns its own call only when the
-  // nests cover every top-level key. Partial nesting — which is the shape of
-  // the spike that motivated the operation, 19 groups proposed over 294 leaves
-  // — buys the model-facing structure and no split payoff at all.
+test("the payoff is unconditional: one unmoved top-level leaf rides the loose piece", () => {
+  // ADR 0022 pinned the limit: the split's gate was `everyKeyIsGroup`, so a
+  // nest group earned its own call only when the nests covered every top-level
+  // key. ADR 0023 lifts it: a partially nested schema splits into one entry
+  // per group plus the unmoved leaves as the unwrapped portion, keyed "".
   const shape = deriveExtractionShape(mixedSchema, {
     operations: [
       // `squareMeters` is deliberately left at the top level.
@@ -640,21 +639,21 @@ test("the payoff is CONDITIONAL: one unmoved top-level leaf collapses the split 
   });
   expect(Object.keys(shape.extractionSchema.shape)).toContain("construction");
   const groups = splitExtractionSchema(shape.extractionSchema);
-  expect(groups.map((group) => group.key)).toEqual([""]);
+  // Groups first in declaration order, the loose piece last, carrying exactly
+  // the unmoved leaf.
+  expect(groups.map((group) => group.key)).toEqual(["client", "systems", "construction", ""]);
+  expect(Object.keys((groups.at(-1)!.schema as z.ZodObject).shape)).toEqual(["squareMeters"]);
 });
 
-test("a partially nested schema whose nest group exceeds a cap cannot be split at all", () => {
-  // The sharp end of the conditional payoff, and the reason ADR 0022 calls the
-  // mixed-schema splitter work the immediate next piece rather than a
-  // follow-on. The flat fallback partitions over top-level keys and treats each
-  // as ATOMIC, so a top-level key that is itself an oversized GROUP has nowhere
-  // to go. Measured on the live vendor proposal: the flat schema split into 38
-  // pieces, the same schema carrying the model's nests would not split at all.
-  //
-  // The limitation is the flat fallback's and predates `nest` — a hand-written
-  // schema with an oversized group beside a loose top-level leaf fails the same
-  // way. `nest` only makes it easy to reach, because a partially nested schema
-  // is what the proposer naturally emits.
+test("a partially nested schema whose nest group exceeds a cap splits — the group partitions, the loose leaf rides", () => {
+  // The sharp end of ADR 0022's conditional payoff, and the reason it called
+  // the mixed-schema splitter work the immediate next piece: the flat fallback
+  // partitioned over top-level keys and treated each as ATOMIC, so a top-level
+  // key that was itself an oversized GROUP had nowhere to go. Measured on the
+  // live vendor proposal: the flat schema split into 38 pieces, the same
+  // schema carrying the model's nests would not split at all. ADR 0023 is
+  // that work: the oversized group partitions within itself exactly as it does
+  // on the all-group path, and the loose leaf packs as the unwrapped portion.
   const leaf = (description: string) => z.string().describe(description).nullable().optional();
   const wide: Record<string, z.ZodType> = { loose: leaf("a top-level leaf no nest moves") };
   for (let i = 0; i < 24; i++)
@@ -673,12 +672,15 @@ test("a partially nested schema whose nest group exceeds a cap cannot be split a
       },
     ],
   });
-  expect(() =>
-    splitExtractionSchema(shape.extractionSchema, {
-      maxNullableUnionsPerGroup: 16,
-      maxSerializedCharsPerGroup: 19_000,
-    }),
-  ).toThrow(/property "wide" that cannot fit any piece/);
+  const split = splitExtractionSchema(shape.extractionSchema, {
+    maxNullableUnionsPerGroup: 16,
+    maxSerializedCharsPerGroup: 19_000,
+  });
+  // The oversized group partitions within itself — 24 enveloped leaves is 48
+  // unions against a cap of 16 — and the loose leaf rides one "" piece last.
+  expect(split.filter((piece) => piece.key === "wide").length).toBeGreaterThan(1);
+  expect(split.at(-1)!.key).toBe("");
+  expect(Object.keys((split.at(-1)!.schema as z.ZodObject).shape)).toEqual(["loose"]);
 
   // Nest the leftover leaf too and every top-level key is a group, so the
   // per-group path partitions the oversized group within itself.
