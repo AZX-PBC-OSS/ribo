@@ -30,6 +30,23 @@
  * No progress units of its own: a wrapper that delegates emits none (ADR 0004).
  * `usage`, `raw` and `statedEmptyGroups` pass through untouched — the
  * top-level keys the stated-empty map is keyed by are shared by both spaces.
+ *
+ * The cross-file invariant that safety rests on, with a nest in the vocabulary:
+ * every `mapping.provenance` key is a top-level key of BOTH schemas, by a pair
+ * of refusals in the derivation — it refuses provenance naming a nest group
+ * (absent from the patch) and refuses provenance naming a moved-away source
+ * (absent from the shaped schema). It REFUSES them; nothing is silently
+ * dropped from the map. So `enveloped(patchSchema, { provenance })` below can
+ * never meet a key the patch does not have, and `validateProvenance`'s own
+ * throw is unreachable from a derived artifact.
+ *
+ * The `statedEmptyGroups` passthrough survives a nest for the same reason as
+ * ever: only a COLLECTION group can be stated-empty —
+ * `scoped-instance/inventory-phase.ts`'s merge skips every non-collection
+ * group before writing an entry, and `review.ts` reads `statedEmptyGroups[key]`
+ * only inside its array branch — and a nest never creates a collection (a leaf
+ * is never a `ZodArray`, so a nest group is always a plain object of plain
+ * leaves).
  */
 
 import { enveloped } from "@azx/ribo-core";

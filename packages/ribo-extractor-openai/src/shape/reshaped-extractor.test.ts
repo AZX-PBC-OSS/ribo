@@ -9,6 +9,7 @@ import type { EnvelopedSchemaExtractorOptions } from "../strategies/schema-extra
 import { assertShapeMapping } from "./shape-mapping.js";
 import type { ShapeMapping } from "./shape-mapping.js";
 import type { DerivedExtractionShape } from "./derived-shape.js";
+import { deriveExtractionShape } from "./shape-operations.js";
 import { buildReviewRequest } from "@azx/ribo-core";
 
 /**
@@ -471,4 +472,68 @@ test("a row-granularity group reverses through the combinator: plain leaves, the
   );
   expect(request.fields["rooms[k1].name"]!.extracted.sourceSpan).toBe("L1.Bathrm | 47 | 1521");
   expect(request.fields["rooms[k1].heatingLoad"]!.isGrounded).toBe(true);
+});
+
+test("end to end through a nest: the model answers the grouped schema, review sees the flat patch", async () => {
+  // The payoff, both halves of it. Extraction side: the derived schema carries
+  // the new group, so the split and the prompt assembly see `construction` as
+  // a subject. Patch side: review walks the derived patch, which a nest leaves
+  // byte-identical — the moved leaf renders at its FLAT patch path, and no
+  // attic card exists.
+  const flatSchema = z.object({
+    yearBuilt: z.string().describe("Year the home was constructed.").nullable().optional(),
+    heatingType: z.enum(["gas", "oil", "electric"]).nullable().optional(),
+  });
+  const nestedShape = deriveExtractionShape(flatSchema, {
+    operations: [{ op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } }],
+  });
+
+  const nestedResponse = (): Record<string, unknown> => ({
+    construction: {
+      yearBuilt: { value: "1972", confidence: 0.9, sourceSpan: "built in seventy-two" },
+    },
+    heatingType: { value: "gas", confidence: 0.95, sourceSpan: "gas heat" },
+  });
+  const { chat, requests } = fakeChat(nestedResponse);
+  type PassthroughSchema = EnvelopedSchemaExtractorOptions<
+    Record<string, unknown>
+  >["extractionSchema"];
+  const inner = schemaExtractor({
+    // The same inference-vs-assignability assertion the row-group test above
+    // makes: the runtime path uses the schema as-is.
+    extractionSchema: nestedShape.extractionSchema as PassthroughSchema, // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion -- inference, not assignability; see above
+    name: "flat-nest",
+    instructions: "Extract the home fields.",
+    chat,
+    model: "m",
+  });
+  const extractor = reshapedExtractor(inner, nestedShape);
+  const text = "The home was built in seventy-two, with gas heat.";
+  const { fields } = await extractor.extract({ text, annotations: {} });
+
+  // The wire carried the GROUPED schema — the nest group is what the model was
+  // asked about.
+  const wireSchema = requests[0]!.response_format.json_schema.schema as {
+    properties: Record<string, unknown>;
+  };
+  expect(Object.keys(wireSchema.properties).sort()).toEqual(["construction", "heatingType"]);
+
+  // Reversal landed the moved leaf at its original top-level patch path, with
+  // the whole envelope intact.
+  expect(fields.yearBuilt).toEqual({
+    value: "1972",
+    confidence: 0.9,
+    sourceSpan: "built in seventy-two",
+  });
+  expect(fields).not.toHaveProperty("construction");
+
+  // Review renders the moved leaf at its FLAT patch path — a nest buys nothing
+  // review-side, and this pins that honestly.
+  const request = buildReviewRequest(
+    fields,
+    { recordingId: "rec-1", text, engine: "fake" },
+    nestedShape.patchSchema,
+  );
+  expect(Object.keys(request.fields).sort()).toEqual(["heatingType", "yearBuilt"]);
+  expect(request.fields.yearBuilt!.isGrounded).toBe(true);
 });
