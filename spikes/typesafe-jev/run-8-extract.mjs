@@ -5,7 +5,7 @@
 // the 467-leaf schema does not fit a single-shot call.
 //
 //   node run-8-extract.mjs <model> [transcriptLimit]
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { openAiChat, perGroupExtractor } from "../../packages/ribo-extractor-openai/dist/index.js";
 import {
