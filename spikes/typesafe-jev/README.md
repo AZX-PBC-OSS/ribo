@@ -222,6 +222,37 @@ anything, and it does that.
 Not measured: head-to-head against core's chat-based `presencePhase`, which needs extraction calls
 and hits the same wall as probe 8.
 
+## Probe 11 — one three-way choice, against two nouls
+
+[The citation-check cookbook](https://docs.typesafe.ai/cookbooks/citation_check.md) splits
+verification differently: a string match for whether the quote exists, then ONE choice asking
+whether the context `supports` / `contradicts` / `says_nothing` about the claim. Step 1 is
+`spanGroundedness`, and the limitation the cookbook names — a truncated or reworded quote reading
+as fabricated — is what this repo's `near-miss` tier already solves. Only step 2 was missing.
+
+Run on probe 4's exact cells, so it is directly comparable to probe 5.
+
+| population | n   | supports | contradicts | says_nothing |
+| ---------- | --- | -------- | ----------- | ------------ |
+| supported  | 95  | 91.6%    | 5.3%        | 3.2%         |
+| corrupted  | 95  | 2.1%     | **97.9%**   | 0.0%         |
+| invented   | 761 | 7.9%     | 1.1%        | **91.1%**    |
+
+Compared at a **matched false-escalation rate**, the only fair comparison since the two-noul form
+has a tunable threshold and "escalate when not `supports`" does not:
+
+| at 8.4% of good values escalated | corrupted caught | invented caught |
+| -------------------------------- | ---------------- | --------------- |
+| two nouls, max (FIRE_T 0.79)     | 87.4%            | 92.4%           |
+| one three-way choice             | **97.9%**        | 92.1%           |
+
++10.5 points on substituted values, a tie on inventions, same cost. And it makes a distinction two
+nouls structurally cannot: `contradicts` (the field was discussed and the value is wrong — a
+re-ask can fix it) versus `says_nothing` (never mentioned — the honest repair is null).
+
+Confidence works as a second axis but is not needed: gating at 0.70 cuts false escalation to 1.1%
+while dropping invented catch to 83.7%.
+
 ## Read
 
 Router and cascade-style verification both land. The naive enum extractor does not, and its

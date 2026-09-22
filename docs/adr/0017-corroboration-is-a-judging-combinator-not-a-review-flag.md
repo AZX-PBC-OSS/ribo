@@ -28,9 +28,8 @@ single-shot output, **124 were `grounded`** — no near-misses, no ungrounded. T
 grounded x supported 2x2 to merge into; there is one column.
 
 _A verification question does work, but only in aggregate._ Asking P(wrong) rather than
-P(supported), over two orthogonal checks aggregated with `max`, caught 100% of substituted values
-and 97.6% of the model's own inventions. But on real extractions **identical mappings landed on
-both sides of any threshold**: `natural_gas` from "a gas furnace" scored 0.38 in one transcript and
+P(supported) caught 100% of substituted values and 97.6% of the model's own inventions. But on
+real extractions **identical mappings landed on both sides of any threshold**: `natural_gas` from "a gas furnace" scored 0.38 in one transcript and
 0.65 in another; the age band `11-15` scored 0.41 for "maybe twelve years old" and 0.61 for "About
 fifteen years old". A flag an auditor sees on one leaf and not on its twin is a flag they learn to
 ignore.
@@ -39,6 +38,20 @@ _Much of what remains is schema distance, not error._ Telling the verifier the l
 dropped the flagged count from 16 to 10, clearing exactly the faithful-encoding cases. Six of the
 ten survivors were one field, an equipment/duct axis conflation the corpus already annotates as a
 schema finding rather than a model failure.
+
+_One three-way choice beats two nouls._ The first formulation asked two orthogonal nouls —
+"is this unsupported?" and "does the source report this field at all?" — aggregated with `max`.
+TypeSafe's own citation-check cookbook instead asks ONE choice over three outcomes: the source
+`supports` the value, `contradicts` it, or `says_nothing` about it. Measured on the same cells,
+at a matched false-escalation rate of 8.4%, the choice caught **97.9%** of substituted values
+against the two nouls' 87.4%, with invented values a tie (92.1% vs 92.4%). Two structural reasons
+sit behind the number: a choice returns a distribution and a confidence rather than a maximum over
+two independent probabilities, and it cannot produce the incoherent states two nouls can — both
+high, or both low.
+
+The cookbook's step 1 is a string match with normalisation, which is `spanGroundedness`; the
+limitation it names — that a truncated or reworded quote reads as fabricated — is what this repo's
+`near-miss` tier already solves. Only its step 2 was missing.
 
 ## Decision
 
@@ -50,6 +63,17 @@ result by identity or throws a `TerminalError`, so the shipped default arbiter f
 next rung (ADR 0002). The SDE cascade's escalation is then `fallbackExtractor([corroborated(cheap),
 reasoning])` with no new scheduling and no arbiter change. It refuses `"row"` and `"none"`
 provenance at construction, like its sibling (ADR 0003).
+
+**The judgement is one `choice` per committed leaf, over `supports` / `contradicts` /
+`says_nothing`**, told the leaf's enum members — without them the verifier reads schema encoding
+as hallucination. A verdict other than `supports` is what counts against the ratio.
+
+**The census carries the verdict, not just a number.** `contradicts` and `says_nothing` mean
+different things and invite different repairs: a contradicted value is wrong where the field WAS
+discussed, which a re-ask can fix; an unsupported one was never mentioned, and the honest repair
+is null. The combinator exposes the distinction so a consumer can act on it. **No consumer is
+required to.** Gap-fill's candidate selection reads a leaf's score and needs to know nothing about
+these three outcomes, so its contract does not mention them and does not change when they do.
 
 **The policy thresholds a ratio of committed leaves, never a single leaf.** That is the whole
 consequence of the variance above: a count aggregates away noise that makes one leaf's score
@@ -64,9 +88,6 @@ default would therefore be a guess wearing a measurement's clothes, and a wrong 
 too high and the rung never falls through, too low and every result escalates at full price.
 Requiring the ratio puts the choice at the call site, where the host knows what a wasted
 escalation costs it.
-
-The verifier is told each leaf's enum members, because without them it reads schema encoding as
-hallucination.
 
 Nothing is added to `ReviewField`, to `BuildReviewRequestOptions`, or to the envelope. In
 particular the score does **not** go on `Extracted<T>`: that envelope holds the model's own claims,
