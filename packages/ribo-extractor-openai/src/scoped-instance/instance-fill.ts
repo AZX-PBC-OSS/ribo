@@ -342,17 +342,27 @@ export function prepareGroups<V extends Record<string, unknown>, P = NoProvenanc
     >;
     // A partitioned piece appends `-<part>` so fill calls sharing a group key
     // still get distinct schema names — the same charset-safe suffixing
-    // perGroupPlan uses, and for the same reason.
+    // perGroupPlan uses, and for the same reason. The flat (non-grouped) path
+    // appends the same suffix: pieces of a partitioned flat schema share
+    // `key === ""`, so dropping the suffix there would name N pieces the same
+    // and make a route-side error unrecoverable for want of `part`. No
+    // `-${group.key}` infix — flat pieces have no group key to slot in.
     const partSuffix = group.part !== undefined ? `-${group.part}` : "";
     const name = group.key
       ? `${target.name}-${group.key}-fill${partSuffix}`
-      : `${target.name}-fill`;
+      : `${target.name}-fill${partSuffix}`;
     assertWireSafeSchemaName(name, "prepareGroups");
+    // Error contexts must be distinct for the same reason: a parse failure on
+    // piece 2 of a 3-piece flat schema is otherwise indistinguishable from the
+    // piece-1 failure that just preceded it, because the message above names
+    // the target only.
     const context = group.key
       ? group.part !== undefined
         ? `scopedInstanceExtractor: fill for "${target.name}" group "${group.key}" (part ${group.part + 1}/${group.parts})`
         : `scopedInstanceExtractor: fill for "${target.name}" group "${group.key}"`
-      : `scopedInstanceExtractor: fill for "${target.name}"`;
+      : group.part !== undefined
+        ? `scopedInstanceExtractor: fill for "${target.name}" (part ${group.part + 1}/${group.parts})`
+        : `scopedInstanceExtractor: fill for "${target.name}"`;
     // Only a partitioned piece needs its few-shot example narrowed — an
     // unpartitioned group's example already carries exactly its leaves.
     const leafKeys = group.part !== undefined ? partitionedLeafKeys(group) : undefined;
