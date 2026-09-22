@@ -311,6 +311,88 @@ test("a mapping that crosses a top-level boundary is refused", () => {
   ).toThrow(/may not cross a top-level boundary/);
 });
 
+test("a cross-top entry is allowed in the nest case: a top-level leaf under a new synthetic group", () => {
+  // The exact shape the derivation emits for a `nest` operation, written by
+  // hand so the relaxation is pinned at the mapping layer itself: a top-level
+  // patch leaf moved under a NEW top-level group in the extraction schema.
+  // Both tops are "leaf"-granular and the extraction top names no patch key.
+  const leaf = z.string().nullable().optional();
+  const patchSchema = z.object({ yearBuilt: leaf });
+  const extractionSchema = enveloped(z.object({ construction: z.object({ yearBuilt: leaf }) }));
+  const nested: ShapeMapping = {
+    leaves: { "construction.yearBuilt": { source: "yearBuilt" } },
+    provenance: {},
+  };
+  expect(() => assertShapeMapping(nested, extractionSchema, patchSchema)).not.toThrow();
+});
+
+test("a cross-top entry under a row-provenanced extraction group is refused", () => {
+  // Clause 2, extraction side: the extraction top is not "leaf"-granular, so
+  // reversal would write this leaf's bare value where the patch expects an
+  // envelope. The extraction schema is a REAL row group here — plain leaves,
+  // row span — so nothing but the boundary check can fire.
+  const leaf = z.string().nullable().optional();
+  const patchSchema = z.object({ yearBuilt: leaf });
+  const extractionSchema = enveloped(z.object({ construction: z.object({ yearBuilt: leaf }) }), {
+    provenance: { construction: "row" },
+  });
+  const crossed: ShapeMapping = {
+    leaves: { "construction.yearBuilt": { source: "yearBuilt" } },
+    provenance: { construction: "row" },
+  };
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
+    /may not cross a top-level boundary/,
+  );
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
+    /"construction" is "row"-provenanced/,
+  );
+});
+
+test("a cross-top entry whose source's own top-level key is none-provenanced is refused", () => {
+  // Clause 2, source side — the hole a hand-written mapping opens:
+  // `validateProvenance` refuses only "row" on a leaf, never "none", so this
+  // is legal input. Reversal reads the granularity from the EXTRACTION top
+  // ("leaf"), writes an envelope at `yearBuilt`, and the combinator's output
+  // schema — `enveloped(patch, { yearBuilt: "none" })` — wants a plain
+  // nullable: every extract would throw a retryable SchemaParseError.
+  const leaf = z.string().nullable().optional();
+  const patchSchema = z.object({ yearBuilt: leaf });
+  const extractionSchema = enveloped(z.object({ construction: z.object({ yearBuilt: leaf }) }));
+  const crossed: ShapeMapping = {
+    leaves: { "construction.yearBuilt": { source: "yearBuilt" } },
+    provenance: { yearBuilt: "none" },
+  };
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
+    /may not cross a top-level boundary/,
+  );
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
+    /"yearBuilt" is "none"-provenanced/,
+  );
+});
+
+test("a cross-top entry into a pre-existing patch group is refused — the extraction top is not synthetic", () => {
+  // Clause 3: the one legal crossing is a nest, and a nest CREATES its group.
+  // `construction` here already exists in the patch, so the entry is an
+  // ordinary cross-top move, not a nest — refused even though both tops are
+  // "leaf"-granular and the source is a top-level leaf.
+  const leaf = z.string().nullable().optional();
+  const patchSchema = z.object({
+    yearBuilt: leaf,
+    construction: z.object({ other: leaf }),
+  });
+  const extractionSchema = enveloped(z.object({ construction: z.object({ yearBuilt: leaf }) }));
+  const crossed: ShapeMapping = {
+    leaves: { "construction.yearBuilt": { source: "yearBuilt" } },
+    provenance: {},
+  };
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
+    /may not cross a top-level boundary/,
+  );
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
+    /"construction" is a top-level key of the patch schema/,
+  );
+});
+
 test("a row-granularity group reverses through the combinator: plain leaves, the row's citation", async () => {
   // A row-granularity derived shape. The passthrough is TYPED for leaf
   // granularity — `EnvelopedSchemaExtractorOptions` fixes `Enveloped<V,

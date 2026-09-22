@@ -105,8 +105,8 @@ export const retypeToPatchValue = (value: number | null): string | null =>
 export interface LeafMapping {
   /**
    * The leaf's dotted path in the derived patch — where reversal writes it.
-   * A regrouped leaf's source differs from its extraction path; every other
-   * leaf's source is its own path in the caller's schema.
+   * A regrouped or nested leaf's source differs from its extraction path;
+   * every other leaf's source is its own path in the caller's schema.
    */
   readonly source: string;
   /** Present when the extraction leaf's kind differs from the patch leaf's. */
@@ -121,9 +121,10 @@ export interface LeafMapping {
  * it reverses to. `provenance` records the granularity each top-level key was
  * derived at, which is what tells reversal whether a leaf's value travels as an
  * envelope (`"leaf"`) or as a plain value beside its row's span (`"row"`,
- * `"none"`). The top-level keys are shared by both spaces — regrouping within a
- * top-level key is the supported move, and one that never crosses a group
- * boundary — so one map serves both.
+ * `"none"`). The top-level keys are shared by both spaces up to nesting — a
+ * `nest` group exists only in the extraction space, and the derivation refuses
+ * a granularity naming one — so one map still serves both: every key here
+ * names a top-level key of both schemas.
  */
 export interface ShapeMapping {
   /** Extraction leaf path → where it came from. Exhaustive over both schemas. */
@@ -375,9 +376,12 @@ const assertObjectKeyPath = (path: string, side: "extraction" | "patch"): void =
  *     an unretyped entry's kinds agree — including enum and literal
  *     vocabulary, which a kind-only check would let swap;
  *   - every entry's source shares the entry's first path segment — the
- *     top-level key. Regrouping within a top-level key is the supported move;
- *     one that crossed the boundary would strand a row-provenance span with no
- *     data-determined place to land, and `validateProvenance` and
+ *     top-level key — UNLESS the entry is a nest: a single-segment source (a
+ *     top-level patch leaf), both top-level keys `"leaf"`-granular, and the
+ *     extraction top-level key synthetic (no top-level key of the patch schema
+ *     by that name). Regrouping within a top-level key is the other supported
+ *     move; one that crossed the boundary would strand a row-provenance span
+ *     with no data-determined place to land, and `validateProvenance` and
  *     `statedEmptyGroups` are both keyed by the group;
  *   - each entry's two sides run under the same array-depth pattern from the
  *     leaf — measured in depths-from-leaf, not in path names, so a regroup
@@ -400,13 +404,66 @@ export const assertShapeMapping = (
     assertObjectKeyPath(path, "extraction");
     assertObjectKeyPath(entry.source, "patch");
     const extractionTop = path.split(".")[0]!;
-    if (extractionTop !== entry.source.split(".")[0]!) {
-      throw new Error(
-        `shape mapping: the entry at "${path}" names source "${entry.source}" under a ` +
-          "different top-level key — regrouping may not cross a top-level boundary. A " +
-          "row-provenance group has one span with no data-determined place to land across " +
-          "two original groups.",
-      );
+    const sourceTop = entry.source.split(".")[0]!;
+    if (extractionTop !== sourceTop) {
+      // The one legal crossing is a nest: a top-level patch leaf moved under a
+      // new top-level group of the extraction schema. Three conjuncts, each
+      // naming the case it refuses:
+      //
+      //   1. The source is a single-segment path. A nest moves a top-level
+      //      LEAF — a nested source is an ordinary cross-top regroup, which
+      //      would strand a row-provenance span.
+      //   2. BOTH tops are "leaf"-granular. This guards the hand-written path
+      //      only: the derivation refuses provenance on a nest group and on a
+      //      moved-away source, so a derived mapping never has a non-"leaf"
+      //      top here — but `reshapedExtractor` accepts a mapping nothing
+      //      generated. Without this conjunct a row group's plain leaf (or a
+      //      "none" top-level leaf's counterpart) pairs with a leaf of the
+      //      other space, passing kinds, bijection and depths; reversal reads
+      //      the granularity from the EXTRACTION top while the combinator's
+      //      output schema was enveloped from the same map over the PATCH, so
+      //      one side writes an envelope where the other wants a bare value —
+      //      through the combinator a retryable `SchemaParseError` on every
+      //      extract, and through `reverseShapedFields` directly (a public
+      //      export that runs with no construction check) a bare value where
+      //      review's `readEnvelope` turns it into the silent sentinel.
+      //   3. The extraction top is synthetic — not a top-level key of the
+      //      patch schema. Not a safety check (a cross-top into a pre-existing
+      //      leaf-provenanced group would reverse correctly) but a precision
+      //      one: the exception names exactly the case that motivates it. A
+      //      derived mapping always satisfies it, since the applier refuses a
+      //      nest group colliding with a surviving patch key.
+      const reasons: string[] = [];
+      if (entry.source.split(".").length !== 1) {
+        reasons.push(`its source "${entry.source}" is not a top-level patch leaf`);
+      }
+      const extractionGranularity = mapping.provenance[extractionTop] ?? "leaf";
+      if (extractionGranularity !== "leaf") {
+        reasons.push(
+          `its extraction top-level key "${extractionTop}" is "${extractionGranularity}"-provenanced, not "leaf"`,
+        );
+      }
+      const sourceGranularity = mapping.provenance[sourceTop] ?? "leaf";
+      if (sourceGranularity !== "leaf") {
+        reasons.push(
+          `its source's top-level key "${sourceTop}" is "${sourceGranularity}"-provenanced, not "leaf"`,
+        );
+      }
+      if (Object.hasOwn(patchSchema.shape, extractionTop)) {
+        reasons.push(
+          `"${extractionTop}" is a top-level key of the patch schema, not a group a nest created`,
+        );
+      }
+      if (reasons.length > 0) {
+        throw new Error(
+          `shape mapping: the entry at "${path}" names source "${entry.source}" under a ` +
+            "different top-level key — regrouping may not cross a top-level boundary. A " +
+            "row-provenance group has one span with no data-determined place to land across " +
+            "two original groups. The one legal crossing is a nest — a top-level leaf moved " +
+            'under a new, synthetic top-level group, both tops "leaf"-granular — and this ' +
+            `entry is not one: ${reasons.join("; ")}.`,
+        );
+      }
     }
     const extractionLeaf = extractionWalk.leaves.get(path);
     if (extractionLeaf === undefined) {
