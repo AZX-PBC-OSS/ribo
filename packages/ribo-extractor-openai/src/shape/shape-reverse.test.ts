@@ -88,3 +88,28 @@ test("the collection-crossing throw keeps the offending path under a row-provena
   expect(() => reverseShapedFields(data, mapping)).toThrowError(SchemaParseError);
   expect(() => reverseShapedFields(data, mapping)).toThrow(/g\.arr/);
 });
+
+test("a nested leaf's envelope lands at its original top-level patch path, verbatim", () => {
+  // The nest case: the extraction leaf lives under a synthetic group, the
+  // patch leaf at the top level. Reversal roots the patch-side write at the
+  // SOURCE's top-level key, not the extraction path's — and carries the whole
+  // envelope, not just the value.
+  const mapping: ShapeMapping = {
+    leaves: { "construction.yearBuilt": { source: "yearBuilt" } },
+    provenance: {},
+  };
+  const data = {
+    construction: {
+      yearBuilt: { value: "1972", confidence: 0.9, sourceSpan: "built in seventy-two" },
+    },
+  };
+  const reversed = reverseShapedFields(data, mapping);
+  expect(reversed.yearBuilt).toEqual({
+    value: "1972",
+    confidence: 0.9,
+    sourceSpan: "built in seventy-two",
+  });
+  // Nothing is written under the synthetic group — it exists only in the
+  // extraction space.
+  expect(reversed).not.toHaveProperty("construction");
+});
