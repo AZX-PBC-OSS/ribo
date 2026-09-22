@@ -90,9 +90,13 @@ health matrix, which we must not blank), then create-or-update each component, t
 singleton sending only the tests we heard. Two hard constraints this surfaces, neither satisfied by
 our adapter today:
 
-- **An "upgrade action" field is REQUIRED when creating an HVAC system** and has no analogue in our
-  extraction schema. For a "describe what's there" audit it is a **constant** the write layer must
-  supply — the auditor never says it. (Exact field name and the constant value: private notes.)
+- **An "upgrade action" field is REQUIRED when creating an HVAC system.** This section originally
+  concluded it was a **constant** the write layer must supply, because "the auditor never says it."
+  **That was wrong and is superseded** (doc 17; owner correction 2026-08-06): auditors narrate
+  recommendations, so "there's an oil boiler here, we should get rid of it" carries the upgrade
+  action as plainly as it carries the equipment type. It is extracted, and declared in the
+  adapter's `requiredOnCreate` so a human is asked at review if it is missing. A constant would
+  have written a retrofit decision nobody made.
 - **Equipment type is REQUIRED on create and unavailable on update.** Changing a system's equipment
   type is a delete-and-recreate, not an edit.
 
@@ -110,9 +114,17 @@ The load-bearing design conclusion (correcting docs 05/06): the egress must **si
 server-side** — hold the private key, compute the signature per call — **not** inject a static
 `X-Api-Key`. This is a concrete change to the Helix egress design.
 
-**One open wire-format risk:** the spec's declared content type and its per-parameter encoding are
-internally inconsistent, which changes both the request encoding and what the signature covers. This
-must be settled against a live key before `write()` is built.
+**The open wire-format risk is settled (2026-09-21).** The spec's declared content type and its
+per-parameter encoding are internally inconsistent — the document says `consumes: application/json`
+while every write parameter is declared `in: formData` — which left it unclear what to send. Real
+writes against staging resolve it: **a JSON body with `content-type: application/json` is accepted**,
+for a collection create, a collection update and a singleton upsert alike. The declared `formData`
+is a spec artefact, not the wire contract.
+
+The signature question is moot from our side: the Helix egress layer signs each request
+server-side and injects the credential, so the adapter sends an unsigned JSON body to a
+same-origin proxy path and never sees what the signature covers. That is the A1 capability, now
+confirmed rather than open (doc 13).
 
 ---
 
@@ -176,6 +188,55 @@ per-program; fuel availability is plausibly program/utility-configurable.
 could be wrong for a given program. **The mapping must be validated at write time against a live
 read, not assumed at extraction time.** (The recovered working-assumption member lists are in the
 private notes.)
+
+### 3.3 Write semantics, measured against the live API (2026-09-21)
+
+The spec cannot answer either of these, and both were probed reversibly against staging job 588613
+through the Helix gateway. Everything the probes created was deleted; each job ended at baseline.
+
+**A write MERGES, and an explicit `null` clears.** Measured on three endpoints covering both shapes
+— a collection update (`POST /jobs/hvac/{uuid}`), a small singleton (`POST /jobs/{jobId}/health`,
+all sixteen tests null beforehand), and the largest singleton (`POST /jobs/{jobId}/basedata`, 163
+modelled leaves, on a job already holding data — all 22 populated fields survived a one-field
+write). So:
+
+| Sent                      | Vendor behaviour |
+| ------------------------- | ---------------- |
+| key omitted               | field left alone |
+| key present, value `null` | field cleared    |
+
+That is exactly the distinction our patch draws between a rejected leaf and one a human edited to
+empty, so no read-merge-write step is needed. The remaining seventeen endpoints are an inference
+from three confirmations across both shapes — good, not proven; `utilities` (100 parameters) is the
+next worth probing if anyone wants certainty.
+
+**`Idempotency-Key` is IGNORED.** A create, then a byte-identical replay with the same key,
+returned `200` with a _different_ uuid. The spec declares no header parameters on any endpoint and
+never mentions idempotency. Anything reasoning from that header is wrong; duplicate protection has
+to come from the write receipt (see ADR 0016).
+
+### 3.4 The thermostat setpoints accept a RANGE, and usually carry one
+
+`heatingSetpointHigh`, `heatingSetpointLow`, `coolingSetpointHigh` and `coolingSetpointLow` are
+typed a bare `string` with no enum, and their descriptions read "Enter the heating thermostat
+temperature setting (°F)…" — which invites reading them as numbers. **The second half of the same
+description sanctions a range**, with the format and worked examples: "you may enter a range of
+temperatures for each of the setpoints separated by a dash (no spaces). For example, you can set
+the Low temp setpoint for heating at 60-65 and the High temp setpoint at 68-71."
+
+The stored data agrees. Across 40 staging jobs sampled 2026-09-21, **36 of 38 populated records
+hold a range** — `64-72`, `66-70`, `66-74`, `68-74` — and only two a bare number. The values are
+not a closed list. Nothing else nearby behaves this way: `yearBuilt`, `conditionedArea` and
+`numberOfBedrooms` sampled clean and numeric in the same jobs.
+
+We modelled all four `z.number()` until this was found, which meant a spoken band had to be
+collapsed to one temperature or dropped. They are `z.string()` now.
+
+Worth generalising, because this is the second field-shape error found the same way: **a
+`type: string` with no enum tells you almost nothing here — the real vocabulary is in the prose,
+often past where a skim stops.** The manufacturer enums (§3) and the duct "Measured" coupling were
+the same lesson. Read the whole description for any field before deciding what it holds, and
+where a live read is available, check what it actually stores.
 
 ---
 
