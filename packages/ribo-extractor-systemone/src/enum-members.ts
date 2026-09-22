@@ -7,9 +7,9 @@ import type { LeafPath } from "@azx/ribo-core";
  * The enum members a leaf of an extraction schema may hold, in declaration order — or `null`
  * when the leaf is not an enum or `path` does not resolve through `schema`.
  *
- * The System One phase this package will grow turns an enum leaf into one calibrated yes/no
- * question per member, so it needs this read as a primitive over the same `enveloped()` schema
- * the extraction ran against. The walk itself mirrors `ribo-extractor-openai`'s
+ * Corroboration asks one calibrated question per committed leaf and must state the leaf's
+ * members in it: without them a verifier reads the schema's own encoding of what was said —
+ * a spoken duration recorded as the band containing it — as a fabrication (ADR 0017). The walk itself mirrors `ribo-extractor-openai`'s
  * `leafSchemaAtPath` but is deliberately a local copy, not an import: that package is a leaf
  * sibling, and a dependency between the two is a direction the architecture rules out. (Moving
  * the walk into core is a separate, scheduled refactor — do not do it here.)

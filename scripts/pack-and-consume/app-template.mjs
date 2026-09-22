@@ -208,9 +208,11 @@ async function run() {
     checks.extractorHasExtractFn = typeof extractor.extract === "function";
 
     // ribo-extractor-systemone: the schema walk answers a KNOWN enum leaf of a REAL derived
-    // extraction schema, across the tarball boundary — members in declaration order.
+    // extraction schema, across the tarball boundary — members in declaration order. hvac is a
+    // COLLECTION group, so the index segment is required: it addresses a position in data, and
+    // the walk steps into the array's element schema rather than indexing the schema itself.
     checks.systemOneExtractorEnumMembers =
-      JSON.stringify(enumMembersAt(snuggExtractionSchema, ["hvac", "hvacDuctLeakage"])) ===
+      JSON.stringify(enumMembersAt(snuggExtractionSchema, ["hvac", 0, "hvacDuctLeakage"])) ===
       JSON.stringify([
         "30% - Very leaky",
         "15% - Somewhat leaky",
