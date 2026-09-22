@@ -59,7 +59,7 @@ holds the strategies over it: `corroborateExtractor`, the **second judging combi
 `validateExtractor` (it rejects terminally, so an escalating cascade is an ordinary
 `fallbackExtractor` ladder), and a presence phase at leaf granularity that asks every leaf in one
 request where core's asks one call per group. Its judgement picks a rung and never reaches a
-reviewer — ADR 0017 has the measurements that ruled the alternative out.
+reviewer — ADR 0021 has the measurements that ruled the alternative out.
 `@azx/ribo-transcriber-pdfjs` is the PDF document
 transcriber — `Transcriber<DocumentCapture>` with engine id `"pdfjs"`, lazy-loaded pdf.js, page
 markers, and a `no-text-layer` guard. `@azx/ribo-transcriber-managed-docs` is the managed document

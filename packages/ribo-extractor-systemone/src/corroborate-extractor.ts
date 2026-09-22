@@ -14,7 +14,7 @@ import { corroborationCensus } from "./corroboration-census.js";
 import type { CorroborationCensus } from "./corroboration-census.js";
 
 /**
- * @file `corroborateExtractor` — the second judging combinator (ADR 0017). It
+ * @file `corroborateExtractor` — the second judging combinator (ADR 0021). It
  * wraps any {@link Extractor}, extends core's pure grounding census with a
  * System One verdict per committed leaf ({@link corroborationCensus}), hands
  * that census to a caller-supplied synchronous policy, and either returns the
@@ -30,7 +30,7 @@ import type { CorroborationCensus } from "./corroboration-census.js";
  *   failed corroboration — on backoff, until `dead`. A hallucination detector
  *   that becomes a full-price retry loop. Terminal is also the honest reading:
  *   an uncorroborated result is a property of the strategy, not a blip.
- * - **The policy thresholds a ratio, never a leaf.** ADR 0017 measured per-leaf
+ * - **The policy thresholds a ratio, never a leaf.** ADR 0021 measured per-leaf
  *   scores landing on both sides of any threshold — identical mappings scored
  *   0.38 and 0.65 for the same phrase in different transcripts. A count
  *   aggregates that noise away; a policy acting on a single leaf's verdict
@@ -84,7 +84,7 @@ export type CorroborationPolicy = (census: CorroborationCensus) => ValidationVer
  * The shipped {@link CorroborationPolicy}: reject when the share of COMMITTED
  * leaves whose verdict is anything other than `"supports"` exceeds `ratio`.
  *
- * `ratio` is a REQUIRED argument with no default — ADR 0017's own choice, and
+ * `ratio` is a REQUIRED argument with no default — ADR 0021's own choice, and
  * the reason this factory takes one rather than the combinator defaulting it.
  * `contradicts` and `says_nothing` both count; a leaf still carrying a null
  * verdict (no answer came back) does not, exactly as
@@ -148,7 +148,7 @@ export interface CorroborateExtractorOptions<V extends Record<string, unknown>, 
  * transcript's text; {@link corroborationCensus} extends it with one `choice`
  * verdict per committed leaf — a network call the census itself cannot make,
  * which is the asymmetry that makes this a sibling combinator rather than an
- * option on `validateExtractor` (ADR 0017); the policy decides. A rejected
+ * option on `validateExtractor` (ADR 0021); the policy decides. A rejected
  * result throws {@link CorroborationRejectedError} — terminal, so the shipped
  * default arbiter falls through to the next rung. A passing result is returned
  * **untouched, by identity** — the combinator judges, it does not transform.
@@ -158,7 +158,7 @@ export interface CorroborateExtractorOptions<V extends Record<string, unknown>, 
  *
  * **No observer — for now.** ADR 0004's rule ("a wrapper that delegates and
  * judges stays silent") does not cover this combinator: the verification calls
- * ARE work of its own, and ADR 0017 records whether it should report progress
+ * ARE work of its own, and ADR 0021 records whether it should report progress
  * units as an open question it does not settle. None are emitted until that
  * question is settled with a design, not by accident.
  */

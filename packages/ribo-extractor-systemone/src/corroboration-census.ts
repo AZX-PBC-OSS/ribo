@@ -1,6 +1,6 @@
 /**
  * @file The corroboration census — a grounding census extended with a System
- * One verdict per committed leaf (ADR 0017). The judgement is ONE `choice`
+ * One verdict per committed leaf (ADR 0021). The judgement is ONE `choice`
  * question per committed leaf, over supports / contradicts / says_nothing:
  * TypeSafe's citation-check cookbook's step 2, which this repo lacked. The two
  * failing verdicts stay distinguishable because they invite different repairs
@@ -10,7 +10,7 @@
  * This is a census, not a policy: it attaches the model's judgement to the
  * leaves and stops. Thresholds over the ratio, escalation and error types
  * belong to the combinator that will consume it, and nothing here reaches a
- * human — the verdict picks a rung, it is never shown (ADR 0017).
+ * human — the verdict picks a rung, it is never shown (ADR 0021).
  */
 
 import type { z } from "zod";
@@ -42,7 +42,7 @@ export interface CorroboratedLeaf extends CensusLeaf {
 export interface CorroborationCensusCounts extends GroundingCensusCounts {
   /**
    * Committed leaves whose verdict came back as anything other than
-   * `"supports"` — the count a policy thresholds (ADR 0017). `contradicts` and
+   * `"supports"` — the count a policy thresholds (ADR 0021). `contradicts` and
    * `says_nothing` both count; a leaf still carrying a null verdict does not,
    * because no answer came back for it.
    */
@@ -70,7 +70,7 @@ export interface CorroborationCensusOptions {
   readonly batchSize?: number;
 }
 
-/** The three options every corroboration question offers, described once, verbatim (ADR 0017). */
+/** The three options every corroboration question offers, described once, verbatim (ADR 0021). */
 const VERDICT_CRITERIA = {
   supports: "the dictation states this value, or plainly means it",
   contradicts: "the dictation discusses this field but states a different value",
@@ -84,7 +84,7 @@ type VerdictAnswer = ChoiceResponse<typeof VERDICT_CRITERIA>;
  * Without the members the verifier reads the schema's own encoding as a
  * hallucination — a spoken "two years" recorded as the band `0-5` gets called
  * invented — so the enum statement and this clause are the measured part of
- * the question (ADR 0017).
+ * the question (ADR 0021).
  */
 const ENCODING_CLAUSE =
   "The value is a code from that list, not a quote — a faithful encoding of what the auditor said counts as supporting it.";
@@ -119,7 +119,7 @@ const pathKey = (path: LeafPath): string => JSON.stringify(path);
 /**
  * Extend a {@link GroundingCensus} with a System One verdict per committed
  * leaf, asking ONE `choice` question over supports / contradicts /
- * says_nothing, told the leaf's enum members when it has them (ADR 0017).
+ * says_nothing, told the leaf's enum members when it has them (ADR 0021).
  *
  * `census` is what `groundingCensus` returned for `fields`; the leaf VALUES
  * are not on the census — it carries paths — so they are read back out of

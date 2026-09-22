@@ -2,7 +2,7 @@
 
 **Throwaway.** Nine probes answering "how could TypeSafe's System One model (`jev-latest`) fit
 ribo?" — run 2026-09-21 against `jev-1.13.0`. Nothing here is a package, and nothing here should
-be promoted to one without being rewritten. The decisions this fed are ADR 0016 and ADR 0017;
+be promoted to one without being rewritten. The decisions this fed are ADR 0020 and ADR 0021;
 what survives here is the evidence behind them and a harness for the one measurement still open.
 
 Everything is scored against the **existing annotated corpus** in
@@ -316,4 +316,4 @@ cap, or a drip of one transcript per budget window, completes this whenever it i
 
 Open before implementation: `enumMembersAt` (gap-fill's `leafSchemaAtPath` already walks a leaf's
 schema, so it would move to core). The rejection ratio is deliberately **not** defaulted — see
-ADR 0017.
+ADR 0021.

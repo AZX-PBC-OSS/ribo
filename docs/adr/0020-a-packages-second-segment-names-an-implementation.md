@@ -1,4 +1,4 @@
-# 0016. A package's second segment names an implementation, never a vendor
+# 0020. A package's second segment names an implementation, never a vendor
 
 Status: Accepted
 Date: 2026-09-21

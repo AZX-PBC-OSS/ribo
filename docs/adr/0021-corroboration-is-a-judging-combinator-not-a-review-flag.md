@@ -1,4 +1,4 @@
-# 0017. Corroboration is a judging combinator, not a review flag
+# 0021. Corroboration is a judging combinator, not a review flag
 
 Status: Accepted
 Date: 2026-09-21

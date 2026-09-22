@@ -20,13 +20,13 @@ import { CorroborationRejectedError } from "./corroborate-extractor.js";
 import type { CorroborationPolicy } from "./corroborate-extractor.js";
 
 /**
- * Tests for `corroborateExtractor` — the second judging combinator (ADR 0017).
+ * Tests for `corroborateExtractor` — the second judging combinator (ADR 0021).
  *
  * The pins that matter most, in the order the file asserts them: identity on a
  * pass (the combinator judges, it does not transform); terminal on a rejection
  * (so the shipped default arbiter falls through — the opposite classification
  * is a full-price retry loop, per `validate-extractor.ts`'s header); ratio, not
- * per-leaf (ADR 0017's measured finding — per-leaf scores land on both sides of
+ * per-leaf (ADR 0021's measured finding — per-leaf scores land on both sides of
  * any threshold, so a single `contradicts` in a large result must not gate);
  * construction-time granularity refusal (ADR 0003); and the two propagation
  * directions — an inner transient stays transient, a client failure is not a
@@ -76,7 +76,7 @@ const leaf = (value: unknown, sourceSpan: string | null) => ({
 });
 
 // Five committed leaves, every quote verbatim — large enough that one bad leaf
-// sits inside any sane ratio, which is the point of ADR 0017's aggregate rule.
+// sits inside any sane ratio, which is the point of ADR 0021's aggregate rule.
 const supportedFields = {
   hvac: {
     systemType: leaf("furnace", "a gas furnace"),
@@ -181,7 +181,7 @@ describe("corroborateExtractor — acceptance", () => {
   });
 
   test("a single contradicts leaf in a large result does NOT reject while the ratio is not exceeded", async () => {
-    // THE measured finding of ADR 0017, made executable: per-leaf scores are
+    // THE measured finding of ADR 0021, made executable: per-leaf scores are
     // too inconsistent to gate on — identical mappings landed on both sides of
     // any threshold — so the policy thresholds a RATIO of committed leaves. An
     // implementation that rejected on any single bad leaf fails here.
@@ -300,7 +300,7 @@ describe("corroborateExtractor — propagation discipline", () => {
 
 describe("rejectUncorroboratedCommitments — the ratio", () => {
   test("a ratio is REQUIRED — there is no default to inherit", () => {
-    // ADR 0017: nothing measured justifies a number, and a wrong default fails
+    // ADR 0021: nothing measured justifies a number, and a wrong default fails
     // silently in both directions. The directive is the pin: deleting the
     // requirement turns the call valid, the directive goes unmet, and the
     // BUILD fails rather than a default arriving silently.

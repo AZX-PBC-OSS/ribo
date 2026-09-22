@@ -4,12 +4,12 @@
  * decides what the phases after it look at.
  *
  * Both talk to `@azx/ribo-systemone-managed`; neither knows which endpoint is
- * behind it (ADR 0016).
+ * behind it (ADR 0020).
  */
 
 // The schema read both strategies need: a leaf's enum members, so a question can
 // state them. Without them a verifier reads the schema's own encoding of what was
-// said as a fabrication (ADR 0017).
+// said as a fabrication (ADR 0021).
 export { enumMembersAt } from "./enum-members.js";
 
 // Corroboration: one choice per committed leaf, attached to a grounding census.

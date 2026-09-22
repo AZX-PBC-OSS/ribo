@@ -43,7 +43,7 @@ as the band containing it — as a fabrication.
   origin, so a browser host must point the client at its own proxy. This is never the offline
   path.
 - **Nothing here reaches a reviewer.** The judgement picks a processing rung; it does not annotate
-  a review card. `docs/adr/0017-corroboration-is-a-judging-combinator-not-a-review-flag.md`
+  a review card. `docs/adr/0021-corroboration-is-a-judging-combinator-not-a-review-flag.md`
   records why, including the measurements that ruled the alternative out.
 - **Provenance must be per-leaf.** `corroborateExtractor` refuses a `"row"` or `"none"` group at
   construction, like its sibling — the walk would otherwise count nothing while the result looked
@@ -51,6 +51,6 @@ as the band containing it — as a fabrication.
 
 ## Learn more
 
-- [ADR 0016 — a package's second segment names an implementation](../../docs/adr/0016-a-packages-second-segment-names-an-implementation.md)
-- [ADR 0017 — corroboration is a judging combinator](../../docs/adr/0017-corroboration-is-a-judging-combinator-not-a-review-flag.md)
+- [ADR 0020 — a package's second segment names an implementation](../../docs/adr/0020-a-packages-second-segment-names-an-implementation.md)
+- [ADR 0021 — corroboration is a judging combinator](../../docs/adr/0021-corroboration-is-a-judging-combinator-not-a-review-flag.md)
 - [Repo root](../../README.md)

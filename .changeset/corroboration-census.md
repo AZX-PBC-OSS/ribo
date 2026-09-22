@@ -4,7 +4,7 @@
 
 Add `corroborationCensus(census, fields, transcript, options)` — the grounding census extended
 with a System One verdict per committed leaf, the measured step 2 of TypeSafe's citation-check
-cookbook (ADR 0017). Each committed leaf gets ONE `choice` question over `supports` /
+cookbook (ADR 0021). Each committed leaf gets ONE `choice` question over `supports` /
 `contradicts` / `says_nothing`, told the leaf's enum members via `enumMembersAt` and the
 encoding clause — without which the verifier reads the schema's own encoding of what the auditor
 said as a fabrication. Leaf values are read back out of `fields` with core's pure
