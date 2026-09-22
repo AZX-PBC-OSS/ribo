@@ -21,14 +21,24 @@ describe("buildWriteBody", () => {
     // stay numeric.
     expect(
       buildWriteBody("basedata", "upsert", {
+        // Both spec-`string`, both `z.number()` here: the stringify case, twice, so
+        // losing one witness to a schema change cannot silently empty this test.
         yearBuilt: 1987,
-        heatingSetpointHigh: 70,
+        designTempWinterIndoor: 70,
+        // spec-`integer` and spec-`number`: numbers the transform must NOT touch.
         totalNumberOfLightBulbs: 42,
+        conditionedArea: 2400,
+        // Already a string in the schema AND spec-`string`, so it passes through.
+        // The setpoints used to be this test's stringify witness; they are strings
+        // now, because the vendor's real records hold ranges (see schema.ts).
+        heatingSetpointHigh: "66-74",
       }),
     ).toEqual({
       yearBuilt: "1987",
-      heatingSetpointHigh: "70",
+      designTempWinterIndoor: "70",
       totalNumberOfLightBulbs: 42,
+      conditionedArea: 2400,
+      heatingSetpointHigh: "66-74",
     });
   });
 

@@ -102,11 +102,16 @@
  *
  * KNOWN DIVERGENCES from the spec, recorded rather than hidden:
  *
- *   - **Numeric year/size/temperature fields** (`yearBuilt`, setpoints, design
- *     temperatures, appliance model years, `demandKWSavings`, …) are typed
- *     `string` in the spec because they are form inputs, but modelled
- *     `z.number()` here — that is what they mean and what a reviewer edits;
- *     `write` stringifies (doc 17 rows 5/12).
+ *   - **Numeric year/size/temperature fields** (`yearBuilt`, design temperatures,
+ *     appliance model years, `demandKWSavings`, …) are typed `string` in the spec
+ *     because they are form inputs, but modelled `z.number()` here — that is what
+ *     they mean and what a reviewer edits; `write` stringifies (doc 17 rows 5/12).
+ *     **The four thermostat setpoints are NOT in that list**, though they look like
+ *     they belong: the vendor's own description sanctions a dash-separated RANGE
+ *     ("60-65"), and 36 of 38 real records use one, so they are strings. See
+ *     `heatingSetpointHigh`. The lesson is narrower than "read the spec": the
+ *     permission sits in the second half of a long description, and the type
+ *     (`string`, no enum) looked like nothing more than a form input.
  *   - **`hasEv` is an INTEGER enum `[1, 0]` in the spec.** `enveloped()` has no
  *     numeric-enum leaf (zod's `z.enum` is strings-only, literal unions
  *     unsupported), so it is `z.number()` and the vocabulary travels in its
@@ -1440,22 +1445,75 @@ export const BasedataFields = z
       programmableThermostatInstalled: z.enum(["Yes", "No"]).nullable().optional(),
 
       /**
-       * Heating setpoint in °F most often used when OCCUPIED. Spec types this `string`;
-       * `write` stringifies.
+       * Heating setpoint in °F most often used when OCCUPIED.
+       *
+       * **A STRING, because the vendor explicitly sanctions a range.** Their own
+       * description for this field says it outright: "you may enter a range of
+       * temperatures for each of the setpoints separated by a dash (no spaces). For
+       * example, you can set the Low temp setpoint for heating at 60-65 and the High
+       * temp setpoint at 68-71."
+       *
+       * All four setpoints were modelled `z.number()` because a temperature is a number
+       * and the spec types them a bare `string` with no enum — a reading that looked
+       * safe and was wrong. The sanction is in the second half of a long description,
+       * past where a skim stops.
+       *
+       * The stored data agrees, which is how this was noticed: across 40 staging jobs
+       * sampled 2026-09-21, 36 of 38 populated records hold a range — `64-72`, `66-70`,
+       * `66-74`, `68-74` — and only two a bare number. Nothing else nearby does this;
+       * `yearBuilt`, `conditionedArea` and `numberOfBedrooms` sampled clean and numeric
+       * in the same jobs.
+       *
+       * As a number this leaf could only ever emit one temperature, so "she keeps it
+       * between sixty-six and seventy-four" had to be collapsed or dropped. As a string
+       * it survives. Digits only, `NN` or `NN-NN` with no spaces — the description
+       * carries that because strict structured output rejects a `pattern` keyword.
        */
-      heatingSetpointHigh: z.number().nullable().optional(),
+      heatingSetpointHigh: z
+        .string()
+        .describe(
+          "The heating thermostat setting most often used when the home IS occupied, in °F, " +
+            'exactly as spoken and digits only: a single value ("68") or a range ("66-74"). ' +
+            "Most real records carry a range. Never a word, never a unit suffix.",
+        )
+        .nullable()
+        .optional(),
 
-      /** Heating setpoint in °F most often used when unoccupied (the setback). */
-      heatingSetpointLow: z.number().nullable().optional(),
+      /** Heating setpoint in °F most often used when unoccupied (the setback). A band is
+       * the normal answer here too — see `heatingSetpointHigh`. */
+      heatingSetpointLow: z
+        .string()
+        .describe(
+          "The heating thermostat setting most often used when the home is NOT occupied — the " +
+            'setback — in °F, digits only: a single value ("62") or a range ("60-68").',
+        )
+        .nullable()
+        .optional(),
 
       /**
        * Cooling setpoint in °F most often used when UNOCCUPIED — the vendor's own pairing,
-       * inverted from heating.
+       * inverted from heating. A band is the normal answer — see `heatingSetpointHigh`.
        */
-      coolingSetpointHigh: z.number().nullable().optional(),
+      coolingSetpointHigh: z
+        .string()
+        .describe(
+          "The cooling thermostat setting most often used when the home is NOT occupied, in °F, " +
+            'digits only: a single value ("78") or a range ("76-86"). Note the vendor\'s ' +
+            "inverted pairing: HIGH is the unoccupied setting for cooling.",
+        )
+        .nullable()
+        .optional(),
 
-      /** Cooling setpoint in °F most often used when occupied. */
-      coolingSetpointLow: z.number().nullable().optional(),
+      /** Cooling setpoint in °F most often used when occupied. A band is the normal
+       * answer — see `heatingSetpointHigh`. */
+      coolingSetpointLow: z
+        .string()
+        .describe(
+          "The cooling thermostat setting most often used when the home IS occupied, in °F, " +
+            'digits only: a single value ("74") or a range ("72-80").',
+        )
+        .nullable()
+        .optional(),
 
       /** Thermostat manufacturer — free text in the spec too, not a closed list. */
       thermostatManufacturer: z.string().nullable().optional(),
