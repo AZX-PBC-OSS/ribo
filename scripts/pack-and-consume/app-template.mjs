@@ -27,6 +27,7 @@ export function scratchPackageJson(tarballPaths) {
       "@azx/ribo-core": fileSpec("@azx/ribo-core"),
       "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
       "@azx/ribo-extractor-openai": fileSpec("@azx/ribo-extractor-openai"),
+      "@azx/ribo-extractor-systemone": fileSpec("@azx/ribo-extractor-systemone"),
       "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
       "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
       "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
@@ -57,6 +58,7 @@ export function scratchPackageJson(tarballPaths) {
         "@azx/ribo-core": fileSpec("@azx/ribo-core"),
         "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
         "@azx/ribo-extractor-openai": fileSpec("@azx/ribo-extractor-openai"),
+        "@azx/ribo-extractor-systemone": fileSpec("@azx/ribo-extractor-systemone"),
         "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
         "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
         "@azx/ribo-transcriber-managed": fileSpec("@azx/ribo-transcriber-managed"),
@@ -136,7 +138,8 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
  * CI run which of three unrelated things broke, without opening this script:
  *
  *   - `"setup-before-worker"` — one of ribo-core / ribo-adapter-snuggpro / ribo-extractor-openai /
- *     ribo-extractor-ondevice / ribo-transcriber-managed / ribo-transcriber-managed-docs / ribo-transcriber-pdfjs / ribo-ui-react threw.
+ *     ribo-extractor-systemone / ribo-extractor-ondevice / ribo-transcriber-managed /
+ *     ribo-transcriber-managed-docs / ribo-transcriber-pdfjs / ribo-ui-react threw.
  *     None of this touches the network, so a Hub outage can never explain it —
  *     this is a real packaging regression in one of those packages.
  *   - `"worker-spawn-or-import"` — `prime()` threw and the worker never reported even an `initiate`
@@ -152,8 +155,13 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
  *     signal available.
  */
 export const MAIN_JS = `import { isSpanGrounded, TerminalError } from "@azx/ribo-core";
-import { normalizeFields, snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
+import {
+  normalizeFields,
+  snuggExtractionSchema,
+  snuggProAdapter,
+} from "@azx/ribo-adapter-snuggpro";
 import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
+import { enumMembersAt } from "@azx/ribo-extractor-systemone";
 import { OnDeviceChat, threePhaseExtractor, ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 import { OnDeviceTranscriber } from "@azx/ribo-transcriber-ondevice";
 import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
@@ -198,6 +206,18 @@ async function run() {
       normalize: normalizeFields,
     });
     checks.extractorHasExtractFn = typeof extractor.extract === "function";
+
+    // ribo-extractor-systemone: the schema walk answers a KNOWN enum leaf of a REAL derived
+    // extraction schema, across the tarball boundary — members in declaration order.
+    checks.systemOneExtractorEnumMembers =
+      JSON.stringify(enumMembersAt(snuggExtractionSchema, ["hvac", "hvacDuctLeakage"])) ===
+      JSON.stringify([
+        "30% - Very leaky",
+        "15% - Somewhat leaky",
+        "6% - Well sealed",
+        "3% - Very tight",
+        "Measured (CFM25)",
+      ]);
 
     // ribo-extractor-ondevice: constructed across the tarball boundary, no model touched.
     // \`capability()\` reads globalThis.LanguageModel and never downloads, so this is safe in a
