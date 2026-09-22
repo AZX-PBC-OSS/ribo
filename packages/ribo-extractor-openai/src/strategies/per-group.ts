@@ -95,9 +95,10 @@ import type {
 
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
 import type { ExtractionGroup } from "../schema/split-schema.js";
-import { assertWireSafeSchemaName } from "../prompt/extraction-common.js";
+import { assertWireSafeSchemaName, narrowToLeaves } from "../prompt/extraction-common.js";
 import { projectTarget } from "../prompt/project-target.js";
 import { singleShotExtractor } from "./single-shot.js";
+import type { ToolAdapterExample } from "@azx/ribo-core";
 
 /** Options for {@link perGroupExtractor} and {@link perGroupPlan}. */
 export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProvenance>
@@ -434,18 +435,34 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
       // path, `key === ""`) cannot — there is no wrapping key to project
       // through and no top-level key to read back from — so its target is
       // built directly: the piece's own schema, the target's instructions,
-      // and the unprojected few-shot examples. `Pick<V, typeof key>` collapses
-      // to `{}` for `key === ""`; the cast names what the runtime shape is
-      // (a narrowed flat subset of V's keys) — the second trust-boundary
-      // parse validates the merge against the full schema, so a wrong shape
-      // surfaces as a `SchemaParseError` rather than a silent partial merge.
+      // and (for a PARTITIONED flat piece) the few-shot examples narrowed to
+      // this piece's leaf subset. An unpartitioned flat piece keeps the
+      // target's full examples unchanged — there is only one piece, the
+      // schema is unchanged, and the narrowing would be a no-op. `Pick<V,
+      // typeof key>` collapses to `{}` for `key === ""`; the cast names what
+      // the runtime shape is (a narrowed flat subset of V's keys) — the
+      // second trust-boundary parse validates the merge against the full
+      // schema, so a wrong shape surfaces as a `SchemaParseError` rather than
+      // a silent partial merge.
       let pieceTarget: ExtractionTarget<Pick<V, typeof key>, P>;
       if (group.key === "") {
+        const examples =
+          leafKeys === undefined
+            ? (target.examples ?? [])
+            : (target.examples ?? []).map(
+                (ex): ToolAdapterExample<Enveloped<Pick<V, typeof key>, P>> => ({
+                  transcript: ex.transcript,
+                  fields: narrowToLeaves(ex.fields, leafKeys) as Enveloped<
+                    Pick<V, typeof key>,
+                    P
+                  >,
+                }),
+              );
         pieceTarget = {
           name,
           extractionSchema: group.schema,
           instructions: target.instructions,
-          examples: target.examples,
+          examples,
         } as ExtractionTarget<Pick<V, typeof key>, P>;
       } else {
         // When `groupInstructions` is provided the call gets its own
