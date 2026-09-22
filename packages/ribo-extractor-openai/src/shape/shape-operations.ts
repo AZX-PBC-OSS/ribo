@@ -201,7 +201,8 @@ export function deriveExtractionShape(
     if (resolved === undefined || node === undefined || node.kind !== "leaf") {
       throw new Error(
         `deriveExtractionShape(): retype names "${path}", which is not a leaf of the schema ` +
-          "(it may name a dropped path, a group, or nothing at all).",
+          "(it may name a dropped path, a group, a leaf a nest will create — retype names " +
+          "PATCH paths, which a nest never renames — or nothing at all).",
       );
     }
     const inner = stripOptionalNullable(node.leaf);
@@ -226,7 +227,7 @@ export function deriveExtractionShape(
   // no regroup can produce or consume, so the two operations' domains are
   // disjoint and the order is immaterial.
   for (const [group, moves] of nests) {
-    applyNest(shapedTree, drops, group, moves);
+    applyNest(shapedTree, patchTree, drops, group, moves);
   }
 
   // 5 — Refuse any object either tree emptied.
@@ -372,7 +373,8 @@ function applyRegroup(
   if (groupNode === undefined) {
     throw new Error(
       `deriveExtractionShape(): regroup names group "${group}", which is not a top-level ` +
-        "property of the schema (it may name a dropped group).",
+        "property of the schema — it may name a dropped group, or a group a nest creates " +
+        "(regroups apply before nests, so a nest group does not exist yet).",
     );
   }
   if (groupNode.kind === "leaf") {
@@ -507,6 +509,7 @@ function applyRegroup(
  */
 function applyNest(
   shapedTree: ObjectNode,
+  patchTree: ObjectNode,
   drops: ReadonlyMap<string, string[]>,
   group: string,
   moves: ReadonlyMap<string, string>,
@@ -528,6 +531,19 @@ function applyNest(
     throw new Error(
       `deriveExtractionShape(): nest names group "${group}", which is already a top-level ` +
         "key of the schema — a nest creates a new group; it cannot take over an existing one.",
+    );
+  }
+  // The shaped check above cannot see a name an EARLIER nest already moved
+  // away: nests apply in order, so by now that key is gone from the shaped
+  // root. The patch tree still carries it, and a nest group must be absent
+  // from the patch — `assertShapeMapping`'s synthetic-top conjunct requires it.
+  // Without this the pair is still refused, but only at step 9's
+  // post-condition, with a boundary message that never mentions either nest.
+  if (patchTree.children.has(group)) {
+    throw new Error(
+      `deriveExtractionShape(): nest names group "${group}", which another nest moved away ` +
+        "from the top level — a nest group must be a name the patch does not carry, or the " +
+        "mapping's synthetic-group check refuses the pair far from its cause. Pick a new name.",
     );
   }
   for (const [droppedPath, droppedSegments] of drops) {

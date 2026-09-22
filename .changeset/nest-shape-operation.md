@@ -22,9 +22,13 @@ The evidence is spike 0009: pointed at a real 294-property flat POST body, the m
 `regroup`s and 18 were refused because a flat schema has no group to move anything into. The
 structural intuition was right; the vocabulary could not express it.
 
-What a nest buys is extraction-side structure: the new group becomes its own
-`splitExtractionSchema` entry — its own call, its own prompt assembly — instead of one flat
-request with no semantic scaffolding. The derived patch is byte-identical after a nest, so review
+What a nest buys is extraction-side structure: the extraction schema carries the new group as a
+subject instead of loose fields. The new group also becomes its own `splitExtractionSchema` entry
+— its own call, its own prompt assembly — but **only when the nests cover every top-level key**:
+the split's gate is `everyKeyIsGroup`, so one unmoved top-level leaf collapses the whole schema to
+the flat fallback. ADR 0022 records that limit and names the splitter work that would lift it.
+
+The derived patch is byte-identical after a nest, so review
 still renders the moved leaves at their flat paths, and `requiredOnCreate`, `identifyingFields`
 and provenance cannot be declared on the new group (the derivation refuses the last, naming it).
 

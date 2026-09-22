@@ -170,7 +170,7 @@ const proposedOps = await proposeShapeOperations(rideAudit, {
   instructions:
     "Audit a taxi ride-share dictation. Drop any field virtually never dictated; " +
     "retype form-input string fields whose meaning is a number; regroup leaves that " +
-    "extract better under a different parent.",
+    "extract better under a different parent; nest top-level leaves under a new group.",
 });
 
 if (proposeLog.request !== null) {
@@ -204,12 +204,12 @@ console.log(`Proposed shape operations: ${proposedOps.length}`);
 for (const op of proposedOps) {
   if (op.op === "drop") console.log(`  - drop "${op.path}"`);
   else if (op.op === "retype") console.log(`  - retype "${op.path}" to ${op.to}`);
-  else if (op.op === "regroup") {
-    console.log(`  - regroup on "${op.group}":`);
+  else if (op.op === "regroup" || op.op === "nest") {
+    console.log(`  - ${op.op} on "${op.group}":`);
     for (const [from, to] of Object.entries(op.moves)) {
       console.log(`      "${from}" -> "${to}"`);
     }
-  }
+  } else console.log(`  - UNPRINTED operation: ${JSON.stringify(op)}`);
 }
 
 const proposedShape = await proposeExtractionShape(rideAudit, {
@@ -219,7 +219,7 @@ const proposedShape = await proposeExtractionShape(rideAudit, {
   instructions:
     "Audit a taxi ride-share dictation. Drop any field virtually never dictated; " +
     "retype form-input string fields whose meaning is a number; regroup leaves that " +
-    "extract better under a different parent.",
+    "extract better under a different parent; nest top-level leaves under a new group.",
 });
 
 const leafCountAfter = Object.keys(proposedShape.mapping.leaves).length;

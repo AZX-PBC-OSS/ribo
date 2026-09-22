@@ -626,6 +626,23 @@ test("the payoff: splitExtractionSchema groups a nest-derived extraction schema 
   expect(groups.map((group) => group.key).sort()).toEqual(["client", "construction", "systems"]);
 });
 
+test("the payoff is CONDITIONAL: one unmoved top-level leaf collapses the split to the flat fallback", () => {
+  // The limit, pinned in code rather than only in ADR 0022's prose. The split's
+  // gate is `everyKeyIsGroup`, so a nest group earns its own call only when the
+  // nests cover every top-level key. Partial nesting — which is the shape of
+  // the spike that motivated the operation, 19 groups proposed over 294 leaves
+  // — buys the model-facing structure and no split payoff at all.
+  const shape = deriveExtractionShape(mixedSchema, {
+    operations: [
+      // `squareMeters` is deliberately left at the top level.
+      { op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } },
+    ],
+  });
+  expect(Object.keys(shape.extractionSchema.shape)).toContain("construction");
+  const groups = splitExtractionSchema(shape.extractionSchema);
+  expect(groups.map((group) => group.key)).toEqual([""]);
+});
+
 test("refusals: a nest group collides with a surviving top-level key, or resurrects a dropped one", () => {
   expect(() =>
     deriveExtractionShape(mixedSchema, {
@@ -644,6 +661,21 @@ test("refusals: a nest group collides with a surviving top-level key, or resurre
       ],
     }),
   ).toThrow(/nest names group "hasGarage", which a drop removed/);
+});
+
+test("refusals: a nest group reusing a name another nest moved away is refused at the applier", () => {
+  // Both operations are individually valid, and the pair is always refused —
+  // it can never satisfy the mapping's synthetic-top conjunct. Before this
+  // check the refusal came from step 9 with a boundary message naming neither
+  // nest; the point of the test is WHERE it fires and what it blames.
+  expect(() =>
+    deriveExtractionShape(mixedSchema, {
+      operations: [
+        { op: "nest", group: "construction", moves: { yearBuilt: "built" } },
+        { op: "nest", group: "yearBuilt", moves: { squareMeters: "sm" } },
+      ],
+    }),
+  ).toThrow(/nest names group "yearBuilt", which another nest moved away/);
 });
 
 test("refusals: duplicate nests and doubly-moved sources are refused at bucketing", () => {
@@ -784,5 +816,5 @@ test("refusals: provenance may not name a leaf a nest moved away", () => {
       operations: [{ op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } }],
       provenance: { yearBuilt: "none" },
     }),
-  ).toThrow(/provenance names group "yearBuilt".*(dropped|moved)/);
+  ).toThrow(/provenance names group "yearBuilt".*moved into a nest group/);
 });
