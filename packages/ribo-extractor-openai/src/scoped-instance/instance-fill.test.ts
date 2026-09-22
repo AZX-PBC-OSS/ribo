@@ -1307,3 +1307,91 @@ describe("scopedInstanceExtractor — Wave 5 regression pins", () => {
     expect(widgetFillAttempts).toBe(1);
   });
 });
+
+/**
+ * The byte cap reaches the fill split end-to-end through scopedInstanceExtractor:
+ * a flat (non-grouped) target with a tight cap produces N fill calls under the
+ * same `key === ""` and the merge reassembles every leaf. Without the option
+ * flowing through (finding 3), the preset would always pack against the union
+ * cap alone and the partitioned flat path would only be reachable through
+ * prepareGroups+fillPhase hand composition.
+ */
+describe("scopedInstanceExtractor — byte-cap option flow-through (flat partitioning end-to-end)", () => {
+  test("maxSerializedCharsPerGroup on the preset partitions a flat schema at construction, schedules N fill calls, and reassembles every leaf", async () => {
+    // Long enum values inflate the flat schema's serialized form well past a
+    // tight cap; 6 leaves with 50-char enum literals partition into 1-2-leaf
+    // pieces sharing key === "".
+    const enumByKey: Record<string, string> = {
+      a: "option-alpha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      b: "option-bravo-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      c: "option-charlie-cccccccccccccccccccccccccccccc",
+      d: "option-delta-dddddddddddddddddddddddddddddddddd",
+      e: "option-echo-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      f: "option-foxtrot-ffffffffffffffffffffffffffffffffff",
+    };
+    const flatEnumPatch = z
+      .object({
+        a: z.enum([enumByKey.a!]),
+        b: z.enum([enumByKey.b!]),
+        c: z.enum([enumByKey.c!]),
+        d: z.enum([enumByKey.d!]),
+        e: z.enum([enumByKey.e!]),
+        f: z.enum([enumByKey.f!]),
+      })
+      .strict();
+    type FlatEnumValues = z.infer<typeof flatEnumPatch>;
+    const flatEnumTarget: ExtractionTarget<FlatEnumValues> = {
+      name: "demo-flat-enum",
+      extractionSchema: enveloped(flatEnumPatch),
+      instructions: "Extract leaves.",
+      examples: [],
+    };
+
+    const requests: ChatRequest[] = [];
+    const chat: ChatClient = {
+      complete: async (request) => {
+        requests.push(request);
+        const name = request.response_format.json_schema.name;
+        const m = /-(\d+)$/.exec(name);
+        if (m === null) throw new Error(`unpartitioned fill should not appear here: ${name}`);
+        // Each response carries exactly the leaves its request's response_format
+        // accepts — read the schema off the request so the partition layout is
+        // not hard-coded here.
+        const schema = request.response_format.json_schema.schema as {
+          properties: Record<string, unknown>;
+        };
+        const fields: Record<string, unknown> = {};
+        for (const key of Object.keys(schema.properties)) {
+          fields[key] = { value: enumByKey[key]!, sourceSpan: key, confidence: 1 };
+        }
+        return { content: JSON.stringify(fields), finishReason: "stop" };
+      },
+    };
+
+    const result = await scopedInstanceExtractor({
+      target: flatEnumTarget,
+      chat,
+      model: "demo-model",
+      inventory: async () => ({}),
+      buildFillInstructions,
+      maxSerializedCharsPerGroup: 1500,
+    }).extract({ text: "the full transcript", annotations: {} });
+
+    // N fill calls (no inventory replies needed — the flat schema's pieces
+    // occupy the call budget); one per piece, with a distinct -<part> suffix.
+    expect(requests.length).toBeGreaterThan(1);
+    const names = requests.map((r) => r.response_format.json_schema.name);
+    // Every name carries a part suffix — distinct wire identifiers, the bug
+    // finding 2 fixed.
+    expect(new Set(names).size).toBe(requests.length);
+    for (const name of names) expect(name).toMatch(/-\d+$/);
+
+    // The merge reassembled every leaf — disjoint pieces, no overlap,
+    // Object.assign accumulates in piece order.
+    const fields = result.fields as unknown as Record<string, { value: string }>;
+    for (const key of Object.keys(enumByKey)) {
+      expect(fields[key], `leaf ${key}`).toBeDefined();
+      expect(fields[key]!.value).toBe(enumByKey[key]);
+    }
+  });
+});

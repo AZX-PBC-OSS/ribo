@@ -109,6 +109,53 @@ describe("prepareGroups", () => {
       expect([...Object.keys(element.shape)]).toEqual(piece.leafKeys);
     }
   });
+
+  test("a partitioned flat schema's pieces get distinct wire-safe names AND distinct contexts — pieces sharing the empty key would otherwise be unidentifiable on the wire", () => {
+    // Long enum values inflate the flat schema's serialized form well past a
+    // tight byte cap; splitExtractionSchema returns several pieces sharing
+    // key === "" with part/parts distinguishing them. Prepare them and assert
+    // each carries a name and a context tied to its part — the wire-side
+    // identifier a route-side error would cite.
+    const flatEnumPatch = z
+      .object({
+        a: z.enum(["option-alpha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]),
+        b: z.enum(["option-bravo-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]),
+        c: z.enum(["option-charlie-cccccccccccccccccccccccccccccc"]),
+        d: z.enum(["option-delta-dddddddddddddddddddddddddddddddddd"]),
+        e: z.enum(["option-echo-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"]),
+        f: z.enum(["option-foxtrot-ffffffffffffffffffffffffffffffffff"]),
+      })
+      .strict();
+    type FlatValues = z.infer<typeof flatEnumPatch>;
+    const flatTarget: ExtractionTarget<FlatValues> = {
+      name: "demo-flat",
+      extractionSchema: enveloped(flatEnumPatch),
+      instructions: "Extract leaves.",
+    };
+    const pieces = splitExtractionSchema(flatTarget.extractionSchema, {
+      maxSerializedCharsPerGroup: 1500,
+    });
+    expect(pieces.length).toBeGreaterThan(1);
+    expect(pieces.every((p) => p.key === "")).toBe(true);
+
+    const prepared = prepareGroups(flatTarget, pieces);
+    expect(prepared.map((p) => p.name).sort()).toEqual(
+      pieces.map((p) => `demo-flat-fill-${p.part}`).sort(),
+    );
+    // Every name is unique — without the part suffix they would all be
+    // "demo-flat-fill", and a route-side error could not say which piece failed.
+    expect(new Set(prepared.map((p) => p.name)).size).toBe(prepared.length);
+    // Every context is unique for the same reason the name must be: a parse
+    // failure on piece 2 of a 3-piece flat schema is otherwise indistinguishable
+    // from the piece-1 failure that just preceded it.
+    expect(new Set(prepared.map((p) => p.context)).size).toBe(prepared.length);
+    for (const piece of prepared) {
+      expect(piece.context).toMatch(/^scopedInstanceExtractor: fill for "demo-flat"/);
+      if (piece.part !== undefined) {
+        expect(piece.context).toContain(`(part ${piece.part + 1}/${piece.parts})`);
+      }
+    }
+  });
 });
 
 describe("the wire-safe name guard", () => {

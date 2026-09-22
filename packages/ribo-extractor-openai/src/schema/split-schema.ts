@@ -106,8 +106,12 @@ const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[k
  * One top-level group of an extraction schema, narrowed to exactly that group's key.
  *
  * `key` is the group's top-level property name (e.g. `"hvac"`), or `""` for the
- * non-grouped fallback where `schema` carries the whole extraction schema in a
- * single entry.
+ * non-grouped fallback — a schema whose top-level properties are leaves rather
+ * than groups. The flat fallback may now produce SEVERAL entries sharing
+ * `key === ""`: one per partitioned piece, distinguished by `part`/`parts`,
+ * when a byte cap was supplied and the schema's whole serialized size exceeds
+ * it. Each flat piece's `schema` is `z.strictObject({ leafA, leafB, … })`
+ * (no wrapping object) carrying a disjoint subset of the schema's leaves.
  *
  * `schema` is shaped like the final answer but carrying exactly this group's
  * top-level key — `z.strictObject({ [key]: groupSchema })` — so Task 2 constrains
@@ -119,17 +123,19 @@ export interface ExtractionGroup {
   /** The top-level key this group covers, or `""` for the non-grouped fallback. */
   readonly key: string;
   /**
-   * A zod schema carrying exactly this group's top-level key (or the whole schema
-   * for the fallback). Strict/closed so a response carrying another group's key is
+   * A zod schema carrying exactly this group's top-level key (or the schema's
+   * own top-level leaves, narrowed to the piece's subset, for the flat
+   * fallback). Strict/closed so a response carrying another group's key is
    * rejected — the split narrows rather than relabels. When `part` is present,
    * this carries only that piece's subset of `key`'s leaves, not all of them.
    */
   readonly schema: z.ZodType;
   /**
    * This entry's 0-based position among the pieces sharing `key`, present only
-   * when `key`'s leaves were partitioned across multiple calls (see the file
-   * header's "Nullable-union partitioning"). Undefined for a group under the cap,
-   * and always undefined unless a caller opted in via `maxNullableUnionsPerGroup`.
+   * when `key`'s leaves were partitioned across multiple calls. Partitioning
+   * applies when a caller opted in via `maxNullableUnionsPerGroup` (the grouped
+   * path) or via `maxSerializedCharsPerGroup` (the union AND flat paths).
+   * Undefined for a group under the cap.
    */
   readonly part?: number;
   /** The total number of pieces sharing `key`, present exactly when `part` is. */
@@ -483,6 +489,89 @@ function partitionGroupTwoCaps(
 }
 
 /**
+ * Split a FLAT extraction schema's top-level properties into pieces that
+ * satisfy both caps, greedily in declaration order. The flat counterpart of
+ * {@link partitionGroupTwoCaps}): the input is the schema's top-level object —
+ * the schema is not an object of nested groups, so there is no `ZodArray` to
+ * rebuild around a piece and no per-group wrapping key to preserve. Each
+ * emitted piece is `z.strictObject({ leafA, leafB, … })` — the WHOLE schema
+ * with the unallocated leaves removed.
+ *
+ * The pieces share `key === ""`, the existing flat-fallback marker, and a
+ * downstream consumer recombines them with a shallow `Object.assign`: each
+ * piece's parsed response is the disjoint subset of leaves it asked for, and
+ * assignment in piece order is the merge (no leaf overlaps another piece's,
+ * by construction). The single-overweight-leaf refusal mirrors
+ * {@link partitionGroupTwoCaps} but names the leaf alone — there is no
+ * enclosing group to anchor it to.
+ */
+function partitionFlatTwoCaps(
+  wholeSchema: z.ZodObject,
+  maxUnions: number | undefined,
+  maxChars: number,
+): ExtractionGroup[] {
+  const candidate = wholeSchema;
+  const propertyKeys = Object.keys(candidate.shape);
+  const pieceSchema = (keys: readonly string[]): z.ZodObject => {
+    const pieceShape: Record<string, z.ZodType> = {};
+    for (const leafKey of keys) pieceShape[leafKey] = fieldAt(candidate.shape, leafKey);
+    return z.strictObject(pieceShape);
+  };
+  const unionWeight = (keys: readonly string[]): number =>
+    keys.reduce((sum, k) => sum + nullableUnions(fieldAt(candidate.shape, k)), 0);
+  const charWeight = (keys: readonly string[]): number =>
+    keys.length === 0 ? 0 : serializedCharCount(pieceSchema(keys));
+
+  const fits = (keys: readonly string[]): boolean =>
+    (maxUnions === undefined || unionWeight(keys) <= maxUnions) && charWeight(keys) <= maxChars;
+
+  const pieces: string[][] = [];
+  let current: string[] = [];
+  for (const leafKey of propertyKeys) {
+    if (!fits([leafKey])) {
+      const measured = [
+        ...(maxUnions === undefined ? [] : [`${unionWeight([leafKey])} nullable unions`]),
+        `${charWeight([leafKey])} serialized characters`,
+      ].join(" and ");
+      const caps =
+        maxUnions === undefined
+          ? `the maxSerializedCharsPerGroup cap of ${maxChars}`
+          : `the caps (maxNullableUnionsPerGroup ${maxUnions}, maxSerializedCharsPerGroup ${maxChars})`;
+      throw new Error(
+        `splitExtractionSchema: schema has a property "${leafKey}" that cannot fit any ` +
+          `piece — one piece carrying it alone is ${measured}, over ${caps}. ` +
+          `Narrow the schema or raise the cap.`,
+      );
+    }
+    const trial = [...current, leafKey];
+    if (fits(trial)) {
+      current = trial;
+    } else {
+      pieces.push(current);
+      current = [leafKey];
+    }
+  }
+  if (current.length > 0) pieces.push(current);
+
+  // A flat schema that fits as one piece carries NO part/parts, and the entry's
+  // schema IS the whole input — preserving `Object.is` identity with the input
+  // so the existing per-group fallback (single-piece plan entry keyed "",
+  // target's instructions, full examples, the canonical `schema` reference) is
+  // byte-identical whether a byte cap was supplied and the schema fits it, or
+  // none was supplied at all.
+  if (pieces.length === 1) {
+    return [{ key: "", schema: wholeSchema }];
+  }
+
+  return pieces.map((pieceKeys, part) => ({
+    key: "",
+    schema: pieceSchema(pieceKeys),
+    part,
+    parts: pieces.length,
+  }));
+}
+
+/**
  * Whether a `ZodObject` is a **group** (a nested object of leaves or sub-groups)
  * rather than an **envelope** (a `{ value, confidence, sourceSpan }` leaf wrapper).
  *
@@ -510,15 +599,33 @@ const isGroupObject = (obj: z.ZodObject): boolean =>
  * from the schema's own top-level properties, so this works for any adapter and
  * requires no adapter change.
  *
- * A schema that is not an object of groups — a flat enveloped schema whose
- * top-level properties are leaf envelopes, a top-level array of envelopes, a
- * non-object schema, or an empty object — yields a single entry whose `key` is
- * `""` and whose `schema` is the whole input. That is today's behaviour (one call
- * carrying everything) and the correct fallback, not an error. **The fallback is
- * not cap-checked and not partitioned**: there are no groups to pack, and the
- * flat schema is the shape the measured-good single-shot path exists for — a
- * caller whose flat schema is over a route's caps narrows the schema, because no
- * partition of it exists at this layer.
+ * A schema that is not an object of groups — a top-level array of envelopes,
+ * a non-object schema, or an empty object — returns ONE entry whose `key` is
+ * `""` and whose `schema` is the whole input, under every cap. The packed-flat
+ * path only applies to schemas that ARE objects: a flat enveloped schema
+ * (top-level properties are leaf envelopes) is one with N>0 leaves and a byte
+ * cap can partition it over those leaves. An empty object or a non-object is
+ * either un-partitionable (a non-object cannot be packed by top-level keys,
+ * because there are no top-level keys) or has nothing to partition (an empty
+ * object has no leaves), so the whole schema lands in a single fallback entry.
+ * A caller with a top-level array of envelopes over a byte cap still gets the
+ * silent oversized request this change set out to kill — that schema is a real
+ * call site, and the fix is to wrap it in an object of groups (or to skip the
+ * byte cap). The split does not invent structure the schema does not carry.
+ *
+ * Without a byte cap, the flat object path is also a single entry: one call
+ * carrying everything — the measured-good single-shot path. With a byte cap,
+ * the flat object path partitions over its top-level keys into several
+ * entries that all share `key === ""`, each a strict object carrying a
+ * disjoint subset of leaves. Every consumer that special-cases `""` (the
+ * per-group plan's early-return for the under-cap flat case,
+ * `groupedExtractor`'s merge, `prepareGroups`, the inventory/fill phases) was
+ * written to handle that case — its shallow-assign merge recombines a
+ * partitioned flat schema's pieces in declaration order, because each piece's
+ * parsed response holds a disjoint subset of leaves. **The union cap does not
+ * partition a flat schema** (the test at `split-schema-unions.test.ts:96`
+ * pins this — it stays the unchanged behaviour even after the byte-cap fix,
+ * because the union-only callers see a different problem class).
  *
  * @param options - The caps to pack against, as a {@link SplitOptions} bag — or
  *   a bare number, which is the pre-options positional form and means
@@ -545,14 +652,33 @@ export function splitExtractionSchema(
   // Every top-level property must be a group (a ZodObject, or a ZodArray of one,
   // that is not itself a leaf envelope) for the split to apply. A single envelope
   // at the top level — the shape a flat (non-grouped) enveloped schema has —
-  // makes this false, and the whole schema is returned as one entry.
+  // makes this false.
   const everyKeyIsGroup = keys.every((key) => {
     const candidate = groupCandidate(fieldAt(shape, key));
     return candidate instanceof z.ZodObject && isGroupObject(candidate);
   });
 
   if (!everyKeyIsGroup) {
-    return [{ key: "", schema }];
+    // The non-grouped fallback. Without a byte cap, this is the whole schema as
+    // one entry — the unchanged behaviour under ADR 0015 (default-off byte cap,
+    // union cap irrelevant — see the file header & `split-schema-unions.test.ts`
+    // for the union path pinning).
+    //
+    // **With a byte cap, the flat fallback now partitions** — every consumer that
+    // special-cases `key === ""` (per-group's early-return, grouped-extractor's
+    // merge, scoped-instance's prepare-groups, the inventory/fill phases) was
+    // written to handle a single flat entry; the pieces this helper produces
+    // share `key === ""` and a downstream consumer recombines them with the
+    // existing shallow-assign merge, because each piece's parsed response is a
+    // disjoint subset of the schema's leaves and the pieces run in declaration
+    // order.
+    if (maxSerializedCharsPerGroup === undefined) {
+      return [{ key: "", schema }];
+    }
+    // No groups to partition over — the boundary property the grouped branch
+    // walks doesn't exist. The flat packer reads the schema's own top-level keys
+    // and produces pieces without a wrapping object.
+    return partitionFlatTwoCaps(schema, maxNullableUnionsPerGroup, maxSerializedCharsPerGroup);
   }
 
   if (maxSerializedCharsPerGroup !== undefined) {

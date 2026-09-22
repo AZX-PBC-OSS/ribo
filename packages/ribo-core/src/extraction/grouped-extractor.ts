@@ -72,20 +72,26 @@ import { parseWithSchema } from "./parse-with-schema.js";
  * check catches a JS caller.
  *
  * The `""` arm is the **non-grouped fallback**: a map whose ONLY key is `""`
- * declares one entry covering the whole schema — the shape
+ * declares entries covering the whole schema — the shape
  * `splitExtractionSchema`'s fallback yields for a schema that is not an object
  * of groups, and the shape `perGroupExtractor` sends today (one call, the full
  * schema, `GroupUnit` events keyed `""`). Design §4.7: the preset keeps that
  * derived behaviour; a hand composer names keys instead. Coverage is not
  * checked for this arm — the entry IS the whole coverage declaration, and the
  * second trust-boundary parse validates what it returns.
+ *
+ * **The `""` arm may carry several entries** — a partitioned flat extraction
+ * schema's pieces (`splitExtractionSchema`'s byte-cap-flat path) share
+ * `key === ""` and arrive as `Extractor[]`. Each piece's fields are a disjoint
+ * subset of the schema's leaves; `Object.assign` in piece order is the merge,
+ * and `part`/`parts` carry the same vocabulary as every other partitioned group.
  */
 export type GroupMap<V extends Record<string, unknown>, P = NoProvenance> =
   | {
       readonly [K in keyof V & string]:
         Extractor<Pick<Enveloped<V, P>, K>> | readonly Extractor<Pick<Enveloped<V, P>, K>>[];
     }
-  | { readonly "": Extractor<Enveloped<V, P>> };
+  | { readonly "": Extractor<Enveloped<V, P>> | readonly Extractor<Enveloped<V, P>>[] };
 
 /** Options for {@link groupedExtractor}. */
 export interface GroupedExtractorOptions<V extends Record<string, unknown>, P = NoProvenance>
@@ -287,28 +293,26 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
   // part numbers are 1-based and total the piece count, matching the GroupUnit
   // vocabulary an unpartitioned entry reports as part 1 of 1 — a consumer must
   // not need two code paths for "one" and "several".
+  //
+  // The `""` fallback maps to the same flattening rule: a single `Extractor` is
+  // one entry (the canonical whole-schema call); an array is a partitioned flat
+  // schema, pieces share `key === ""`, and the merge's existing shallow-assign
+  // arm recombines them because each piece's fields are a disjoint subset of
+  // leaves.
+  const flattenKey = (entry: unknown, keyName: "" | (keyof V & string)): readonly GroupEntry[] => {
+    const pieces = Array.isArray(entry)
+      ? (entry as readonly Extractor<Record<string, unknown>>[])
+      : [entry as Extractor<Record<string, unknown>>];
+    return pieces.map((extractor, index) => ({
+      key: keyName,
+      part: index + 1,
+      parts: pieces.length,
+      extractor,
+    }));
+  };
   const entries: readonly GroupEntry[] = isFallback
-    ? [
-        {
-          key: "",
-          part: 1,
-          parts: 1,
-          extractor: fallbackEntry as Extractor<Record<string, unknown>>,
-        },
-      ]
-    : schemaKeys.flatMap((key) => {
-        const entry = groupRecord[key] as
-          Extractor<Record<string, unknown>> | readonly Extractor<Record<string, unknown>>[];
-        const pieces = Array.isArray(entry)
-          ? (entry as readonly Extractor<Record<string, unknown>>[])
-          : [entry as Extractor<Record<string, unknown>>];
-        return pieces.map((extractor, index) => ({
-          key,
-          part: index + 1,
-          parts: pieces.length,
-          extractor,
-        }));
-      });
+    ? flattenKey(fallbackEntry, "")
+    : schemaKeys.flatMap((key) => flattenKey(groupRecord[key], key));
 
   // The relay wraps extract() in withTimeout(stepTimeoutMs). All entries plus
   // their retries plus their backoff delays must fit inside it. The budget is

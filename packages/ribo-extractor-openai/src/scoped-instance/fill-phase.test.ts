@@ -472,6 +472,171 @@ describe("fillPhase — merge", () => {
       expect(widgets[1]!.color.value).toBe("blue");
     });
   });
+
+  test('the "" fallback\'s single fill assignment lands flat — the assignment path the non-grouped case was broken on before the merge read fix', async () => {
+    // REGRESSION PIN — the latent bug the partition-flatfallback commit fixes:
+    // on `origin/main` the merge read `outcome.output.value[job.group.key]`,
+    // which is undefined for `key === ""`, wrote `groupResult[""] = undefined`,
+    // and the engine's closing parse rejected every scoped-instance extraction
+    // of a flat schema. The single-piece case is the one that is shipped today;
+    // if a host uses a flat schema and `scopedInstanceExtractor`, this is the
+    // path that runs.
+    const { chat } = fakeChat((name) => {
+      // flatTarget.name is "demo"; unpartitioned flat pieces carry `${name}-fill`
+      // (no part suffix). If a flat partitioned piece ever lands here, its name
+      // carries a `-<part>` suffix and this branch refuses to respond.
+      if (name === "demo-fill") {
+        return {
+          color: { value: "blue", sourceSpan: "span", confidence: 1 },
+          size: { value: null, sourceSpan: null, confidence: 1 },
+        };
+      }
+      throw new Error(`the flat fallback's single-call path must not call ${name}`);
+    });
+    const phase = fillPhase<FlatValues>({
+      target: flatTarget,
+      chat,
+      model: "demo-model",
+      prepared: fallbackPrepared,
+      buildFillInstructions,
+    });
+    const draft: PhaseDraft<FlatValues> = {
+      ...emptyDraft<FlatValues>(),
+      notes: emptyNotes().set(rosterNoteKey, {}),
+    };
+    await phase.with(async (def) => {
+      const items = def.plan(draft, flatCtx);
+      expect(items).toHaveLength(1);
+      const outcomes = [];
+      for (const item of items) {
+        outcomes.push({
+          outcome: "result" as const,
+          item,
+          output: await def.run(item, draft, flatCtx),
+        });
+      }
+      const merged = def.merge(draft, outcomes);
+      const fields = merged.fields as Record<string, { value: string | null }>;
+      expect(fields.color!.value).toBe("blue");
+      // The schema has both leaves; the merge assigns each from the parsed response.
+      expect(fields.size).toBeDefined();
+      // And `raw` carries the same record — the merge wrote it.
+      expect(merged.raw).toEqual({
+        color: { value: "blue", sourceSpan: "span", confidence: 1 },
+        size: { value: null, sourceSpan: null, confidence: 1 },
+      });
+    });
+  });
+
+  test("a partitioned flat schema's pieces reassemble by per-leaf Object.assign — every leaf reappears, none duplicated", async () => {
+    // THE partitioned-flat merge regression pin. Built via prepareGroups on
+    // a flat schema with a tight byte cap — the same construction site the
+    // preset uses, so a change to the schema the prepared pieces validate
+    // against cannot drift. A wrong read — `value[job.group.key]` on a flat
+    // piece — yields `undefined` here; the new code path checks `key === ""`
+    // and reads the parsed response directly. N flat pieces -> N disjoint
+    // calls, each pinned to its own subset of leaves.
+    //
+    // Long enum values inflate the flat schema's serialized form well past a
+    // tight byte cap; 6 leaves with 50-char enum literals partition into
+    // pieces of 1-2 leaves each. Without a partitioned split there is no test
+    // for the flat merge's piece-order arm.
+    const enumByKey: Record<string, string> = {
+      a: "option-alpha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      b: "option-bravo-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      c: "option-charlie-cccccccccccccccccccccccccccccc",
+      d: "option-delta-dddddddddddddddddddddddddddddddddd",
+      e: "option-echo-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      f: "option-foxtrot-ffffffffffffffffffffffffffffffffff",
+    };
+    const flatEnumPatch = z
+      .object({
+        a: z.enum([enumByKey.a!]),
+        b: z.enum([enumByKey.b!]),
+        c: z.enum([enumByKey.c!]),
+        d: z.enum([enumByKey.d!]),
+        e: z.enum([enumByKey.e!]),
+        f: z.enum([enumByKey.f!]),
+      })
+      .strict();
+    type FlatEnumValues = z.infer<typeof flatEnumPatch>;
+    const flatEnumTarget: ExtractionTarget<FlatEnumValues> = {
+      name: "demo-flat-enum",
+      extractionSchema: enveloped(flatEnumPatch),
+      instructions: "Demo flat extraction.",
+      examples: [],
+    };
+    const flatEnumPieces = prepareGroups(
+      flatEnumTarget,
+      splitExtractionSchema(flatEnumTarget.extractionSchema, {
+        maxSerializedCharsPerGroup: 1500,
+      }),
+    );
+    expect(flatEnumPieces.length).toBeGreaterThan(1);
+    expect(flatEnumPieces.every((p) => p.key === "")).toBe(true);
+    expect(flatEnumPieces.every((p) => p.isCollection === false)).toBe(true);
+
+    const leafEnvelope = (key: string): Record<string, unknown> => ({
+      value: enumByKey[key]!,
+      sourceSpan: key,
+      confidence: 1,
+    });
+
+    const flatEnumCtx: PhaseContext<FlatEnumValues> = {
+      transcript: { text: "the full transcript", annotations: {} },
+      target: flatEnumTarget,
+    };
+
+    const { chat } = fakeChat((name) => {
+      const m = /-(\d+)$/.exec(name);
+      if (m === null) throw new Error(`unexpected flat piece name: ${name}`);
+      const part = Number(m[1]);
+      const piece = flatEnumPieces[part]!;
+      const shape = (piece.schema as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodType>;
+      const fields: Record<string, unknown> = {};
+      for (const leafKey of Object.keys(shape)) {
+        fields[leafKey] = leafEnvelope(leafKey);
+      }
+      return fields;
+    });
+
+    const phase = fillPhase<FlatEnumValues>({
+      target: flatEnumTarget,
+      chat,
+      model: "demo-model",
+      prepared: flatEnumPieces,
+      buildFillInstructions,
+    });
+    const draft: PhaseDraft<FlatEnumValues> = {
+      ...emptyDraft<FlatEnumValues>(),
+      notes: emptyNotes().set(rosterNoteKey, {}),
+    };
+
+    await phase.with(async (def) => {
+      const items = def.plan(draft, flatEnumCtx);
+      expect(items).toHaveLength(flatEnumPieces.length);
+      const outcomes = [];
+      for (const item of items) {
+        outcomes.push({
+          outcome: "result" as const,
+          item,
+          output: await def.run(item, draft, flatEnumCtx),
+        });
+      }
+      const merged = def.merge(draft, outcomes);
+      const fields = merged.fields as Record<string, { value: string }>;
+      // Every leaf reappears — disjoint pieces, no overlap, Object.assign
+      // accumulates in piece order.
+      const expectedLeaves = Object.keys(flatEnumPatch.shape);
+      for (const key of expectedLeaves) {
+        expect(fields[key], `leaf ${key}`).toBeDefined();
+        expect(fields[key]!.value).toBe(enumByKey[key]);
+      }
+      // Exactly these leaves — no piece's subset is missing, no spurious copy.
+      expect(Object.keys(fields).sort()).toEqual([...expectedLeaves].sort());
+      expect(merged.raw).toBeDefined();
+    });
+  });
 });
 
 describe("fillPhase — requires", () => {

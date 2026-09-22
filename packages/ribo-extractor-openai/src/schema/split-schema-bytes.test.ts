@@ -149,3 +149,112 @@ describe("splitExtractionSchema — a leaf that cannot fit any piece", () => {
     expect(split).toThrow(/maxNullableUnionsPerGroup/);
   });
 });
+
+/**
+ * @file The split partitions a FLAT (non-grouped) extraction schema over its byte cap.
+ *
+ * A flat schema — one whose top-level properties are leaves rather than nested groups — used
+ * to fall back to a single entry covering the whole input under every cap, because the
+ * grouped packer never ran on the non-grouped path. The bug: a flat schema over the
+ * provider's byte cap produced one oversized piece and the request was rejected at the
+ * route. Read how the grouped path calls {@link partitionGroupTwoCaps}: the same pattern
+ * applies, with one structural difference — flat pieces have no wrapping object; each
+ * piece is `z.strictObject({ leafA, leafB, … })`, pieces share `key === ""`, and the merge
+ * accumulates them by `Object.assign`.
+ */
+
+// --- Fixtures for the flat path ----------------------------------------------
+
+/**
+ * A flat (non-grouped) extraction schema: top-level properties are leaf envelopes, not
+ * nested groups. `enveloped()` wraps each leaf in `{ value, confidence, sourceSpan }`, so
+ * the extraction schema's top-level properties ARE leaf envelopes — the case the flat
+ * fallback serves.
+ */
+const flatEnumPatch = (count: number, seed = 0): z.ZodObject => {
+  const shape: Record<string, z.ZodType> = {};
+  for (let i = 0; i < count; i++) shape[`leaf${i}`] = longEnumLeaf(seed + i);
+  return z.object(shape).strict();
+};
+
+describe("splitExtractionSchema — the byte cap on a flat schema", () => {
+  test("a flat schema over the byte cap partitions; every piece is under the cap", () => {
+    // 32 long enum leaves envelope to 32 envelopes. The whole extraction schema's JSON
+    // Schema rendering is well over the byte cap on its own; the packer must split it.
+    // The discriminator is the SERIALIZED SIZE of each produced piece, not the count —
+    // a count assertion would pass against any implementation and miss the bug.
+    const schema = enveloped(flatEnumPatch(32));
+    const byteCap = 4_000;
+    const groups = splitExtractionSchema(schema, { maxSerializedCharsPerGroup: byteCap });
+
+    expect(groups.length).toBeGreaterThan(1);
+    for (const group of groups) {
+      const size = serializedSize(group.schema);
+      expect(
+        size,
+        `piece key "${group.key}" part ${group.part ?? 0} = ${size} chars`,
+      ).toBeLessThanOrEqual(byteCap);
+    }
+    // The pieces' `part`/`parts` and shared `key === ""` are how a downstream consumer
+    // recombines them — pin that they line up.
+    expect(groups.every((g) => g.key === "")).toBe(true);
+    expect(groups[0]!.parts).toBe(groups.length);
+    expect(groups.map((g) => g.part)).toEqual(groups.map((_, i) => i));
+  });
+
+  test("a flat schema under the byte cap is unchanged — one entry, the whole schema", () => {
+    // The whole flat schema's serialized form fits the cap well within the limit, so
+    // the packer must NOT split it. The fallback's existing single-entry shape — the
+    // whole extraction schema, not a narrowed slice — is preserved.
+    const schema = enveloped(flatEnumPatch(8));
+    const generous = splitExtractionSchema(schema, { maxSerializedCharsPerGroup: 100_000 });
+
+    expect(generous).toHaveLength(1);
+    expect(generous[0]!.key).toBe("");
+    expect(generous[0]!.part).toBeUndefined();
+    expect(generous[0]!.schema).toBe(schema);
+  });
+
+  test("without any caps, a flat schema is unchanged — byte-cap default-off, ADR 0015", () => {
+    // Default-off means absent, not zero; the fallback must keep its byte-identical
+    // single-entry shape so request regressions stay green (this package's `per-group.test.ts`
+    // suite pins the byte identity of the flat fallback's request at construction).
+    const schema = enveloped(flatEnumPatch(32));
+    const groups = splitExtractionSchema(schema);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.key).toBe("");
+    expect(groups[0]!.schema).toBe(schema);
+  });
+
+  test("the grouped path is untouched — a grouped schema over the byte cap still partitions into pieces that each fit the cap", () => {
+    // Regression for the grouped byte-cap path added in an earlier wave: the grouped
+    // extractor still produces as many pieces under the same cap as before.
+    const patch = z
+      .object({
+        alpha: enumGroup(4).optional(),
+        beta: enumGroup(4, 100).optional(),
+      })
+      .strict();
+    const schema = enveloped(patch);
+    const byteCap = 900;
+    const groups = splitExtractionSchema(schema, { maxSerializedCharsPerGroup: byteCap });
+    for (const group of groups) {
+      expect(serializedSize(group.schema)).toBeLessThanOrEqual(byteCap);
+    }
+    expect(groups.length).toBeGreaterThan(2);
+  });
+
+  test("a flat schema with a single overweight leaf throws ADR 0013's refusal — naming the leaf, the size, the cap and the option", () => {
+    // One enum leaf whose serialized size exceeds the cap — no piece can fit it. The
+    // refusal must name the leaf, the measured size, the cap and the option, matching
+    // the grouped-leaf refusal in this same describe (ADR 0013).
+    const schema = enveloped(z.object({ huge: longEnumLeaf(900) }).strict());
+    const byteCap = 200;
+    const split = (): unknown =>
+      splitExtractionSchema(schema, { maxSerializedCharsPerGroup: byteCap });
+    expect(split).toThrow(Error);
+    expect(split).toThrow(/huge/);
+    expect(split).toThrow(new RegExp(String(byteCap)));
+    expect(split).toThrow(/maxSerializedCharsPerGroup/);
+  });
+});

@@ -95,9 +95,10 @@ import type {
 
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
 import type { ExtractionGroup } from "../schema/split-schema.js";
-import { assertWireSafeSchemaName } from "../prompt/extraction-common.js";
+import { assertWireSafeSchemaName, narrowToLeaves } from "../prompt/extraction-common.js";
 import { projectTarget } from "../prompt/project-target.js";
 import { singleShotExtractor } from "./single-shot.js";
+import type { ToolAdapterExample } from "@azx/ribo-core";
 
 /** Options for {@link perGroupExtractor} and {@link perGroupPlan}. */
 export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProvenance>
@@ -209,13 +210,17 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
  * out of `group.schema` rather than threaded through as separate state, so this
  * can never drift from the schema the call is actually pinned to.
  *
- * `group.schema` is `z.strictObject({ [group.key]: value })`, where `value` is
- * either the piece's narrowed group object (a singleton group, e.g. `health`) or
- * a `ZodArray` of it (a collection group, e.g. `hvac`) — `partitionGroup`'s
- * output shape. This unwraps the same way `splitExtractionSchema`'s own
- * `groupCandidate` does, to reach the object whose keys are this piece's leaves.
+ * A grouped piece's schema is `z.strictObject({ [group.key]: value })`, where
+ * `value` is either the piece's narrowed group object (a singleton group, e.g.
+ * `health`) or a `ZodArray` of it (a collection group, e.g. `hvac`). A FLAT
+ * piece's schema (the byte-cap-flat path: `key === ""`) is the schema's own
+ * top-level strict object with its leaves narrowed to the piece's subset —
+ * there is no wrapping, so the leaves ARE the schema's keys directly.
  */
 export function partitionedLeafKeys(group: ExtractionGroup): readonly string[] {
+  if (group.key === "") {
+    return Object.keys((group.schema as z.ZodObject).shape);
+  }
   const shape = (group.schema as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodType>;
   const value = shape[group.key]!;
   const candidate = value instanceof z.ZodArray ? (value.element as z.ZodType) : value;
@@ -239,7 +244,17 @@ export type GroupTargets<V extends Record<string, unknown>, P = NoProvenance> =
       readonly [K in keyof V & string]:
         ExtractionTarget<Pick<V, K>, P> | readonly ExtractionTarget<Pick<V, K>, P>[];
     }
-  | { readonly "": ExtractionTarget<V, P> };
+  // The "" arm mirrors `GroupMap`'s: a flat schema whose top-level properties
+  // are leaf envelopes yields one entry (the whole target), or — when a byte
+  // cap partitions it — an ordered list, index-aligned with `parts`. The
+  // singular option is the historical non-grouped fallback; the array form is
+  // what `splitExtractionSchema` now emits under a byte cap. The widening
+  // matches `combinator`/`merge`/`override` behaviour and is what a host
+  // overriding the flat fallback sees — the same shape a per-group override
+  // sees for a partitioned grouped key.
+  | {
+      readonly "": ExtractionTarget<V, P> | readonly ExtractionTarget<V, P>[];
+    };
 
 /** What {@link perGroupPlan} returns — see {@link GroupMap} and {@link GroupTargets}. */
 export interface PerGroupPlan<V extends Record<string, unknown>, P = NoProvenance> {
@@ -383,7 +398,9 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
       // Whether the piece's parsed response must be wrapped back into a
       // one-element array before the full schema sees it — singleton mode on a
       // collection group, detected on the piece's own schema exactly as the
-      // pre-combinator implementation detected it.
+      // pre-combinator implementation detected it. The flat path never collects
+      // — pieces are top-level leaves, no array wrapping — so `wrapToArray`
+      // stays false for `key === ""`.
       let wrapToArray = false;
       if (singleton && group.key !== "" && group.schema instanceof z.ZodObject) {
         const shape = (group.schema as z.ZodObject<z.ZodRawShape>).shape as Record<
@@ -393,33 +410,73 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
         if (shape[group.key] instanceof z.ZodArray) wrapToArray = true;
       }
 
-      // The structured-output name — identifies the group in the request.
+      // The structured-output name — identifies the piece in the request.
       // `-`, not `:` — a structured-output schema name is constrained to
       // [A-Za-z0-9_-] by at least one platform route (Helix rejects a colon
       // with a generic `400 validation_failed`, which reads identically to an
       // over-cap schema and costs an afternoon to tell apart). A partitioned
-      // piece appends `-<part>` (0-based) so two calls sharing a group key
-      // still get distinct names. Guarded at construction — a colon in the
-      // target's name OR a schema property's key lands here and must fail
-      // where the schema author is present, not at the route.
+      // piece appends `-<part>` (0-based) so two calls sharing a (group) key
+      // still get distinct names. FLAT pieces have no wrapping group key, so
+      // the name omits the `-${key}` infix: `${target.name}` for a non-
+      // partitioned flat piece, `${target.name}-<part>` for a partitioned one.
+      // Guarded at construction — a colon in the target's name OR a schema
+      // property's key lands here and must fail where the schema author is
+      // present, not at the route.
       const partSuffix = group.part !== undefined ? `-${group.part}` : "";
-      const name = `${target.name}-${group.key}${partSuffix}`;
+      const name =
+        group.key === ""
+          ? `${target.name}${partSuffix}`
+          : `${target.name}-${group.key}${partSuffix}`;
       assertWireSafeSchemaName(name, "perGroupPlan");
 
-      // When `groupInstructions` is provided the call gets its own instructions
-      // and a projected example (narrowed to this piece's leaves under
-      // partitioning, first element under singleton); otherwise it gets the
-      // target's full instructions and UNPROJECTED examples — today's
-      // behaviour, so the requests stay byte-identical.
-      const withGroupPrompt = groupInstructions !== undefined && group.key !== "";
-      const projected = projectTarget<V, P, typeof key>(target, key, {
-        instructions: withGroupPrompt ? groupInstructions(group.key) : undefined,
-        leafKeys,
-        singleton,
-      });
-      const pieceTarget: ExtractionTarget<Pick<V, typeof key>, P> = withGroupPrompt
-        ? { ...projected, name }
-        : { ...projected, name, examples: target.examples };
+      // Build the piece target. Two shapes: a grouped piece goes through
+      // {@link projectTarget} (the schema is wrapped in `{ [key]: … }` and
+      // examples are projected to that key); a FLAT piece (the byte-cap-flat
+      // path, `key === ""`) cannot — there is no wrapping key to project
+      // through and no top-level key to read back from — so its target is
+      // built directly: the piece's own schema, the target's instructions,
+      // and (for a PARTITIONED flat piece) the few-shot examples narrowed to
+      // this piece's leaf subset. An unpartitioned flat piece keeps the
+      // target's full examples unchanged — there is only one piece, the
+      // schema is unchanged, and the narrowing would be a no-op. `Pick<V,
+      // typeof key>` collapses to `{}` for `key === ""`; the cast names what
+      // the runtime shape is (a narrowed flat subset of V's keys) — the
+      // second trust-boundary parse validates the merge against the full
+      // schema, so a wrong shape surfaces as a `SchemaParseError` rather than
+      // a silent partial merge.
+      let pieceTarget: ExtractionTarget<Pick<V, typeof key>, P>;
+      if (group.key === "") {
+        const examples =
+          leafKeys === undefined
+            ? (target.examples ?? [])
+            : (target.examples ?? []).map(
+                (ex): ToolAdapterExample<Enveloped<Pick<V, typeof key>, P>> => ({
+                  transcript: ex.transcript,
+                  fields: narrowToLeaves(ex.fields, leafKeys) as Enveloped<Pick<V, typeof key>, P>,
+                }),
+              );
+        pieceTarget = {
+          name,
+          extractionSchema: group.schema,
+          instructions: target.instructions,
+          examples,
+        } as ExtractionTarget<Pick<V, typeof key>, P>;
+      } else {
+        // When `groupInstructions` is provided the call gets its own
+        // instructions and a projected example (narrowed to this piece's
+        // leaves under partitioning, first element under singleton); otherwise
+        // it gets the target's full instructions and UNPROJECTED examples —
+        // today's behaviour, so the requests stay byte-identical.
+        const withGroupPrompt = groupInstructions !== undefined;
+        const projected = projectTarget<V, P, typeof key>(target, key, {
+          instructions: withGroupPrompt ? groupInstructions(group.key) : undefined,
+          leafKeys,
+          singleton,
+        });
+        pieceTarget = withGroupPrompt
+          ? { ...projected, name }
+          : { ...projected, name, examples: target.examples };
+      }
 
       pieceEntries.push(
         defaultPieceEntry<Pick<V, typeof key>, P>({

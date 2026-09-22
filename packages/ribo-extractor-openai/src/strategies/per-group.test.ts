@@ -21,7 +21,7 @@ import type {
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { perGroupExtractor } from "./per-group.js";
+import { perGroupExtractor, perGroupPlan } from "./per-group.js";
 import { splitExtractionSchema } from "../schema/split-schema.js";
 
 /**
@@ -690,6 +690,254 @@ describe("perGroupExtractor — non-grouped fallback", () => {
 
     expect((error as Error).message).toContain("maxTokens");
     expect(isTransientFailure(error)).toBe(false);
+  });
+});
+
+/**
+ * @file The flat schema's byte-cap path goes end-to-end through
+ * `perGroupExtractor` and `groupedExtractor` — pieces share `key === ""`,
+ * their chat names carry the part suffix and no group-key infix, the merge
+ * recombines them by per-leaf assignment, and the GroupUnit events
+ * observability already pins reports `key: ""`, `part: i+1/N`.
+ *
+ * The merge's correctness rests on each piece's parsed response being a
+ * disjoint subset of the schema's leaves (which `partitionFlatTwoCaps`
+ * preserves by closing a piece the moment the next leaf would push it over
+ * the cap). When that property holds, `Object.assign` in piece order is the
+ * merge — later pieces never overwrite earlier ones because their leaves
+ * differ.
+ */
+describe("perGroupExtractor — flat partitioning under the byte cap", () => {
+  // A flat patch big enough that a tight byte cap partitions it. The enum
+  // values are long strings so each leaf's serialized form inflates the
+  // schema — the same structural pattern `split-schema-bytes.test.ts` uses
+  // for the grouped-byte-cap suite.
+  const bigFlatPatch = z
+    .object({
+      a: z.enum(["option-alpha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]),
+      b: z.enum(["option-bravo-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]),
+      c: z.enum(["option-charlie-cccccccccccccccccccccccccccccc"]),
+      d: z.enum(["option-delta-dddddddddddddddddddddddddddddddddd"]),
+      e: z.enum(["option-echo-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"]),
+      f: z.enum(["option-foxtrot-ffffffffffffffffffffffffffffffffff"]),
+      g: z.enum(["option-golf-gggggggggggggggggggggggggggggggggggg"]),
+      h: z.enum(["option-hotel-hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"]),
+    })
+    .strict();
+  const bigFlatExtraction = enveloped(bigFlatPatch);
+  type BigFlatValues = z.infer<typeof bigFlatPatch>;
+  const bigFlatTarget: ExtractionTarget<BigFlatValues> = {
+    name: "demo-flat-cap",
+    extractionSchema: bigFlatExtraction,
+    instructions: "Extract the leaves.",
+    examples: [],
+  };
+  const byteCap = 1_500;
+
+  test("the per-group plan keys a partitioned flat schema's pieces on \"\" and stores them as an array; each piece's wire name carries the part suffix and no group-key infix", () => {
+    const plan = perGroupPlan({
+      target: bigFlatTarget,
+      chat: fakeGroupChat({}).chat,
+      model: "m",
+      maxSerializedCharsPerGroup: byteCap,
+    });
+    const recordKeys = Object.keys(plan.groups);
+    expect(recordKeys).toEqual([""]);
+
+    const flatEntriesRecord = plan.groups as Readonly<
+      Record<string, readonly { extract: unknown }[]>
+    >;
+    const flatEntries = flatEntriesRecord[""]!;
+    expect(Array.isArray(flatEntries)).toBe(true);
+    expect(flatEntries.length).toBeGreaterThan(1);
+    const pieces = flatEntries;
+
+    // The union's "" arm widens to ExtractionTarget<V, P> | readonly ExtractionTarget<V, P>[] —
+    // runtime keying needs a single cast that names the recorded shape. The
+    // previous readback cast through Record<string, unknown> lied about both keys
+    // and values; this one names the field type each entry actually carries.
+    const flatTargetsRecord = plan.targets as Readonly<
+      Record<string, readonly ExtractionTarget<BigFlatValues>[]>
+    >;
+    const flatTargets = flatTargetsRecord[""]!;
+    expect(flatTargets.length).toBe(pieces.length);
+    // Wire names: `${target.name}-<part>`, with NO `-${key}` infix because flat
+    // pieces have no group key. Each name is distinct so the request side can
+    // tell pieces apart.
+    expect(flatTargets.map((t) => t.name)).toEqual(
+      flatTargets.map((_, i) => `${bigFlatTarget.name}-${i}`),
+    );
+    // Each piece's instructions are the target's — flat pieces keep the
+    // whole-schema prompt, not a per-group projection. `groupInstructions`
+    // does not apply to a flat piece (no group key to query for).
+    expect(new Set(flatTargets.map((t) => t.instructions))).toEqual(
+      new Set([bigFlatTarget.instructions]),
+    );
+    // Pieces' schemas carry disjoint leaf subsets; their union covers the
+    // whole schema.
+    const collected: string[] = [];
+    for (const t of flatTargets) {
+      const shape = (t.extractionSchema as unknown as z.ZodObject).shape as Record<string, unknown>;
+      collected.push(...Object.keys(shape));
+    }
+    expect([...collected].sort()).toEqual([...Object.keys(bigFlatPatch.shape)].sort());
+  });
+
+  test("the partitioned flat pieces schedule N parallel calls and the merge assembles every leaf", async () => {
+    // Dispatch a per-piece canned response: each fake's name corresponds to one
+    // piece of the partitioned flat schema, and the response contains exactly
+    // the leaves the piece's schema accepts. (A shared-name dispatch would
+    // have every piece parse the same response — and any subset-wider response
+    // would fail the strict-mode schema parse.)
+    const piecesMeta = splitExtractionSchema(bigFlatExtraction, {
+      maxSerializedCharsPerGroup: byteCap,
+    });
+    expect(piecesMeta.length).toBeGreaterThan(1);
+
+    const responses: Record<string, string> = {};
+    const expectedNames: string[] = [];
+    // The fabric responds with the enum literal the schema was defined to
+    // accept — schema parse fails otherwise (a strict-mode `anyOf` mismatch).
+    const enumByKey: Record<string, string> = {
+      a: "option-alpha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      b: "option-bravo-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      c: "option-charlie-cccccccccccccccccccccccccccccc",
+      d: "option-delta-dddddddddddddddddddddddddddddddddd",
+      e: "option-echo-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      f: "option-foxtrot-ffffffffffffffffffffffffffffffffff",
+      g: "option-golf-gggggggggggggggggggggggggggggggggggg",
+      h: "option-hotel-hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+    };
+    for (let i = 0; i < piecesMeta.length; i++) {
+      const piece = piecesMeta[i]!;
+      const name = `${bigFlatTarget.name}-${i}`;
+      expectedNames.push(name);
+      const shape = (piece.schema as z.ZodObject).shape;
+      const fields: Record<string, unknown> = {};
+      for (const leafKey of Object.keys(shape)) {
+        fields[leafKey] = {
+          value: enumByKey[leafKey]!,
+          confidence: 0.9,
+          sourceSpan: leafKey,
+        };
+      }
+      responses[name] = JSON.stringify(fields);
+    }
+
+    const { chat, requests } = fakeGroupChat(responses);
+    const events: GroupUnit[] = [];
+    const extractor = perGroupExtractor({
+      target: bigFlatTarget,
+      chat,
+      model: "m",
+      maxSerializedCharsPerGroup: byteCap,
+      onUnit: (e) => events.push(e),
+    });
+
+    const result = await extractor.extract({ text: "the wall is R-13", annotations: {} });
+
+    // N requests, one per piece (the per-name dispatch is what proves the
+    // pieces' schemas parse their per-piece responses).
+    const requestNames = requests.map((r) => r.response_format.json_schema.name).sort();
+    expect(requestNames).toEqual([...expectedNames].sort());
+
+    // Every GroupUnit event is keyed `""`, with `part: i+1` and the same
+    // `parts: N` vocabulary the grouped-arm uses for partitioned groups.
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every((e) => e.key === "")).toBe(true);
+    const partsSet = new Set(events.map((e) => e.part));
+    expect(partsSet.size).toBe(piecesMeta.length);
+    expect(events.every((e) => e.parts === piecesMeta.length)).toBe(true);
+
+    // The merge result carries every leaf of the schema — the disjoint
+    // subspaces the packer closed, Object.assign reassembled.
+    expect(Object.keys(result.fields).sort()).toEqual([...Object.keys(bigFlatPatch.shape)].sort());
+    const mergedFields = result.fields as unknown as Record<string, { value: unknown }>;
+    for (const key of Object.keys(bigFlatPatch.shape)) {
+      expect(mergedFields[key]!.value, `merged leaf ${key}`).toBe(enumByKey[key]);
+    }
+    expect(result.usage.calls).toBe(piecesMeta.length);
+  });
+
+  test("a partitioned flat piece's few-shot example carries only that piece's leaves — the narrowing the response_format strict-mode requires", async () => {
+    // The argument transfers verbatim from partitioned grouped pieces: shows the
+    // model an assistant turn wider than the piece's response_format accepts and
+    // either it stops imitating (the assistant turn's wider shape is off-mode) or
+    // it starts inventing absent leaves to fill the example, neither of which
+    // anyone wanted. The shipped path runs against `examples: []`; the narrowing
+    // matters when a host supplies examples.
+    const targetWithExample: ExtractionTarget<BigFlatValues> = {
+      ...bigFlatTarget,
+      examples: [
+        {
+          transcript: "All eight fields were present.",
+          fields: {
+            a: {
+              value: "option-alpha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              confidence: 0.9,
+              sourceSpan: "a",
+            },
+            b: {
+              value: "option-bravo-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              confidence: 0.9,
+              sourceSpan: "b",
+            },
+            c: {
+              value: "option-charlie-cccccccccccccccccccccccccccccc",
+              confidence: 0.9,
+              sourceSpan: "c",
+            },
+            d: {
+              value: "option-delta-dddddddddddddddddddddddddddddddddd",
+              confidence: 0.9,
+              sourceSpan: "d",
+            },
+            e: {
+              value: "option-echo-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              confidence: 0.9,
+              sourceSpan: "e",
+            },
+            f: {
+              value: "option-foxtrot-ffffffffffffffffffffffffffffffffff",
+              confidence: 0.9,
+              sourceSpan: "f",
+            },
+            g: {
+              value: "option-golf-gggggggggggggggggggggggggggggggggggg",
+              confidence: 0.9,
+              sourceSpan: "g",
+            },
+            h: {
+              value: "option-hotel-hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              confidence: 0.9,
+              sourceSpan: "h",
+            },
+          },
+        },
+      ],
+    };
+    const plan = perGroupPlan({
+      target: targetWithExample,
+      chat: fakeGroupChat({}).chat,
+      model: "m",
+      maxSerializedCharsPerGroup: byteCap,
+    });
+    const flatTargetsRecord = plan.targets as Readonly<
+      Record<string, readonly ExtractionTarget<BigFlatValues>[]>
+    >;
+    const flatTargets = flatTargetsRecord[""]!;
+    expect(flatTargets.length).toBeGreaterThan(1);
+    for (const piece of flatTargets) {
+      const assistantFields = piece.examples?.[0]?.fields as Record<string, unknown> | undefined;
+      // Every piece carries exactly its subset of leaves — never the full
+      // eight, which would show the model an assistant turn wider than its
+      // response_format accepts.
+      const present = Object.keys(assistantFields ?? {}).sort();
+      const expected = Object.keys((piece.extractionSchema as unknown as z.ZodObject).shape).sort();
+      expect(present, `piece name=${piece.name} expected=${JSON.stringify(expected)}`).toEqual(
+        expected,
+      );
+    }
   });
 });
 
