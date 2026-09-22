@@ -663,19 +663,63 @@ test("refusals: a nest group collides with a surviving top-level key, or resurre
   ).toThrow(/nest names group "hasGarage", which a drop removed/);
 });
 
-test("refusals: a nest group reusing a name another nest moved away is refused at the applier", () => {
-  // Both operations are individually valid, and the pair is always refused —
-  // it can never satisfy the mapping's synthetic-top conjunct. Before this
-  // check the refusal came from step 9 with a boundary message naming neither
-  // nest; the point of the test is WHERE it fires and what it blames.
+test("a nest group may take a name some nest frees — its own anchor leaf, or another nest's source", () => {
+  // The rule `regroup` already follows for destinations: a name freed by the
+  // removal is legal. A live proposer run is why — the model names a group
+  // after the leaf that anchors it.
+  const anchored = deriveExtractionShape(mixedSchema, {
+    operations: [
+      // `yearBuilt` is both the group's name and one of its own sources.
+      { op: "nest", group: "yearBuilt", moves: { yearBuilt: "stated", squareMeters: "area" } },
+    ],
+  });
+  expect(Object.keys(anchored.extractionSchema.shape)).toContain("yearBuilt");
+  expect(anchored.mapping.leaves["yearBuilt.stated"]!.source).toBe("yearBuilt");
+  expect(anchored.mapping.leaves["yearBuilt.area"]!.source).toBe("squareMeters");
+  // The patch is untouched: both leaves stay flat where the caller declared them.
+  expect(Object.keys(anchored.patchSchema.shape).sort()).toEqual(
+    Object.keys(mixedSchema.shape).sort(),
+  );
+
+  // And across two nests — which is why the applier detaches every source
+  // before creating any group.
+  const across = deriveExtractionShape(mixedSchema, {
+    operations: [
+      { op: "nest", group: "construction", moves: { yearBuilt: "built" } },
+      { op: "nest", group: "yearBuilt", moves: { squareMeters: "sm" } },
+    ],
+  });
+  expect(across.mapping.leaves["construction.built"]!.source).toBe("yearBuilt");
+  expect(across.mapping.leaves["yearBuilt.sm"]!.source).toBe("squareMeters");
+});
+
+test("the nest set is order-independent: the same operations in either order derive the same shape", () => {
+  // The applier owns the ordering. Reversing the operations array must not
+  // change the result, or the "operations are a SET" rule would be a fiction —
+  // and a group taking a freed name is exactly where a one-nest-at-a-time
+  // applier would become order-sensitive.
+  const ops: ShapeOperation[] = [
+    { op: "nest", group: "construction", moves: { yearBuilt: "built" } },
+    { op: "nest", group: "yearBuilt", moves: { squareMeters: "sm" } },
+  ];
+  const forward = deriveExtractionShape(mixedSchema, { operations: ops });
+  const reverse = deriveExtractionShape(mixedSchema, { operations: [...ops].reverse() });
+  expect(Object.keys(forward.extractionSchema.shape).sort()).toEqual(
+    Object.keys(reverse.extractionSchema.shape).sort(),
+  );
+  expect(forward.mapping.leaves).toEqual(reverse.mapping.leaves);
+});
+
+test("refusals: a nest group shadowing a top-level key that SURVIVES is refused", () => {
+  // The freed-name allowance is exactly that: freed. `client` is a group no
+  // nest moves, so a nest group by that name would be two things at one path.
   expect(() =>
     deriveExtractionShape(mixedSchema, {
-      operations: [
-        { op: "nest", group: "construction", moves: { yearBuilt: "built" } },
-        { op: "nest", group: "yearBuilt", moves: { squareMeters: "sm" } },
-      ],
+      operations: [{ op: "nest", group: "client", moves: { yearBuilt: "built" } }],
     }),
-  ).toThrow(/nest names group "yearBuilt", which another nest moved away/);
+  ).toThrow(
+    /nest names group "client", which is already a top-level key of the schema and stays one/,
+  );
 });
 
 test("refusals: duplicate nests and doubly-moved sources are refused at bucketing", () => {

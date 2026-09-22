@@ -376,13 +376,14 @@ const assertObjectKeyPath = (path: string, side: "extraction" | "patch"): void =
  *     an unretyped entry's kinds agree — including enum and literal
  *     vocabulary, which a kind-only check would let swap;
  *   - every entry's source shares the entry's first path segment — the
- *     top-level key — UNLESS the entry is a nest: a single-segment source (a
- *     top-level patch leaf), both top-level keys `"leaf"`-granular, and the
- *     extraction top-level key synthetic (no top-level key of the patch schema
- *     by that name). Regrouping within a top-level key is the other supported
- *     move; one that crossed the boundary would strand a row-provenance span
- *     with no data-determined place to land, and `validateProvenance` and
- *     `statedEmptyGroups` are both keyed by the group;
+ *     top-level key — UNLESS the crossing is a nest's: a single-segment source
+ *     (a top-level patch leaf) with both top-level keys `"leaf"`-granular.
+ *     Those two carry the safety; the extraction top is NOT required to be
+ *     absent from the patch, because a nest group is commonly named after the
+ *     leaf that anchors it. Regrouping within a top-level key is the other
+ *     supported move; one that crossed the boundary would strand a
+ *     row-provenance span with no data-determined place to land, and
+ *     `validateProvenance` and `statedEmptyGroups` are both keyed by the group;
  *   - each entry's two sides run under the same array-depth pattern from the
  *     leaf — measured in depths-from-leaf, not in path names, so a regroup
  *     that re-hangs an array-containing subtree under a new prefix keeps the
@@ -427,12 +428,16 @@ export const assertShapeMapping = (
       //      extract, and through `reverseShapedFields` directly (a public
       //      export that runs with no construction check) a bare value where
       //      review's `readEnvelope` turns it into the silent sentinel.
-      //   3. The extraction top is synthetic — not a top-level key of the
-      //      patch schema. Not a safety check (a cross-top into a pre-existing
-      //      leaf-provenanced group would reverse correctly) but a precision
-      //      one: the exception names exactly the case that motivates it. A
-      //      derived mapping always satisfies it, since the applier refuses a
-      //      nest group colliding with a surviving patch key.
+      //
+      // There is deliberately no third conjunct requiring the extraction top to
+      // be absent from the PATCH schema. An earlier draft had one, as a
+      // precision check — it would have made "this is the nest case" literally
+      // true rather than merely its motivation. A live proposer run retired it:
+      // the model names a group after the leaf that anchors it, so `pool` the
+      // group and `pool` the patch leaf coexist, and the entry `pool.size ←
+      // poolSize` is a perfectly good nest entry whose extraction top IS a
+      // patch key. The conjunct refused the natural shape and bought no safety
+      // — the two above carry all of it.
       const reasons: string[] = [];
       if (entry.source.split(".").length !== 1) {
         reasons.push(`its source "${entry.source}" is not a top-level patch leaf`);
@@ -449,18 +454,13 @@ export const assertShapeMapping = (
           `its source's top-level key "${sourceTop}" is "${sourceGranularity}"-provenanced, not "leaf"`,
         );
       }
-      if (Object.hasOwn(patchSchema.shape, extractionTop)) {
-        reasons.push(
-          `"${extractionTop}" is a top-level key of the patch schema, not a group a nest created`,
-        );
-      }
       if (reasons.length > 0) {
         throw new Error(
           `shape mapping: the entry at "${path}" names source "${entry.source}" under a ` +
             "different top-level key — regrouping may not cross a top-level boundary. A " +
             "row-provenance group has one span with no data-determined place to land across " +
-            "two original groups. The one legal crossing is a nest — a top-level leaf moved " +
-            'under a new, synthetic top-level group, both tops "leaf"-granular — and this ' +
+            "two original groups. The one legal crossing is a nest — a top-level patch leaf " +
+            'moved under another top-level group, both tops "leaf"-granular — and this ' +
             `entry is not one: ${reasons.join("; ")}.`,
         );
       }

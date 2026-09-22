@@ -33,8 +33,18 @@ keyed by top-level key, and a top-level leaf is the one thing with no group and 
 (`validateProvenance` refuses `"row"` on a top-level leaf outright — a leaf has no object to hang
 the row's sourceSpan on). Nesting a whole GROUP would strand exactly that span; it is a different
 operation with a real provenance problem behind it, and it is not built. The mapping's
-construction check relaxes for precisely this case: single-segment source, both top-level keys
-`"leaf"`-granular, and the extraction top-level key synthetic (absent from the patch schema).
+construction check relaxes for precisely this case: single-segment source, and both top-level
+keys `"leaf"`-granular. Those two carry the safety.
+
+A third conjunct — that the extraction top be absent from the patch schema, making the group
+provably synthetic — was drafted and then **retired on evidence**. Pointed at the flat vendor
+schema, the model named each group after the leaf that anchors it: `pool`, holding `pool`,
+`poolSize`, `poolPumpType`. That was the only one of fourteen proposed nests the applier
+refused, and it is the natural naming, not an error. So a nest group may take a top-level name
+that some nest move frees — the rule `regroup` already follows for its destinations — and the
+applier detaches every nest source before it creates any nest group, so the set stays a set and
+no iteration order is observable. A name that SURVIVES to the extraction schema is still
+refused; that would be two things at one path.
 
 The derived patch is byte-identical after a nest. Provenance may not be declared on a nest group —
 `mapping.provenance` is applied to BOTH schemas and the group exists in only one — nor on a leaf a
@@ -67,8 +77,23 @@ and provenance cannot be declared on one either — a nest group is `"leaf"`-gra
 patch-side declarations on nest groups are ever wanted, that is separate, named work.
 
 The cost: the operation set is four, not three, and the mapping's top-key invariant is now
-conditional. A hand-written mapping can express a cross-top pair that reverses wrongly — an
-envelope written where a plain value is wanted fails as a RETRYABLE `SchemaParseError` at every
-extract — so the relaxing conjuncts (both tops `"leaf"`, synthetic extraction top) are pinned by
-their own tests, and `reverseShapedFields` roots every patch-side write at the source's top-level
-key.
+conditional. Without the relaxing conjuncts a hand-written mapping could express a cross-top pair
+that reverses wrongly — an envelope written where a plain value is wanted, which fails as a
+RETRYABLE `SchemaParseError` at every extract, burning a ladder's whole budget on something that
+can never succeed. Both conjuncts are pinned by their own tests, and `reverseShapedFields` roots
+every patch-side write at the source's top-level key.
+
+**Measured, on a live route, against the schema that motivated this.** The model proposed 14
+nests covering 203 leaves — `thermostat`, `clothesWasher`, `pool`, `ventilation`, `lighting`,
+`basement`, `crawlspace`, `hvac` and more — reaching for `nest` unprompted, from the library
+directive alone. Thirteen applied as proposed; the fourteenth was the anchor-naming case above.
+Applied together they turn 294 flat properties into 61 extraction top-level keys, of which 47 are
+still unmoved leaves — which is why the split payoff above is stated as conditional.
+
+That run also found the proposal is **all-or-nothing at a scale nobody had tried**. Of 91
+proposed operations exactly one was invalid — a `retype` naming a leaf the same proposal
+dropped — and it cost all 91, the fourteen good nests included. The repair turn did not find it
+and the run exhausted to `[]`. The repair budget's default is raised from 1 to 3 in response,
+which is a mitigation and not a fix: partial application, where valid operations land and refused
+ones are reported, is the real answer and is separate, named work. ADR 0016 argued one repair
+against an eleven-leaf fixture; this is the first evidence from a real one.

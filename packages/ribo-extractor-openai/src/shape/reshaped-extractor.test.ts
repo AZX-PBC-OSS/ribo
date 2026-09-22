@@ -8,6 +8,7 @@ import { reshapedExtractor } from "./reshaped-extractor.js";
 import type { EnvelopedSchemaExtractorOptions } from "../strategies/schema-extractor.js";
 import { assertShapeMapping } from "./shape-mapping.js";
 import type { ShapeMapping } from "./shape-mapping.js";
+import { reverseShapedFields } from "./shape-reverse.js";
 import type { DerivedExtractionShape } from "./derived-shape.js";
 import { deriveExtractionShape } from "./shape-operations.js";
 import { buildReviewRequest } from "@azx/ribo-core";
@@ -371,27 +372,42 @@ test("a cross-top entry whose source's own top-level key is none-provenanced is 
   );
 });
 
-test("a cross-top entry into a pre-existing patch group is refused — the extraction top is not synthetic", () => {
-  // Clause 3: the one legal crossing is a nest, and a nest CREATES its group.
-  // `construction` here already exists in the patch, so the entry is an
-  // ordinary cross-top move, not a nest — refused even though both tops are
-  // "leaf"-granular and the source is a top-level leaf.
+test("a cross-top entry whose extraction top is ALSO a patch key is accepted — a group named after its anchor leaf", () => {
+  // The retired third conjunct. An earlier draft required the extraction top
+  // to be absent from the patch, so that "this is the nest case" would be
+  // literally true. A live proposer run retired it: the model names a group
+  // after the leaf that anchors it — `pool` holding `pool`, `poolSize`,
+  // `poolPumpType` — so `pool` is a group of the extraction schema AND a leaf
+  // of the patch at the same time, and that is the natural shape, not an
+  // error. Both remaining conjuncts hold and the entry reverses correctly.
   const leaf = z.string().nullable().optional();
-  const patchSchema = z.object({
-    yearBuilt: leaf,
-    construction: z.object({ other: leaf }),
-  });
-  const extractionSchema = enveloped(z.object({ construction: z.object({ yearBuilt: leaf }) }));
+  const patchSchema = z.object({ pool: leaf, poolSize: leaf });
+  const extractionSchema = enveloped(z.object({ pool: z.object({ present: leaf, size: leaf }) }));
   const crossed: ShapeMapping = {
-    leaves: { "construction.yearBuilt": { source: "yearBuilt" } },
+    leaves: {
+      // Same-top: the anchor leaf under the group that took its name.
+      "pool.present": { source: "pool" },
+      // Cross-top: extraction top `pool` IS a patch key. Legal now.
+      "pool.size": { source: "poolSize" },
+    },
     provenance: {},
   };
-  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
-    /may not cross a top-level boundary/,
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).not.toThrow();
+
+  // And it reverses to the flat patch paths, envelopes intact.
+  const reversed = reverseShapedFields(
+    {
+      pool: {
+        present: { value: "yes", confidence: 0.9, sourceSpan: "there's a pool" },
+        size: { value: "20000", confidence: 0.8, sourceSpan: "twenty thousand gallons" },
+      },
+    },
+    crossed,
   );
-  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
-    /"construction" is a top-level key of the patch schema/,
-  );
+  expect(reversed).toEqual({
+    pool: { value: "yes", confidence: 0.9, sourceSpan: "there's a pool" },
+    poolSize: { value: "20000", confidence: 0.8, sourceSpan: "twenty thousand gallons" },
+  });
 });
 
 test("a row-granularity group reverses through the combinator: plain leaves, the row's citation", async () => {

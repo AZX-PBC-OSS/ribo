@@ -35,7 +35,7 @@ and provenance cannot be declared on the new group (the derivation refuses the l
 Sources are restricted to top-level LEAVES — never a group, a collection, or a nested path — which
 is what makes the top-level-boundary crossing safe: a top-level leaf has no group and no row span
 to strand. `assertShapeMapping` relaxes its top-key check for exactly this case (single-segment
-source, both tops `"leaf"`-granular, the extraction top synthetic) and refuses every other
+source, both tops `"leaf"`-granular) and refuses every other
 crossing as before, and `reverseShapedFields` now roots patch-side writes at the source's
 top-level key — a correction any hand-written cross-top mapping needs.
 

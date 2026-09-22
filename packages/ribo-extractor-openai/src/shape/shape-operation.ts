@@ -59,10 +59,16 @@
  *     dropped path. The dropped-path rule has no nest analogue: nest
  *     destinations live under a brand-new synthetic group, so nothing dropped
  *     can be under them;
- *   - a nest `group` may not collide with any surviving top-level key of the
- *     patch, nor reuse a DROPPED one — a name the caller deliberately removed
- *     reappearing as a synthetic group is confusing at review, the same ground
- *     regroup's no-resurrection rule stands on.
+ *   - a nest `group` may not shadow a top-level key that SURVIVES to the
+ *     extraction schema — that would be two things at one path — nor reuse a
+ *     DROPPED one, since a name the caller deliberately removed reappearing as
+ *     a synthetic group is confusing at review, the same ground regroup's
+ *     no-resurrection rule stands on. It MAY take a name some nest move frees,
+ *     including one of its own: a group named after the leaf that anchors it
+ *     (`pool` holding `pool`, `poolSize`, …) is the naming a model reaches for,
+ *     and regroup already allows a destination to take a name its own source
+ *     frees. The applier detaches every nest source before creating any nest
+ *     group, so this stays order-independent and the set stays a set.
  *
  *     The "pairwise distinct" rule is its own check, not the prefix rule: equal
  *     destinations are reported as a same-destination collision, not as "one

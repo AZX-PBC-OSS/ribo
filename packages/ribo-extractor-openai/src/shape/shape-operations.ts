@@ -226,9 +226,7 @@ export function deriveExtractionShape(
   // Nests apply after the regroups. A nest source is a top-level leaf, which
   // no regroup can produce or consume, so the two operations' domains are
   // disjoint and the order is immaterial.
-  for (const [group, moves] of nests) {
-    applyNest(shapedTree, patchTree, drops, group, moves);
-  }
+  applyNests(shapedTree, drops, nests, nestBySource);
 
   // 5 — Refuse any object either tree emptied.
   refuseEmptyObjects(patchTree, "");
@@ -498,22 +496,62 @@ function applyRegroup(
 }
 
 /**
- * Apply one nest: validate the new group's name and freedom, validate every
- * source as a top-level leaf and every destination against its siblings, then
- * remove the sources from the root and insert them under the new group — in
- * that order, so no insert order can change the result.
+ * Apply EVERY nest, in three passes over the whole set: validate, then detach
+ * every source from the root, then create every group and insert.
+ *
+ * One pass per nest would make the result depend on iteration order, because a
+ * nest group may take a name that a nest move frees: whether that name is still
+ * occupied when a given nest runs would decide between success and a collision.
+ * The operations are a SET, so the applier owns the ordering and no caller can
+ * observe it.
+ *
+ * A group may take a freed name because `regroup` already works that way — its
+ * destinations are validated after its sources are removed, "so a destination
+ * that frees a name by the removal is legal". A live proposer run made the case
+ * concrete: asked to shape a flat vendor schema, the model named each group
+ * after the leaf that anchors it (`pool`, holding `pool`, `poolSize`,
+ * `poolPumpType` …). That is the natural naming, and it was the only one of
+ * fourteen proposed nests the applier refused.
  *
  * The moved nodes are detached from the shaped tree's ROOT and re-hung under a
- * brand-new object; the patch tree is never touched — a nest exists only in
- * the extraction space.
+ * brand-new object; the patch tree is never touched — a nest exists only in the
+ * extraction space.
  */
-function applyNest(
+function applyNests(
   shapedTree: ObjectNode,
-  patchTree: ObjectNode,
   drops: ReadonlyMap<string, string[]>,
+  nests: ReadonlyMap<string, ReadonlyMap<string, string>>,
+  nestBySource: ReadonlyMap<string, { group: string; destination: string }>,
+): void {
+  const plans: { group: string; from: string; segments: string[] }[] = [];
+  for (const [group, moves] of nests) {
+    plans.push(...planOneNest(shapedTree, drops, nestBySource, group, moves));
+  }
+  // Every source is detached before any group is created, so a group named
+  // after a leaf some nest moves away finds its name free whatever the order.
+  const removed = new Map<string, ShapeNode>();
+  for (const plan of plans) {
+    removed.set(plan.from, removeSubtree(shapedTree, [plan.from]));
+  }
+  for (const plan of plans) {
+    const moved = removed.get(plan.from);
+    if (moved === undefined) {
+      throw new Error(
+        "deriveExtractionShape(): internal — a validated move source was not detached.",
+      );
+    }
+    insertAt(shapedTree, [plan.group, ...plan.segments], moved);
+  }
+}
+
+/** Validate one nest and return its moves as insert plans. Writes nothing. */
+function planOneNest(
+  shapedTree: ObjectNode,
+  drops: ReadonlyMap<string, string[]>,
+  nestBySource: ReadonlyMap<string, { group: string; destination: string }>,
   group: string,
   moves: ReadonlyMap<string, string>,
-): void {
+): { group: string; from: string; segments: string[] }[] {
   // The group name becomes a top-level object key, under the same rules
   // `childPath` enforces on every path the review layer addresses. Checked
   // here, attributed to the nest: left to `enveloped()`, the same bad name
@@ -527,23 +565,16 @@ function applyNest(
       { cause },
     );
   }
-  if (shapedTree.children.has(group)) {
+  // A nest group may take a top-level name that SOME nest moves away — its own
+  // (`pool` holding `pool`, `poolSize`, …) or another's. What it may not do is
+  // shadow a key that survives to the extraction schema, which would be two
+  // things at one path. Asked of `nestBySource` rather than of the tree, so the
+  // answer does not depend on how many nests have run yet.
+  if (shapedTree.children.has(group) && !nestBySource.has(group)) {
     throw new Error(
       `deriveExtractionShape(): nest names group "${group}", which is already a top-level ` +
-        "key of the schema — a nest creates a new group; it cannot take over an existing one.",
-    );
-  }
-  // The shaped check above cannot see a name an EARLIER nest already moved
-  // away: nests apply in order, so by now that key is gone from the shaped
-  // root. The patch tree still carries it, and a nest group must be absent
-  // from the patch — `assertShapeMapping`'s synthetic-top conjunct requires it.
-  // Without this the pair is still refused, but only at step 9's
-  // post-condition, with a boundary message that never mentions either nest.
-  if (patchTree.children.has(group)) {
-    throw new Error(
-      `deriveExtractionShape(): nest names group "${group}", which another nest moved away ` +
-        "from the top level — a nest group must be a name the patch does not carry, or the " +
-        "mapping's synthetic-group check refuses the pair far from its cause. Pick a new name.",
+        "key of the schema and stays one — a nest may reuse a name only when some nest " +
+        "moves that leaf away, freeing it.",
     );
   }
   for (const [droppedPath, droppedSegments] of drops) {
@@ -623,21 +654,13 @@ function applyNest(
     }
   }
 
-  // Nothing here can collide: the group is new, so its interior is empty, and
-  // the destinations were just pairwise validated above it.
-  const removed = new Map<string, ShapeNode>();
-  for (const source of sources) {
-    removed.set(source.from, removeSubtree(shapedTree, source.segments));
-  }
-  for (const destination of destinations) {
-    const moved = removed.get(destination.from);
-    if (moved === undefined) {
-      throw new Error(
-        "deriveExtractionShape(): internal — a validated move source was not detached.",
-      );
-    }
-    insertAt(shapedTree, [group, ...destination.segments], moved);
-  }
+  // Nothing here can collide: the group's interior starts empty and the
+  // destinations were just pairwise validated. The caller detaches and inserts.
+  return destinations.map((destination) => ({
+    group,
+    from: destination.from,
+    segments: destination.segments,
+  }));
 }
 
 /** Remove and return the subtree at `segments` from its container. */
