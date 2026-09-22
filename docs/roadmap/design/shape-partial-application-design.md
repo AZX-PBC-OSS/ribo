@@ -45,10 +45,19 @@ reaches in input order. Two consequences, both observed:
   one (`operations-proposer.ts:567`). At exhaustion the proposer returns `[]`
   (`operations-proposer.ts:601-605`): no shaping at all, the good operations lost with the bad.
 - **A caller applying a model's proposal directly has no middle option** between "throw away the
-  whole set" and "catch, parse the message by hand, strip one op, retry". A consuming app hand-wrote
-  exactly that loop after one bad operation out of 91 zeroed 14 good nests (reported from the field
-  app, which lives in a separate repo — AGENTS.md §3 — so those numbers are not checkable here). The
-  live-run evidence (`nest-live-run-evidence.md` §2) has since reproduced that exact cascade end to
+  whole set" and "catch, parse the message by hand, strip one op, retry".
+
+  > **Correction, 2026-09-22.** This bullet originally attributed "one bad operation out of 91
+  > zeroed 14 good nests" to a report from the field app, adding that the numbers were "not
+  > checkable here" because that app lives in a separate repo. **That attribution was false, and
+  > impossible.** `nest` exists only inside an unmerged PR; it is on no published version of
+  > `@azx/ribo-extractor-openai` (still `0.0.0`) and not on `origin/main`, so a consumer of these
+  > packages cannot have encountered one nest, let alone fourteen. The numbers themselves are
+  > right — they are what the live run measured, independently, below — but they were dressed as
+  > an unfalsifiable external citation. Kept visible rather than deleted: a claim immunised from
+  > review by "not checkable here" is the shape of error worth being able to recognise again.
+
+  The live-run evidence (`nest-live-run-evidence.md` §2) measures the cascade end to
   end against a real vendor schema: one retype out of a 91-operation proposal named a leaf the same
   proposal also dropped, the applier refused the whole set, the repair turn did not find which of
   the two ops to retract, and the run exhausted to `[]` — every good operation, including the 14
