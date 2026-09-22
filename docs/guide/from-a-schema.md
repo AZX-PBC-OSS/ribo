@@ -250,14 +250,25 @@ How it lands on a working extraction at every failure mode:
 - **A successful proposal returns the operations**; the applier's `assertShapeMapping` post-condition
   fires on the same path the hand-written call takes, so the proposed shape and a hand-written shape
   are interchangeable from the rest of the pipeline's perspective.
-- **A proposal the applier refuses is repaired on the next turn** — the applier's own precise
-  refusal text becomes the user-turn feedback, the model's previous (rejected) answer becomes the
-  assistant turn, and the schema's pre-`strict` JSON path travels unchanged.
-- **At exhaustion (no repair budget, transport verdict repeats) the function returns `[]`** — a
-  valid operation set, just unshaped. The applier accepts it as pure normalization, and the
-  extraction runs end-to-end without dropping on a model verdict the host cannot inspect mid-talk.
-  The argument for `[]` over a thrown error is a newcomer: handing them a working extraction either
-  way is the goal the wave locked.
+- **A proposal the applier refuses is repaired on the next turn** — EVERY refusal the applier found
+  becomes the user-turn feedback (one line each, the applier's own message prefixed with the
+  operation it names), the model's previous (rejected) answer becomes the assistant turn, and the
+  schema's pre-`strict` JSON path travels unchanged. Two bad operations — or eighteen — cost one
+  repair turn, not N.
+- **At exhaustion (no repair budget, transport verdict repeats) the function returns the final
+  proposal's surviving operations** — `[]` when nothing survived, a valid operation set either way.
+  The applier accepts the survivors as a partial derivation, and the extraction runs end-to-end
+  without dropping on a model verdict the host cannot inspect mid-talk. The argument for salvaging
+  over a thrown error is a newcomer: handing them a working extraction either way is the goal the
+  wave locked. (ADR 0016 pinned `[]`-always; ADR 0024 amends it — the surviving subset is the same
+  "keep the pipeline open" property, held more often.)
+
+A host applying a model's proposal itself — or diffing, caching, or auditing one — has the same two
+surfaces at the applier level: `deriveExtractionShape` throws the first refusal, while its sibling
+`deriveExtractionShapePartially` returns `{ shape, refusals }`, the artifact from the surviving
+operations plus every refusal, classified `local` / `consequential` / `set` with the consequential
+culprit named. The two are the same code path; an empty refusal list is exactly the throwing
+surface's success.
 
 Two entry points are exposed for hosts that want different lifecycles:
 
