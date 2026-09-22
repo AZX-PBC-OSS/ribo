@@ -102,3 +102,8 @@ docs/spikes/0001-extraction-snuggpro/results/ondevice*/
 # the numbers that matter are in docs/implementation/20-managed-three-phase-extraction.md.
 docs/spikes/0001-extraction-snuggpro/results/managed-*/
 
+
+# Spike 0009 runs a live probe against a vendor Swagger and writes per-run trees carrying
+# that vendor Swagger's content plus model responses. The harness IS committed; its output
+# is not. The answers live in the spike README.
+docs/spikes/0009-basedata-proposer/results/

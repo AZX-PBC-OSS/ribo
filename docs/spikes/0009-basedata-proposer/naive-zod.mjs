@@ -29,7 +29,7 @@
 import { createRequire } from "node:module";
 
 const require_ = createRequire(
-  new URL("../../packages/ribo-extractor-openai/dist/index.js", import.meta.url),
+  new URL("../../../packages/ribo-extractor-openai/dist/index.js", import.meta.url),
 );
 const zodPath = require_.resolve("zod");
 const zodImport = zodPath.endsWith(".cjs") ? zodPath.replace(/\.cjs$/, ".js") : zodPath;
