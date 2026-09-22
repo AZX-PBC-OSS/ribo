@@ -691,14 +691,21 @@ describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
    * (`Extractor<Pick<MixedFields, "hvac">>`) and the `""` slot
    * (`Extractor<MixedFields>`).
    */
-  function pieceEntry(value: Partial<MixedFields>): Extractor<MixedFields> & {
+  function pieceEntry(
+    value: Partial<MixedFields>,
+    statedEmptyGroups?: Readonly<Record<string, string>>,
+  ): Extractor<MixedFields> & {
     readonly calls: readonly EntryCall[];
   } {
     const calls: EntryCall[] = [];
     return {
       extract: (t, options) => {
         calls.push({ text: t.text, options });
-        return Promise.resolve({ fields: value as MixedFields, usage: { calls: 1 } });
+        return Promise.resolve({
+          fields: value as MixedFields,
+          usage: { calls: 1 },
+          ...(statedEmptyGroups !== undefined ? { statedEmptyGroups } : {}),
+        });
       },
       get calls() {
         return calls;
@@ -809,6 +816,54 @@ describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
       ["", 1, 2],
       ["", 2, 2],
     ]);
+  });
+
+  test('a "" entry whose runtime fields carry a NAMED key throws at the merge, naming the key', async () => {
+    // The hand-composition hazard the widened arm opened: the "" slot's type is
+    // the whole-shape claim (`Extractor<MixedFields>`), so reusing the flat
+    // fallback's natural construction — one single-shot extractor over the
+    // whole target — builds a "" entry whose whole-schema answer carries hvac.
+    // The schedule assigns "" last, so that answer silently overwrote the
+    // named entry's already-merged value, and the closing parse validates
+    // shape only: a shape-valid wrong value passed. The merge refuses the
+    // class outright (ADR 0023's corrected cost paragraph).
+    const groups: GroupMap<MixedValues> = {
+      hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }),
+      "": pieceEntry({ hvac: hvacLeaf("Furnace"), note: noteLeaf, yearBuilt: yearLeaf }),
+    };
+    const extractor = groupedExtractor({ target: mixedTarget, groups });
+
+    const rejection = await extractor.extract(transcript).catch((cause: unknown) => cause);
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toMatch(/the "" entry's result carries "hvac"/);
+    expect((rejection as Error).message).toMatch(/unwrapped remainder/);
+  });
+
+  test('a "" entry that states a NAMED group empty throws the same guard — the union assigned in arrival order', async () => {
+    // The same root in the statedEmptyGroups union: it assigned in arrival
+    // order, so a "" entry stating a named group empty clobbered the named
+    // entry's own statement nondeterministically. Same guard shape.
+    const lying = pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }, { hvac: "no units" });
+    const extractor = groupedExtractor({
+      target: mixedTarget,
+      groups: { hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }), "": lying },
+    });
+
+    const rejection = await extractor.extract(transcript).catch((cause: unknown) => cause);
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toMatch(/the "" entry states the named group "hvac"/);
+
+    // No false positive: a named entry stating its OWN group empty beside a ""
+    // entry unions exactly as the named-only arm always did.
+    const honest = groupedExtractor({
+      target: mixedTarget,
+      groups: {
+        hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }, { hvac: "none said" }),
+        "": pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }),
+      },
+    });
+    const result = await honest.extract(transcript);
+    expect(result.statedEmptyGroups).toEqual({ hvac: "none said" });
   });
 });
 

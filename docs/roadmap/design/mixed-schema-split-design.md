@@ -3,7 +3,11 @@
 **Date:** 2026-09-22
 **Status:** Implemented — ADR 0023. The consumer inventory held: rows 8, 9 and 11–17 needed no
 change, and the two pins that broke (`shape-operations.test.ts`'s conditional-payoff pair) were
-the ones ADR 0022 had pinned against this work.
+the ones ADR 0022 had pinned against this work. Post-review corrections on the same branch:
+(1) the `""` merge arm is guarded — a hand-composed `""` entry whose runtime fields (or
+`statedEmptyGroups`) carry a named entry's key throws at the merge, naming the key; §7's
+"residual risk accepted" framing was a false dichotomy between the blanket refusal and silence,
+and ADR 0023's cost paragraph is corrected to say so.
 **Question answered:** `splitExtractionSchema` groups only when every top-level key is a group; a
 schema that is 14 groups plus a few loose leaves collapses to the flat fallback. How does the
 split — and every consumer of its `""` marker — handle groups and loose leaves in one schema?

@@ -158,8 +158,11 @@ a mixed schema — the split emits one entry per group plus the loose leaves as 
 trailing last, so the map combines named keys with `""` and the loose calls go out with the
 target's own instructions. One combination is still refused: a `""` entry beside named entries
 that already cover every top-level key is redundant — a second coverage declaration for the same
-keys — and throws at construction. `overrideGroups` has no slot for the `""` entry; compose the
-map by hand for custom loose handling.
+keys — and throws at construction. The remainder contract is enforced at runtime too: a `""`
+entry whose result fields (or `statedEmptyGroups`) carry a key a named entry covers throws at
+the merge, naming the key, because the `""` entry covers only the unwrapped remainder and the
+shape-valid closing parse cannot see a shape-valid but wrong value. `overrideGroups` has no slot
+for the `""` entry; compose the map by hand for custom loose handling.
 
 ## Next
 

@@ -896,6 +896,37 @@ describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () 
       expect(Object.keys(assistantFields ?? {}).sort()).toEqual(expected);
     }
   });
+
+  test("a loose response carrying a NAMED key is rejected at the piece's own parse — the preset never reaches the merge with it", async () => {
+    // The preset half of the overwrite-hazard pin (ADR 0023; the hand-composed
+    // half is in ribo-core's grouped-extractor suite): the split builds the
+    // loose piece from exactly the keys no group claimed, so the piece's
+    // z.strictObject refuses a named key at the ENTRY's first parse — before
+    // groupedExtractor's merge (and its "" guard) ever sees the value.
+    // maxRetries: 0 because a SchemaParseError stays transient to the
+    // combinator and would otherwise be retried pointlessly here.
+    const { chat, requests } = fakeGroupChat({
+      "demo-mixed-hvac": JSON.stringify(mixedHvacResponse),
+      // The loose piece's answer carrying the whole-schema shape — the
+      // hazardous construction's signature.
+      "demo-mixed": JSON.stringify({ ...mixedLooseResponse, hvac: mixedHvacResponse.hvac }),
+    });
+    const extractor = perGroupExtractor({ target: mixedTarget, chat, model: "m", maxRetries: 0 });
+
+    const rejection = await extractor
+      .extract({ text: "the transcript", annotations: {} })
+      .catch((cause: unknown) => cause);
+
+    expect(rejection).toBeInstanceOf(SchemaParseError);
+    // The ENTRY's own parse, not the combinator's closing parse: the context
+    // names the loose piece's own request ("demo-mixed", no group infix), and
+    // nothing about the merge.
+    expect((rejection as Error).message).toContain(
+      'singleShotExtractor: model response for "demo-mixed"',
+    );
+    expect((rejection as Error).message).not.toContain("merged response");
+    expect(requests.map((r) => r.response_format.json_schema.name)).toContain("demo-mixed");
+  });
 });
 
 /**

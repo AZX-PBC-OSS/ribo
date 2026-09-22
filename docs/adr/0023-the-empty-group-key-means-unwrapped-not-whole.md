@@ -75,12 +75,22 @@ ones that threw.
 
 The cost, stated plainly. A construction-time guard got narrower: a hand composer who combined
 `""` with named keys by mistake used to get a throw, and now only the redundant full-coverage
-case throws. Worse, a `""` entry whose runtime fields carry a NAMED group's key escapes both the
-remaining refusal and the shape-valid closing parse, and silently wins the merge — the `""`
-entries assign last. That residual risk is accepted and documented at `GroupMap`; the
-alternative was the blanket refusal this ADR exists to reverse, and the preset — the composer
-that matters — never produces it, because the split's loose piece is built from exactly the keys
-no group claimed.
+case throws. A `""` entry whose runtime fields carry a NAMED group's key escapes both the
+remaining refusal and the shape-valid closing parse — the value is shape-valid, just wrong — and
+the `""` entries assign last, so it would silently win the merge. As first accepted, this ADR
+framed that as a residual risk to be accepted, "the alternative was the blanket refusal" — a
+false dichotomy. The implemented answer is a third option that keeps the widening and kills the
+silent overwrite: the merge's `""` arm throws when the entry's fields carry a key a named entry
+covers, naming the key and the rule (the `""` entry covers only the unwrapped remainder). No
+false positives are possible under the contract — the extra-keys check confines the named set to
+schema keys, and keys outside the schema remain the closing parse's — so the guard is exactly
+the missing class. The same guard covers `statedEmptyGroups`, which previously unioned in pool
+arrival order and so could clobber a named entry's statement nondeterministically; the union now
+happens in the merge loop, in schedule order, under the same named-key check. The preset — the
+composer that matters — never produces the hazardous map in the first place, because the split's
+loose piece is built from exactly the keys no group claimed and its `z.strictObject` rejects a
+named key at the entry's own first parse; the guard is what a HAND composer gets, where the old
+blanket refusal used to catch the misuse.
 
 The `""`-only and named-only arms are byte-for-byte behaviour-pinned by the existing suites
 (request shapes, partition boundaries, the flat fallback's input-identity single entry), so the

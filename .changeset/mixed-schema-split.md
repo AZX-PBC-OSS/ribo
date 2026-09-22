@@ -17,7 +17,12 @@ rule: `""` beside named keys that do not cover the schema is accepted (the `""` 
 unnamed remainder; a lying declaration surfaces at the second trust-boundary parse, as the
 fallback arm's always did), while `""` beside named keys that already cover every top-level key
 still throws. The widening is strict: every map accepted before behaves identically, and only
-maps that threw change behaviour.
+maps that threw change behaviour. Because the `""` slot's type keeps the whole-shape claim, the
+merge's `""` arm is guarded at runtime: a `""` entry whose result fields — or whose
+`statedEmptyGroups` — carry a key a named entry covers throws, naming the key, since the `""`
+entry covers only the unwrapped remainder and the shape-valid closing parse cannot see a
+shape-valid but wrong value. The `statedEmptyGroups` union now happens in schedule order rather
+than pool arrival order, so two entries stating one key resolve deterministically.
 
 In `@azx/ribo-extractor-openai`, `splitExtractionSchema` classifies top-level keys once and
 splits a mixed schema into the grouped path's pieces (unchanged under each cap regime) plus the

@@ -31,7 +31,11 @@
  *     it with `??`, which would silently disable sibling abort whenever a
  *     caller passed a signal.
  *   - **Merge, second parse, normalize once, usage sum, `statedEmptyGroups`
- *     union.** As the per-group extractor does them today.
+ *     union.** As the per-group extractor does them today — plus one guard the
+ *     widening made necessary: a `""` entry's fields (or `statedEmptyGroups`)
+ *     carrying a NAMED entry's key throws at the merge, naming the key, since
+ *     a `""` entry covers only the unwrapped remainder and the shape-valid
+ *     closing parse cannot see that class (see {@link GroupMap}).
  *
  * What it does NOT own: how a group asks the model. Each entry is an opaque
  * `Extractor` — typically a `singleShotExtractor` over a projected target
@@ -111,11 +115,15 @@ type UnwrappedGroupEntries<V extends Record<string, unknown>, P> = {
  * The `""` entry's type keeps the whole-shape claim
  * (`Extractor<Enveloped<V, P>>`) even though a loose piece's runtime fields
  * carry only its leaf subset — the same over-claim the per-group plan's flat
- * pieces make, and the second trust-boundary parse validates the merge. What
- * the type cannot see, the composer must hold: a `""` entry's runtime fields
- * must carry only keys no named entry covers. One that emits a named group's
- * key escapes both the redundancy refusal and the shape-valid closing parse,
- * and its value silently wins the merge — the `""` entries assign last.
+ * pieces make, and the second trust-boundary parse validates the merge. The
+ * type STEERS a hand composer toward reusing the flat fallback's natural
+ * construction (one extractor over the whole target), whose whole-schema
+ * answer carries the named keys — so what the type cannot see, the merge
+ * guards instead: a `""` entry whose runtime fields carry a key a named entry
+ * covers throws at the merge, naming the key, because assigned last its value
+ * would silently overwrite the named entry's, and the closing parse validates
+ * shape only. The same guard covers `statedEmptyGroups`, which the `""`
+ * entries would otherwise clobber in pool arrival order.
  */
 export type GroupMap<V extends Record<string, unknown>, P = NoProvenance> =
   | NamedGroupEntries<V, P>
@@ -280,6 +288,14 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
   const unwrappedEntry = groupRecord[""];
   const hasUnwrapped = unwrappedEntry !== undefined;
   const namedKeys = Object.keys(groupRecord).filter((key) => key !== "");
+  // The named entries' keys as a set, for the merge's "" guard: a "" entry
+  // covers only the unwrapped remainder, so a named key in its result (or in
+  // its statedEmptyGroups) is a composition bug the closing parse cannot see
+  // — the value is shape-valid, just WRONG. The extra-keys check below has
+  // already confined namedKeys to schema keys by the time extract() runs, so
+  // membership here is exactly the missing class: keys outside the schema are
+  // the closing parse's, keys a named entry covers are this guard's.
+  const namedKeySet: ReadonlySet<string> = new Set(namedKeys);
 
   const schema = target.extractionSchema;
   // A map carrying named keys — with or without a "" entry beside them — needs
@@ -420,7 +436,6 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
 
       let totalCalls = 0;
       const totals: UsageTotals = {};
-      const statedEmpty: Record<string, string> = {};
 
       const results = await mapWithPool(
         entries,
@@ -479,11 +494,12 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
               // Sum what the entry reports — its calls and token totals. A
               // failed attempt's calls are the entry's business; this run's
               // own retries are visible in the GroupUnit attempt numbers.
+              // `statedEmptyGroups` is deliberately NOT unioned here: the union
+              // happens in the merge loop below, in schedule order, where the
+              // "" guard can see it and two entries stating one key resolve
+              // deterministically rather than by pool arrival order.
               totalCalls += result.usage.calls;
               addResultUsage(totals, result.usage);
-              if (result.statedEmptyGroups !== undefined) {
-                Object.assign(statedEmpty, result.statedEmptyGroups);
-              }
 
               onUnit?.({
                 id,
@@ -559,22 +575,63 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
       // `results` is index-aligned with `entries` (mapWithPool preserves
       // order), so pieces recombine in the order they were scheduled.
       const merged: Record<string, unknown> = {};
+      const statedEmpty: Record<string, string> = {};
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i]!;
-        const fields = results[i]!.fields;
+        const result = results[i]!;
+        const fields = result.fields;
         if (entry.key === "") {
           // The unwrapped portion: the entry's fields are top-level leaves of
           // the schema itself (the whole schema for a ""-only map, the loose
           // remainder beside named entries) — assign its keys directly rather
-          // than nesting under "". Loose leaves and group keys are disjoint by
-          // construction, so the assign can never clobber a named entry's
-          // keyed value (mixed-schema-split design §5.3).
+          // than nesting under "". The split's own loose pieces are disjoint
+          // from the group keys by construction (mixed-schema-split design
+          // §5.3); a HAND-COMPOSED "" entry is under no such constraint, and
+          // its whole-shape entry type (`Extractor<Enveloped<V, P>>`) actively
+          // steers a composer toward reusing the flat fallback's construction,
+          // whose whole-schema answer carries the named keys. Assigned last,
+          // such a value would silently overwrite the named entry's
+          // already-merged value — and the closing parse validates shape only,
+          // so a shape-valid wrong value would pass. Refuse the class: a ""
+          // entry covers only the unwrapped remainder. For a ""-only map the
+          // set is empty and the guard can never fire.
+          for (const key of Object.keys(fields)) {
+            if (namedKeySet.has(key)) {
+              throw new Error(
+                `groupedExtractor: the "" entry's result carries "${key}", which a named ` +
+                  `entry covers — the "" entry covers only the unwrapped remainder (the ` +
+                  `top-level keys the named entries do not name). Assigned last, its value ` +
+                  `would silently overwrite the named entry's merged value for ` +
+                  `"${target.name}"; narrow the "" entry to its own leaves.`,
+              );
+            }
+          }
           Object.assign(merged, fields);
-          continue;
+        } else {
+          const value = fields[entry.key];
+          merged[entry.key] =
+            entry.key in merged ? mergeGroupPieces(merged[entry.key], value) : value;
         }
-        const value = fields[entry.key];
-        merged[entry.key] =
-          entry.key in merged ? mergeGroupPieces(merged[entry.key], value) : value;
+        // The statedEmptyGroups union, here rather than in the pool: schedule
+        // order, not arrival order, so two entries stating one key resolve
+        // deterministically — and the same "" guard applies, because a ""
+        // entry stating a NAMED group empty would otherwise clobber the named
+        // entry's own statement by pool timing.
+        if (result.statedEmptyGroups !== undefined) {
+          if (entry.key === "") {
+            for (const key of Object.keys(result.statedEmptyGroups)) {
+              if (namedKeySet.has(key)) {
+                throw new Error(
+                  `groupedExtractor: the "" entry states the named group "${key}" empty — ` +
+                    `the "" entry covers only the unwrapped remainder and cannot speak for ` +
+                    `a named group. Its statement would clobber the named entry's own for ` +
+                    `"${target.name}"; drop it.`,
+                );
+              }
+            }
+          }
+          Object.assign(statedEmpty, result.statedEmptyGroups);
+        }
       }
 
       // Second trust-boundary parse: validate the merged whole against the full
