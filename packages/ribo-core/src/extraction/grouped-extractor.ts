@@ -292,9 +292,8 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
         `so there are no top-level keys to cover with groups.`,
     );
   }
-  const schemaKeys = (
-    schemaIsObject ? Object.keys((schema as z.ZodObject).shape) : []
-  ) as readonly (keyof V & string)[];
+  const schemaKeys = (schemaIsObject ? Object.keys(schema.shape) : []) as readonly (keyof V &
+    string)[];
 
   // The redundancy refusal: "" claims the remainder the named entries leave
   // uncovered; when they leave nothing, the "" entry is a second coverage
