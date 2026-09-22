@@ -53,12 +53,12 @@ over the caps (maxNullableUnionsPerGroup 16, maxSerializedCharsPerGroup 19000)
 
 Four shapes from the same vendor schema, same caps (union 16, bytes 19 000):
 
-| Shape                                             | Split result                                          |
-| ------------------------------------------------- | ----------------------------------------------------- |
-| No operations — the raw flat schema               | 38 pieces                                             |
-| Drops + retypes, no nests                         | 30 pieces                                             |
-| **The model's proposal — 14 nests, 47 leaves loose** | **fails**                                          |
-| Every leaf nested — no loose leaves left          | 27 pieces, oversized groups partitioned within themselves |
+| Shape                                                | Split result                                              |
+| ---------------------------------------------------- | --------------------------------------------------------- |
+| No operations — the raw flat schema                  | 38 pieces                                                 |
+| Drops + retypes, no nests                            | 30 pieces                                                 |
+| **The model's proposal — 14 nests, 47 leaves loose** | **fails**                                                 |
+| Every leaf nested — no loose leaves left             | 27 pieces, oversized groups partitioned within themselves |
 
 The last row is the important one: the per-group path handles an oversized group correctly. It is
 only the **mixed** schema that has nowhere to go, because the flat fallback treats every top-level

@@ -48,8 +48,12 @@ reaches in input order. Two consequences, both observed:
   whole set" and "catch, parse the message by hand, strip one op, retry". A consuming app hand-wrote
   exactly that loop after one bad operation out of 91 zeroed 14 good nests (reported from the field
   app, which lives in a separate repo — AGENTS.md §3 — so those numbers are not checkable here). The
-  in-repo version of the same story is spike 0009: on a flat 294-leaf schema the model proposed 19
-  regroups, the applier refused 18, and the whole proposal was zeroed
+  live-run evidence (`nest-live-run-evidence.md` §2) has since reproduced that exact cascade end to
+  end against a real vendor schema: one retype out of a 91-operation proposal named a leaf the same
+  proposal also dropped, the applier refused the whole set, the repair turn did not find which of
+  the two ops to retract, and the run exhausted to `[]` — every good operation, including the 14
+  good nests, gone with it. The in-repo version of the same story is spike 0009: on a flat 294-leaf
+  schema the model proposed 19 regroups, the applier refused 18, and the whole proposal was zeroed
   (`docs/spikes/0009-basedata-proposer/README.md:26-35`); the spike then hand-rolled a recovery loop
   over captured model turns to find a validating subset (`run.mjs:302-313`) — the workaround every
   caller will otherwise write.
@@ -94,6 +98,12 @@ Today the applier names the victim, not the culprit — a retype on a dropped pa
 may name a dropped path, a group, or nothing at all" (`:170-171`), leaving the repair model to guess
 whether to retract the retype or the drop. The consequential class exists precisely to carry the
 culprit: its refusal record names the operation that removed the target.
+
+The live-run evidence measures this failure directly (`nest-live-run-evidence.md` §2): the refusing
+retype was `ashraeRequiredAdditionalCfmImproved`, a leaf the same proposal also dropped; the refusal
+pointed at the retype (victim), and the repair turn could not decide whether to retract the retype
+or the drop. `cause` is the field that records the named culprit, and it is what the repair turn
+lacked in this measurement.
 
 One boundary stays absolute: defects of the **schema** (scalar arrays, unions, records;
 `shape-tree.ts:79-100`) and defects of the caller's **declarations that no drop explains** —

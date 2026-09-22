@@ -9,7 +9,11 @@ without running it — and the failures for not knowing are silent or arrive at 
 unreadable `400`. Spike 0006's investigations of the managed route's caps were paid for in probe
 scripts (`docs/spikes/0006-managed-three-phase/` — `cap-probe.mjs`, `group-probe.mjs`,
 `phase-cap-probe.mjs`, `property-cap-probe.mjs`, `root-probe.mjs`, `anyof-probe.mjs`), each asking a
-slightly different slice of one question: what will this schema actually become?
+slightly different slice of one question: what will this schema actually become? The same
+question was paid for again during the live shape run (`nest-live-run-evidence.md` §8): six
+throwaway probe scripts were written to answer questions this helper reports directly — which
+top-level keys are groups, which loose, which split path applies, how many pieces each shape
+yields, and whether construction will succeed.
 
 This design answers that question with one synchronous, model-free helper — working name
 `describeExtraction` — that reports, without constructing an extractor or calling a model:
@@ -228,3 +232,32 @@ treats as fatal. Nothing in this design's surface anticipates or blocks that eff
   descent.
 - Describing with no caps supplied reports partitioning at 16 unions — the same default the presets
   apply (`per-group.ts:354`) — and the agreement test holds with the options bag left empty.
+
+## 10. What the live run paid for this helper to answer
+
+The live shape run (`nest-live-run-evidence.md`) drove the pipeline end to end against a real
+vendor schema — `definitions.basedata`, 294 flat top-level properties — and the questions that run
+raised are exactly what this helper reports. Three sections of that file are worked examples of the
+report's contents:
+
+- **§1 — the proposal.** 64 drops, 14 nests, 13 retypes, covering 203 leaves across 14 groups. The
+  report's `shape` field, returned when the raw input shape is used, is that derivation: the
+  derived `DerivedExtractionShape` with the surviving operations, the refusals, and the dropped
+  leaves already absent from the patch.
+- **§2 — the failure.** Out of 91 operations, one retype named a leaf the same proposal also
+  dropped; the applier refused the set pointing at the retype (victim), not the drop (culprit), and
+  the repair turn could not tell which to retract. The report's `refusal` field with
+  `stage: "derive"` carries that record directly, with `class: "consequential"` and `cause` naming
+  the drop — what the model lacked in this measurement. This is also the case the
+  partial-application design's consequential class exists to support.
+- **§3 — the four-shape table.** Four shapes from the same `basedata`, same caps (union 16, bytes
+  19,000), split as 38 pieces (raw flat), 30 (drops plus retypes, no nests), **fails** (14 nests,
+  47 leaves still loose), and 27 (every leaf nested, oversized groups partitioned within
+  themselves). Every row is a worked example of `keys`, `path`, `pieces` and `refusal` over one
+  schema and one cap pair. Only the all-flat and all-nested rows would produce the same report
+  with today's split; the **fails** row is what this design and the mixed-schema split together
+  make reportable — the missing intermediate case, where groups and loose leaves coexist.
+
+§8 is the headline: six throwaway probe scripts were written to answer questions this helper
+reports directly. Three sections of that file are what the helper would have returned, at a small
+fraction of the cost.

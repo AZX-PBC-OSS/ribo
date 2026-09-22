@@ -26,13 +26,25 @@ property among the leaves.
 So a caller who reshapes a flat schema into 14 groups and leaves a few leaves loose gets none of
 the grouping: every group rides inside one oversized or description-stripped call, which is
 exactly the failure per-group extraction exists to remove (R3 §2's 39,741-byte request against a
-32,768 cap). The workaround available to a consuming app today is a **sweep** at the patch-schema
+32,768 cap). The live run drove this end to end against a real vendor schema and measured the
+cascade (`nest-live-run-evidence.md` §3): four shapes from the same 294-property Snugg Pro
+`basedata`, same caps (union 16, bytes 19,000), split as 38 pieces (raw flat), 30 pieces (drops
+plus retypes, no nests), **fails** (the model's proposal: 14 nests, 47 leaves still loose), and 27
+pieces (every leaf nested, with oversized groups partitioned within themselves). The **fails** row
+is the partially-nested case this design addresses, and the last row is the proof that the
+per-group path handles an oversized group correctly — only the **mixed** schema has nowhere to go,
+because the flat fallback treats every top-level key as atomic and a group is not atomic. The
+workaround available to a consuming app today is a **sweep** at the patch-schema
 level: move every loose leaf into an invented group before `enveloped()` runs. That group means
 nothing semantically, and the leak is real — the invented key appears in the enveloped schema's
 top-level keys, so it reaches `groupInstructions(key)` (a host's per-group function is called with
 it), the few-shot projection, the review tree's group nodes, and `statedEmptyGroups` if the
-inventory ever mentions it. The honest end state is for the splitter to handle a mixed schema: one
-entry per group, plus the loose leaves carried as their own piece or pieces.
+inventory ever mentions it. The sweep was measured to confirm the workaround is reachable
+(`nest-live-run-evidence.md` §4): it yields 16 top-level keys, 34 pieces, no `""` piece, mapping
+and patch schema identical to the unswept derivation — and the argument against it must now carry
+weight it did not before, because every surface named above was reached. The honest end state is
+for the splitter to handle a mixed schema: one entry per group, plus the loose leaves carried as
+their own piece or pieces.
 
 ## 2. The `""` contract, and where it came from
 
@@ -145,6 +157,15 @@ guarantee the fallback arm states today (`grouped-extractor.ts:79-81`). The extr
 (`grouped-extractor.ts:280-289`) is unchanged. This is a strict widening: every map accepted
 today is accepted tomorrow with identical behaviour, and the only maps whose behaviour changes are
 the ones that threw.
+
+The live run measured §4.2's necessity directly (`nest-live-run-evidence.md` §5): wiring each key to
+the packer that already fits it — `partitionGroupTwoCaps` for groups, `partitionFlatTwoCaps` for
+loose leaves — makes the split succeed (34 pieces, named groups). It then fails one layer down:
+`groupedExtractor` refuses the map because the `""` entry declares the non-grouped fallback and
+cannot be combined with per-key entries. And it breaks a shape that works today — a mixed schema
+whose group fits the caps currently packs atomically under `""` and is accepted; with the splitter
+changed and the map contract unchanged, it emits `["small", ""]` and is refused. The splitter
+change and the `""` contract change are one change — §4.1 alone is not enough.
 
 ## 5. The split of a mixed schema
 
