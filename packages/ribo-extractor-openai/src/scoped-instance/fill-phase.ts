@@ -321,7 +321,13 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
         // unreachable through the engine.
         if (outcome.outcome !== "result") continue;
         const job = outcome.item;
-        const value = outcome.output.value[job.group.key];
+        // A FLAT piece's parsed response is the WHOLE narrowed subset of
+        // schema leaves — there is no wrapping key to read under — so the
+        // value is the parsed response itself, not a sub-object of it. A
+        // grouped piece's parsed response carries the group under its key, so
+        // we read that sub-object.
+        const value =
+          job.group.key === "" ? outcome.output.value : outcome.output.value[job.group.key];
 
         if (job.group.isCollection) {
           // The array is built here, in the merge that fills it — the
@@ -345,6 +351,13 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
           const existing = arr[job.instanceIndex];
           arr[job.instanceIndex] =
             existing === undefined ? value : mergeGroupPieces(existing, value);
+        } else if (job.group.key === "") {
+          // FLAT piece: every leaf it carried is a top-level key of the
+          // schema. Each piece's parsed subset is disjoint from its siblings',
+          // so an `Object.assign` in piece order is the merge — later pieces
+          // never overwrite earlier ones because their leaves differ. The
+          // closing parse then validates the whole against the schema.
+          Object.assign(groupResult, value);
         } else {
           const key = job.group.key;
           groupResult[key] = key in groupResult ? mergeGroupPieces(groupResult[key], value) : value;
