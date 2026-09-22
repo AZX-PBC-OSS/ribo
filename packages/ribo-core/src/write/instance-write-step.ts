@@ -115,14 +115,14 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
       );
     }
 
-    const singletonPatch: Record<string, unknown> = {};
+    const singletonGroups: Array<{ group: string; value: unknown }> = [];
     const collections: Array<{ group: string; instances: unknown[] }> = [];
 
     for (const [key, value] of Object.entries(fields.data)) {
       if (collectionGroups.includes(key) && Array.isArray(value)) {
         collections.push({ group: key, instances: value });
       } else {
-        singletonPatch[key] = value;
+        singletonGroups.push({ group: key, value });
       }
     }
 
@@ -130,15 +130,24 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
       instances: {},
     };
 
-    if (Object.keys(singletonPatch).length > 0) {
-      const { receipt } = await adapter.write(
-        adapter.schema.parse(singletonPatch),
-        parsedCtx.data,
-        {
-          idempotencyKey,
-        },
-      );
-      receipts.singleton = receipt;
+    // ONE GROUP PER CALL, singletons included. This used to batch every singleton
+    // group into a single `write`, which pushed a fan-out into the adapter: it
+    // received a patch spanning several endpoints, issued a request per group, and
+    // then had to collapse N vendor receipts into the one string this contract
+    // returns — which it could only do by inventing a marker that identified none of
+    // them. Splitting here deletes that: every call is one group, so every receipt
+    // the adapter returns is the real one for the record it wrote.
+    //
+    // No singleton receipt is recorded, deliberately. Nothing reads
+    // `receipts.singleton` — only `receipts.instances` is consulted, below, to turn a
+    // retry into an update — and a singleton endpoint is an upsert addressed by the
+    // job, so re-sending it rewrites the same record and cannot duplicate. There is
+    // nothing for a singleton receipt to protect, and with N groups there is no one
+    // value it could honestly hold.
+    for (const { group, value } of singletonGroups) {
+      await adapter.write(adapter.schema.parse({ [group]: value }), parsedCtx.data, {
+        idempotencyKey,
+      });
     }
 
     for (const { group, instances } of collections) {

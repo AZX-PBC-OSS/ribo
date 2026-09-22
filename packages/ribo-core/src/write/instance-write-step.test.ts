@@ -52,9 +52,18 @@ const basedataFieldsSchema = z.object({
   yearBuilt: z.number().nullable().optional(),
 });
 
+/**
+ * A SECOND singleton group, so the tests can tell "every singleton batched into one
+ * call" from "one call per singleton group". With only one, both look identical.
+ */
+const healthFieldsSchema = z.object({
+  healthRadon: z.string().nullable().optional(),
+});
+
 const valuesSchema = z
   .object({
     basedata: basedataFieldsSchema.optional(),
+    health: healthFieldsSchema.optional(),
     hvac: z.array(hvacFieldsSchema).optional(),
   })
   .strict();
@@ -199,7 +208,7 @@ test("each instance's derived key is stable across retries and distinct between 
   expect(result2?.receipts?.instances?.hvac).toEqual(result1?.receipts?.instances?.hvac);
 });
 
-test("singleton groups are written once with the session's original idempotency key", async () => {
+test("each singleton group is written on its own, with the session's original idempotency key", async () => {
   const storage = await openTestOutbox();
   const written: Write[] = [];
   const step = toInstanceWriteStep({
@@ -211,7 +220,10 @@ test("singleton groups are written once with the session's original idempotency 
     storage,
     { jobId: "job-7" },
     {
+      // TWO singleton groups, because one cannot tell "batched into a single call"
+      // from "one call per group" — which is the thing this test now exists to pin.
       basedata: { yearBuilt: 2004 },
+      health: { healthRadon: "Passed" },
       hvac: [{ hvacSystemEquipmentType: "Furnace" }],
     },
     { hvac: ["k1"] },
@@ -225,14 +237,28 @@ test("singleton groups are written once with the session's original idempotency 
     ctx,
   });
 
-  expect(written).toHaveLength(2);
-  const singleton = written.find((w) => "basedata" in w.fields);
+  // Three calls, not two: one per singleton group plus one per instance. Batching
+  // the singletons pushed a fan-out into the adapter, which then had to collapse
+  // several vendor receipts into the one string `write` returns.
+  expect(written).toHaveLength(3);
+  const basedata = written.find((w) => "basedata" in w.fields);
+  const health = written.find((w) => "health" in w.fields);
   const instance = written.find((w) => "hvac" in w.fields);
-  expect(singleton?.meta.idempotencyKey).toBe(session.idempotencyKey);
+  expect(basedata, "basedata is written on its own").toBeDefined();
+  expect(health, "health is written on its own").toBeDefined();
+  // And neither call carries the other's group.
+  expect("health" in (basedata?.fields ?? {})).toBe(false);
+  expect("basedata" in (health?.fields ?? {})).toBe(false);
+  expect(basedata?.meta.idempotencyKey).toBe(session.idempotencyKey);
+  expect(health?.meta.idempotencyKey).toBe(session.idempotencyKey);
   expect(instance?.meta.idempotencyKey).toBe(
     deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0),
   );
-  expect(result?.receipts?.singleton).toBe(`uuid-${session.idempotencyKey}`);
+  // No singleton receipt is recorded, and that is deliberate: nothing reads
+  // `receipts.singleton`, and a singleton endpoint is an upsert addressed by the job,
+  // so re-sending it rewrites the same record and cannot duplicate. With several
+  // singleton groups there is also no one value it could honestly hold.
+  expect(result?.receipts?.singleton).toBeUndefined();
   expect(result?.receipts?.instances?.hvac).toEqual({
     k1: `uuid-${deriveInstanceIdempotencyKey(session.idempotencyKey, "hvac", 0)}`,
   });

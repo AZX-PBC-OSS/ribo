@@ -14,12 +14,25 @@ import { describeLocated, zodIssues } from "../review/zod-issues.js";
  * boundary that **was not installed anywhere**: every reasoning about it — a rejected
  * leaf being absent, an accepted `null` being present, the reviewed values being a
  * legal `V` at all — rested on a `parse` no code in this package ran. R2 Phase A's
- * review found that; {@link toWriteStep} is where the boundary now lives, and it is the
- * one supported way to wire an adapter into the queue:
+ * review found that; {@link toWriteStep} is where the boundary now lives, and it is one
+ * of the two supported ways to wire an adapter into the queue:
  *
  * ```ts
- * createRelay({ ..., sessionWrite: toWriteStep(snuggProAdapter) });
+ * createRelay({ ..., sessionWrite: toWriteStep(myAdapter) });
  * ```
+ *
+ * ## Which of the two to use
+ *
+ * This one sends the WHOLE reviewed patch to `write` in a single call and records the
+ * single receipt that comes back. That is right for an adapter whose patch is one
+ * record at one endpoint.
+ *
+ * It is wrong for an adapter whose patch spans several endpoints — the Snugg Pro one
+ * covers twenty — because `write` returns one receipt and every other record's would
+ * be lost, so a retry duplicates them. Such an adapter should be composed with
+ * {@link toInstanceWriteStep}, which sends one group per call and checkpoints each
+ * receipt as it is earned. This example used to name `snuggProAdapter`; that adapter
+ * now refuses a multi-record patch rather than inventing a receipt for it.
  *
  * ## What the patch parse actually guards against
  *

@@ -220,22 +220,30 @@ const writePatch = async (
     }
   }
 
-  const receipts: string[] = [];
-  for (const { group, values } of records) {
-    const { receipt } = await writer(group, values, ctx, meta);
-    receipts.push(receipt);
+  // One call, one record, one real receipt — so refuse a patch that would be more.
+  //
+  // A Snugg Pro patch can span twenty endpoints while `write` returns a single
+  // receipt, and those two facts cannot both be honoured for a multi-record patch.
+  // This used to resolve the mismatch by writing every record and then returning a
+  // synthesised `assessment:<id>` marker that identified none of them, which is a
+  // receipt in name only: a retry holding it cannot address any record, so the write
+  // it was meant to protect duplicates anyway.
+  //
+  // `toInstanceWriteStep` now sends one group per call — every singleton group on its
+  // own, every collection instance on its own — so the honest thing is to require
+  // that rather than paper over its absence. A caller that gets here with more than
+  // one record is using a composition that cannot carry receipts, and being told so
+  // is worth more than a string that looks like one.
+  if (records.length > 1) {
+    throw new TerminalError(
+      `snuggProAdapter.write: this patch spans ${String(records.length)} records across the ` +
+        `${[...new Set(records.map((r) => r.group))].join(", ")} group(s), and one write returns ` +
+        `one receipt — so every receipt but one would be lost, and a retry would duplicate those ` +
+        `records. Compose with toInstanceWriteStep, which sends one group per call.`,
+    );
   }
-  if (receipts.length === 1) {
-    return { receipt: receipts[0]! };
-  }
-  // More than one record, so this return cannot be the individual receipts: the
-  // vendor assigned each its own uuid and this contract carries one string. The
-  // synthetic marker is NOT recoverable into those receipts — which is exactly why
-  // `toInstanceWriteStep` writes collection instances one at a time (one call per
-  // instance, one real receipt each, checkpointed as earned) and is the supported
-  // composition for this adapter. A host that batches loses per-record receipts
-  // and will create duplicates on a retry.
-  return { receipt: `assessment:${ctx.assessmentId}` };
+  const { group, values } = records[0]!;
+  return writer(group, values, ctx, meta);
 };
 
 /**

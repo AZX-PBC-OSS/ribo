@@ -244,47 +244,60 @@ describe("createSnuggProAdapter — the patch-to-receipt bridge", () => {
     });
   });
 
-  test("a collection group is written instance by instance, in first-mention order", async () => {
+  test("one record writes one request and returns that record's real receipt", async () => {
     const { fetchImpl, calls } = fetchRecording(
       () => new Response(JSON.stringify({ uuid: "written" }), { status: 201 }),
     );
     const adapter = createSnuggProAdapter({ fetchImpl });
 
-    await adapter.write(
-      {
-        hvac: [
-          { hvacSystemEquipmentType: "Boiler" },
-          { hvacSystemEquipmentType: "Furnace with standalone ducts" },
-        ],
-      },
-      wiredCtx,
-      { idempotencyKey: "key-1" },
-    );
+    // Exactly the shape `toInstanceWriteStep` sends: one group, one instance.
+    await expect(
+      adapter.write({ hvac: [{ hvacSystemEquipmentType: "Boiler" }] }, wiredCtx, {
+        idempotencyKey: "key-1",
+      }),
+    ).resolves.toEqual({ receipt: "written" });
 
-    expect(calls).toHaveLength(2);
-    for (const call of calls) {
-      expect(call.url).toBe("https://gateway.example/snugg/jobs/123/hvac");
-    }
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe("https://gateway.example/snugg/jobs/123/hvac");
   });
 
-  test("a multi-group patch writes every group in schema order and returns the synthetic assessment receipt", async () => {
+  test("a patch spanning several records is refused, naming the composition that does not", async () => {
+    // `write` returns ONE receipt, so a patch carrying several records cannot report
+    // them all — and the receipt is what a retry needs to update rather than create.
+    // This used to write every record and return a synthesised `assessment:<id>`
+    // marker that identified none of them: a receipt in name only, which a retry
+    // could not address any record with, so the duplicates it was meant to prevent
+    // happened anyway. Refusing says so instead, and names the fix.
     const { fetchImpl, calls } = fetchRecording(
       () => new Response(JSON.stringify({}), { status: 200 }),
     );
     const adapter = createSnuggProAdapter({ fetchImpl });
 
+    // Two singleton groups.
     await expect(
       adapter.write(
         { job: { note: "Bring the blower door" }, health: { healthGasLeak: "Passed" } },
         wiredCtx,
         { idempotencyKey: "key-1" },
       ),
-    ).resolves.toEqual({ receipt: "assessment:123" });
+    ).rejects.toThrow(/toInstanceWriteStep/);
 
-    expect(calls).toHaveLength(2);
-    // The schema's group order, not the patch object's key order.
-    expect(calls[0]!.url).toBe("https://gateway.example/snugg/jobs/123/health");
-    expect(calls[1]!.url).toBe("https://gateway.example/snugg/jobs/123");
+    // And two instances of one collection group — the same problem, one group.
+    await expect(
+      adapter.write(
+        {
+          hvac: [
+            { hvacSystemEquipmentType: "Boiler" },
+            { hvacSystemEquipmentType: "Furnace with standalone ducts" },
+          ],
+        },
+        wiredCtx,
+        { idempotencyKey: "key-1" },
+      ),
+    ).rejects.toThrow(/toInstanceWriteStep/);
+
+    // Refused before anything is sent, so a multi-record patch cannot half-write.
+    expect(calls).toHaveLength(0);
   });
 
   test("the stage group is refused with a terminal error naming the group — before any request", async () => {
