@@ -33,6 +33,7 @@ export function scratchPackageJson(tarballPaths) {
       "@azx/ribo-transcriber-managed-docs": fileSpec("@azx/ribo-transcriber-managed-docs"),
       "@azx/ribo-transcriber-pdfjs": fileSpec("@azx/ribo-transcriber-pdfjs"),
       "@azx/ribo-storage-rxdb": fileSpec("@azx/ribo-storage-rxdb"),
+      "@azx/ribo-systemone-managed": fileSpec("@azx/ribo-systemone-managed"),
       "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       // Exact versions, matching the workspace catalog (pnpm-workspace.yaml) — this app is NOT a
       // workspace member, so it cannot write `catalog:`; these are hand-pinned to the same values.
@@ -62,6 +63,7 @@ export function scratchPackageJson(tarballPaths) {
         "@azx/ribo-transcriber-managed-docs": fileSpec("@azx/ribo-transcriber-managed-docs"),
         "@azx/ribo-transcriber-pdfjs": fileSpec("@azx/ribo-transcriber-pdfjs"),
         "@azx/ribo-storage-rxdb": fileSpec("@azx/ribo-storage-rxdb"),
+        "@azx/ribo-systemone-managed": fileSpec("@azx/ribo-systemone-managed"),
         "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       },
     },
@@ -149,7 +151,7 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
  *     rate limit), not a packaging defect. Not a certainty — a heuristic — but the cheapest real
  *     signal available.
  */
-export const MAIN_JS = `import { isSpanGrounded } from "@azx/ribo-core";
+export const MAIN_JS = `import { isSpanGrounded, TerminalError } from "@azx/ribo-core";
 import { normalizeFields, snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
 import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
 import { OnDeviceChat, threePhaseExtractor, ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
@@ -158,6 +160,7 @@ import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
 import { ManagedDocsTranscriber, MANAGED_DOCS_ENGINE } from "@azx/ribo-transcriber-managed-docs";
 import { PdfjsTranscriber, PDFJS_ENGINE } from "@azx/ribo-transcriber-pdfjs";
 import { openRxdbBackend, createRxdbBackend } from "@azx/ribo-storage-rxdb";
+import { systemOneClient, SystemOneError } from "@azx/ribo-systemone-managed";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import React from "react";
 import { createRoot } from "react-dom/client";
@@ -235,6 +238,22 @@ async function run() {
     }).capability();
     checks.pdfjsReady = pdfjsConfigured.status === "ready";
     checks.pdfjsEngineId = PDFJS_ENGINE === "pdfjs";
+
+    // ribo-systemone-managed: real request shaping and error classing across the tarball
+    // boundary, with an injected fetch so nothing leaves the process. The instanceof is the
+    // point — a duplicated ribo-core in the install would give this package its own
+    // TerminalError class and the arbitration ladders would silently stop falling through.
+    const soClient = systemOneClient({
+      endpoint: "https://example.invalid/v1/systemone",
+      fetch: async () =>
+        new Response(JSON.stringify({ answers: { q: { type: "noul", noul: 0.75 } } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    });
+    const soAnswers = await soClient.ask("some state", { q: { instructions: "is it?" } });
+    checks.systemOneAnswers = soAnswers.q === 0.75;
+    checks.systemOneTerminalIdentity = new SystemOneError(401, "x") instanceof TerminalError;
 
     // ribo-transcriber-managed-docs: real capability logic across the tarball
     // boundary, and no network — capability() never fetches. Both directions:
