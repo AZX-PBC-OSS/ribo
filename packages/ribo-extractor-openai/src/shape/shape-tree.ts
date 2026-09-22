@@ -165,20 +165,34 @@ export const pathTouchesArray = (root: ObjectNode, segments: readonly string[]):
 export const isPrefixOf = (a: readonly string[], b: readonly string[]): boolean =>
   a.length <= b.length && a.every((segment, i) => segment === b[i]);
 
-/** Refuse any object the operations emptied — an empty object hangs nothing. */
-export const refuseEmptyObjects = (node: ObjectNode, path: string): void => {
+/** The message an emptied object is refused with, at either derivation surface. */
+export const emptyObjectMessage = (path: string): string =>
+  `deriveExtractionShape(): the object at "${path === "" ? "<root>" : path}" has no ` +
+  "fields left. An empty object serves nothing — drop its parent key instead of its " +
+  "last leaf, or keep a leaf in it.";
+
+/**
+ * Every object with no children, in the walk order {@link refuseEmptyObjects}
+ * throws on them. The partial applier needs the whole set at once — refusing
+ * one drop may restore leaves that resolve another.
+ */
+export const findEmptyObjects = (node: ObjectNode, path: string, out: string[]): void => {
   if (node.children.size === 0) {
-    throw new Error(
-      `deriveExtractionShape(): the object at "${path === "" ? "<root>" : path}" has no ` +
-        "fields left. An empty object serves nothing — drop its parent key instead of its " +
-        "last leaf, or keep a leaf in it.",
-    );
+    out.push(path);
+    return;
   }
   for (const [key, child] of node.children) {
     const childPathText = childPath(path, key);
-    if (child.kind === "object") refuseEmptyObjects(child, childPathText);
-    if (child.kind === "array") refuseEmptyObjects(child.element, `${childPathText}[]`);
+    if (child.kind === "object") findEmptyObjects(child, childPathText, out);
+    if (child.kind === "array") findEmptyObjects(child.element, `${childPathText}[]`, out);
   }
+};
+
+/** Refuse any object the operations emptied — an empty object hangs nothing. */
+export const refuseEmptyObjects = (node: ObjectNode, path: string): void => {
+  const emptied: string[] = [];
+  findEmptyObjects(node, path, emptied);
+  if (emptied.length > 0) throw new Error(emptyObjectMessage(emptied[0]!));
 };
 
 export const treeToZod = (node: ObjectNode, isRoot = true): z.ZodObject => {

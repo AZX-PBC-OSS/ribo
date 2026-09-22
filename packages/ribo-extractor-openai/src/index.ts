@@ -66,13 +66,25 @@ export type {
 // over the extraction shape into one over the derived patch.
 //
 // Two derivation surfaces. `deriveExtractionShape` is the model-free applier:
-// the caller hands in explicit operations and the artifact comes out. The
+// the caller hands in explicit operations and the artifact comes out, or it
+// throws the first refusal. Its sibling `deriveExtractionShapePartially` is
+// the same applier collecting instead: every refusal it can find in one pass,
+// classified (local / consequential / set, with the consequential culprit
+// named), plus the artifact derived from the operations that survived — a
+// host applying a model's proposal gets the middle option between "throw the
+// set away" and "catch, parse the message by hand, strip one op, retry". The
 // model-driven counterpart is `proposeShapeOperations` — the model emits the
 // operations, the same applier applies them. `proposeExtractionShape` is the
 // one-call convenience that composes the two for a host that wants the
 // artifact directly.
-export { deriveExtractionShape } from "./shape/shape-operations.js";
+export { deriveExtractionShape, deriveExtractionShapePartially } from "./shape/shape-operations.js";
 export type { DeriveExtractionShapeOptions } from "./shape/shape-operations.js";
+export type {
+  PartiallyDerivedShape,
+  ShapeRefusal,
+  ShapeRefusalCause,
+  ShapeRefusalClass,
+} from "./shape/shape-refusal.js";
 export type { ShapeOperation } from "./shape/shape-operation.js";
 export type { DerivedExtractionShape } from "./shape/derived-shape.js";
 export { assertShapeMapping, retypeToPatchValue } from "./shape/shape-mapping.js";
