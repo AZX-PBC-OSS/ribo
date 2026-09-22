@@ -10,9 +10,9 @@ docs/.vitepress/dist/
 docs/reference/
 
 # Search-plan spike: raw per-node model dumps (gitignored; regenerable, noisy)
-spikes/extraction-search-plan/results/*/*/
+docs/spikes/0003-extraction-search-plan/results/*/*/
 
 # Extraction-snuggpro spike: generated result JSON + run logs (regenerable; formatting
 # would change the exact bytes the runner writes and is not meaningful here).
-spikes/extraction-snuggpro/results/**
+docs/spikes/0001-extraction-snuggpro/results/**
 

@@ -33,7 +33,7 @@ import { normalizeFields, snuggProAdapter } from "../src/index.js";
  * deactivated (402) and the `.env.local` `OPENAI_API_KEY` was invalid (401); `claude` was the only
  * backend that actually worked.
  *
- * Output: `spikes/transcription-measurement/results/real/extract/<source>/<slug>.json` — git-ignored,
+ * Output: `docs/spikes/0002-transcription-measurement/results/real/extract/<source>/<slug>.json` — git-ignored,
  * real form content, same as every other real-audio artifact under `results/real/`.
  */
 
@@ -102,7 +102,7 @@ test("extract real-audio transcripts through the production extraction path", as
   if (files.length === 0) {
     console.warn(
       `[extract-real] no transcripts in ${REAL_GT_DIR} for source "${source}" — see ` +
-        "spikes/transcription-measurement/testdata/real/README.md. Skipping.",
+        "docs/spikes/0002-transcription-measurement/testdata/real/README.md. Skipping.",
     );
     return;
   }

@@ -24,36 +24,36 @@ property that a working strategy holds and a broken one does not can.
 
 ## The two harnesses
 
-**The on-device arm — manual, real Chrome.** `spikes/ondevice-acceptance/` is served as a page and
+**The on-device arm — manual, real Chrome.** `docs/spikes/0005-ondevice-acceptance/` is served as a page and
 driven by hand:
 
 ```bash
-pnpm exec vite --config spikes/ondevice-acceptance/vite.config.ts
+pnpm exec vite --config docs/spikes/0005-ondevice-acceptance/vite.config.ts
 ```
 
 Open it in **real Chrome** — it refuses to run against Chromium's Prompt API stub, and that refusal
 is a check, not a limitation: the stub answers with canned text, so an automated run would produce
 numbers that mean nothing. Arm the model first (the page will not download it — the download needs
 a gesture and takes minutes), then click a strategy. Results land in
-`spikes/extraction-snuggpro/results/ondevice*/`, which is gitignored; its output is not committed.
+`docs/spikes/0001-extraction-snuggpro/results/ondevice*/`, which is gitignored; its output is not committed.
 
-**The managed arm — needs secrets.** `spikes/managed-three-phase/run.mjs` drives the three-phase
+**The managed arm — needs secrets.** `docs/spikes/0006-managed-three-phase/run.mjs` drives the three-phase
 strategy over the corpus through the managed `helixChat` transport (with the per-group strategies
 alongside as matched baselines):
 
 ```bash
 pnpm build:packages   # it imports the packages' built dist/, not workspace source
-node spikes/managed-three-phase/run.mjs --strategy three-phase --model <model>
+node docs/spikes/0006-managed-three-phase/run.mjs --strategy three-phase --model <model>
 ```
 
 Its credentials come from the gitignored `.env.local` at the repo root: `HELIX_DEV_TOKEN` and
 `HELIX_BASE_URL` are required (`HELIX_ORIGIN` optionally overrides the default). Results land in
-`spikes/extraction-snuggpro/results/managed-<strategy>-<model>/`.
+`docs/spikes/0001-extraction-snuggpro/results/managed-<strategy>-<model>/`.
 
 **What to do with the result** — both arms write in the shape the corpus scorer already consumes:
 
 ```bash
-node spikes/extraction-snuggpro/score.mjs <results-directory>
+node docs/spikes/0001-extraction-snuggpro/score.mjs <results-directory>
 ```
 
 Then read the score against the three structural properties above, not the point figures.

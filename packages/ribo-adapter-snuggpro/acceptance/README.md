@@ -1,7 +1,7 @@
 # Extraction acceptance gate (Phase 4 Task 3)
 
 The extraction-**quality** acceptance test for the built-default extractor. It runs
-`singleShotExtractor` against every transcript in the `spikes/extraction-snuggpro/`
+`singleShotExtractor` against every transcript in the `docs/spikes/0001-extraction-snuggpro/`
 corpus (14, as of the vocabulary-neutral rebuild — see `RECONCILIATION.md`), scores
 the output with the spike's own `score.mjs`, and asserts the four hazards hold with
 hallucination/miss inside a **schema- and backend-matched** committed baseline.
@@ -75,11 +75,11 @@ itself, e.g. `claude-cli`, for a CLI backend) so you can re-inspect a run or re-
 it by hand:
 
 ```bash
-node spikes/extraction-snuggpro/score.mjs packages/ribo-adapter-snuggpro/acceptance/results/<backend-label>
+node docs/spikes/0001-extraction-snuggpro/score.mjs packages/ribo-adapter-snuggpro/acceptance/results/<backend-label>
 ```
 
 The gate itself imports `score.mjs`'s scoring functions in-process and reads the
-spike corpus **read-only** — it never writes into `spikes/`.
+spike corpus **read-only** — it never writes into `docs/spikes/`.
 
 ## Shape conformance is reported separately from content accuracy
 
@@ -161,7 +161,7 @@ its own baseline file:
   four hazards, span verbatim-ness) still runs and can still fail the build.
 
 This replaces the two retired per-tool baselines
-(`spikes/extraction-snuggpro/results/{codex,opencode}-score.json` — see their
+(`docs/spikes/0001-extraction-snuggpro/results/{codex,opencode}-score.json` — see their
 removal commit for what they measured: the old spike's own 23-field flat schema,
 graded by the old scorer, run through the `codex`/`opencode` CLIs rather than this
 adapter's built extractor). Comparing across schemas — or across tools that were

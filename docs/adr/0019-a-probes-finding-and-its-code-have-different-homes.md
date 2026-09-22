@@ -8,7 +8,7 @@ Date: 2026-09-21
 Throwaway code that answers a question keeps arriving, and there was no rule for it. Three homes had
 grown up and nothing said which to reach for:
 
-- `spikes/<name>/` — committed, Prettier-formatted, and deliberately outside every other gate (the
+- `docs/spikes/<name>/` — committed, Prettier-formatted, and deliberately outside every other gate (the
   ESLint config excludes them by name: "spikes in no tsconfig"). Six of them, in three different
   shapes: two with no README, one that is _only_ a README.
 - `packages/*/acceptance/*.manual.ts` — committed, typechecked, run through an opt-in Vitest config
@@ -36,10 +36,10 @@ Route by shelf life, not by origin. A probe produces up to three things:
    and reversible by construction if it writes.
 3. **The scaffolding.** Deleted.
 
-`spikes/` remains, for the case none of those cover: a multi-file investigation with a corpus and
+`docs/spikes/` remains, for the case none of those cover: a multi-file investigation with a corpus and
 results worth keeping. It gains the structure it never had — `NNNN-kebab-name/`, numbered in date
 order like the ADRs, each with a README that opens with Status and Date and states the answer
-before the method. `spikes/index.md` is the record.
+before the method. `docs/spikes/index.md` is the record.
 
 The three can overlap, and the README says which parts went where rather than duplicating a probe.
 Spike 0007 is the worked example: it is a dated record, two of its assertions were promoted to a
@@ -49,18 +49,23 @@ Spikes stay outside every gate but Prettier. That is not neglect — it is why r
 in the README. The prose has to outlive the script, because the script will rot and nothing will
 tell us.
 
-## Consequences
+The tree lives at `docs/spikes/`, and every existing spike was renumbered in the same pass — 209
+references across 78 files, including `.gitignore`'s fifteen result-tree patterns, `.prettierignore`
+and `check.sh`'s `score:mutations` stage. Doing both at once was the cheaper option once the move
+was decided: relocating under `docs/` touches every reference renaming would, so splitting them
+means paying the same cost twice and living with a half-migrated tree in between. The rewrite was
+scripted and then audited for leftovers with a pattern that excludes the new prefix, because a
+missed `.gitignore` line silently starts committing a result tree.
 
-Existing spikes `0001`–`0006` keep their unnumbered directory names for now. Their numbers are
-assigned by first-commit date in the index and are real; the directories catch up in a migration of
-its own, because `extraction-snuggpro` alone is referenced from 40 places including `check.sh`,
-`.gitignore` and `.prettierignore` — where a missed path pattern silently starts committing results
-directories — and 63 path edits do not belong inside a feature branch. The record was the missing
-part and it exists now; the filesystem is behind it, visibly, in a table that says so.
+Spikes are excluded from the built docs site, alongside `roadmap/` and `implementation/`. Living
+under `docs/` is about where a finding belongs, not about publishing it; several spikes carry
+corpora and result trees with no business in a site build.
 
 There is no test enforcing the README. A spike is by definition the thing you write when you do not
 yet know the shape of the problem, and a gate on it is a tax on exactly the moment you can least
-afford one. The index is the check: a spike absent from it is invisible, which is enough.
+afford one. The index is the check: a spike absent from it is invisible, which is enough. Two
+spikes (0005, 0006) reach this convention without a README and the index says so, which is the
+mechanism working — their answers live in docs 19 and 21 until someone who knows them writes one.
 
 The cost of getting rule 2 wrong is asymmetric, and it is worth naming. Keeping a reproduction that
 nothing can change is clutter someone eventually deletes. NOT keeping one that a vendor can change

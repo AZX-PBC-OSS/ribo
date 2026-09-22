@@ -10,7 +10,7 @@ The plan for extraction and write-back — the pluggable `Extractor<F>` seam, th
 
 ## Split: extraction now, write-back once A1 landed
 
-Extraction is **unblocked** and de-risked twice over — the spike proved the schema+prompt survives real Snugg Pro data across two models (`spikes/extraction-snuggpro/`), and Task 4 proved it survives real transcription noise (`docs/implementation/14-transcription-measurement.md`). Build it now.
+Extraction is **unblocked** and de-risked twice over — the spike proved the schema+prompt survives real Snugg Pro data across two models (`docs/spikes/0001-extraction-snuggpro/`), and Task 4 proved it survives real transcription noise (`docs/implementation/14-transcription-measurement.md`). Build it now.
 
 **Write-back needed A1** — egress **HMAC-SHA256** request signing, from `docs/implementation/13-helix-platform-asks.md` (Snugg Pro uses AWS-style signed requests, not a static key). **Update (2026-09-21): A1 is confirmed** — the Helix gateway signs each request server-side, verified against Snugg Pro staging ([13](../../implementation/13-helix-platform-asks.md)'s update note has what was measured) — so write-back is no longer waiting on the platform. The seam-first plan stands: the adapter's `write` stays behind the `WriteStep`/`ToolAdapter.write` seam, so landing the real call is a wiring change, not a redesign. Do **not** sign in client code, and do not fake a signature to green a demo — an unsigned write that "works" against a mock teaches the wrong thing.
 
@@ -20,7 +20,7 @@ Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
 
 - **`ribo-core` stays headless and LLM-agnostic.** Core defines the `Extractor<F>` seam and `toExtractStep`; it does **not** import an LLM SDK or `fetch` a provider. The transport (`ChatClient`) is injected, exactly as the transcriber and connectivity probe are. No provider name appears in core.
 - **Every model/endpoint output crosses a trust boundary.** Parse with the adapter's `schema` before it becomes field data — a bespoke "does-it-all" service is validated locally too. A fabricated value in a customer report is the failure this whole design exists to prevent.
-- **The spike is the regression gate.** `spikes/extraction-snuggpro/score.mjs` and its corpus are how the built extractor is judged — the four hazards (silent fuel drop, health-matrix silence, R-value-vs-band, enum paraphrase), 100% verbatim spans, low hallucination. A change that regresses them is a regression, full stop.
+- **The spike is the regression gate.** `docs/spikes/0001-extraction-snuggpro/score.mjs` and its corpus are how the built extractor is judged — the four hazards (silent fuel drop, health-matrix silence, R-value-vs-band, enum paraphrase), 100% verbatim spans, low hallucination. A change that regresses them is a regression, full stop.
 - **`confidence` stays uncalibrated.** The spike showed a 0.9-confidence hallucination; do not build review-card accept/reject thresholds on it until a measurement says it separates right from wrong.
 - Dependencies catalog-pinned exact, in the right manifest.
 
@@ -46,7 +46,7 @@ Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
 
 **Files:** `packages/ribo-adapter-snuggpro/src/*`
 
-- Surface the spike-proven artifacts as a `ToolAdapter<F, C>`: `schema` from `spikes/extraction-snuggpro/schema.ts` (the real field model — split fuel axis, depth bands + spoken-R-value holding pen, the 11-test health matrix, no AFUE slot), `instructions` from `prompt.md`'s normalization intent, `examples` optional. `F = z.infer<typeof schema>`.
+- Surface the spike-proven artifacts as a `ToolAdapter<F, C>`: `schema` from `docs/spikes/0001-extraction-snuggpro/schema.ts` (the real field model — split fuel axis, depth bands + spoken-R-value holding pen, the 11-test health matrix, no AFUE slot), `instructions` from `prompt.md`'s normalization intent, `examples` optional. `F = z.infer<typeof schema>`.
 - `C` is the real write context (whatever identifies the Snugg Pro destination — a job/assessment id + client), never `unknown` (see `adapter.ts`'s note and `@ts-expect-error` test).
 - Keep the deterministic normalization pass (`normalization.md`) as code the extractor runs **after** the model — the model never converts R-value→band or does unit math.
 
@@ -57,7 +57,7 @@ Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
 - `singleShotExtractor({ target, chat, model })` implementing `Extractor<F>`: one OpenAI-compatible call, `response_format: { type: "json_schema", json_schema: { schema, strict: true } }` (Helix keeps `response_format` + the allowlist — A2). `z.toJSONSchema(schema, { target: "draft-2020-12" })`; remember `confidence` is a bare `z.number()` (`.min()/.max()` emit keywords strict mode rejects — the spike found this).
 - `ChatClient` is a **thin injected transport** interface (`complete(req) => { content }`), so tests use a fake and `ribo-core`/adapter never depend on a provider SDK.
 - Parse the response with `target.schema` — trust boundary. On parse failure, fail the step as **transient** (retryable) unless the error is clearly terminal.
-- **Gate it against the spike corpus:** run `singleShotExtractor` over `spikes/extraction-snuggpro/transcripts/` through `score.mjs` and assert the four hazards hold and hallucination stays within the measured band. This is the acceptance test for extraction quality, and it must be watched to fail (mutate a field, see the score drop).
+- **Gate it against the spike corpus:** run `singleShotExtractor` over `docs/spikes/0001-extraction-snuggpro/transcripts/` through `score.mjs` and assert the four hazards hold and hallucination stays within the measured band. This is the acceptance test for extraction quality, and it must be watched to fail (mutate a field, see the score drop).
 
 ### Task 4: Wire into the relay and the playground
 

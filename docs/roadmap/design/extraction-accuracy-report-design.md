@@ -11,7 +11,7 @@ each run as a committed artifact and rendering it on the docs site.
 ## 1. What already exists, and what is actually missing
 
 The accuracy harness is **already built**. `packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts`
-runs `singleShotExtractor` over the 14-transcript `spikes/extraction-snuggpro/` corpus, scores it
+runs `singleShotExtractor` over the 14-transcript `docs/spikes/0001-extraction-snuggpro/` corpus, scores it
 with the spike's own `score.mjs`, and asserts four hazards, span verbatim-ness, and
 hallucination/miss rates against a per-backend committed baseline. Three backends are selectable
 via `RIBO_ACCEPTANCE_BACKEND` (`openai`, `claude-cli`, `codex-cli`). It is manual and opt-in by
@@ -73,7 +73,7 @@ comparable).
 `badSpans`, `axis`, `health`, `conformance`), all keyed by leaf path. A consumer could infer
 "absent from every list ⇒ fine", but could not distinguish `correct` from `correctNull` without
 reading the corpus ground truth. Densifying to all 714 cells costs ~150 KB in total (measured, not estimated) and makes the artifact
-**self-contained**: the docs build reads one file and needs nothing from `spikes/`.
+**self-contained**: the docs build reads one file and needs nothing from `docs/spikes/`.
 
 ### Why append-only history, and its one wrinkle
 

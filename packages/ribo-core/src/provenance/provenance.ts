@@ -38,7 +38,7 @@ import { decodeEntities } from "../capture/decode-entities.js";
  * It is kept because one run is not grounds for deleting a field, and because a future model
  * or a calibration pass may make it meaningful. Today it carries **no discriminating signal**.
  *
- * Evidence — the extraction spike (`spikes/extraction-snuggpro/`, scored over 14 transcripts / **322
+ * Evidence — the extraction spike (`docs/spikes/0001-extraction-snuggpro/`, scored over 14 transcripts / **322
  * slots**, `results/codex-score.json`):
  *
  *   - mean confidence on **correct** answers: **0.996**
@@ -140,7 +140,7 @@ export const isSpanGrounded = (span: string | null, transcript: string): boolean
  * hallucination that never happened. Once a fabricated citation and a re-spaced one are
  * indistinguishable, the flag stops meaning anything, which is the same way `confidence` failed.
  *
- * The extraction spike's scorer (`spikes/extraction-snuggpro/score.mjs`) draws this line already,
+ * The extraction spike's scorer (`docs/spikes/0001-extraction-snuggpro/score.mjs`) draws this line already,
  * and this is that rule. It draws two more that are deliberately NOT adopted here: a
  * punctuation-insensitive match, and a "some 4-word fragment appears" match. Both are right for
  * grading a corpus, where the question is whether the model found the answer. Neither is right for

@@ -4,7 +4,7 @@ Phase 3's central bet — _"speak into the device, get a real transcript back, c
 checked with **our own measured numbers**. This is Task 4 of the on-device transcription phase
 (Phase 3). Nothing here is cited from a vendor post or a public benchmark; every figure comes from
 a run of the harness in
-[`spikes/transcription-measurement/`](../../spikes/transcription-measurement/README.md). Where a
+[`docs/spikes/0002-transcription-measurement/`](../../docs/spikes/0002-transcription-measurement/README.md). Where a
 number could not be produced in this environment it is called out and a manual recipe is given.
 
 ## Evidence grades
@@ -45,7 +45,7 @@ field audio) was added later — see its own date stamp.
 
 ## Method
 
-- **Corpus.** The 14 authored Snugg Pro transcripts (`spikes/extraction-snuggpro/transcripts/`). We
+- **Corpus.** The 14 authored Snugg Pro transcripts (`docs/spikes/0001-extraction-snuggpro/transcripts/`). We
   wrote them, so the ground-truth text is exact and WER is directly computable with no consent
   dependency. Realistic content paired with a schema-faithful scorer.
 - **Audio.** macOS `say -v Samantha -r 155` → `afconvert` to **16 kHz mono** WAV (`synth.mjs`).
@@ -163,7 +163,7 @@ The thing the clean-text extraction spike could not test: what happens when extr
 (`extract-ondevice.mjs`, reusing the spike's `prompt.md` + `schema.ts`) with **both** models, and
 scored with the spike's exported scorer — crucially, checking `sourceSpan` verbatimness against the
 **noisy** transcript (what the model actually saw). Diffed against the committed clean-text baseline
-(`spikes/extraction-snuggpro/results/{codex,opencode}-score.json`, both 14/14).
+(`docs/spikes/0001-extraction-snuggpro/results/{codex,opencode}-score.json`, both 14/14).
 
 ### codex (gpt-5.6)
 
@@ -253,7 +253,7 @@ recordings — two field clips (3 m 44 s and 19 m 14 s), transcribed whole throu
 `OnDeviceTranscriber` and the real `ManagedTranscriber` (Azure Fast Transcription), the same
 production classes the app uses. Numbers only; the audio and its transcripts are real speech and are
 **not** in this repo — see
-[`spikes/transcription-measurement/testdata/real/README.md`](../../spikes/transcription-measurement/testdata/real/README.md).
+[`docs/spikes/0002-transcription-measurement/testdata/real/README.md`](../../docs/spikes/0002-transcription-measurement/testdata/real/README.md).
 The public-friendly writeup, with the extraction half of the pipeline, is on the docs site:
 [Real Field Audio](/deep-dives/real-audio).
 
@@ -284,27 +284,27 @@ window on its own. That's since changed: the worker now segments long audio itse
   the `audio/webm;codecs=opus` the app records in production. Both decoded on-device via
   `AudioContext.decodeAudioData` and posted to Azure with no transcoding, exactly as recorded.
 
-Reproduce: `spikes/transcription-measurement/testdata/real/README.md`.
+Reproduce: `docs/spikes/0002-transcription-measurement/testdata/real/README.md`.
 
 ---
 
 ## Reproduce
 
-Full harness, commands, and file map: [`spikes/transcription-measurement/README.md`](../../spikes/transcription-measurement/README.md).
+Full harness, commands, and file map: [`docs/spikes/0002-transcription-measurement/README.md`](../../docs/spikes/0002-transcription-measurement/README.md).
 None of it runs in `./check.sh` (it downloads a real model and runs minutes of inference); the
 committed artifacts are the measured summaries `results/metrics-*.json` and
 `results/partb-*-score.json`.
 
 ```bash
-node spikes/transcription-measurement/synth.mjs                      # audio fixtures
-node spikes/transcription-measurement/run.mjs Xenova/whisper-base.en \
+node docs/spikes/0002-transcription-measurement/synth.mjs                      # audio fixtures
+node docs/spikes/0002-transcription-measurement/run.mjs Xenova/whisper-base.en \
   01-attic-r-value-shell,05-full-walkthrough,07-combustion-safety,12-wrong-field-old-unit
-node spikes/transcription-measurement/run.mjs Xenova/whisper-tiny.en \
+node docs/spikes/0002-transcription-measurement/run.mjs Xenova/whisper-tiny.en \
   01-attic-r-value-shell,05-full-walkthrough,07-combustion-safety,12-wrong-field-old-unit
-node spikes/transcription-measurement/extract-ondevice.mjs codex    whisper-base.en
-node spikes/transcription-measurement/score-partb.mjs       codex    whisper-base.en
-node spikes/transcription-measurement/extract-ondevice.mjs opencode whisper-base.en
-node spikes/transcription-measurement/score-partb.mjs       opencode whisper-base.en
+node docs/spikes/0002-transcription-measurement/extract-ondevice.mjs codex    whisper-base.en
+node docs/spikes/0002-transcription-measurement/score-partb.mjs       codex    whisper-base.en
+node docs/spikes/0002-transcription-measurement/extract-ondevice.mjs opencode whisper-base.en
+node docs/spikes/0002-transcription-measurement/score-partb.mjs       opencode whisper-base.en
 ```
 
 ### What was run vs left as a documented manual step

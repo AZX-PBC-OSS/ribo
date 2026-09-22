@@ -294,7 +294,7 @@ function measurementGapBanner(stale) {
 in the tree today, so it no longer even reflects that superseded corpus faithfully.`
     : "";
   return `<div class="ar-stale" role="note"><b>Extraction quality is not currently measured.</b>
-The annotated corpus this gate scores against (<code>spikes/extraction-snuggpro/ground-truth/</code>)
+The annotated corpus this gate scores against (<code>docs/spikes/0001-extraction-snuggpro/ground-truth/</code>)
 is written in a field vocabulary the adapter no longer uses, so
 <code>packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts</code> deliberately refuses to emit
 a score against it rather than publish one that no longer means anything. What follows is the last

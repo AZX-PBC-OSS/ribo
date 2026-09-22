@@ -224,8 +224,8 @@ authority for everything in §5 and §6 below.
   which in practice means a live dependency: that is a `packages/*/acceptance/*.manual.ts`, opt-in,
   skipping cleanly without its env, never in CI, reversible by construction if it writes. The
   **scaffolding** is deleted. A multi-file investigation with a corpus and results goes in
-  `spikes/NNNN-name/` with a README that opens with Status and Date and states the answer before
-  the method — see [`spikes/index.md`](spikes/index.md), which is the record. Spikes are outside
+  `docs/spikes/NNNN-name/` with a README that opens with Status and Date and states the answer before
+  the method — see [`docs/spikes/index.md`](docs/spikes/index.md), which is the record. Spikes are outside
   every gate but Prettier, which is exactly why the answer must be in the prose: the script will
   rot and nothing will tell you.
 

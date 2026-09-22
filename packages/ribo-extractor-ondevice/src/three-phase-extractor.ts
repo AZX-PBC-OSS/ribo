@@ -3,7 +3,7 @@
  * presence → span → classify → classify-wrapped, four phases at `concurrency: 1`
  * so the device still sees one call at a time.
  *
- * Ported from `spikes/ondevice-acceptance/three-phase.ts`. The measurement that
+ * Ported from `docs/spikes/0005-ondevice-acceptance/three-phase.ts`. The measurement that
  * picked this strategy is in
  * `docs/implementation/19-ondevice-extraction-strategies.md`: splitting extraction
  * into presence, span, and classify calls eliminated the degenerate whitespace

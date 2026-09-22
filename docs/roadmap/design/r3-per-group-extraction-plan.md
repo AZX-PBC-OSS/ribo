@@ -161,7 +161,7 @@ it to need updating, and review that diff carefully rather than regenerating it 
 
 **Files:** no production code.
 
-**Intent.** Run the corpus (`spikes/extraction-snuggpro/`, 13 double-annotated transcripts) against
+**Intent.** Run the corpus (`docs/spikes/0001-extraction-snuggpro/`, 13 double-annotated transcripts) against
 single-shot and per-group, and compare.
 
 The design says not to ship on the size argument alone, and means it: a change that fixes the byte

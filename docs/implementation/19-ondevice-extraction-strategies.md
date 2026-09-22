@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-26
 **Status:** Result, recorded. Four corpus runs against Chrome's real on-device model
-(Gemini Nano, Chrome 151, M-series laptop). Scored with `spikes/extraction-snuggpro/score.mjs`,
+(Gemini Nano, Chrome 151, M-series laptop). Scored with `docs/spikes/0001-extraction-snuggpro/score.mjs`,
 **reused verbatim**, against the same 13 clean transcripts as doc 18.
 
 ## The one thing to take away
@@ -180,14 +180,14 @@ well (band mapping scored 100%, health matrix ~77%). The last of those was desig
 
 ## Sources
 
-- `spikes/ondevice-acceptance/` — the runner and every strategy measured here. **Committed;
+- `docs/spikes/0005-ondevice-acceptance/` — the runner and every strategy measured here. **Committed;
   its output is not.** Each run produces ~6,000 lines of generated JSON, and every number in this
   document is already above. Reproduce by serving that directory
-  (`pnpm exec vite --config spikes/ondevice-acceptance/vite.config.ts`), opening it in **real
+  (`pnpm exec vite --config docs/spikes/0005-ondevice-acceptance/vite.config.ts`), opening it in **real
   Chrome** — it refuses to run against Chromium's Prompt API stub — and clicking a strategy.
-  Results land in `spikes/extraction-snuggpro/results/ondevice*/`, which is gitignored.
-- `spikes/extraction-snuggpro/score.mjs` — the scorer, reused verbatim:
-  `node spikes/extraction-snuggpro/score.mjs spikes/extraction-snuggpro/results/ondevice-production`.
+  Results land in `docs/spikes/0001-extraction-snuggpro/results/ondevice*/`, which is gitignored.
+- `docs/spikes/0001-extraction-snuggpro/score.mjs` — the scorer, reused verbatim:
+  `node docs/spikes/0001-extraction-snuggpro/score.mjs docs/spikes/0001-extraction-snuggpro/results/ondevice-production`.
 
   **Reproductions will not match these figures exactly.** The model is non-deterministic and the
   corpus is 13 transcripts, so single-digit counts move between runs — 45/48 against 44/46 on the

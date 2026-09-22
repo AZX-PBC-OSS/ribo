@@ -60,13 +60,13 @@ Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
 
 ### Task 4: Measure it — the actual spike
 
-**Files:** `spikes/` or the package's test area
+**Files:** `docs/spikes/` or the package's test area
 
 This is where the central bet gets checked. **Every number here must be produced by our own run.**
 
-- Synthesize audio from the 14 existing `spikes/extraction-snuggpro/transcripts/*.txt` via TTS. We authored those, so we have **exact** ground-truth text — which makes WER directly computable with no consent dependency.
+- Synthesize audio from the 14 existing `docs/spikes/0001-extraction-snuggpro/transcripts/*.txt` via TTS. We authored those, so we have **exact** ground-truth text — which makes WER directly computable with no consent dependency.
 - Measure, on Chromium + WebGPU: **real-time factor** (processing time ÷ audio duration), **WER** against the source text, model **load time** cold and warm, and **peak memory**.
-- Run the resulting transcripts through the existing extraction scorer (`spikes/extraction-snuggpro/score.mjs`) to measure the **transcription→extraction interaction** — the thing the extraction spike explicitly could not test, since it ran on clean text.
+- Run the resulting transcripts through the existing extraction scorer (`docs/spikes/0001-extraction-snuggpro/score.mjs`) to measure the **transcription→extraction interaction** — the thing the extraction spike explicitly could not test, since it ran on clean text.
 - State the limitation plainly: **TTS audio is cleaner than real field speech** — no background noise, no mic handling, no disfluent delivery, no cross-talk. A floor, not a forecast, and not a substitute for the real-recording gate.
 
 ### Task 5: Playground — the payoff

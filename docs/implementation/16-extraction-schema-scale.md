@@ -176,7 +176,7 @@ financing, incentives, work orders, and utility accounts, that's the large major
 fields on almost every real transcript.
 
 Using the repo's own numbers as the baseline unit: single-shot today is 1 call, ~30 s wall-clock
-(per `spikes/extraction-search-plan/README.md`), producing roughly 100–140 output JSON properties
+(per `docs/spikes/0003-extraction-search-plan/README.md`), producing roughly 100–140 output JSON properties
 per response for 34 enveloped leaves. At `basedata` scale (1,201 enveloped properties — ~8.6× the
 current pilot's property count), output tokens scale roughly linearly with property count because
 every leaf, null or not, costs a full `"field": {"value": ..., "confidence": ..., "sourceSpan":
@@ -195,7 +195,7 @@ but its cost stops being a rounding error once most calls spend most of their ou
 asserting "not mentioned" across sections of the schema (PV, financing, work orders) wholly
 irrelevant to what the auditor said. The natural mitigation — partition the schema by section, only
 invoke sections relevant to what was actually said — is exactly the multi-call decomposition
-`spikes/extraction-search-plan/` already measured as a net loss at the **current, much smaller**
+`docs/spikes/0003-extraction-search-plan/` already measured as a net loss at the **current, much smaller**
 schema size (see §5): a wash-to-worse at 3× the LLM cost. That is reason to expect real difficulty
 if pursued at 9× the field count, not a free path.
 
@@ -203,7 +203,7 @@ if pursued at 9× the field count, not a free path.
 
 ## 5. The baseline any new approach must beat
 
-### `spikes/extraction-snuggpro/` — single-shot baseline (the floor)
+### `docs/spikes/0001-extraction-snuggpro/` — single-shot baseline (the floor)
 
 Scored via `score.mjs` (mutation-proven per the search-plan spike's description) over 14
 transcripts, on the real `SnuggFieldsSchema` (23 scalar/enum fields + the 11-test health matrix = 34
@@ -220,7 +220,7 @@ leaves). Figures pulled directly from `results/codex-score.json` / `results/open
   ~0.65–0.73 on hallucinated vs. ~0.97–1.0 on correct) — consistent with `provenance.ts`'s own
   warning against wiring review to it.
 
-### `spikes/extraction-search-plan/` — the one alternative already tried, and its verdict
+### `docs/spikes/0003-extraction-search-plan/` — the one alternative already tried, and its verdict
 
 A 3-stage plan→locate→decide pipeline (3 LLM calls/transcript, ~43–108 s vs. baseline's 1 call/~30 s)
 against the same 14 transcripts, same scorer, same ground truth. **Recommendation: DO NOT ADOPT** —
@@ -236,7 +236,7 @@ The report's own conclusion: single-shot with a good prompt is already at the fl
 transcription errors nor cross-context bleed is helped by planning — both point the next effort at
 segmentation and a deterministic manufacturer-snapper, not a multi-call pipeline.
 
-**Reuse `spikes/extraction-snuggpro/score.mjs` untouched** to measure any future full-schema or
+**Reuse `docs/spikes/0001-extraction-snuggpro/score.mjs` untouched** to measure any future full-schema or
 larger-schema attempt against these numbers — same convention both existing spikes already follow.
 
 ---
@@ -277,5 +277,5 @@ larger-schema attempt against these numbers — same convention both existing sp
   spec used to compute the property/enum counts in §2–§3. See
   [17](17-snuggpro-field-reconciliation.md) for how this repo's field set maps onto it, and for the
   discussion of pinning a snapshot of this file for codegen (R1.7).
-- `spikes/extraction-snuggpro/`, `spikes/extraction-search-plan/` — the measured baseline and the one
+- `docs/spikes/0001-extraction-snuggpro/`, `docs/spikes/0003-extraction-search-plan/` — the measured baseline and the one
   alternative already tried, cited in §5.

@@ -46,17 +46,17 @@ playground/public/ort/
 # On-device transcription MEASUREMENT spike (Phase 3 Task 4): regenerable audio manifest and the
 # raw, per-model Whisper transcripts + blind extraction outputs. The measured summaries
 # (results/metrics-*.json, results/partb-*-score.json) ARE committed.
-spikes/transcription-measurement/testdata/manifest.json
-spikes/transcription-measurement/results/ondevice/
-spikes/transcription-measurement/results/extract/
+docs/spikes/0002-transcription-measurement/testdata/manifest.json
+docs/spikes/0002-transcription-measurement/results/ondevice/
+docs/spikes/0002-transcription-measurement/results/extract/
 # Real field recordings (Asana: add real audio to accuracy documentation) — real speech, not for the
 # public repo, unlike the synthesized fixtures above. See testdata/real/README.md.
-spikes/transcription-measurement/testdata/real/*.m4a
-spikes/transcription-measurement/testdata/real/*.mp3
-spikes/transcription-measurement/testdata/real/*.wav
-spikes/transcription-measurement/testdata/real/ground-truth/
-spikes/transcription-measurement/results/real/_raw/
-spikes/transcription-measurement/results/real/extract/
+docs/spikes/0002-transcription-measurement/testdata/real/*.m4a
+docs/spikes/0002-transcription-measurement/testdata/real/*.mp3
+docs/spikes/0002-transcription-measurement/testdata/real/*.wav
+docs/spikes/0002-transcription-measurement/testdata/real/ground-truth/
+docs/spikes/0002-transcription-measurement/results/real/_raw/
+docs/spikes/0002-transcription-measurement/results/real/extract/
 
 # Snugg Pro's proprietary API artifacts — NEVER commit. Kept only in the private
 # integration notes outside this repo. Both are third-party vendor IP:
@@ -86,19 +86,19 @@ snugg-pro.html
 
 # Score outputs name the results directory they scored, which is often a scratch
 # path — the run they describe is not reproducible from the repo. Regenerate with
-# `node spikes/extraction-snuggpro/score.mjs <resultsDir>`.
-spikes/extraction-snuggpro/results/*-score.json
+# `node docs/spikes/0001-extraction-snuggpro/score.mjs <resultsDir>`.
+docs/spikes/0001-extraction-snuggpro/results/*-score.json
 
 # On-device corpus runs: model output, regenerable by opening
-# `spikes/ondevice-acceptance/` in real Chrome and clicking a strategy. Not committed —
+# `docs/spikes/0005-ondevice-acceptance/` in real Chrome and clicking a strategy. Not committed —
 # a single run is ~6,000 lines of generated JSON, and the numbers that matter are in
 # docs/implementation/19-ondevice-extraction-strategies.md. The runner IS committed; its
 # output is not. (Contrast results/codex and results/opencode, which predate this rule.)
-spikes/extraction-snuggpro/results/ondevice*/
+docs/spikes/0001-extraction-snuggpro/results/ondevice*/
 
 # Managed corpus runs (doc 20): model output from a live, keyed run against the Helix LLM
 # route, plus the per-run manifest of calls/tokens/latency. Same rule as the on-device runs
-# above — the harness IS committed (`spikes/managed-three-phase/`), its output is not, and
+# above — the harness IS committed (`docs/spikes/0006-managed-three-phase/`), its output is not, and
 # the numbers that matter are in docs/implementation/20-managed-three-phase-extraction.md.
-spikes/extraction-snuggpro/results/managed-*/
+docs/spikes/0001-extraction-snuggpro/results/managed-*/
 

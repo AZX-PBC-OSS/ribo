@@ -50,7 +50,7 @@ import type { SnuggWriteContext } from "../src/context.js";
  * null in a `finally`. That is why it probes `health` rather than `basedata` — a matrix whose
  * tests are usually unset gives a clean baseline, where basedata on a real job does not. The
  * one-off basedata probe (snapshot to disk, mutate, restore, verify byte-identical) lives in
- * `spikes/0007-snuggpro-write-semantics/` instead, because that shape is too heavy for a gate.
+ * `docs/spikes/0007-snuggpro-write-semantics/` instead, because that shape is too heavy for a gate.
  */
 
 const GATEWAY =

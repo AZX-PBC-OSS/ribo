@@ -51,7 +51,7 @@ those have completely different fixes.
 - `codex-cli` — OpenAI, via the `codex` CLI. **Note this is an OpenAI model without strict mode**, so
   it does _not_ answer whether the production strict-mode path works.
 
-Corpus: the 13 double-annotated transcripts plus the worked example (`spikes/extraction-snuggpro/`).
+Corpus: the 13 double-annotated transcripts plus the worked example (`docs/spikes/0001-extraction-snuggpro/`).
 
 ## Shape conformance — the question this run existed to answer
 

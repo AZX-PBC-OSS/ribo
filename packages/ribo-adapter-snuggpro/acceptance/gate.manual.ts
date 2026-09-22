@@ -14,7 +14,7 @@ import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
 // `node:child_process` import has no business anywhere in its graph).
 import type { CliShapeResult } from "./cli-chat.js";
 import { cliChat } from "./cli-chat.js";
-// Densify + persist. Both are pure of `spikes/` and are unit-tested in CI
+// Densify + persist. Both are pure of `docs/spikes/` and are unit-tested in CI
 // (build-run-record.test.ts, run-store.test.ts) — this file only wires them up.
 import { buildRunRecord } from "./build-run-record.js";
 import { openRunStore } from "./run-store.js";
@@ -27,7 +27,7 @@ import {
   HEALTH_TEST_PATHS,
   aggregate,
   scoreTranscript,
-} from "../../../spikes/extraction-snuggpro/score.mjs";
+} from "../../../docs/spikes/0001-extraction-snuggpro/score.mjs";
 // The corpus's own format/vocabulary check — reused, not re-derived. `readGroundTruth`
 // is `isNewFormat` + `validateGroundTruth` composed exactly the way the corpus's own
 // tooling (validate-ground-truth.mjs) uses them. `resolveGroundTruth` is the corpus's
@@ -37,7 +37,7 @@ import {
 import {
   readGroundTruth,
   resolveGroundTruth,
-} from "../../../spikes/extraction-snuggpro/ground-truth.mjs";
+} from "../../../docs/spikes/0001-extraction-snuggpro/ground-truth.mjs";
 
 /**
  * THE EXTRACTION-QUALITY ACCEPTANCE GATE (Phase 4 Task 3) — MANUAL, opt-in, NEVER in
@@ -84,7 +84,7 @@ import {
  * schema change (exactly the way a schema change invalidated the ground truth this
  * gate used to be blocked on — see git history: this file used to hard-fail with a
  * "BLOCKED" banner because the corpus was annotated against a dead field set;
- * `spikes/extraction-snuggpro/RECONCILIATION.md` records how it was rebuilt), and a
+ * `docs/spikes/0001-extraction-snuggpro/RECONCILIATION.md` records how it was rebuilt), and a
  * CLI's free-text-then-validate path is not the same measurement as an endpoint
  * that enforces shape up front, even against the identical schema. Conflating the
  * two the way this repo's now-retired `codex-score.json`/`opencode-score.json`
@@ -245,7 +245,7 @@ describe.skipIf(skipSuite)("single-shot extraction — spike-corpus acceptance g
         isNew,
         `${file} is still in the OLD flat-field format (no \`leaves\` key) — the corpus rebuild ` +
           "has not reached it, and scoring it against the adapter's 51-leaf schema would report " +
-          "every field as a miss. See spikes/extraction-snuggpro/ground-truth-format.md.",
+          "every field as a miss. See docs/spikes/0001-extraction-snuggpro/ground-truth-format.md.",
       ).toBe(true);
       expect(
         ok,

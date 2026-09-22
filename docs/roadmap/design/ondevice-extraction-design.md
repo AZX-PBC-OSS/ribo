@@ -408,7 +408,7 @@ Chromium answers with canned text, so such a test could only skip everywhere, or
 fixed strings and look like coverage. That trap has cost this project three times already.
 
 **Acceptance (quality) — the real verification, run by hand.** `score.mjs` is Node and the Prompt
-API is browser-only, so `spikes/ondevice-acceptance/` bridges them: a page drives the corpus
+API is browser-only, so `docs/spikes/0005-ondevice-acceptance/` bridges them: a page drives the corpus
 through the production extractor in real Chrome and posts results back to disk. It refuses to run
 unless the model answers a behavioural stub check. This is more thorough than the automated test
 that was dropped — 14 transcripts scored against annotated ground truth rather than one assertion

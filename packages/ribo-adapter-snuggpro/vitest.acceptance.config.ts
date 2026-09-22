@@ -19,7 +19,7 @@ import { defineConfig } from "vitest/config";
  * Node environment: the extractor is a plain `fetch` call, no browser or WASM. The
  * gate reads the spike corpus (ground-truth + transcripts) read-only and imports
  * the spike's `score.mjs` scoring functions in-process, so it never writes into
- * `spikes/`.
+ * `docs/spikes/`.
  */
 
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));

@@ -183,7 +183,7 @@ because if caching is unavailable on the platform route the whole economics of s
 
 ## 8. How we will know it worked
 
-The corpus (`spikes/extraction-snuggpro/`, 13 double-annotated transcripts) scores extraction today.
+The corpus (`docs/spikes/0001-extraction-snuggpro/`, 13 double-annotated transcripts) scores extraction today.
 This is a change to how extraction is performed, so it is scoreable: run the corpus before and after
 and compare. A per-group split that restores the vendor descriptions should not be _worse_, and the
 descriptions are expected to help most on the fields whose vocabulary the vendor defines precisely.

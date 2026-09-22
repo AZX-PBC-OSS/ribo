@@ -266,7 +266,7 @@ the tools, not a wiring diagram. The point is that no new combinator is needed.
 This is the section that matters most. **None of the numbers below exist yet.** Every one is a
 question, and each has a specific method for answering it. The repo has a precedent for probing
 browser-only APIs: the on-device extraction work served a page that drove the real Prompt API in
-real Chrome and posted results to a local collector (`spikes/ondevice-acceptance/`), because
+real Chrome and posted results to a local collector (`docs/spikes/0005-ondevice-acceptance/`), because
 Playwright's Chromium implements the Prompt API as a stub that returns canned text
 (`ondevice-extraction-design.md` §10.6). That constraint applies identically here: every
 measurement below needs real Chrome on real hardware, not Playwright.
@@ -285,7 +285,7 @@ that list.
 `LanguageModel.create({ expectedInputs: [{ type: "image" }] })` from a click handler, prompts
 with a nameplate photo as a `Blob`, and captures the response. POST the result — availability
 string, create latency, prompt response or error — to a local collector, exactly as
-`spikes/ondevice-acceptance/` does. Run this on:
+`docs/spikes/0005-ondevice-acceptance/` does. Run this on:
 
 - A desktop Chrome on macOS/Windows where the model is already armed (the easy case — if this
   fails, the Prompt API path is not viable at all).

@@ -316,7 +316,7 @@ The justification for having done it — stated at a design level:
 
 ## 8. Delta list → `@azx/ribo-adapter-snuggpro`
 
-**Nothing in this pass modified `schema.ts`, `prompt.md`, `spikes/` or any adapter code** — by
+**Nothing in this pass modified `schema.ts`, `prompt.md`, `docs/spikes/` or any adapter code** — by
 design, so these can be reviewed before the extraction schema moves.
 
 ### 8.0 The constraint that shapes every recommendation

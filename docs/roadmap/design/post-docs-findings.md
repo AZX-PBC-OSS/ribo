@@ -16,7 +16,7 @@ Ordered by whether it is a bug, a decided change, or a proposal.
 
 ### B1. The shipped on-device model has never been measured
 
-`spikes/transcription-measurement/run-real-ondevice.mjs:23` reads
+`docs/spikes/0002-transcription-measurement/run-real-ondevice.mjs:23` reads
 `const modelId = process.argv[2] ?? "Xenova/whisper-base.en"` — a default independent of the
 package's `DEFAULT_MODEL_ID`, which has been `onnx-community/moonshine-base-ONNX` since
 2026-08-11. The real-field-audio run (Part D) was measured 2026-09-08, a month after the switch,
