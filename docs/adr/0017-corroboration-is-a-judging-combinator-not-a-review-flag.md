@@ -51,9 +51,19 @@ next rung (ADR 0002). The SDE cascade's escalation is then `fallbackExtractor([c
 reasoning])` with no new scheduling and no arbiter change. It refuses `"row"` and `"none"`
 provenance at construction, like its sibling (ADR 0003).
 
-**The policy thresholds a fraction of committed leaves, never a single leaf.** That is the whole
+**The policy thresholds a ratio of committed leaves, never a single leaf.** That is the whole
 consequence of the variance above: a count aggregates away noise that makes one leaf's score
 unusable.
+
+**The ratio is a required argument with no default.** Nothing measured here justifies a number.
+The old-schema figure (10 of 124 committed leaves) is from a superseded 23-field schema, and
+producing current-schema extractions to replace it is credential-limited rather than merely
+expensive: one `perGroupExtractor` run carries the 467-leaf schema through 20 groups for ~376k
+input tokens, which exhausts the Helix dev token's burst spend budget in a single transcript. A
+default would therefore be a guess wearing a measurement's clothes, and a wrong one is silent —
+too high and the rung never falls through, too low and every result escalates at full price.
+Requiring the ratio puts the choice at the call site, where the host knows what a wasted
+escalation costs it.
 
 The verifier is told each leaf's enum members, because without them it reads schema encoding as
 hallucination.
@@ -83,9 +93,15 @@ evidence that per-leaf scores are stable enough to act on, which this spike did 
 origin tested, so a browser host cannot call it directly. Corroboration is a rung that exists when
 the host has a proxy and connectivity, never on the offline path.
 
-**The default rejection fraction is unmeasured.** The 10-of-124 figure is from the superseded
-23-field schema. The equivalent number on the current schema is not known, and the default should
-not be fixed until it is.
+**Every call site must choose a ratio it cannot yet justify from data.** That cost is accepted
+rather than hidden: a required argument makes the guess visible and revisable, where a default
+would be inherited silently. The one current-schema data point measured — 23 committed leaves,
+5 uncorroborated, ratio 0.217, on one transcript from one model — is recorded as a magnitude, not
+a recommendation.
+
+**Groundedness stays near-useless on the current schema too.** The same run had 22 of its 23
+committed leaves `grounded`, reproducing on the shipped 467-leaf schema what was measured on the
+superseded one. The premise this ADR rests on is not an artifact of the old field set.
 
 **The aggregate signal may be worth more than the rung.** Six of ten surviving flags converging on
 one field, matching what human annotators found independently, suggests this measures schema
