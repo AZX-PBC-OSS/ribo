@@ -26,9 +26,11 @@ than pool arrival order, so two entries stating one key resolve deterministicall
 
 In `@azx/ribo-extractor-openai`, `splitExtractionSchema` classifies top-level keys once and
 splits a mixed schema into the grouped path's pieces (unchanged under each cap regime) plus the
-loose keys packed as the unwrapped portion — one `""` piece under no cap or the union cap alone
-(the union cap still does not partition flat material), flat-packed pieces sharing `""` under a
-byte cap. ADR 0013's over-cap-leaf refusal applies to a loose leaf unchanged. `perGroupPlan`
+loose keys packed as the unwrapped portion — one `""` piece when no cap binds it, flat-packed
+pieces sharing `""` under the byte cap, and partitioned by the union cap alone too: a mixed
+split is actively constructing pieces, so every piece it emits satisfies the caps it was given
+(the all-flat fallback keeps its pinned rule — union cap only, no split at all). ADR 0013's
+over-cap-leaf refusal applies to a loose leaf unchanged. `perGroupPlan`
 flows the loose pieces through its existing `""` branch — the loose request is the flat
 fallback's request: the target's own instructions, full unprojected examples (leaf-narrowed when
 partitioned), no group-key infix in the wire name, and `groupInstructions` is never invoked with

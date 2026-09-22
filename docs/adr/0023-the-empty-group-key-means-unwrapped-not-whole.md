@@ -37,11 +37,17 @@ parsed responses merge by shallow assign. For an all-flat schema that portion is
 The splitter classifies top-level keys once: a group candidate that is a non-envelope object is a
 group, everything else (a leaf envelope, an array of envelopes) is loose. A mixed schema splits
 into one entry per group — the grouped path's three cap arms verbatim — plus the loose keys
-collected into a strict object keyed `""`, appended after the groups. Under a byte cap the loose
-portion packs through the existing flat packer; the union cap alone does not partition it, the
-same asymmetry the flat fallback pins. ADR 0013's over-cap-leaf refusal and ADR 0015's byte-cap
-policy are unchanged: a loose leaf that fits no piece throws at construction, naming the leaf,
-the measured size, the caps and the option.
+collected into a strict object keyed `""`, appended after the groups. The loose portion packs
+through the existing flat packer under a byte cap, and under the union cap alone too. The
+asymmetry the flat fallback pins survives, narrowed to what it always meant: when the schema is
+ALL-flat the module declines to split at all under the union cap alone and returns the input,
+claiming nothing; in a mixed split the module is actively constructing pieces, so everything it
+emits must satisfy the caps it was given. As first accepted, this ADR extended the all-flat rule
+to the loose portion verbatim — which left the motivating shape emitting one 94-union loose piece
+behind a caller's cap of 16, a provider 400 of exactly the kind ADR 0013 exists to convert into
+a construction throw. ADR 0013's over-cap-leaf refusal and ADR 0015's byte-cap policy are
+unchanged: a loose leaf that fits no piece throws at construction, naming the leaf, the measured
+size, the caps and the option, and the byte cap remains the caller's to supply.
 
 The refusal narrows to a **redundancy rule** with four states: named keys only, accepted as
 today; `""` only, accepted as today; `""` beside named keys that do not cover the schema,
@@ -68,8 +74,13 @@ escape hatch the plan's exported pieces exist to be.
 
 A caller reshaping a flat schema into groups no longer owes the split a sweep: nest what belongs
 together and leave the rest loose, and the split, the plan, the preset and the scoped-instance
-pipeline all do the right thing — the shape the motivating live run produced is now the shape
-the pipeline handles best. The narrowed refusal is a **strict widening**: every map accepted
+pipeline all do the right thing. The motivating live run's shape — 14 groups beside 47 loose
+leaves — now splits and packs within the caps the caller supplies: the group pieces as before,
+and the loose portion partitioned under the union cap alone or under both caps when a byte cap
+is supplied. That claim is deliberately conditional, and the condition is ADR 0015's: the
+library carries no provider's byte ceiling, so a route bound by one is protected only when the
+caller supplies it — but no emitted piece exceeds a cap it was given. The narrowed refusal is a
+**strict widening**: every map accepted
 before is accepted with identical behaviour, and the only maps whose behaviour changed are the
 ones that threw.
 

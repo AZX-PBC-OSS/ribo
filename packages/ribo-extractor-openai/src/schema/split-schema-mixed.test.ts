@@ -2,7 +2,11 @@ import { enveloped, extractedSchema } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./split-schema.js";
+import {
+  MAX_NULLABLE_UNIONS_PER_CALL,
+  nullableUnionCount,
+  splitExtractionSchema,
+} from "./split-schema.js";
 
 /**
  * @file The split of a MIXED schema: top-level keys that are groups beside
@@ -181,11 +185,15 @@ describe("splitExtractionSchema — mixed schema, no caps", () => {
 });
 
 describe("splitExtractionSchema — mixed schema, union cap only", () => {
-  test("an over-cap group partitions; the loose portion stays ONE piece even over the cap", () => {
+  test("an over-cap group partitions, and the loose portion partitions under the union cap too", () => {
     // 10 enveloped group leaves = 20 unions > 16, so hvac partitions. The 10
-    // loose leaves are ALSO 20 unions — but the union cap does not partition
-    // flat material (the asymmetry `split-schema-unions.test.ts:96` pins for
-    // the flat fallback), so the loose remainder is one unpartitioned piece.
+    // loose leaves are ALSO 20 unions — and the loose portion partitions too.
+    // The asymmetry that survives is narrower than "the union cap does not
+    // partition flat material": when the schema is ALL-flat the module
+    // declines to split at all under the union cap alone and returns the
+    // input, claiming nothing (`split-schema-unions.test.ts:96` pins that);
+    // in a MIXED split the module is actively constructing pieces, so
+    // everything it emits must satisfy the caps it was given.
     const looseShape: Record<string, z.ZodType> = {};
     for (let i = 0; i < 10; i++) looseShape[`loose${i}`] = leaf().nullable().optional();
     const groupShape: Record<string, z.ZodType> = {};
@@ -208,13 +216,61 @@ describe("splitExtractionSchema — mixed schema, union cap only", () => {
       [1, 2],
     ]);
 
+    // The loose remainder packs greedily in declaration order through the same
+    // flat machinery the byte cap uses: 8 enveloped leaves = 16 unions fills
+    // piece 0, and the remaining 2 ride piece 1 — part/parts, sharing "".
+    const loosePieces = groups.filter((g) => g.key === "");
+    expect(loosePieces.map((g) => [g.part, g.parts])).toEqual([
+      [0, 2],
+      [1, 2],
+    ]);
+    expect(loosePieces.map((g) => Object.keys((g.schema as z.ZodObject).shape))).toEqual([
+      Array.from({ length: 8 }, (_, i) => `loose${i}`),
+      ["loose8", "loose9"],
+    ]);
+    // Loose last, after every group piece.
+    expect(groups.at(-1)!.key).toBe("");
+  });
+
+  test("the motivating shape — 14 groups plus 47 loose leaves — emits no piece over the caller's cap", () => {
+    // The live run's shape (`nest-live-run-evidence.md` §3): 14 groups beside
+    // 47 loose enveloped leaves, two unions each. Under the default options
+    // (union cap 16, byte cap off) the loose portion used to stay ONE
+    // 94-union piece — a provider 400 of exactly the kind ADR 0013 exists to
+    // convert into a construction throw. Now every emitted piece satisfies
+    // the cap it was given.
+    const shape: Record<string, z.ZodType> = {};
+    for (let i = 0; i < 14; i++) {
+      shape[`group${i}`] = z.object({ leaf: leaf().nullable().optional() }).strict().optional();
+    }
+    for (let i = 0; i < 47; i++) shape[`loose${i}`] = leaf().nullable().optional();
+    const schema = enveloped(z.object(shape).strict());
+
+    const groups = splitExtractionSchema(schema, MAX_NULLABLE_UNIONS_PER_CALL);
+
+    // 14 one-leaf groups (2 unions each, unpartitioned) plus the loose
+    // portion partitioned into 6 pieces (47 leaves at 8 per piece: 5×8 + 7).
+    const loosePieces = groups.filter((g) => g.key === "");
+    expect(groups.filter((g) => g.key !== "")).toHaveLength(14);
+    expect(loosePieces).toHaveLength(6);
+    for (const piece of groups) {
+      expect(nullableUnionCount(piece.schema)).toBeLessThanOrEqual(MAX_NULLABLE_UNIONS_PER_CALL);
+    }
+  });
+
+  test("a loose portion that fits the union cap stays ONE piece with no part/parts", () => {
+    // Partitioning is cap-driven, not shape-driven: under the cap the loose
+    // remainder keeps the under-cap shape — one "" piece, no part/parts.
+    const groups = splitExtractionSchema(mixedExtraction, MAX_NULLABLE_UNIONS_PER_CALL);
+
     const loosePieces = groups.filter((g) => g.key === "");
     expect(loosePieces).toHaveLength(1);
     expect(loosePieces[0]!.part).toBeUndefined();
     expect(loosePieces[0]!.parts).toBeUndefined();
-    expect(Object.keys((loosePieces[0]!.schema as z.ZodObject).shape)).toHaveLength(10);
-    // Loose last, after every group piece.
-    expect(groups.at(-1)!.key).toBe("");
+    expect(Object.keys((loosePieces[0]!.schema as z.ZodObject).shape)).toEqual([
+      "note",
+      "yearBuilt",
+    ]);
   });
 });
 

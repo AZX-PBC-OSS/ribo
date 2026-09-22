@@ -7,7 +7,12 @@ the ones ADR 0022 had pinned against this work. Post-review corrections on the s
 (1) the `""` merge arm is guarded — a hand-composed `""` entry whose runtime fields (or
 `statedEmptyGroups`) carry a named entry's key throws at the merge, naming the key; §7's
 "residual risk accepted" framing was a false dichotomy between the blanket refusal and silence,
-and ADR 0023's cost paragraph is corrected to say so.
+and ADR 0023's cost paragraph is corrected to say so. (2) §5.2's union-only rule is reversed:
+the loose portion partitions under the union cap too, because a mixed split is actively
+constructing pieces and everything emitted must satisfy the caps it was given — under default
+options the motivating shape otherwise emitted one 94-union loose piece behind a cap of 16. The
+all-flat rule survives for all-flat schemas: there the module declines to split at all and
+returns the input, claiming nothing. Open question 1's recommendation is superseded.
 **Question answered:** `splitExtractionSchema` groups only when every top-level key is a group; a
 schema that is 14 groups plus a few loose leaves collapses to the flat fallback. How does the
 split — and every consumer of its `""` marker — handle groups and loose leaves in one schema?
@@ -193,11 +198,15 @@ one trailing loose piece: a `z.strictObject` carrying all loose leaves, keyed `"
 rather than the whole input.
 
 **Union cap only.** Groups partition through `partitionGroup` unchanged
-(`split-schema.ts:706-713`). The loose portion stays one piece — **the union cap does not
-partition flat material**, which is today's pinned rule
-(`split-schema-unions.test.ts:96-103`, `split-schema.ts:675-677`). Keeping it here preserves the
-documented asymmetry ("the union cap partitions within groups; the byte cap partitions anything",
-`split-schema.ts:619-628`) instead of inventing a third rule for the loose portion.
+(`split-schema.ts:706-713`). **Post-review correction:** the loose portion partitions under the
+union cap too, through the same flat packer with the byte cap off — a mixed split is actively
+constructing pieces, so everything it emits must satisfy the caps it was given. As implemented
+first, the loose portion stayed one piece under the union cap alone, extending the pinned flat
+rule (`split-schema-unions.test.ts:96-103`) verbatim — and under the default options (union cap
+16, byte cap off) the motivating shape emitted one 94-union loose piece, the provider-400 class
+ADR 0013 exists to convert. The asymmetry survives, narrowed to what it always meant: the union
+cap alone does not partition an ALL-FLAT schema, because there the module declines to split at
+all and returns the input, claiming nothing.
 
 **Byte cap (with or without the union cap).** Groups pack through `partitionGroupTwoCaps`
 unchanged. The loose leaves pack through the existing `partitionFlatTwoCaps` machinery over the
@@ -361,7 +370,9 @@ group key means unwrapped, not whole." This document does not write it.
 1. **Does the union cap partition the loose portion when no byte cap is supplied?**
    _Recommendation: no_ — keep the pinned flat rule (`split-schema-unions.test.ts:96-103`) so the
    documented asymmetry survives verbatim; a caller who wants loose leaves partitioned by unions
-   supplies a byte cap and gets both.
+   supplies a byte cap and gets both. **Superseded post-review: yes** — the flat rule is pinned
+   for a schema the module declines to split at all; a mixed split IS constructing pieces, so
+   the loose portion packs under the union cap too (see §5.2 and ADR 0023, both corrected).
 2. **How precisely to type the mixed arm's `""` entry.** Keeping today's whole-shape entry type
    (per-group.ts:441-446's cast-and-parse discipline) is cheap and honest enough; a complement
    shape (`the loose keys' subset of Enveloped<V, P>`) is expressible only with a new type alias

@@ -23,7 +23,10 @@
  * top-level keys groups, some loose leaves — splits both ways at once: one entry
  * per group, plus the loose leaves as piece(s) keyed `""` (the unwrapped
  * portion) appended after the groups, so one loose key no longer vetoes the
- * other keys' grouping (mixed-schema-split design; ADR 0023).
+ * other keys' grouping (mixed-schema-split design; ADR 0023). Because the mixed
+ * branch is actively constructing pieces, the loose portion packs against
+ * whichever caps were supplied — the byte cap, or the union cap alone — while
+ * the all-flat fallback keeps its pinned rule: union cap only, no split at all.
  *
  * Nullable-union partitioning: a model-family investigation on the managed route
  * found that Anthropic-family models reject a response schema carrying more than
@@ -192,9 +195,12 @@ export const MAX_NULLABLE_UNIONS_PER_CALL = 16;
 export interface SplitOptions {
   /**
    * Max nullable unions per piece before a group is partitioned across multiple
-   * entries sharing its key. Omitted, the split keeps one-entry-per-group
-   * behaviour (the pre-option behaviour, and today's default for a bare
-   * positional call).
+   * entries sharing its key. A mixed schema's loose portion (the `""` pieces)
+   * packs against this cap too — the module emits no piece over a cap it was
+   * given — while an ALL-FLAT schema is still not split by it at all (see
+   * `splitExtractionSchema`'s doc for the distinction). Omitted, the split
+   * keeps one-entry-per-group behaviour (the pre-option behaviour, and today's
+   * default for a bare positional call).
    */
   readonly maxNullableUnionsPerGroup?: number;
   /**
@@ -497,12 +503,19 @@ function partitionGroupTwoCaps(
 
 /**
  * Split a FLAT extraction schema's top-level properties into pieces that
- * satisfy both caps, greedily in declaration order. The flat counterpart of
- * {@link partitionGroupTwoCaps}): the input is the schema's top-level object —
- * the schema is not an object of nested groups, so there is no `ZodArray` to
- * rebuild around a piece and no per-group wrapping key to preserve. Each
- * emitted piece is `z.strictObject({ leafA, leafB, … })` — the WHOLE schema
- * with the unallocated leaves removed.
+ * satisfy the supplied caps, greedily in declaration order. The flat
+ * counterpart of {@link partitionGroupTwoCaps}): the input is the schema's
+ * top-level object — the schema is not an object of nested groups, so there
+ * is no `ZodArray` to rebuild around a piece and no per-group wrapping key to
+ * preserve. Each emitted piece is `z.strictObject({ leafA, leafB, … })` — the
+ * WHOLE schema with the unallocated leaves removed.
+ *
+ * Either cap may be off (`undefined`); the caller guarantees at least one is
+ * on. The all-flat fallback reaches here only under a byte cap — under the
+ * union cap alone an all-flat schema is not split at all — but a MIXED
+ * schema's loose portion packs through here under the union cap alone too:
+ * the module is actively constructing the mixed pieces, so everything it
+ * emits must satisfy the caps it was given (see `splitExtractionSchema`).
  *
  * The pieces share `key === ""`, the existing flat-fallback marker, and a
  * downstream consumer recombines them with a shallow `Object.assign`: each
@@ -515,7 +528,7 @@ function partitionGroupTwoCaps(
 function partitionFlatTwoCaps(
   wholeSchema: z.ZodObject,
   maxUnions: number | undefined,
-  maxChars: number,
+  maxChars: number | undefined,
 ): ExtractionGroup[] {
   const candidate = wholeSchema;
   const propertyKeys = Object.keys(candidate.shape);
@@ -530,7 +543,8 @@ function partitionFlatTwoCaps(
     keys.length === 0 ? 0 : serializedCharCount(pieceSchema(keys));
 
   const fits = (keys: readonly string[]): boolean =>
-    (maxUnions === undefined || unionWeight(keys) <= maxUnions) && charWeight(keys) <= maxChars;
+    (maxUnions === undefined || unionWeight(keys) <= maxUnions) &&
+    (maxChars === undefined || charWeight(keys) <= maxChars);
 
   const pieces: string[][] = [];
   let current: string[] = [];
@@ -538,12 +552,14 @@ function partitionFlatTwoCaps(
     if (!fits([leafKey])) {
       const measured = [
         ...(maxUnions === undefined ? [] : [`${unionWeight([leafKey])} nullable unions`]),
-        `${charWeight([leafKey])} serialized characters`,
+        ...(maxChars === undefined ? [] : [`${charWeight([leafKey])} serialized characters`]),
       ].join(" and ");
       const caps =
         maxUnions === undefined
           ? `the maxSerializedCharsPerGroup cap of ${maxChars}`
-          : `the caps (maxNullableUnionsPerGroup ${maxUnions}, maxSerializedCharsPerGroup ${maxChars})`;
+          : maxChars === undefined
+            ? `the maxNullableUnionsPerGroup cap of ${maxUnions}`
+            : `the caps (maxNullableUnionsPerGroup ${maxUnions}, maxSerializedCharsPerGroup ${maxChars})`;
       throw new Error(
         `splitExtractionSchema: schema has a property "${leafKey}" that cannot fit any ` +
           `piece — one piece carrying it alone is ${measured}, over ${caps}. ` +
@@ -623,12 +639,13 @@ const isGroupObject = (obj: z.ZodObject): boolean =>
  * A MIXED schema — some top-level keys groups, some loose leaves — splits both
  * ways at once: the group keys take the grouped path unchanged, and the loose
  * keys are collected into a strict object of their own, keyed `""`, appended
- * after the groups. Under a byte cap that loose object packs through the same
- * flat machinery (pieces sharing `""`, `part`/`parts`); the union cap alone
- * does not partition it — the documented asymmetry below survives for the
- * loose portion verbatim. `""` therefore means THE UNWRAPPED PORTION, not "the
- * whole schema": the two coincide only when no top-level key is a group
- * (mixed-schema-split design §5; ADR 0023).
+ * after the groups. That loose object packs through the same flat machinery
+ * (pieces sharing `""`, `part`/`parts`) under a byte cap — and under the
+ * union cap alone too, because here the module is actively constructing
+ * pieces and everything it emits must satisfy the caps it was given (the
+ * all-flat asymmetry below is the contrast case). `""` therefore means THE
+ * UNWRAPPED PORTION, not "the whole schema": the two coincide only when no
+ * top-level key is a group (mixed-schema-split design §5; ADR 0023).
  *
  * Without a byte cap, the flat object path is also a single entry: one call
  * carrying everything — the measured-good single-shot path. With a byte cap,
@@ -639,10 +656,15 @@ const isGroupObject = (obj: z.ZodObject): boolean =>
  * `groupedExtractor`'s merge, `prepareGroups`, the inventory/fill phases) was
  * written to handle that case — its shallow-assign merge recombines a
  * partitioned flat schema's pieces in declaration order, because each piece's
- * parsed response holds a disjoint subset of leaves. **The union cap does not
- * partition a flat schema** (the test at `split-schema-unions.test.ts:96`
- * pins this — it stays the unchanged behaviour even after the byte-cap fix,
- * because the union-only callers see a different problem class).
+ * parsed response holds a disjoint subset of leaves. **The union cap alone
+ * does not partition an ALL-FLAT schema** (the test at
+ * `split-schema-unions.test.ts:96` pins this), and the distinction is the
+ * argument: when the schema is all-flat the module declines to split at all
+ * and returns the input, claiming nothing — so there is no emitted piece to
+ * hold against the cap. In a mixed split the module IS constructing pieces,
+ * so the loose portion packs under the union cap too; the asymmetry is not
+ * "flat material never partitions by unions" but "the module never emits a
+ * piece that exceeds a cap it was given".
  *
  * @param options - The caps to pack against, as a {@link SplitOptions} bag — or
  *   a bare number, which is the pre-options positional form and means
@@ -740,18 +762,25 @@ export function splitExtractionSchema(
 
   // The loose remainder, appended after the groups (the order the plan's
   // key-grouping preserves into the schedule — design §5.2). One strict object
-  // of the loose leaves keyed "" — or, under a byte cap, that object's own
-  // flat packing. The union cap alone does NOT partition it: the union cap
-  // partitions within groups, the byte cap partitions anything — the asymmetry
-  // the flat fallback pins survives verbatim (design §5.2). The flat packer
-  // walks a schema's top-level keys, so it is handed the rebuilt loose object;
-  // its pieces are already unwrapped leaf subsets, so no relabelling is needed.
+  // of the loose leaves keyed "" when no cap binds it — or, under EITHER cap,
+  // that object's own flat packing. Here the asymmetry is the argument: when
+  // the schema is ALL-flat the module declines to split at all under the
+  // union cap alone and returns the input, claiming nothing (the pinned rule
+  // of `split-schema-unions.test.ts:96`); in a MIXED split the module is
+  // actively constructing pieces, so everything it emits must satisfy the
+  // caps it was given — a 94-union loose piece behind a caller's cap of 16 is
+  // a provider 400 of exactly the kind ADR 0013 exists to convert. The flat
+  // packer walks a schema's top-level keys, so it is handed the rebuilt loose
+  // object; its pieces are already unwrapped leaf subsets, so no relabelling
+  // is needed.
   const looseShape: Record<string, z.ZodType> = {};
   for (const key of looseKeys) looseShape[key] = fieldAt(shape, key);
   const looseSchema = z.strictObject(looseShape);
   const loosePieces: ExtractionGroup[] =
-    maxSerializedCharsPerGroup === undefined
-      ? [{ key: "", schema: looseSchema }]
-      : partitionFlatTwoCaps(looseSchema, maxNullableUnionsPerGroup, maxSerializedCharsPerGroup);
+    maxSerializedCharsPerGroup !== undefined
+      ? partitionFlatTwoCaps(looseSchema, maxNullableUnionsPerGroup, maxSerializedCharsPerGroup)
+      : maxNullableUnionsPerGroup !== undefined
+        ? partitionFlatTwoCaps(looseSchema, maxNullableUnionsPerGroup, undefined)
+        : [{ key: "", schema: looseSchema }];
   return [...groupPieces, ...loosePieces];
 }

@@ -196,7 +196,9 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
    * Counted in unions rather than enveloped leaves so the number means the same
    * thing whatever provenance granularity a group declared: an enveloped leaf
    * costs two, a plain `"row"`/`"none"` leaf costs one, and a row's `sourceSpan`
-   * costs one. A leaf count would split a 15-leaf row group for no gain.
+   * costs one. A leaf count would split a 15-leaf row group for no gain. For a
+   * MIXED schema the loose portion (the `""` pieces) packs against this cap
+   * too — no emitted piece exceeds a cap the caller supplied.
    */
   readonly maxNullableUnionsPerGroup?: number;
   /**
