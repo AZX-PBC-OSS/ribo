@@ -35,13 +35,22 @@ import type { SnuggWriteContext } from "../src/context.js";
  *      recorded in a design doc.
  *   4. `readExistingRecords` parses the vendor's own rows, which is what lets review show
  *      an auditor the record already on the job instead of creating a second one.
+ *   5. **The two vendor facts the design rests on are still true** — the header is still
+ *      ignored, and a singleton upsert still merges. Spike 0007 established both and doc 15
+ *      §3.3 records them, but a finding a vendor can change silently needs a gate rather
+ *      than a paragraph (ADR 0019). These two are that gate.
  *
  * ## Reversible by construction
  *
- * It writes to a COLLECTION group, which the vendor lets us delete, and removes what it
- * created in `afterAll` — verifying the collection is back to its baseline count. It
- * deliberately never touches a singleton (`basedata`, `health`): those are upserts with no
- * delete, so a probe there could not clean up after itself.
+ * Most of it writes to a COLLECTION group, which the vendor lets us delete, and `afterAll`
+ * removes every record created — verifying the collection is back to its baseline.
+ *
+ * The merge check is the exception and needs care, because a singleton upsert has no delete:
+ * it asserts its two probe fields start null, refuses to run otherwise, and restores them to
+ * null in a `finally`. That is why it probes `health` rather than `basedata` — a matrix whose
+ * tests are usually unset gives a clean baseline, where basedata on a real job does not. The
+ * one-off basedata probe (snapshot to disk, mutate, restore, verify byte-identical) lives in
+ * `spikes/0007-snuggpro-write-semantics/` instead, because that shape is too heavy for a gate.
  */
 
 const GATEWAY =
@@ -173,3 +182,81 @@ test.runIf(configured)("readExistingRecords parses the vendor's own rows", async
   const records = await readExistingRecords(ctx(), "hvac", { fetchImpl: gatewayFetch });
   expect(records.some((record) => record.uuid === created[0])).toBe(true);
 });
+
+/**
+ * The two vendor facts the whole write design rests on, re-checkable.
+ *
+ * Both were established by spike 0007 and are recorded in doc 15 §3.3 and ADR 0017 — but a
+ * finding a vendor can silently change is exactly the kind that needs a gate rather than a
+ * paragraph (ADR 0019). If Snugg Pro ever starts honouring `Idempotency-Key`, or switches a
+ * write from merge to replace, these are what say so. The second one failing means we are
+ * blanking fields on real audits.
+ *
+ * Deliberately raw `fetch` rather than the adapter: the claim is about the VENDOR, and routing
+ * it through our own writer would let a bug in the writer mask a change in the vendor.
+ */
+test.runIf(configured)(
+  "the vendor still ignores Idempotency-Key — replay creates a SECOND record",
+  async () => {
+    const key = `write-real-idem-${Date.now()}`;
+    const body = {
+      hvacSystemEquipmentType: "Boiler",
+      hvacUpgradeAction: "Keep an existing system as is",
+      hvacSystemName: `${PROBE_NAME} (idempotency)`,
+    };
+    const post = async (): Promise<string> => {
+      const res = await gatewayFetch(`${BASE}/jobs/${JOB_ID ?? ""}/hvac`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify(body),
+      });
+      const json = (await res.json()) as { uuid: string };
+      created.push(json.uuid);
+      return json.uuid;
+    };
+
+    const first = await post();
+    const replay = await post();
+
+    // If this ever fails, the vendor has ADDED idempotency support — good news, and it means the
+    // receipt machinery could be simplified. Read ADR 0017 before acting on it.
+    expect(replay, "a replayed create with the same key returned the same record").not.toBe(first);
+  },
+);
+
+test.runIf(configured)(
+  "a singleton upsert still MERGES — the health matrix is not blanked",
+  async () => {
+    // The worst case for replace semantics: sixteen discrete safety tests behind one endpoint, so
+    // an auditor mentioning one would blank the other fifteen. Snapshot, probe, restore.
+    const read = async (): Promise<Record<string, unknown>> => {
+      const res = await gatewayFetch(`${BASE}/jobs/${JOB_ID ?? ""}/health`);
+      return (await res.json()) as Record<string, unknown>;
+    };
+    const write = async (patch: Record<string, unknown>): Promise<void> => {
+      await gatewayFetch(`${BASE}/jobs/${JOB_ID ?? ""}/health`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+    };
+
+    const before = await read();
+    expect(before["healthRadon"], "probe assumes healthRadon starts unset").toBeNull();
+    expect(before["healthAsbestos"], "probe assumes healthAsbestos starts unset").toBeNull();
+
+    try {
+      await write({ healthRadon: "Passed" });
+      await write({ healthAsbestos: "Failed" });
+      const after = await read();
+      // The field the SECOND write never mentioned must still be there.
+      expect(after["healthRadon"]).toBe("Passed");
+      expect(after["healthAsbestos"]).toBe("Failed");
+    } finally {
+      await write({ healthRadon: null, healthAsbestos: null });
+      const restored = await read();
+      expect(restored["healthRadon"], "restored").toBeNull();
+      expect(restored["healthAsbestos"], "restored").toBeNull();
+    }
+  },
+);

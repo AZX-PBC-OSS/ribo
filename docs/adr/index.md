@@ -59,3 +59,6 @@ receives.
 | [0014](./0014-the-schema-entry-point-composes-the-presets.md)                  | The schema entry point composes the presets; it does not widen `perGroupExtractor`           | Accepted |
 | [0015](./0015-the-library-carries-no-provider-byte-cap.md)                     | The library carries no provider byte cap                                                     | Accepted |
 | [0016](./0016-shape-proposer-one-shot-with-repair.md)                          | The shape-operation proposer is one-shot with one repair attempt, not a multi-turn move loop | Accepted |
+| [0017](./0017-duplicate-protection-is-the-receipt-not-the-key.md)              | Duplicate protection is the write receipt, not the idempotency key                           | Accepted |
+| [0018](./0018-write-returns-a-receipt-and-core-never-parses-it.md)             | `write` returns a receipt, core never parses it, and one call carries one group              | Accepted |
+| [0019](./0019-a-probes-finding-and-its-code-have-different-homes.md)           | A probe's finding and its code have different homes                                          | Accepted |

@@ -216,6 +216,18 @@ authority for everything in §5 and §6 below.
   likely to hide a wrong shape.
 - Formatting is Prettier's (`.prettierrc.json`: semicolons, double quotes, trailing commas, 100
   columns). Do not hand-format; run `pnpm format`.
+- **A probe's finding and its code have different homes** ([ADR
+  0019](docs/adr/0019-a-probes-finding-and-its-code-have-different-homes.md)). Throwaway code that
+  answers a question keeps arriving, so route it by shelf life rather than arguing each time. The
+  **finding** goes in a doc, or an ADR if it drove a decision — code adds nothing to it. The
+  **reproduction** is worth keeping only when something outside our control can change the answer,
+  which in practice means a live dependency: that is a `packages/*/acceptance/*.manual.ts`, opt-in,
+  skipping cleanly without its env, never in CI, reversible by construction if it writes. The
+  **scaffolding** is deleted. A multi-file investigation with a corpus and results goes in
+  `spikes/NNNN-name/` with a README that opens with Status and Date and states the answer before
+  the method — see [`spikes/index.md`](spikes/index.md), which is the record. Spikes are outside
+  every gate but Prettier, which is exactly why the answer must be in the prose: the script will
+  rot and nothing will tell you.
 
 ## 5. Non-obvious mechanisms — do not "simplify" these
 
