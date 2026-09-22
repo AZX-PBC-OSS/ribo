@@ -6,6 +6,7 @@
     "../packages/ribo-adapter-snuggpro/src/index.ts",
     "../packages/ribo-extractor-ondevice/src/index.ts",
     "../packages/ribo-extractor-openai/src/index.ts",
+    "../packages/ribo-systemone-managed/src/index.ts",
     "../packages/ribo-transcriber-managed/src/index.ts",
     "../packages/ribo-transcriber-managed-docs/src/index.ts",
     "../packages/ribo-transcriber-ondevice/src/index.ts",
