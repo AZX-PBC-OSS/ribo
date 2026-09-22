@@ -41,20 +41,21 @@ receives.
 
 ## Records
 
-| #                                                                              | Decision                                                                                  | Status   |
-| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- | -------- |
-| [0001](./0001-consensus-arbiter-returns-an-index.md)                           | The consensus arbiter returns an index, not an envelope                                   | Accepted |
-| [0002](./0002-judging-verdicts-terminal-vs-transient.md)                       | A judging verdict's error class follows who failed, not how badly                         | Accepted |
-| [0003](./0003-judging-combinators-refuse-row-provenance.md)                    | Judging combinators refuse row and none provenance at construction                        | Accepted |
-| [0004](./0004-judging-wrappers-emit-no-progress-units.md)                      | A wrapper that delegates and judges emits no progress units                               | Accepted |
-| [0005](./0005-cache-key-covers-the-whole-prompt.md)                            | An extraction cache key covers the whole prompt, and a hit reports zero calls             | Accepted |
-| [0006](./0006-budget-is-a-detector-not-a-governor.md)                          | The budget combinator detects overspend; it does not prevent it                           | Accepted |
-| [0007](./0007-consensus-first-survivor-is-structurally-authoritative.md)       | Consensus takes its structure from the first survivor and drops what only others produced | Accepted |
-| [0008](./0008-a-phase-dependency-is-a-phase-id.md)                             | A phase dependency is a phase id, not a note key                                          | Accepted |
-| [0009](./0009-group-scoping-is-unsound-under-a-required-key-schema.md)         | Group scoping is unsound under a required-key schema                                      | Accepted |
-| [0010](./0010-phases-and-the-chat-seam-belong-in-core.md)                      | The chat seam and the transport-agnostic phases belong in core                            | Accepted |
-| [0011](./0011-the-agentic-layer-waits-for-a-vocabulary-worth-planning-over.md) | The agentic layer waits for a vocabulary worth planning over                              | Accepted |
-| [0012](./0012-a-callers-ask-rides-a-phase-at-the-callers-own-type.md)          | A caller's ask rides a phase at the caller's own type                                     | Accepted |
-| [0013](./0013-a-leaf-that-cannot-fit-any-piece-fails-the-split.md)             | A leaf that cannot fit any piece fails the split at construction                          | Accepted |
-| [0014](./0014-the-schema-entry-point-composes-the-presets.md)                  | The schema entry point composes the presets; it does not widen `perGroupExtractor`        | Accepted |
-| [0015](./0015-the-library-carries-no-provider-byte-cap.md)                     | The library carries no provider byte cap                                                  | Accepted |
+| #                                                                              | Decision                                                                                     | Status   |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | -------- |
+| [0001](./0001-consensus-arbiter-returns-an-index.md)                           | The consensus arbiter returns an index, not an envelope                                      | Accepted |
+| [0002](./0002-judging-verdicts-terminal-vs-transient.md)                       | A judging verdict's error class follows who failed, not how badly                            | Accepted |
+| [0003](./0003-judging-combinators-refuse-row-provenance.md)                    | Judging combinators refuse row and none provenance at construction                           | Accepted |
+| [0004](./0004-judging-wrappers-emit-no-progress-units.md)                      | A wrapper that delegates and judges emits no progress units                                  | Accepted |
+| [0005](./0005-cache-key-covers-the-whole-prompt.md)                            | An extraction cache key covers the whole prompt, and a hit reports zero calls                | Accepted |
+| [0006](./0006-budget-is-a-detector-not-a-governor.md)                          | The budget combinator detects overspend; it does not prevent it                              | Accepted |
+| [0007](./0007-consensus-first-survivor-is-structurally-authoritative.md)       | Consensus takes its structure from the first survivor and drops what only others produced    | Accepted |
+| [0008](./0008-a-phase-dependency-is-a-phase-id.md)                             | A phase dependency is a phase id, not a note key                                             | Accepted |
+| [0009](./0009-group-scoping-is-unsound-under-a-required-key-schema.md)         | Group scoping is unsound under a required-key schema                                         | Accepted |
+| [0010](./0010-phases-and-the-chat-seam-belong-in-core.md)                      | The chat seam and the transport-agnostic phases belong in core                               | Accepted |
+| [0011](./0011-the-agentic-layer-waits-for-a-vocabulary-worth-planning-over.md) | The agentic layer waits for a vocabulary worth planning over                                 | Accepted |
+| [0012](./0012-a-callers-ask-rides-a-phase-at-the-callers-own-type.md)          | A caller's ask rides a phase at the caller's own type                                        | Accepted |
+| [0013](./0013-a-leaf-that-cannot-fit-any-piece-fails-the-split.md)             | A leaf that cannot fit any piece fails the split at construction                             | Accepted |
+| [0014](./0014-the-schema-entry-point-composes-the-presets.md)                  | The schema entry point composes the presets; it does not widen `perGroupExtractor`           | Accepted |
+| [0015](./0015-the-library-carries-no-provider-byte-cap.md)                     | The library carries no provider byte cap                                                     | Accepted |
+| [0016](./0016-shape-proposer-one-shot-with-repair.md)                          | The shape-operation proposer is one-shot with one repair attempt, not a multi-turn move loop | Accepted |
