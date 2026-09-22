@@ -90,8 +90,8 @@ path from a plain zod schema to a parsed extraction.
 Everything above is knowable before you construct anything. `describeExtraction` is the split's
 dry run — synchronous, no chat client, no model — answering the questions that otherwise cost a
 probe script each: which top-level keys are groups and which are loose, which split path applies
-(and, when flat, which loose keys forced it), whether the whole schema fits in one call, how many
-pieces the caps produce and what each measures, and whether construction would succeed:
+(and, when flat, why — no group keys to split by), whether the whole schema fits in one call, how
+many pieces the caps produce and what each measures, and whether construction would succeed:
 
 ```ts
 import { describeExtraction } from "@azx/ribo-extractor-openai";
@@ -110,13 +110,15 @@ if (report.refusal !== undefined) {
 }
 ```
 
-Two readings are worth calling out. `path: "flat"` with `flatReason` naming loose keys is the
-silent failure this page opened with made loud: one loose top-level leaf collapses every group you
-nested into a single flat call — and, under a byte cap, a group the flat packer must treat as one
-atomic property becomes a construction refusal, so a partially nested schema can fail to split at
-all. And `depth` is **reported, never capped**: the split packs against unions and bytes only, so
-compare each piece's `depth` against your own route's nesting limit yourself — no call shape fixes
-a too-deep schema.
+Two readings are worth calling out. `path: "flat"` with `flatReason` naming loose keys now means
+exactly one thing: no top-level key is a group, so there is nothing to split by — the named keys
+are the whole schema. A loose leaf _beside_ groups no longer forces this: the mixed split (ADR 0023) reports `path: "grouped"`, splits each group as its own piece(s), and carries the loose
+leaves as the trailing `""` piece — visible in `keys` and `pieces`, never silent. (Before the
+mixed split, one loose top-level leaf collapsed every group you nested into a single flat call —
+and, under a byte cap, a group the flat packer had to treat as one atomic property became a
+construction refusal, so a partially nested schema could fail to split at all.) And `depth` is
+**reported, never capped**: the split packs against unions and bytes only, so compare each piece's
+`depth` against your own route's nesting limit yourself — no call shape fixes a too-deep schema.
 
 The report cannot drift from what construction does, by construction: it derives with the real
 `deriveExtractionShape`, classifies with the split's own `topLevelKeyKinds`, splits with

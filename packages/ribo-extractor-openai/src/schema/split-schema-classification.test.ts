@@ -30,7 +30,7 @@ const groupedExtraction = enveloped(
     .strict(),
 );
 
-/** A group beside a loose top-level leaf — the mixed shape that falls flat today. */
+/** A group beside a loose top-level leaf — the mixed shape (ADR 0023). */
 const mixedExtraction = enveloped(
   z
     .object({
@@ -52,7 +52,7 @@ describe("topLevelKeyKinds", () => {
     ]);
   });
 
-  test("a loose top-level leaf beside a group classifies loose — and the split agrees by falling flat", () => {
+  test("a loose top-level leaf beside a group classifies loose — and the split carries it as the trailing '' piece", () => {
     const classified = topLevelKeyKinds(mixedExtraction);
     expect(classified.form).toBe("keys");
     if (classified.form !== "keys") return;
@@ -61,14 +61,16 @@ describe("topLevelKeyKinds", () => {
       { key: "note", kind: "loose" },
     ]);
 
-    // The classifier IS the split's gate: all-group schemas split per key,
-    // one loose key collapses the whole schema to the single "" fallback.
+    // The classifier's kinds are what the split partitions on: all-group
+    // schemas split per key, and a mixed schema splits its groups and appends
+    // the loose keys as the unwrapped portion (ADR 0023) — one loose key no
+    // longer collapses anything to a single "" fallback.
     expect(splitExtractionSchema(groupedExtraction).map((g) => g.key)).toEqual([
       "health",
       "hvac",
       "attic",
     ]);
-    expect(splitExtractionSchema(mixedExtraction).map((g) => g.key)).toEqual([""]);
+    expect(splitExtractionSchema(mixedExtraction).map((g) => g.key)).toEqual(["health", ""]);
   });
 
   test("a flat enveloped schema classifies every key loose", () => {

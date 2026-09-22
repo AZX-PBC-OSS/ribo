@@ -35,8 +35,9 @@ const splitRefusal = (schema: z.ZodType, options?: SplitOptions): string => {
 
 describe("describeExtraction — the grouped/flat verdict", () => {
   // 22 unions (10 + 10 + 2) put the whole schema past the 16-union default, so
-  // the per-group path is selected — and one loose top-level leaf then sends
-  // the split down the flat fallback: one piece, key "", the whole schema.
+  // the per-group path is selected. The one loose top-level leaf no longer
+  // collapses the split (ADR 0023): each group splits as its own piece and the
+  // loose leaf trails as the unwrapped portion, keyed "".
   const mixedWide = enveloped(
     z
       .object({
@@ -53,7 +54,7 @@ describe("describeExtraction — the grouped/flat verdict", () => {
       .strict(),
   );
 
-  test("two groups plus one loose top-level leaf report path flat, the loose key named, one flat piece", () => {
+  test("two groups plus one loose top-level leaf report the grouped path — one piece per group, the loose leaf trailing keyed ''", () => {
     const report = describeExtraction({ extractionSchema: mixedWide });
 
     expect(report.refusal).toBeUndefined();
@@ -62,16 +63,22 @@ describe("describeExtraction — the grouped/flat verdict", () => {
       { key: "beta", kind: "group" },
       { key: "note", kind: "loose" },
     ]);
-    expect(report.path).toBe("flat");
-    expect(report.flatReason).toEqual({ kind: "loose-keys", keys: ["note"] });
+    expect(report.path).toBe("grouped");
+    // A loose key beside groups is carried, not fatal — nothing is left to name.
+    expect(report.flatReason).toBeUndefined();
     expect(report.callShape).toBe("per-group");
-    expect(report.pieces).toHaveLength(1);
-    expect(report.pieces?.[0]?.key).toBe("");
-    expect(report.pieces?.[0]?.part).toBeUndefined();
-    expect(report.pieces?.[0]?.parts).toBeUndefined();
-    // The one flat piece IS the whole schema, so the numbers are the same numbers.
-    expect(report.pieces?.[0]?.nullableUnions).toBe(report.whole?.nullableUnions);
-    expect(report.pieces?.[0]?.serializedChars).toBe(report.whole?.serializedChars);
+    expect(report.pieces?.map((p) => [p.key, p.part, p.parts])).toEqual([
+      ["alpha", undefined, undefined],
+      ["beta", undefined, undefined],
+      ["", undefined, undefined],
+    ]);
+    // No piece is the whole schema: the groups measure 10 unions each and the
+    // loose piece 2, against the whole's 22 — a partition, not a fallback.
+    expect(report.whole?.nullableUnions).toBe(22);
+    expect(report.pieces?.map((p) => p.nullableUnions)).toEqual([10, 10, 2]);
+    for (const piece of report.pieces ?? []) {
+      expect(piece.serializedChars).toBeLessThan(report.whole?.serializedChars ?? 0);
+    }
   });
 
   test("a non-object schema reports not-an-object; an empty object reports empty", () => {
@@ -178,6 +185,10 @@ describe("describeExtraction — the call shape and its measurements", () => {
 
     expect(report.refusal).toBeUndefined();
     expect(report.path).toBe("flat");
+    // No group keys at all, so the flat fallback applies — and with nothing
+    // grouped, the loose-keys reason names every key (the mixed case no longer
+    // reaches here: a loose key BESIDE a group rides the unwrapped portion).
+    expect(report.flatReason).toEqual({ kind: "loose-keys", keys: ["f1", "f2", "f3", "f4"] });
     expect(report.callShape).toBe("per-group");
     expect(report.pieces?.length).toBeGreaterThan(1);
     report.pieces?.forEach((piece, index) => {
@@ -246,10 +257,12 @@ describe("describeExtraction — refusals are reported, not thrown", () => {
     expect(report.whole?.nullableUnions).toBe(17);
   });
 
-  test("a mixed schema over both caps reports the flat packer's refusal verbatim — the live run's failure shape", () => {
-    // nest-live-run-evidence.md §3: the flat fallback treats a group as one
-    // atomic "property", so a group over the caps beside a loose leaf has
-    // nowhere to go. The report must carry that refusal, not throw it.
+  test("a mixed schema over both caps splits — the groups partition, the loose leaf rides its own piece", () => {
+    // nest-live-run-evidence.md §3's failure shape, closed by the mixed split
+    // (ADR 0023): the flat fallback used to treat a group as one atomic
+    // "property" and refuse here — a group over the caps beside a loose leaf
+    // had nowhere to go. Now each portion packs under the caps it was given,
+    // so the report carries pieces, not a refusal.
     const mixed = enveloped(
       z
         .object({
@@ -263,12 +276,23 @@ describe("describeExtraction — refusals are reported, not thrown", () => {
 
     const report = describeExtraction({ extractionSchema: mixed, ...caps });
 
-    expect(report.refusal?.stage).toBe("split");
-    expect(report.refusal?.message).toBe(splitRefusal(mixed, caps));
-    expect(report.refusal?.message).toContain('property "alpha"');
-    expect(report.pieces).toBeUndefined();
-    expect(report.path).toBe("flat");
-    expect(report.flatReason).toEqual({ kind: "loose-keys", keys: ["note"] });
+    expect(report.refusal).toBeUndefined();
+    expect(report.path).toBe("grouped");
+    expect(report.flatReason).toBeUndefined();
+    expect(report.callShape).toBe("per-group");
+    // 4 unions a group against a cap of 3: one leaf per piece. The loose leaf
+    // fits both caps alone, so it trails as one unpartitioned "" piece.
+    expect(report.pieces?.map((p) => [p.key, p.part, p.parts])).toEqual([
+      ["alpha", 0, 2],
+      ["alpha", 1, 2],
+      ["beta", 0, 2],
+      ["beta", 1, 2],
+      ["", undefined, undefined],
+    ]);
+    for (const piece of report.pieces ?? []) {
+      expect(piece.nullableUnions).toBeLessThanOrEqual(caps.maxNullableUnionsPerGroup);
+      expect(piece.serializedChars).toBeLessThanOrEqual(caps.maxSerializedCharsPerGroup);
+    }
   });
 
   test("a wire-unsafe name reports a name-stage refusal, before the split, with the schema facts still reported", () => {

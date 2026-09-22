@@ -182,15 +182,32 @@ inconsistent: the split packs against unions, so the helper reports them where t
 depth drives no packing, so it is reported as measurement only. ADR 0015's logic extends one cap
 farther — the library carries no provider's depth number either.
 
-## 7. If mixed schemas split later
+## 7. When mixed schemas split: what it actually took
 
-When a future effort makes mixed schemas split properly — loose leaves partitioned beside groups
-rather than collapsing the whole schema flat — `describeExtraction` needs no redesign: pieces, part
-indices and measurements are read off the shared split, so the report changes with it, and the
-agreement test fails until the helper states the new truth, because it compares against the real
-construction. The one deliberate edit is to the classifier: a third per-key kind (a loose leaf that
-will be carried in a piece of its own), so `flatReason` cannot name keys the new split no longer
-treats as fatal. Nothing in this design's surface anticipates or blocks that effort.
+This section was written prospectively — "if mixed schemas split later, the helper needs no
+redesign; the one deliberate edit is a third per-key kind." The mixed-schema split has since landed
+(mixed-schema-split-design.md §5, ADR 0023): a mixed schema splits into one entry per group plus
+the loose leaves carried as the unwrapped portion under `""`. The prediction held in part and
+missed in part:
+
+- **Held — no redesign.** Pieces, part indices and measurements are read off the shared split, so
+  the report changed with it; and the agreement matrix did fail until the helper stated the new
+  truth, because it compares against the real construction. That failure drove the reconciliation.
+- **Missed — the deliberate edit was not the classifier.** No third per-key kind was needed: the
+  split classifies operationally (a key is a group or it is loose, and both are carried), so the
+  existing `group`/`loose` pair answers everything the helper reports. The edit the helper actually
+  needed was its `path` gate: it had read the classifier's `everyKeyIsGroup`, which was the old
+  collapse gate — one loose key made it false, and the helper reported `path: "flat"` with the
+  loose keys named as fatal, for a split that no longer collapses anything. Post-split the flat
+  fallback fires only when NO top-level key is a group, so `path` is now read off the per-key
+  kinds (`some(kind === "group")`), and `flatReason`'s loose-keys variant is reachable only for an
+  all-loose schema — which achieves exactly what the third kind was for (never naming a carried
+  key as fatal) without adding it.
+- **Unpredicted — the fixture, not the helper, broke on names.** The agreement test's fake chat
+  keyed answers by request name, and a mixed split's unpartitioned loose piece is named exactly
+  what the single-shot path names the whole-schema request (`${target.name}`, no group infix). The
+  fixture now dispatches on the request's own `json_schema.schema` rendering — the one part of a
+  request that cannot collide between two pieces.
 
 ## 8. Open questions
 
@@ -214,9 +231,9 @@ treats as fatal. Nothing in this design's surface anticipates or blocks that eff
 
 ## 9. Must-fail tests
 
-- A schema of two group objects plus one top-level string leaf reports `path: "flat"`, names the
-  loose key in `flatReason`, and carries one flat piece holding the whole schema when no byte cap is
-  supplied.
+- A schema of two group objects plus one top-level string leaf reports `path: "grouped"` — the
+  mixed split carries the loose leaf as the trailing `""` piece, so nothing falls flat (§7) — with
+  one piece per group plus the loose piece when no byte cap is supplied.
 - A group whose single leaf costs 17 nullable unions against `maxNullableUnionsPerGroup: 16`
   reports a `stage: "split"` refusal whose message is `splitExtractionSchema`'s ADR 0013 error
   verbatim.

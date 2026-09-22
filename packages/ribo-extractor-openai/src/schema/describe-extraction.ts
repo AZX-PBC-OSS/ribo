@@ -5,12 +5,11 @@
  * shape operations, and builds an extractor over the result. Whether that
  * extractor will construct, and how it will split the schema into calls,
  * depends on facts the caller cannot see without running it — and the failure
- * for not knowing arrives at the provider as an unreadable `400`, or silently
- * (one loose top-level leaf collapses fourteen nested groups to the flat
- * fallback, and nothing complains). This helper answers, synchronously and
- * without a model: what the schema's top-level keys are, which split path
- * applies and why, how many pieces the caps produce and what each measures,
- * and whether construction would succeed — with the refusal text when not.
+ * for not knowing arrives at the provider as an unreadable `400`. This helper
+ * answers, synchronously and without a model: what the schema's top-level keys
+ * are, which split path applies and why, how many pieces the caps produce and
+ * what each measures, and whether construction would succeed — with the
+ * refusal text when not.
  *
  * The design rule (describe-extraction-design.md §5) is absolute: the helper
  * reports facts read off values the real path produced, measured by functions
@@ -81,9 +80,12 @@ export interface ExtractionPieceDescription extends SchemaMeasures {
 
 /**
  * Why the flat path applies — present exactly when `path` is `"flat"`. The
- * two pre-key fallbacks name themselves; otherwise the loose top-level keys
- * that collapsed the split are named (answered by the shared classifier, never
- * by a second walk).
+ * two pre-key fallbacks name themselves; otherwise no top-level key is a
+ * group, so there is nothing to split by and the flat fallback carries the
+ * schema — the loose keys are named (answered by the shared classifier, never
+ * by a second walk). A loose key BESIDE a group is not here: the mixed split
+ * carries it as the unwrapped portion on the grouped path (ADR 0023), so it
+ * can no longer force the flat path at all.
  */
 export type ExtractionFlatReason =
   | { readonly kind: "not-an-object" }
@@ -278,10 +280,18 @@ export function describeExtraction(options: DescribeExtractionOptions): Extracti
   }
 
   // 3 — Classification: the shared classifier the split reads its gate from.
+  // The split's fallback gate is "no group keys at all" — a non-object, an
+  // empty object, or an object whose keys are all loose takes the flat path;
+  // one loose key BESIDE a group no longer collapses anything (the groups
+  // split and the loose keys ride the trailing "" piece — mixed-schema-split
+  // design §5, ADR 0023). The classifier's per-key kinds are the split's own
+  // answer, so the path is read off them, never off a second walk.
   const classification = topLevelKeyKinds(extractionSchema);
   const keys: readonly TopLevelKey[] = classification.form === "keys" ? classification.keys : [];
   const path: "grouped" | "flat" =
-    classification.form === "keys" && classification.everyKeyIsGroup ? "grouped" : "flat";
+    classification.form === "keys" && classification.keys.some((entry) => entry.kind === "group")
+      ? "grouped"
+      : "flat";
   const flatReason: ExtractionFlatReason | undefined =
     path === "grouped"
       ? undefined

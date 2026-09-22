@@ -109,10 +109,15 @@ const effectiveCaps = (caps: SplitOptions): SplitOptions => ({
 
 /**
  * A ChatClient that records every request and answers each with a generated
- * value admissible by that piece's schema — the name→piece naming is the
- * plan's own (`name`, `name-key`, `name-key-part`, `name-part` on the flat
- * path), so an unexpected request name throws here rather than passing on a
- * canned `{}` that never parses.
+ * value admissible by that piece's schema. Dispatch is on the request's own
+ * `json_schema.schema` RENDERING, not its name: the plan names an
+ * unpartitioned loose piece `${name}` with no group infix
+ * (`per-group.ts`'s "" arm) — the same name the single-shot path gives the
+ * whole-schema request — so on a mixed schema a name-keyed map cannot hold
+ * both answers. Two entries share a rendering only when their schemas are
+ * identical, and then one generated value parses for both. An unexpected
+ * request schema throws here rather than passing on a canned `{}` that never
+ * parses; the labels listed in the error are the plan's own piece names.
  */
 function pieceChat(
   name: string,
@@ -122,13 +127,20 @@ function pieceChat(
   chat: ChatClient;
   requests: ChatRequest[];
 } {
+  const render = (piece: z.ZodType): string =>
+    JSON.stringify(z.toJSONSchema(piece, { target: "draft-2020-12" }));
   const content = new Map<string, string>();
-  content.set(name, JSON.stringify(generateShapedValue(schema)));
+  const labels: string[] = [];
+  const add = (label: string, piece: z.ZodType): void => {
+    content.set(render(piece), JSON.stringify(generateShapedValue(piece)));
+    labels.push(label);
+  };
+  add(name, schema);
   for (const entry of splitExtractionSchema(schema, effectiveCaps(caps))) {
     const partSuffix = entry.part === undefined ? "" : `-${entry.part}`;
     const pieceName =
       entry.key === "" ? `${name}${partSuffix}` : `${name}-${entry.key}${partSuffix}`;
-    content.set(pieceName, JSON.stringify(generateShapedValue(entry.schema)));
+    add(pieceName, entry.schema);
   }
   const requests: ChatRequest[] = [];
   return {
@@ -136,11 +148,11 @@ function pieceChat(
     chat: {
       complete: (request) => {
         requests.push(request);
-        const answer = content.get(request.response_format.json_schema.name);
+        const answer = content.get(JSON.stringify(request.response_format.json_schema.schema));
         if (answer === undefined) {
           throw new Error(
-            `unexpected request name "${request.response_format.json_schema.name}" — the ` +
-              `construction sent a piece this test did not predict: ${[...content.keys()].join(", ")}`,
+            `unexpected request schema (name "${request.response_format.json_schema.name}") — the ` +
+              `construction sent a piece this test did not predict: ${labels.join(", ")}`,
           );
         }
         return Promise.resolve({ content: answer, finishReason: "stop" as const });
@@ -211,14 +223,17 @@ describe("the matrix exercises every branch it exists for", () => {
         bytes: "per-group:3",
         both: "per-group:6",
       },
-      // 10 unions, whole 1630: the union cap cannot partition a flat schema
-      // (one "" piece); the byte cap can; both refuse on a group the flat
-      // packer must treat as one atomic property — the live run's §3 shape.
+      // 10 unions, whole 1630: the default fits, so single-shot. The mixed
+      // split (ADR 0023) carries the groups beside the loose leaf — under the
+      // union cap each 4-union group halves and the loose leaf rides one ""
+      // piece (5); the byte cap fits each group whole but not the whole
+      // schema (3); both caps partition the groups the same way unions alone
+      // do (5). The live run's §3 refusal is gone.
       mixed: {
         none: "single-shot:1",
-        unions: "per-group:1",
+        unions: "per-group:5",
         bytes: "per-group:3",
-        both: "refusal:split",
+        both: "per-group:5",
       },
       flat: {
         none: "single-shot:1",

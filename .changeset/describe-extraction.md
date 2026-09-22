@@ -4,7 +4,7 @@
 
 **Adds `describeExtraction`** — a synchronous, model-free dry run of the schema split, answering
 before an extractor is constructed: the schema's top-level keys and their group/loose kinds, which
-split path applies (and, when flat, which loose keys forced it), the single-shot-vs-per-group
+split path applies (and, when flat, why — no group keys to split by), the single-shot-vs-per-group
 selection, the per-piece nullable-union count, serialized size and nesting depth, and whether
 construction would succeed — with the refusal (`derive`, `name` or `split` stage) carried
 verbatim when it would not.
@@ -25,11 +25,17 @@ the measures the packers pack against — so the answer cannot drift. A differen
 holds report and construction together over a corpus covering every split branch, with a second
 half over the real Snugg Pro schema.
 
-Two supporting exports land beside the split: `topLevelKeyKinds`, the classification
-`splitExtractionSchema` now derives its grouped/flat gate from (behaviour unchanged), and
-`serializedNestingDepth`, the nesting-depth measure lifted out of the adapter's cap suite so
-library and adapter share one definition of a level. Depth is measured, never capped — the split
-does not pack against it, so a route's depth limit stays the caller's comparison to make.
+Two supporting exports land beside the split: `topLevelKeyKinds`, the classifier whose per-key
+group/loose kinds `splitExtractionSchema` partitions on, and `serializedNestingDepth`, the
+nesting-depth measure lifted out of the adapter's cap suite so library and adapter share one
+definition of a level. Depth is measured, never capped — the split does not pack against it, so a
+route's depth limit stays the caller's comparison to make.
+
+Reconciled with the mixed-schema split (its own changeset), which landed in parallel: a mixed
+schema — groups beside loose top-level leaves — reports `path: "grouped"`, one piece per group
+plus the loose leaves trailing as the unwrapped `""` piece. `path: "flat"` with named loose keys
+now means exactly one thing — no top-level key is a group — because a loose key beside groups is
+carried, not fatal, and is never named as forcing the flat path.
 
 Implements `docs/roadmap/design/describe-extraction-design.md`; motivated by the live run that
 paid six probe scripts for these answers (`nest-live-run-evidence.md` §8).
