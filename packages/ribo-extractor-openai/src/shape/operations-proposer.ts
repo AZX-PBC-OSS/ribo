@@ -42,8 +42,9 @@
  * `assertShapeMapping` invariants. A proposed shape that survives construction
  * is, by the same reasoning `shape-properties.test.ts` already pins, one the
  * library fully supports. A proposed shape that fails construction is repaired
- * (or, at exhaustion, the application runs with zero operations — friendly
- * to a newcomer and defensible to a reviewer).
+ * (or, at exhaustion, the application runs with the final proposal's
+ * SURVIVING operations — `[]` when none survive: friendly to a newcomer and
+ * defensible to a reviewer. ADR 0023's amendment of ADR 0016).
  *
  * **No tool-calling in the {@link ChatClient} seam.** The same `complete`,
  * the same `completeOrClassify`, the same `assertStopFinishReason`, the same
@@ -75,9 +76,10 @@ import type {
 } from "@azx/ribo-core";
 
 import type { DerivedExtractionShape } from "./derived-shape.js";
-import { deriveExtractionShape } from "./shape-operations.js";
+import { deriveExtractionShape, deriveExtractionShapePartially } from "./shape-operations.js";
 import type { DeriveExtractionShapeOptions } from "./shape-operations.js";
 import type { ShapeOperation } from "./shape-operation.js";
+import type { ShapeRefusal } from "./shape-refusal.js";
 import { renderLeafInventory, walkLeafInventory } from "./leaf-inventory.js";
 
 /**
@@ -122,20 +124,22 @@ export interface ProposeOptions {
    * full chat round-trip, which is one real, paid model call; the budget is
    * what gates "we stop trying and accept whatever we got."
    *
-   * At exhaustion the proposal returns `[]` — a valid operation set, just
-   * an unshaped one. See ADR 0016 for the argued default; a caller who
-   * would rather see an exception can wrap and check the operations array.
+   * At exhaustion the proposal returns the final attempt's SURVIVING
+   * operations — `[]` when nothing survived, a valid operation set either
+   * way. See ADR 0016 for the argued default and ADR 0023 for the
+   * surviving-subset amendment; a caller who would rather see an exception
+   * can wrap and check the operations array.
    *
    * **Default 3, raised from 1 on measured evidence.** ADR 0016 argued one
    * repair against an eleven-leaf fixture. A live run against a 294-property
    * vendor schema drew 91 operations, of which exactly ONE was invalid (a
    * `retype` naming a leaf the same proposal dropped) — and because the
-   * applier is all-or-nothing, that one op cost all 91, including fourteen
+   * applier was all-or-nothing, that one op cost all 91, including fourteen
    * good nests. The repair turn did not find it, so the run exhausted to `[]`
-   * and produced nothing. A large proposal has as many chances to contain one
-   * bad operation as it has operations; one repair is a budget sized for the
-   * small case. Raising it does not change the all-or-nothing application,
-   * which is the deeper issue and a separate decision.
+   * and produced nothing. Two changes answer that run: the repair turn now
+   * carries EVERY refusal the applier found (one turn, not N), and exhaustion
+   * returns the surviving subset (ADR 0023) — the deeper fix the budget raise
+   * only mitigated.
    */
   readonly maxRepairAttempts?: number;
   /**
@@ -319,6 +323,13 @@ type ProposeAttemptResult =
       readonly failure: "transport" | "json" | "schema" | "shape";
       readonly refusal: string;
       readonly priorOutput: string;
+      /**
+       * On a `"shape"` failure, the operations that survived the partial
+       * applier — what exhaustion returns instead of `[]` when the budget
+       * runs out on a mostly-good proposal. Absent on the other failure
+       * kinds: no validly-formed proposal arrived to salvage.
+       */
+      readonly survivors?: readonly ShapeOperation[];
     };
 
 /**
@@ -343,9 +354,9 @@ type ProposeAttemptResult =
  *   - **JSON parse** (plain `Error` from `parseJsonContent`) — REPAIRABLE.
  *   - **Schema parse** (`SchemaParseError` from `parseWithSchema`) —
  *     REPAIRABLE.
- *   - **Shape apply** (`deriveExtractionShape` throws on a bad operation set)
- *     — REPAIRABLE: the applier's refusal text names the offending path
- *     precisely, the right feedback for a repair turn.
+ *   - **Shape apply** (the partial applier reports refusals on a bad
+ *     operation set) — REPAIRABLE: every refusal is named precisely, and the
+ *     whole list is the right feedback for a repair turn.
  */
 const runAttempt = async (
   chat: ChatClient,
@@ -451,20 +462,27 @@ const runAttempt = async (
     };
   }
 
-  // The shape apply runs against the user's schema with the proposed ops.
-  // Refusal text from this path names the offending path precisely — that's
-  // what makes it the right feedback for a repair turn. The wire-format moves
+  // The shape apply runs against the user's schema with the proposed ops,
+  // through the partial surface: EVERY refusal the applier finds becomes the
+  // repair feedback (one line each — the applier's own message, prefixed with
+  // the operation it names), so two bad operations — or eighteen — cost one
+  // repair turn, not N. The survivors ride along: at budget exhaustion they
+  // are what the proposal returns instead of `[]`. The wire-format moves
   // (array of pairs, see `proposedOperationsSchema`'s header) are converted
   // back to records before the applier sees them.
+  const operations: ShapeOperation[] = parsed.operations.map((op) => {
+    if (op.op === "regroup")
+      return { op: "regroup", group: op.group, moves: movesToRecord(op.moves) };
+    if (op.op === "nest") return { op: "nest", group: op.group, moves: movesToRecord(op.moves) };
+    return op;
+  });
+  // A hard boundary (a schema defect, or a declaration defect nothing
+  // explains) still throws out of the partial surface; fold it into the
+  // repairable "shape" feedback exactly as the throwing surface's throw was
+  // folded before.
+  let refusals: readonly ShapeRefusal[];
   try {
-    const operations: ShapeOperation[] = parsed.operations.map((op) => {
-      if (op.op === "regroup")
-        return { op: "regroup", group: op.group, moves: movesToRecord(op.moves) };
-      if (op.op === "nest") return { op: "nest", group: op.group, moves: movesToRecord(op.moves) };
-      return op;
-    });
-    deriveExtractionShape(schema, { operations });
-    return { ok: true, operations };
+    refusals = deriveExtractionShapePartially(schema, { operations }).refusals;
   } catch (cause) {
     return {
       ok: false,
@@ -473,7 +491,24 @@ const runAttempt = async (
       priorOutput: JSON.stringify(raw),
     };
   }
+  if (refusals.length === 0) return { ok: true, operations };
+  const refusedIndexes = new Set(refusals.map((refusal) => refusal.index));
+  return {
+    ok: false,
+    failure: "shape",
+    refusal: refusals
+      .map((refusal) => `- ${formatOperation(refusal.operation)}: ${refusal.reason}`)
+      .join("\n"),
+    priorOutput: JSON.stringify(raw),
+    survivors: operations.filter((_, index) => !refusedIndexes.has(index)),
+  };
 };
+
+/** The one-line label a repair turn prefixes a refusal with — the operation it names. */
+const formatOperation = (operation: ShapeOperation): string =>
+  operation.op === "drop" || operation.op === "retype"
+    ? `${operation.op} "${operation.path}"`
+    : `${operation.op} "${operation.group}"`;
 
 const repairFeedback = (
   failure: "transport" | "json" | "schema" | "shape",
@@ -504,7 +539,8 @@ const repairFeedback = (
     );
   }
   // `failure === "shape"` — the response parsed, but the operations would
-  // produce an invalid extraction shape. The refusal text is the applier's.
+  // produce an invalid extraction shape. The refusal text is the applier's,
+  // one line per refusal, so a single repair turn sees them all.
   return (
     `Your previous proposal would not produce a valid extraction shape: ${refusal}. ` +
     "Revise the operations so they satisfy the composition rule described in the system " +
@@ -524,10 +560,12 @@ const repairFeedback = (
  * the same call composed with `deriveExtractionShape` for hosts that want
  * the shape directly.
  *
- * **Repair, and what happens at exhaustion.** The applier's construction-time
- * refusals are the repair prompt's content; one repair attempt by default.
- * At exhaustion, the function returns `[]` — a valid operation set, just
- * unshaped. ADR 0016 records the argued default.
+ * **Repair, and what happens at exhaustion.** The applier's refusals are the
+ * repair prompt's content — ALL of them, one line per refusal, so one repair
+ * turn sees the whole list; the default budget is `maxRepairAttempts: 3`.
+ * At exhaustion, the function returns the final proposal's surviving
+ * operations — `[]` when nothing survived, the argued default's special case.
+ * ADR 0016 records the original `[]` decision and ADR 0023 the amendment.
  *
  * **Cancellation and deadline.** `options.signal` and `options.deadline`
  * are forwarded into each chat call through `completeOrClassify`. A caller
@@ -580,6 +618,17 @@ export async function proposeShapeOperations(
   }
   if (result.ok) return result.operations;
 
+  // The salvage: the most recent shape failure's surviving operations. At
+  // exhaustion they replace ADR 0016's `[]` — a mostly-good proposal that
+  // would have zeroed everything instead mostly applies (the `[]` default was
+  // "keep the pipeline open with an unshaped derivation"; the surviving subset
+  // is the same property, held more often and more fully). `[]` remains the
+  // value when nothing survived, and the two transport-exhaustion exits above
+  // and below keep it too: no proposal arrived on that turn to partially
+  // apply. ADR 0023 records the amendment.
+  let survivors: readonly ShapeOperation[] =
+    result.failure === "shape" ? (result.survivors ?? []) : [];
+
   const maxRepairAttempts = options.maxRepairAttempts ?? 3;
   for (let attempt = 0; attempt < maxRepairAttempts; attempt++) {
     // Show the model its previous assistant turn and the validation outcome,
@@ -614,11 +663,10 @@ export async function proposeShapeOperations(
       return [];
     }
     if (result.ok) return result.operations;
+    if (result.failure === "shape") survivors = result.survivors ?? [];
   }
 
-  // Honest exhaustion default: an empty operation set. The applier accepts
-  // it; the derivation runs as pure normalisation. ADR 0016's decision.
-  return [];
+  return survivors;
 }
 
 /**
