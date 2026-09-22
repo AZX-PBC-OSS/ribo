@@ -99,7 +99,7 @@ run_stage "pkg:gates" pnpm check:pkg
 run_stage "snugg:drift" pnpm snugg:check
 
 run_stage "skips:tracked" pnpm skips:check
-run_stage "score:mutations" node spikes/extraction-snuggpro/score.test.mjs
+run_stage "score:mutations" node docs/spikes/0001-extraction-snuggpro/score.test.mjs
 
 run_stage "test" pnpm test
 

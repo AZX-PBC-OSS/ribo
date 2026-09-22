@@ -148,7 +148,7 @@ const CLI_BACKENDS: Record<CliBackendName, CliDescriptor> = {
 };
 
 /**
- * The tool-AGNOSTIC core extraction rules (from `spikes/extraction-snuggpro/
+ * The tool-AGNOSTIC core extraction rules (from `docs/spikes/0001-extraction-snuggpro/
  * prompt.md` rules 1–6 + the Output section), with all SnuggPro-specific
  * normalization (rules 7–12) deliberately dropped — those do not apply to an
  * arbitrary pasted schema.

@@ -14,12 +14,25 @@ import { describeLocated, zodIssues } from "../review/zod-issues.js";
  * boundary that **was not installed anywhere**: every reasoning about it — a rejected
  * leaf being absent, an accepted `null` being present, the reviewed values being a
  * legal `V` at all — rested on a `parse` no code in this package ran. R2 Phase A's
- * review found that; {@link toWriteStep} is where the boundary now lives, and it is the
- * one supported way to wire an adapter into the queue:
+ * review found that; {@link toWriteStep} is where the boundary now lives, and it is one
+ * of the two supported ways to wire an adapter into the queue:
  *
  * ```ts
- * createRelay({ ..., sessionWrite: toWriteStep(snuggProAdapter) });
+ * createRelay({ ..., sessionWrite: toWriteStep(myAdapter) });
  * ```
+ *
+ * ## Which of the two to use
+ *
+ * This one sends the WHOLE reviewed patch to `write` in a single call and records the
+ * single receipt that comes back. That is right for an adapter whose patch is one
+ * record at one endpoint.
+ *
+ * It is wrong for an adapter whose patch spans several endpoints — the Snugg Pro one
+ * covers twenty — because `write` returns one receipt and every other record's would
+ * be lost, so a retry duplicates them. Such an adapter should be composed with
+ * {@link toInstanceWriteStep}, which sends one group per call and checkpoints each
+ * receipt as it is earned. This example used to name `snuggProAdapter`; that adapter
+ * now refuses a multi-record patch rather than inventing a receipt for it.
  *
  * ## What the patch parse actually guards against
  *
@@ -59,6 +72,10 @@ import { describeLocated, zodIssues } from "../review/zod-issues.js";
  *      checked `V` and not whatever a UI happened to persist;
  *   3. calls `adapter.write(fields, ctx, { idempotencyKey: input.idempotencyKey })`.
  *
+ * The relay-constructed input also carries `recordReceipt`, which this step
+ * ignores: it writes one patch, so there is no loop whose earned receipts a
+ * mid-way throw could discard.
+ *
  * **`write`'s own rejection is passed through untouched**, and the `await` is deliberately
  * not wrapped. A network failure from a real adapter is the single most common thing this
  * step will ever see, and it is exactly what must be retried.
@@ -92,7 +109,7 @@ export function toWriteStep<V extends Record<string, unknown>, C>(
       );
     }
 
-    const { uuid } = await adapter.write(fields.data, parsedCtx.data, { idempotencyKey });
-    return { receipts: { singleton: uuid } };
+    const { receipt } = await adapter.write(fields.data, parsedCtx.data, { idempotencyKey });
+    return { receipts: { singleton: receipt } };
   };
 }

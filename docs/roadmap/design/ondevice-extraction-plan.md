@@ -17,7 +17,7 @@
 - `./check.sh` is the "am I done?" signal. Individual packages have **no `test` script** — select with a path argument, e.g. `pnpm vitest run packages/ribo-core`.
 - A package with no `typecheck` script is silently absent from the gate. A package with no `src/index.ts` breaks `build:packages`. Any new package needs both **from its first commit**.
 - Provenance envelope rules (`ribo-core/src/provenance.ts`) unchanged: every key required and nullable, no `.optional()`, no `minimum`/`maximum`/`pattern`.
-- `spikes/extraction-snuggpro/score.mjs` is reused **verbatim**. Never edit it.
+- `docs/spikes/0001-extraction-snuggpro/score.mjs` is reused **verbatim**. Never edit it.
 - The Prompt API does not exist in Node. Tasks 1–9 drive a **fake `LanguageModel` global** and need no browser.
 - Measured constants from spec §10, used as written: context window 9,216 tokens; whitespace-abort threshold 80 characters; on-device per-call ceiling and hard deadline ~15,000 ms; on-device retries 4.
 
@@ -308,7 +308,7 @@ retargeting it at three-phase would produce a test that **can only ever skip in 
 Chromium ships a Prompt API stub that answers with canned text (spec §10.6), so the test would
 either skip everywhere or, worse, pass against fixed strings and look like coverage.
 
-Real-model verification is instead the corpus harness in `spikes/ondevice-acceptance/`, run
+Real-model verification is instead the corpus harness in `docs/spikes/0005-ondevice-acceptance/`, run
 manually against real Chrome. That is strictly more thorough than this task ever was — 14
 transcripts scored against annotated ground truth, versus one assertion that a response parses.
 What it gives up is unattended verification, and nothing available here provides that.
@@ -358,7 +358,7 @@ The point of the beta. Until this runs, quality is entirely unmeasured (spec §6
 **Files:**
 
 - Create: a browser-mode acceptance runner, located per Task 12's chosen route
-- Do **not** modify `spikes/extraction-snuggpro/score.mjs`
+- Do **not** modify `docs/spikes/0001-extraction-snuggpro/score.mjs`
 
 **Interfaces:**
 

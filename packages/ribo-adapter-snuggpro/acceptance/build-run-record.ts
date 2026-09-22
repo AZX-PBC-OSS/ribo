@@ -11,7 +11,7 @@ import { HistoryEntrySchema } from "./run-record.js";
 /**
  * Densifies the acceptance gate's scored reports into a self-contained RunRecord.
  *
- * PURE, and deliberately imports NOTHING from `spikes/`. Two reasons, both
+ * PURE, and deliberately imports NOTHING from `docs/spikes/`. Two reasons, both
  * load-bearing:
  *
  *   1. `score.mjs` and `ground-truth.mjs` are untyped `.mjs` and must never be

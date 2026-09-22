@@ -1,4 +1,4 @@
-import { isSpanGrounded, stripOptionalNullable } from "@azx/ribo-core";
+import { isSpanGrounded, stripOptionalNullable, TerminalError } from "@azx/ribo-core";
 import type {
   ExistingRecord,
   IdentifyingFields,
@@ -7,8 +7,14 @@ import type {
 } from "@azx/ribo-core";
 import { describe, expect, expectTypeOf, test } from "vitest";
 import { z } from "zod";
-import { rankCandidates, SNUGGPRO_ADAPTER_NAME, snuggProAdapter } from "./adapter.js";
-import type { SnuggWriteContext } from "./context.js";
+import {
+  createSnuggProAdapter,
+  rankCandidates,
+  readExistingRecords,
+  SNUGGPRO_ADAPTER_NAME,
+  snuggProAdapter,
+} from "./adapter.js";
+import { snuggCtxSchema, type SnuggWriteContext } from "./context.js";
 import { snuggValuesSchema } from "./schema.js";
 import type { SnuggValues } from "./schema.js";
 import type { Roster as SnuggRoster } from "./inventory.js";
@@ -106,7 +112,7 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
       for (const child of Object.values(node)) walk(child);
     };
     walk(example.fields);
-    expect(checked).toBe(450);
+    expect(checked).toBe(424);
   }
 });
 
@@ -116,7 +122,7 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
 // rubber stamp.
 
 const validCtx = {
-  assessmentId: "assessment-1",
+  assessmentId: "588613",
   companyId: "company-1",
   apiBaseUrl: "https://api.snuggpro.com",
 };
@@ -135,7 +141,7 @@ test("ctxSchema rejects a context that would target nowhere", () => {
   expect(
     snuggProAdapter.ctxSchema.safeParse({ ...validCtx, apiBaseUrl: "api.snuggpro.com" }).success,
   ).toBe(false);
-  expect(snuggProAdapter.ctxSchema.safeParse({ assessmentId: "a-1" }).success).toBe(false);
+  expect(snuggProAdapter.ctxSchema.safeParse({ assessmentId: "42" }).success).toBe(false);
 });
 
 test("ctxSchema tolerates host extras — a Recording.ctx may carry more than this adapter needs", () => {
@@ -145,15 +151,302 @@ test("ctxSchema tolerates host extras — a Recording.ctx may carry more than th
   expect(parsed).toEqual(validCtx);
 });
 
-test("write is scaffolded, not faked: it rejects rather than silently succeeding", async () => {
-  // `write` takes the PATCH: a rejected leaf is absent, an accepted null is present.
+test("ctxSchema rejects a non-numeric assessmentId — job ids are integers on the wire", () => {
+  // assessmentId is interpolated into /jobs/{jobId}: a malformed id must fail the
+  // trust boundary here, not build a nonsense URL that 404s at write time.
+  expect(
+    snuggProAdapter.ctxSchema.safeParse({ ...validCtx, assessmentId: "assessment-1" }).success,
+  ).toBe(false);
+  expect(snuggProAdapter.ctxSchema.safeParse({ ...validCtx, assessmentId: "588613" }).success).toBe(
+    true,
+  );
+});
+
+test("the bare adapter has no transport: write rejects naming the factory as the fix", async () => {
+  // `snuggProAdapter` is the factory called with no transport. Everything but
+  // `write` still works off it; the write must say what to do, not just fail.
   const fields: SnuggValues = {
     hvac: [{ hvacSystemEquipmentType: "Boiler", hvacHeatingEnergySource: null }],
   };
   const ctx = snuggProAdapter.ctxSchema.parse(validCtx);
   await expect(snuggProAdapter.write(fields, ctx, { idempotencyKey: "write-1" })).rejects.toThrow(
-    /Task 6|not implemented/,
+    /no transport is configured[\s\S]*createSnuggProAdapter/,
   );
+});
+
+// --- The wired write: createSnuggProAdapter({ fetchImpl }) -------------------
+// Every request below goes to an INJECTED FAKE `fetch` — never a network (the
+// same pattern write/writer.test.ts uses). The adapter composes the real HTTP
+// writer, so these assertions are about the patch→receipt bridge: which groups
+// get written, in what order, and which receipt comes back.
+
+interface RecordedCall {
+  readonly url: string;
+  readonly init: RequestInit;
+  readonly bodyText: string;
+}
+
+const wiredCtx: SnuggWriteContext = snuggCtxSchema.parse({
+  assessmentId: "123",
+  companyId: "co-1",
+  apiBaseUrl: "https://gateway.example/snugg",
+});
+
+const fetchRecording = (
+  respond: () => Response,
+): { fetchImpl: typeof fetch; calls: RecordedCall[] } => {
+  const calls: RecordedCall[] = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const body = init?.body;
+    calls.push({
+      url: typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+      init: init ?? {},
+      bodyText: typeof body === "string" ? body : "",
+    });
+    return respond();
+  };
+  return { fetchImpl, calls };
+};
+
+const rejectionOf = async (write: Promise<{ readonly receipt: string }>): Promise<unknown> => {
+  try {
+    await write;
+  } catch (error) {
+    return error;
+  }
+  throw new Error("expected the write to reject");
+};
+
+describe("createSnuggProAdapter — the patch-to-receipt bridge", () => {
+  const hvacInstance = {
+    hvacSystemEquipmentType: "Boiler",
+    hvacUpgradeAction: "Keep an existing system as is",
+  } as const;
+
+  test("a one-instance collection patch reaches the injected fetch and returns the vendor's real uuid", async () => {
+    const { fetchImpl, calls } = fetchRecording(
+      () => new Response(JSON.stringify({ uuid: "vendor-hvac-uuid" }), { status: 201 }),
+    );
+    const adapter = createSnuggProAdapter({ fetchImpl });
+
+    await expect(
+      adapter.write({ hvac: [hvacInstance] }, wiredCtx, { idempotencyKey: "key-1" }),
+    ).resolves.toEqual({ receipt: "vendor-hvac-uuid" });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe("https://gateway.example/snugg/jobs/123/hvac");
+    expect(calls[0]!.init.method).toBe("POST");
+    // The body came from the writer's buildWriteBody — the stringified-free
+    // passthrough of these string leaves is its filter's signature.
+    expect(JSON.parse(calls[0]!.bodyText)).toEqual({
+      hvacSystemEquipmentType: "Boiler",
+      hvacUpgradeAction: "Keep an existing system as is",
+    });
+  });
+
+  test("one record writes one request and returns that record's real receipt", async () => {
+    const { fetchImpl, calls } = fetchRecording(
+      () => new Response(JSON.stringify({ uuid: "written" }), { status: 201 }),
+    );
+    const adapter = createSnuggProAdapter({ fetchImpl });
+
+    // Exactly the shape `toInstanceWriteStep` sends: one group, one instance.
+    await expect(
+      adapter.write({ hvac: [{ hvacSystemEquipmentType: "Boiler" }] }, wiredCtx, {
+        idempotencyKey: "key-1",
+      }),
+    ).resolves.toEqual({ receipt: "written" });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe("https://gateway.example/snugg/jobs/123/hvac");
+  });
+
+  test("a patch spanning several records is refused, naming the composition that does not", async () => {
+    // `write` returns ONE receipt, so a patch carrying several records cannot report
+    // them all — and the receipt is what a retry needs to update rather than create.
+    // This used to write every record and return a synthesised `assessment:<id>`
+    // marker that identified none of them: a receipt in name only, which a retry
+    // could not address any record with, so the duplicates it was meant to prevent
+    // happened anyway. Refusing says so instead, and names the fix.
+    const { fetchImpl, calls } = fetchRecording(
+      () => new Response(JSON.stringify({}), { status: 200 }),
+    );
+    const adapter = createSnuggProAdapter({ fetchImpl });
+
+    // Two singleton groups.
+    await expect(
+      adapter.write(
+        { job: { note: "Bring the blower door" }, health: { healthGasLeak: "Passed" } },
+        wiredCtx,
+        { idempotencyKey: "key-1" },
+      ),
+    ).rejects.toThrow(/toInstanceWriteStep/);
+
+    // And two instances of one collection group — the same problem, one group.
+    await expect(
+      adapter.write(
+        {
+          hvac: [
+            { hvacSystemEquipmentType: "Boiler" },
+            { hvacSystemEquipmentType: "Furnace with standalone ducts" },
+          ],
+        },
+        wiredCtx,
+        { idempotencyKey: "key-1" },
+      ),
+    ).rejects.toThrow(/toInstanceWriteStep/);
+
+    // Refused before anything is sent, so a multi-record patch cannot half-write.
+    expect(calls).toHaveLength(0);
+  });
+
+  test("the stage group is refused with a terminal error naming the group — before any request", async () => {
+    const { fetchImpl, calls } = fetchRecording(
+      () => new Response(JSON.stringify({}), { status: 200 }),
+    );
+    const adapter = createSnuggProAdapter({ fetchImpl });
+
+    const error = await rejectionOf(
+      adapter.write({ stage: { stageId: 3 } }, wiredCtx, { idempotencyKey: "key-1" }),
+    );
+
+    expect(error).toBeInstanceOf(TerminalError);
+    expect(String(error)).toContain("stage");
+    expect(calls).toHaveLength(0);
+  });
+
+  test("the incentive group is refused with a terminal error naming the group — before any request", async () => {
+    const { fetchImpl, calls } = fetchRecording(
+      () => new Response(JSON.stringify({}), { status: 200 }),
+    );
+    const adapter = createSnuggProAdapter({ fetchImpl });
+
+    const error = await rejectionOf(
+      adapter.write({ incentive: [{ amount: 1500 }] }, wiredCtx, { idempotencyKey: "key-1" }),
+    );
+
+    expect(error).toBeInstanceOf(TerminalError);
+    expect(String(error)).toContain("incentive");
+    expect(calls).toHaveLength(0);
+  });
+
+  test("a refused group poisons the whole patch: a mixed patch writes nothing", async () => {
+    const { fetchImpl, calls } = fetchRecording(
+      () => new Response(JSON.stringify({}), { status: 200 }),
+    );
+    const adapter = createSnuggProAdapter({ fetchImpl });
+
+    await expect(
+      adapter.write(
+        { job: { note: "Bring the blower door" }, incentive: [{ amount: 1500 }] },
+        wiredCtx,
+        { idempotencyKey: "key-1" },
+      ),
+    ).rejects.toThrow(/incentive/);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("an empty patch throws — a programming error, not a no-op", async () => {
+    const { fetchImpl, calls } = fetchRecording(
+      () => new Response(JSON.stringify({}), { status: 200 }),
+    );
+    const adapter = createSnuggProAdapter({ fetchImpl });
+
+    await expect(adapter.write({}, wiredCtx, { idempotencyKey: "key-1" })).rejects.toThrow(
+      /no records to write/,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  test("a patch whose only group is an empty collection array throws too — there is no receipt to return", async () => {
+    const { fetchImpl, calls } = fetchRecording(
+      () => new Response(JSON.stringify({}), { status: 200 }),
+    );
+    const adapter = createSnuggProAdapter({ fetchImpl });
+
+    await expect(
+      adapter.write({ hvac: [] }, wiredCtx, { idempotencyKey: "key-1" }),
+    ).rejects.toThrow(/no records to write/);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("readExistingRecords", () => {
+  test("GETs the group's plural path through the injected fetch and resolves parsed records", async () => {
+    const { fetchImpl, calls } = fetchRecording(
+      () =>
+        new Response(
+          JSON.stringify([
+            {
+              uuid: "boiler-1",
+              hvacSystemEquipmentType: "Boiler",
+              hvacHeatingSystemModel: "EL296",
+            },
+            { uuid: "furnace-1", hvacSystemEquipmentType: "Furnace with standalone ducts" },
+          ]),
+          { status: 200 },
+        ),
+    );
+
+    await expect(readExistingRecords(wiredCtx, "hvac", { fetchImpl })).resolves.toEqual([
+      {
+        uuid: "boiler-1",
+        fields: { hvacSystemEquipmentType: "Boiler", hvacHeatingSystemModel: "EL296" },
+      },
+      { uuid: "furnace-1", fields: { hvacSystemEquipmentType: "Furnace with standalone ducts" } },
+    ]);
+
+    expect(calls).toHaveLength(1);
+    // PLURAL. The vendor reads `/hvacs` and creates `/hvac`, and reading the create
+    // path returns 404 — which a live staging run is what actually proved, because
+    // this assertion originally carried the singular path and passed.
+    expect(calls[0]!.url).toBe("https://gateway.example/snugg/jobs/123/hvacs");
+    expect(calls[0]!.init.method).toBe("GET");
+  });
+
+  test("the plural path comes from the endpoint table — the incentive group reads /incentives", async () => {
+    // Worth knowing what this test CANNOT catch: `incentive` is the one collection
+    // whose create path is already plural, so it reads the same URL whether the code
+    // takes `list.path` or `create.path`. It passed throughout the period the reader
+    // was using the wrong one. A group where the two differ — `hvac`, above — is the
+    // only shape that can fail, which is why that one carries the real guard.
+    const { fetchImpl, calls } = fetchRecording(
+      () => new Response(JSON.stringify([]), { status: 200 }),
+    );
+
+    await expect(readExistingRecords(wiredCtx, "incentive", { fetchImpl })).resolves.toEqual([]);
+    expect(calls[0]!.url).toBe("https://gateway.example/snugg/jobs/123/incentives");
+  });
+
+  test("rejects vendor JSON that is not a record array rather than returning it", async () => {
+    const { fetchImpl } = fetchRecording(
+      () => new Response(JSON.stringify({ records: [] }), { status: 200 }),
+    );
+
+    await expect(readExistingRecords(wiredCtx, "hvac", { fetchImpl })).rejects.toThrow();
+  });
+
+  test("rejects a record without a uuid rather than returning it", async () => {
+    const { fetchImpl } = fetchRecording(
+      () => new Response(JSON.stringify([{ hvacSystemEquipmentType: "Boiler" }]), { status: 200 }),
+    );
+
+    await expect(readExistingRecords(wiredCtx, "hvac", { fetchImpl })).rejects.toThrow();
+  });
+
+  test("a non-2xx read rejects — there is no silent empty list", async () => {
+    const { fetchImpl } = fetchRecording(
+      () => new Response(JSON.stringify({ message: "nope" }), { status: 500 }),
+    );
+
+    await expect(readExistingRecords(wiredCtx, "hvac", { fetchImpl })).rejects.toThrow(/500/);
+  });
+
+  test("a singleton group has no plural path and refuses", async () => {
+    await expect(
+      readExistingRecords(wiredCtx, "basedata", { fetchImpl: async () => new Response("[]") }),
+    ).rejects.toThrow(/basedata/);
+  });
 });
 
 // --- Type-level checks (enforced by tsc, not the Vitest run) ----------------
@@ -200,41 +493,92 @@ test("every requiredOnCreate group and leaf is declared in the values schema", (
   }
 });
 
-test("the required leaves are exactly hvac's and job's, declared per group", () => {
+test("the required leaves are exactly hvac's and incentive's, declared per group", () => {
   // POST /jobs/{jobId}/hvac is Snugg Pro's only COMPONENT endpoint with required capture
-  // fields, and POST /jobs is the one singleton that genuinely refuses a create without
-  // its required leaves (doc 20 §4.6). A leaf added here — or one from any other group —
-  // means someone read the spec's `required` flags wrong. `companyId` is required on
-  // POST /jobs but excluded from capture (tenancy fk), so it is deliberately absent.
+  // fields, and POST /jobs/{jobId}/incentives refuses a create without fromTemplateUuid
+  // (required: true in the spec) — declared even though the incentive group is excluded
+  // from writing in this release, because the declaration is about what the API refuses.
+  // A leaf added here — or one from any other group — means someone read the spec's
+  // `required` flags wrong. The job singleton declares nothing: PUT /jobs/{jobId}
+  // requires nothing and job creation is out of scope.
   expect(snuggProAdapter.requiredOnCreate).toEqual({
     hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
-    job: [
-      "firstName",
-      "lastName",
-      "address1",
-      "city",
-      "state",
-      "zip",
-      "accountId",
-      "stageId",
-      "jobType",
-      "programId",
-    ],
+    incentive: ["fromTemplateUuid"],
   });
 });
 
 test("no other group declares a required leaf — a partial dictation writes cleanly", () => {
-  // Every other endpoint accepts a create with nothing set, so an auditor who only did
-  // the basement is never blocked on the attic.
+  // Every group other than hvac and incentive accepts a create with nothing set, so an
+  // auditor who only did the basement is never blocked on the attic.
   const groups = Object.keys(snuggProAdapter.requiredOnCreate ?? {});
-  expect(groups.filter((g) => g !== "hvac" && g !== "job")).toEqual([]);
+  expect(groups.filter((g) => g !== "hvac" && g !== "incentive")).toEqual([]);
+});
+
+test("create-only job leaves are absent from the values schema", () => {
+  // Measured against the vendor spec: PUT /jobs/{jobId} — the only way to update an
+  // existing job, and the only write this adapter targets — accepts exactly
+  // serviceTime, accountId, companyId, note and householdIncomeTier. Snugg Pro launches
+  // the app with an existing jobId, so the POST /jobs leaves are write-once at creation
+  // and can never be written; extracting them costs prompt budget and review attention
+  // on data with nowhere to go.
+  const leaves = groupLeafNames(snuggValuesSchema).job ?? [];
+  for (const removed of [
+    "firstName",
+    "lastName",
+    "renterOwner",
+    "email",
+    "homePhone",
+    "address1",
+    "address2",
+    "city",
+    "state",
+    "zip",
+    "stageId",
+    "jobType",
+    "programId",
+    "altId",
+    "buildingId",
+    "propertyOwnerFirstName",
+    "propertyOwnerLastName",
+    "propertyOwnerAddress1",
+    "propertyOwnerAddress2",
+    "propertyOwnerEmail",
+    "propertyOwnerPhone",
+    "propertyOwnerCity",
+    "propertyOwnerState",
+    "propertyOwnerZip",
+    "auditType",
+    "useStrictBpi2400Calibration",
+  ]) {
+    expect(leaves, `"job.${removed}" is create-only and must not be captured`).not.toContain(
+      removed,
+    );
+  }
+});
+
+test("the job group is exactly the PUT-writable leaves, serviceTime among them", () => {
+  // PUT /jobs/{jobId}'s parameter list minus companyId (the tenancy fk, excluded from
+  // capture): the four leaves a launched-with-a-jobId write can actually send.
+  const leaves = [...(groupLeafNames(snuggValuesSchema).job ?? [])].sort();
+  expect(leaves).toEqual(["accountId", "householdIncomeTier", "note", "serviceTime"]);
+});
+
+test("requiredOnCreate is exactly hvac's pair plus incentive's required template name", () => {
+  // POST /jobs/{jobId}/incentives marks fromTemplateUuid required: true — declared here
+  // so the auditor is asked at review rather than the create failing at the API. The job
+  // singleton declares nothing: PUT /jobs/{jobId} requires nothing, and job creation is
+  // out of scope.
+  expect(snuggProAdapter.requiredOnCreate).toEqual({
+    hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
+    incentive: ["fromTemplateUuid"],
+  });
 });
 
 test("requiredOnCreate is typed against the values schema", () => {
   // Valid groups and leaves compile.
   expectTypeOf({
     hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
-    job: ["firstName"],
+    incentive: ["fromTemplateUuid"],
   } as const).toMatchTypeOf<RequiredOnCreate<SnuggValues>>();
 
   // @ts-expect-error - "notAGroup" is not a top-level group of the Snugg values schema.

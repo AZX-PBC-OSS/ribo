@@ -21,11 +21,14 @@ import type {
   ToolAdapter,
   WriteMetadata,
 } from "@azx/ribo-core";
-import { contradictionMatcher } from "@azx/ribo-core";
+import { contradictionMatcher, TerminalError } from "@azx/ribo-core";
+import { z } from "zod";
 import { snuggCtxSchema, type SnuggWriteContext } from "./context.js";
 import { snuggExamples } from "./examples.js";
+import { SNUGG_ENDPOINTS } from "./endpoints.generated.js";
 import { snuggProInstructions } from "./instructions.js";
 import { snuggExtractionSchema, snuggValuesSchema, type SnuggValues } from "./schema.js";
+import { createSnuggHttpWriter, type SnuggHttpWriter } from "./write/writer.js";
 
 /** Stable identifier for this adapter: the bounded Snugg Pro pilot field set. */
 export const SNUGGPRO_ADAPTER_NAME = "snuggpro-bounded";
@@ -45,7 +48,49 @@ export const HVAC_IDENTIFYING_FIELDS = [
   "hvacHeatingSystemModelYear",
 ] as const;
 
-export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
+/**
+ * Options for {@link createSnuggProAdapter}.
+ *
+ * `fetchImpl` is the only option, after the `ribo-transcriber-managed` precedent:
+ * the package has no capacity to authenticate. The base URL is deliberately NOT
+ * an option — `snuggCtxSchema.apiBaseUrl` is the one source for it, validated and
+ * persisted with the session, and a second copy here would be two sources for one
+ * fact. The credential lives in the transport the host supplies: its `fetchImpl`
+ * routes through the Helix gateway, which signs the request server-side and
+ * injects the stored credential.
+ */
+export interface SnuggProAdapterOptions {
+  /**
+   * Override `fetch` — inject a double for tests, or the host's
+   * credential-attaching transport for production. Defaults to the bare global
+   * `fetch`, which is expressly allowed in this headless package (AGENTS §4).
+   */
+  readonly fetchImpl?: typeof fetch;
+}
+
+/**
+ * The groups this release extracts and reviews but refuses to WRITE, named with
+ * the reason. The refusal is write-only: their fields still flow through
+ * extraction and review, because the human decision about them is worth having
+ * even while the wire cannot carry them yet.
+ */
+const REFUSED_GROUP_REASONS: Readonly<Record<string, string>> = {
+  stage:
+    `writing it transitions a real customer's workflow stage — visible to the customer and ` +
+    `the program — and its wire value is an integer whose vocabulary exists only in the ` +
+    `vendor spec's prose. Nobody has decided a dictated sentence should move a job; that is ` +
+    `a product decision, not a field mapping`,
+  incentive:
+    `its create requires a template uuid, but fromTemplateUuid is captured as the spoken ` +
+    `rebate name, never a resolved id. Until that resolution exists a create cannot ` +
+    `succeed, so shipping it would only produce dead sessions`,
+};
+
+/**
+ * The shared adapter surface, minus `write` — both {@link snuggProAdapter} and the
+ * factory's product spread this and attach the write their transport earns.
+ */
+const adapterWithoutWrite: Omit<ToolAdapter<SnuggValues, SnuggWriteContext>, "write"> = {
   name: SNUGGPRO_ADAPTER_NAME,
   schema: snuggValuesSchema,
   extractionSchema: snuggExtractionSchema,
@@ -56,21 +101,19 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
    * leaves apply to every emitted instance of a collection, and to the singleton
    * groups directly.
    *
-   * `POST /jobs/{jobId}/hvac` is the **only** component endpoint with required
-   * capture fields — every other component endpoint (attic, wall, window, DHW,
-   * health, concern) has none, which is why a partial dictation of a component
-   * writes cleanly (doc 17 §"The required-field surface", doc 20 §5.7). It
-   * requires exactly two, and both are now extracted.
+   * `POST /jobs/{jobId}/hvac` requires exactly two capture fields, and both are
+   * extracted; every other component endpoint (attic, wall, window, DHW, health,
+   * concern) has none, which is why a partial dictation of a component writes
+   * cleanly (doc 17 §"The required-field surface", doc 20 §5.7).
    *
-   * `POST /jobs` is the exception among the singletons: creating the job itself
-   * genuinely requires the customer's name and address, the state, zip, and the
-   * assignee, stage, job-type and program references (doc 20 §4.6 — "a job
-   * cannot be created from dictation alone", because the reference fields need
-   * their name→id resolution first). Every one of those required fields that is
-   * in the capture surface is declared here; the two required fields NOT here
-   * are the ones doc 20 excludes from capture entirely (`fromTemplateId` is not
-   * required, and `companyId` — the tenancy fk fixed per credential — is).
-   * `PUT /jobs/{jobId}` requires nothing, so the update twin adds no leaves.
+   * `POST /jobs/{jobId}/incentives` refuses a create without `fromTemplateUuid`
+   * (`required: true` in the spec) — declared even though the incentive group is
+   * excluded from writing in this release, because the declaration is about what
+   * the API refuses, not about what ships.
+   *
+   * The `job` singleton declares nothing: Snugg Pro launches the app with an
+   * existing `jobId`, job creation is out of scope, and `PUT /jobs/{jobId}` — the
+   * only way to update an existing job — requires nothing.
    *
    * Declared per group rather than as full paths because `hvac` is a collection:
    * a house with N systems has N × 2 required fields, and the instance keys
@@ -90,18 +133,7 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
    */
   requiredOnCreate: {
     hvac: ["hvacSystemEquipmentType", "hvacUpgradeAction"],
-    job: [
-      "firstName",
-      "lastName",
-      "address1",
-      "city",
-      "state",
-      "zip",
-      "accountId",
-      "stageId",
-      "jobType",
-      "programId",
-    ],
+    incentive: ["fromTemplateUuid"],
   },
 
   /**
@@ -128,25 +160,117 @@ export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = {
 
   instructions: snuggProInstructions,
   examples: snuggExamples,
-
-  /**
-   * Write-back is SCAFFOLDED, not implemented. The real egress lands in Phase 4
-   * Task 6 and is gated on Kyle's A1 — the Helix egress layer HMAC-SHA256-signs
-   * the request server-side (Snugg Pro uses AWS-style signed requests, not a
-   * static key). Faking an unsigned write to green a demo teaches the wrong thing
-   * (plan §"Split"), so this rejects rather than resolving. The SIGNATURE is
-   * honest now — `(fields, ctx, meta) => Promise<{ uuid }>`, where `fields` is
-   * the PATCH (rejected keys absent, an accepted `null` present and meaning
-   * Snugg's `Not Tested`) and `meta.idempotencyKey` is what Task 6 sends as
-   * `Idempotency-Key` — so Task 6 is a wiring change, not a redesign.
-   */
-  write: async (_fields: SnuggValues, _ctx: SnuggWriteContext, _meta: WriteMetadata) => {
-    throw new Error(
-      "snuggProAdapter.write is not implemented yet: Snugg Pro egress lands in Phase 4 Task 6, " +
-        "gated on A1 (HMAC-SHA256 request signing at the Helix egress layer).",
-    );
-  },
 };
+
+/**
+ * The write for a transport-less adapter — the bare {@link snuggProAdapter}.
+ * Everything but `write` works off it; the write names the fix instead of
+ * resolving into a network call the host never configured.
+ */
+const writeWithoutTransport = async (): Promise<{ readonly receipt: string }> => {
+  throw new Error(
+    "snuggProAdapter.write: no transport is configured. Snugg Pro egress needs the host's " +
+      "credential-attaching transport — build the adapter with " +
+      "createSnuggProAdapter({ fetchImpl }) and pass THAT to the write step.",
+  );
+};
+
+/**
+ * Bridge one whole patch to the per-group HTTP writer, and collapse the
+ * per-record receipts into the one uuid `ToolAdapter.write` returns.
+ *
+ * The patch and the writer live at different granularities: `write` receives the
+ * whole patch, the writer one group's values. Every group present in the patch is
+ * written, in the schema's own group order (deterministic, independent of the
+ * patch object's key order), a collection group instance by instance. Refused
+ * groups are checked before any request, so a patch that mixes a writable group
+ * with a refused one cannot half-write.
+ */
+const writePatch = async (
+  writer: SnuggHttpWriter,
+  fields: SnuggValues,
+  ctx: SnuggWriteContext,
+  meta: WriteMetadata,
+): Promise<{ readonly receipt: string }> => {
+  const records: Array<{ group: string; values: Record<string, unknown> }> = [];
+  for (const group of Object.keys(snuggValuesSchema.shape)) {
+    const value = fields[group as keyof SnuggValues];
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      for (const instance of value) {
+        records.push({ group, values: instance });
+      }
+    } else {
+      records.push({ group, values: value });
+    }
+  }
+  if (records.length === 0) {
+    throw new Error(
+      "snuggProAdapter.write: the patch carries no records to write — an empty patch is a " +
+        "programming error, not a no-op. The write step must not be reached with nothing accepted.",
+    );
+  }
+  for (const { group } of records) {
+    const reason = REFUSED_GROUP_REASONS[group];
+    if (reason !== undefined) {
+      throw new TerminalError(
+        `snuggProAdapter.write: the "${group}" group is not written by this release — ${reason}. ` +
+          `Its values are still extracted and reviewed; only the write is refused.`,
+      );
+    }
+  }
+
+  // One call, one record, one real receipt — so refuse a patch that would be more.
+  //
+  // A Snugg Pro patch can span twenty endpoints while `write` returns a single
+  // receipt, and those two facts cannot both be honoured for a multi-record patch.
+  // This used to resolve the mismatch by writing every record and then returning a
+  // synthesised `assessment:<id>` marker that identified none of them, which is a
+  // receipt in name only: a retry holding it cannot address any record, so the write
+  // it was meant to protect duplicates anyway.
+  //
+  // `toInstanceWriteStep` now sends one group per call — every singleton group on its
+  // own, every collection instance on its own — so the honest thing is to require
+  // that rather than paper over its absence. A caller that gets here with more than
+  // one record is using a composition that cannot carry receipts, and being told so
+  // is worth more than a string that looks like one.
+  if (records.length > 1) {
+    throw new TerminalError(
+      `snuggProAdapter.write: this patch spans ${String(records.length)} records across the ` +
+        `${[...new Set(records.map((r) => r.group))].join(", ")} group(s), and one write returns ` +
+        `one receipt — so every receipt but one would be lost, and a retry would duplicate those ` +
+        `records. Compose with toInstanceWriteStep, which sends one group per call.`,
+    );
+  }
+  const { group, values } = records[0]!;
+  return writer(group, values, ctx, meta);
+};
+
+/**
+ * Build a Snugg Pro adapter with a real write, over the transport the host
+ * supplies. The write composes {@link createSnuggHttpWriter} — the I/O, URL
+ * building, body transform and failure classification are all the writer's; this
+ * factory only bridges the patch to it (see {@link writePatch}).
+ *
+ * Without `fetchImpl` the product is the transport-less adapter: identical
+ * surface, but `write` rejects naming this factory as the fix. That instance is
+ * published as {@link snuggProAdapter}.
+ */
+export const createSnuggProAdapter = (
+  options: SnuggProAdapterOptions = {},
+): ToolAdapter<SnuggValues, SnuggWriteContext> => {
+  if (options.fetchImpl === undefined) {
+    return { ...adapterWithoutWrite, write: writeWithoutTransport };
+  }
+  const writer = createSnuggHttpWriter({ fetchImpl: options.fetchImpl });
+  return {
+    ...adapterWithoutWrite,
+    write: (fields, ctx, meta) => writePatch(writer, fields, ctx, meta),
+  };
+};
+
+/** The transport-less adapter: everything but a working write. See {@link createSnuggProAdapter}. */
+export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = createSnuggProAdapter();
 
 /**
  * Flatten plain field values into the core evidence shape `contradictionMatcher` reads.
@@ -201,13 +325,60 @@ export function rankCandidates(
 }
 
 /**
- * Produce an empty reader for existing records.
- *
- * The real read of `GET /jobs/{jobId}/<group>` is host transport code that lives outside the
- * SDK (it needs the session and HMAC signing). This stub is the adapter-side seam: it
- * declares the Snugg Pro shape a host must return, so `rankCandidates` can be tested against
- * injected records without a network call.
+ * The vendor's shape for one existing record: an identifier plus that record's
+ * field values. `z.looseObject` keeps the field values — they are what
+ * `rankCandidates`' sameness judgement reads — while pinning the one key the
+ * `ExistingRecord` contract needs.
  */
-export function readExistingRecords(_ctx: SnuggWriteContext, _group: string): ExistingRecord[] {
-  return [];
+const snuggExistingRecordSchema = z.looseObject({ uuid: z.string().min(1) });
+
+/** Options for {@link readExistingRecords} — the same injectable transport as the writer's. */
+export interface ReadExistingRecordsOptions {
+  readonly fetchImpl?: typeof fetch;
+}
+
+/**
+ * Read a collection group's existing records, so review can offer them as link
+ * candidates: an auditor sees "there is already a boiler on this job" at review
+ * and links instead of creating a duplicate. A host passes the result to core's
+ * `buildReviewRequest`; this module is a function rather than a `ToolAdapter`
+ * member because core never calls it — the host does, and a published contract
+ * does not grow a member for one host's convenience.
+ *
+ * `GET`s the group's plural path (the endpoint table's create path — `incentive`'s
+ * is `/jobs/{jobId}/incentives`) through the injected transport. The gateway signs;
+ * the package holds no credential and gains no capacity to authenticate. The vendor
+ * JSON is parsed with zod before it becomes `ExistingRecord`s — a trust boundary
+ * (AGENTS §4), so a malformed response rejects rather than reaching review.
+ */
+export async function readExistingRecords(
+  ctx: SnuggWriteContext,
+  group: string,
+  options: ReadExistingRecordsOptions = {},
+): Promise<ExistingRecord[]> {
+  const doFetch = options.fetchImpl ?? fetch;
+  const endpoints = SNUGG_ENDPOINTS[group];
+  if (!endpoints) {
+    throw new Error(`readExistingRecords: no Snugg Pro endpoint table entry for group "${group}".`);
+  }
+  if (endpoints.kind !== "collection" || endpoints.list === undefined) {
+    throw new Error(
+      `readExistingRecords: the "${group}" group has no collection list path — only ` +
+        `collection groups have existing records to read.`,
+    );
+  }
+  // `list`, never `create`. The vendor reads plural (`/jobs/{jobId}/hvacs`) and creates
+  // singular (`/jobs/{jobId}/hvac`), so reading the create path is a 404 — which is
+  // exactly what a live run against staging returned before the table carried `list`.
+  const url = new URL(
+    `${ctx.apiBaseUrl.replace(/\/+$/, "")}${endpoints.list.path.replaceAll("{jobId}", ctx.assessmentId)}`,
+  ).href;
+  const response = await doFetch(url, { method: "GET", headers: { accept: "application/json" } });
+  if (!response.ok) {
+    throw new Error(
+      `readExistingRecords: the Snugg Pro read of "${group}" failed with HTTP ${response.status}.`,
+    );
+  }
+  const parsed = z.array(snuggExistingRecordSchema).parse(await response.json());
+  return parsed.map(({ uuid, ...fields }) => ({ uuid, fields }));
 }

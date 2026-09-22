@@ -24,6 +24,12 @@ import { snuggProInstructions } from "./instructions.js";
 import { snuggExtractionSchema, snuggValuesSchema, type SnuggValues } from "./schema.js";
 
 /**
+ * `SessionWriteInput.recordReceipt` is required, so every input literal here supplies
+ * one. A test that cares what was checkpointed passes its own recorder instead.
+ */
+const noRecordReceipt = async (): Promise<void> => {};
+
+/**
  * @file The whole chain, once, on the real Snugg Pro field set.
  *
  * `snuggValuesSchema` → `enveloped()` → the model's response → `buildReviewRequest` →
@@ -50,9 +56,12 @@ import { snuggExtractionSchema, snuggValuesSchema, type SnuggValues } from "./sc
  *
  * ## Why a stub adapter
  *
- * `snuggProAdapter.write` throws by design — Snugg Pro egress is gated on the Helix
- * HMAC ask — so a round trip through the real adapter could only assert that the write
- * failed. {@link stubAdapter} shares the REAL `schema`, `extractionSchema`, `ctxSchema`,
+ * `snuggProAdapter` is the NO-TRANSPORT instance: `createSnuggProAdapter()` with no
+ * `fetchImpl`, so its `write` rejects by design and a round trip through it could only
+ * assert that the write failed. (Egress signing is no longer the reason — the gateway
+ * signs, and the wired adapter comes from `createSnuggProAdapter({ fetchImpl })`. What
+ * this file is testing is the SHAPE round trip, which wants no network at all.)
+ * {@link stubAdapter} shares the REAL `schema`, `extractionSchema`, `ctxSchema`,
  * `instructions` and `examples` by reference and replaces only `write` with a sink, so
  * everything under test is the production article. The first test below pins that
  * identity by reference: a stub that drifted onto a copy would make every assertion
@@ -76,7 +85,7 @@ const stubAdapter = (sink: Write[]): ToolAdapter<SnuggValues, SnuggWriteContext>
   examples: snuggExamples,
   write: async (fields, ctx, meta) => {
     sink.push({ fields, ctx, meta });
-    return { uuid: "unused" };
+    return { receipt: "unused" };
   },
 });
 
@@ -105,7 +114,7 @@ const transcript: Transcript = transcriptSchema.parse({
 });
 
 const ctx: SnuggWriteContext = {
-  assessmentId: "assessment-4821",
+  assessmentId: "4821",
   companyId: "company-77",
   apiBaseUrl: "https://helix.example.com/snuggpro",
 };
@@ -194,7 +203,7 @@ test("the real field set round-trips: schema → extraction → review → write
   // Review paths outnumber schema leaves because the fixture carries two hvac instances
   // and no concern/incentive/vault/door/clothesDryer/freezer/range/refrigerator/pv
   // instances; each path is independently reviewable.
-  expect(paths).toHaveLength(450);
+  expect(paths).toHaveLength(424);
   expect(paths).toContain(EDITED_LEAF);
   expect(request.fields[EDITED_LEAF]?.extracted.value).toBe(MODEL_VALUE);
 
@@ -213,6 +222,7 @@ test("the real field set round-trips: schema → extraction → review → write
   // 3. The write step is the trust boundary: it parses the ctx off THIS item's recording
   //    and the patch through the adapter's schema before anything reaches `write`.
   await toWriteStep(adapter)({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: outcome.fields,
     idempotencyKey: session.idempotencyKey,
@@ -283,6 +293,7 @@ test("one rejected leaf still writes every other leaf", async () => {
   expect(outcome.rejectedFields).toEqual([rejected]);
 
   await toWriteStep(adapter)({
+    recordReceipt: noRecordReceipt,
     session,
     reviewed: outcome.fields,
     idempotencyKey: session.idempotencyKey,

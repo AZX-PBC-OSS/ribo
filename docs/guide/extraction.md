@@ -561,7 +561,7 @@ events, the usage sum, the closing parse — is the engine's.
 
 **There is no current number for how often an extracted value is correct.** The
 annotated corpus this repo's acceptance gate would score against
-(`spikes/extraction-snuggpro/ground-truth/`) is written in a field vocabulary the Snugg Pro adapter
+(`docs/spikes/0001-extraction-snuggpro/ground-truth/`) is written in a field vocabulary the Snugg Pro adapter
 no longer uses, so `packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts` deliberately refuses
 to emit a score against it rather than publish one that no longer means anything. Every citation
 figure elsewhere in these docs — the 37%/14-of-14 numbers in [Provenance](/guide/provenance), the

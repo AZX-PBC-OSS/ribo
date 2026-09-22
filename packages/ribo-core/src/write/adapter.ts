@@ -158,21 +158,31 @@ export interface ToolAdapterExample<F> {
  */
 export interface WriteMetadata {
   /**
-   * Send as `Idempotency-Key`. **Stable across every retry of this queue item**,
-   * so a retry after an ambiguous success (the request landed, the response did
-   * not) is recognised by the host tool as the same write rather than a second
-   * one. Generated once, with the item, by the queue.
+   * Send as `Idempotency-Key`. Generated once, with the item, by the queue, and
+   * stable across every retry of it — but **nothing rests on that**: measured
+   * 2026-09-21 against Snugg Pro's staging API, replaying a byte-identical
+   * create with the same key returned a new uuid. The key is still sent
+   * (harmless, and free if a vendor ever honours it); duplicate protection is
+   * the write receipt a retry UPDATEs, not this header.
    */
   readonly idempotencyKey: string;
   /**
-   * The existing record this write should UPDATE, when a human linked the instance
-   * at review; absent means create — an optional member rather than `LinkTarget`'s
-   * `string | null`, because an optional member is what keeps every adapter written
-   * before linking existed compiling, and `WriteMetadata` is a published contract.
+   * The existing record this write should UPDATE; absent means create — an optional
+   * member rather than `LinkTarget`'s `string | null`, because an optional member is
+   * what keeps every adapter written before linking existed compiling, and
+   * `WriteMetadata` is a published contract.
+   *
+   * **Two things produce it, and an adapter cannot tell them apart — by design.**
+   * `toInstanceWriteStep` resolves it as: a human's link decision at review if there
+   * is one, otherwise the receipt an earlier attempt recorded for this instance. The
+   * human's decision wins because it says what the record *is*, while the receipt
+   * only says what we wrote. Either way the adapter's job is identical — update that
+   * record — so it receives one resolved target rather than a policy to re-implement.
    *
    * The type cannot enforce that an adapter honours this, and it must say so: an
-   * adapter that ignores it will silently create duplicates once a host starts
-   * linking, so honouring it is not optional for an adapter that supports updates.
+   * adapter that ignores it will silently create duplicates on the first retry after
+   * an interrupted write, so honouring it is not optional for an adapter that
+   * supports updates.
    */
   readonly linkTarget?: string;
 }
@@ -302,9 +312,19 @@ export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvena
   /**
    * Writes accepted fields into the host tool. Rejects if the write fails.
    *
-   * Resolves with the vendor's own identifier for the record it just created —
-   * the id a future amend pass needs in order to update that record rather than
-   * duplicate it.
+   * Resolves with a **receipt**: whatever string lets a later attempt address the
+   * record this write landed, so an amend updates it rather than duplicating it.
+   * Core stores it and hands it back as {@link WriteMetadata.linkTarget}; it never
+   * parses it, and its shape is entirely the adapter's business.
+   *
+   * **It is deliberately not called a uuid.** It was, and the name was a host
+   * tool's word for its own identifiers leaking into a tool-agnostic contract —
+   * the thing this package exists to keep out. It also made honest adapters lie:
+   * a Snugg Pro singleton endpoint returns no identifier at all, so its adapter
+   * has to synthesise one, and a value shaped `singleton:basedata:588613` being
+   * returned from something typed `uuid` needed a comment apologising for itself.
+   * "Receipt" is the word core already uses everywhere it stores one
+   * (`receipts`, `recordReceipt`, `mergeReceipts`), and it is true of every case.
    *
    * `meta` is a third parameter rather than a member of `ctx` deliberately: `ctx`
    * is *where to write* and travels with the recording, while `meta` is *how to
@@ -312,5 +332,5 @@ export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvena
    * different sources, and merging them would let a host persist an idempotency
    * key into a recording's context.
    */
-  write: (fields: V, ctx: C, meta: WriteMetadata) => Promise<{ readonly uuid: string }>;
+  write: (fields: V, ctx: C, meta: WriteMetadata) => Promise<{ readonly receipt: string }>;
 }

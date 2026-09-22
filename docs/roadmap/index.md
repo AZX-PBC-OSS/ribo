@@ -214,7 +214,7 @@ rather than rediscovered.
   recommendations cannot be created via the API regardless of extraction quality.
   → [doc 20](../implementation/20-job-collections-field-reconciliation.md).
 - **The spike corpus no longer grades this adapter, and the acceptance gate is blocked.**
-  `spikes/extraction-snuggpro/ground-truth/*.json` is hand-annotated in the old flat, snake_cased field
+  `docs/spikes/0001-extraction-snuggpro/ground-truth/*.json` is hand-annotated in the old flat, snake_cased field
   set. `packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts` runs the current adapter against it,
   so every field would score as a miss; a guard now fails that run with an explanation rather than
   emitting meaningless numbers. Unblocking means re-annotating 14 transcripts in the API vocabulary —
@@ -285,7 +285,7 @@ a write _correct_ cannot be exercised, demoed, or validated. Deferred until that
 - **Instance modeling.** Correctness of a write that cannot happen yet.
 - **Re-annotating the spike corpus.** Needed to measure extraction against the new vocabulary; manual,
   and not on the MVP path. See the open question above.
-- **The schema-generation spike.** Its _design_ is committed (`spikes/schema-generation/`) and
+- **The schema-generation spike.** Its _design_ is committed (`docs/spikes/0004-schema-generation/`) and
   deliberately not run — the question is preserved without spending on it.
 
 **What makes deferring safe: the review card is schema-driven.** It renders and validates from

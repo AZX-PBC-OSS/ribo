@@ -8,16 +8,29 @@
  */
 
 // The adapter: both field schemas + the ctx schema + instructions + examples +
-// write, as a `ToolAdapter`. `rankCandidates` and `HVAC_IDENTIFYING_FIELDS` are
-// public too — the R1.6 Task 11 changeset states this package provides
-// `rankCandidates`, and a consumer ranking existing records for a dictated
-// instance needs both through the barrel, not by reaching into the module.
+// write, as a `ToolAdapter`. `createSnuggProAdapter({ fetchImpl })` builds the
+// adapter with a real write over the host's credential-attaching transport —
+// the published `snuggProAdapter` const is the factory called with no
+// transport, so its write rejects naming the factory as the fix.
+// `rankCandidates` and `HVAC_IDENTIFYING_FIELDS` are public too — the R1.6
+// Task 11 changeset states this package provides `rankCandidates`, and a
+// consumer ranking existing records for a dictated instance needs both through
+// the barrel, not by reaching into the module.
+//
+// `readExistingRecords` is public for the same reason, and its absence was a real
+// gap: `rankCandidates` ranks records a host has to READ first, so exporting the
+// ranker without the reader left the review-time candidate flow unreachable from
+// outside this package. Only a live run through the public entry point found it —
+// every unit test imports by relative path, so none of them could.
 export {
+  createSnuggProAdapter,
   HVAC_IDENTIFYING_FIELDS,
   SNUGGPRO_ADAPTER_NAME,
   rankCandidates,
+  readExistingRecords,
   snuggProAdapter,
 } from "./adapter.js";
+export type { ReadExistingRecordsOptions, SnuggProAdapterOptions } from "./adapter.js";
 
 // The two field schemas, the per-endpoint groups they nest, and the enums
 // they are built from. `snuggValuesSchema` is the hand-written writable patch and
@@ -176,6 +189,13 @@ export {
   normalizeFields,
   yearsToDhwAgeBand,
 } from "./normalization.js";
+
+// Prunes a persisted review outcome's fields down to the keys `snuggValuesSchema`
+// still declares. A host's job: run it over a persisted session's
+// `reviewOutcome.fields` once, before a write is attempted — after a field-set
+// change, an un-pruned outcome fails the write step's strict parse and strands the
+// session as dead. Kept here because which leaves a group keeps is adapter knowledge.
+export { prunePersistedValues } from "./write/prune-persisted.js";
 
 // The single-shot managed-LLM extractor (`singleShotExtractor`), its OpenAI-compatible
 // transport (`openAiChat`) and the `ChatClient` seam are tool-agnostic — they now live in

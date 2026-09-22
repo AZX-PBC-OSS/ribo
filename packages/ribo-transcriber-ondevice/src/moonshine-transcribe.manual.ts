@@ -16,7 +16,7 @@ import { DEFAULT_MODEL_ID, OnDeviceTranscriber } from "./index.js";
  * default config, no hints, real worker, real weights, real audio.
  *
  * It asserts coverage rather than accuracy. WER belongs to the corpus harness
- * (`spikes/transcription-measurement`), which is the measurement that decides whether this swap was
+ * (`docs/spikes/0002-transcription-measurement`), which is the measurement that decides whether this swap was
  * a good idea; this only proves the wiring produces a whole transcript instead of a comma.
  */
 declare const __ORT_WASM_BASE__: string;

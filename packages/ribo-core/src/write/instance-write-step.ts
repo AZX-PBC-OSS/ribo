@@ -5,24 +5,31 @@ import { describeLocated, zodIssues } from "../review/zod-issues.js";
 
 /**
  * A sibling composition of {@link toWriteStep} that writes each collection
- * instance separately, so a vendor can honour `Idempotency-Key` per instance.
+ * instance separately.
  *
  * `ToolAdapter.write` is unchanged: it still receives a parsed `V`, a parsed
  * context, and a `WriteMetadata` idempotency key. Only the *value* of that key
  * differs per instance, derived deterministically from the item key, the group
- * and the instance's position. Determinism is the whole point: the same retry
- * re-derives the same key for the same instance, so a vendor that honours
- * `Idempotency-Key` recognises a retry rather than creating a duplicate record.
+ * and the instance's position. The key is still sent as `Idempotency-Key`, but
+ * **nothing rests on it**: measured 2026-09-21 against Snugg Pro's staging API,
+ * replaying a byte-identical create with the same key returned a new uuid, and
+ * their spec declares no idempotency support. It stays because it is harmless
+ * and free if a vendor ever honours it.
  *
- * **What was given up:** a write interrupted mid-collection now re-attempts
- * instances it already sent, resting on the per-instance idempotency key alone.
- * The positional `writtenInstances` marker that used to skip them was deleted
- * because it carried a live data-loss bug (a reopened session with a removed
- * instance silently skipped the survivor), and every repair considered
- * substituted for the vendor identifier `write` discards. That durable channel
- * is now the `SessionWriteResult.receipts` return — keyed by the real instance
- * key the reviewed outcome declares, not by array position, so the survivor of a
- * removal keeps its own receipt rather than inheriting the deleted one's.
+ * Duplicate protection is the **receipt**. Each successful instance write is
+ * checkpointed through `SessionWriteInput.recordReceipt` as it is earned — so
+ * a throw later in the loop cannot discard it — and the next attempt UPDATEs
+ * the receipted record instead of creating again. The accumulate-and-return of
+ * `SessionWriteResult.receipts` stays as the second channel; the return, not
+ * the checkpoint, is the contract a host step must keep.
+ *
+ * **What was given up:** nothing that the receipt does not restore. The
+ * positional `writtenInstances` marker that used to skip already-sent
+ * instances was deleted because it carried a live data-loss bug (a reopened
+ * session with a removed instance silently skipped the survivor). Receipts
+ * are keyed by the real instance key the reviewed outcome declares, not by
+ * array position, so the survivor of a removal keeps its own receipt rather
+ * than inheriting the deleted one's.
  *
  * Singleton groups are written together with the session's original idempotency
  * key, which is the correct granularity for one record per patch. A group with
@@ -47,6 +54,11 @@ export interface ToInstanceWriteStepOptions<V extends Record<string, unknown>, C
  * collection name (e.g. `"hvac"`). The index is the instance's position in the
  * emitted array, which is first-mention order. The same inputs always produce
  * the same output, so a retry re-derives the same key for the same instance.
+ *
+ * Stability is not duplicate protection: no vendor here honours
+ * `Idempotency-Key` (measured 2026-09-21 against Snugg Pro's staging API). The
+ * receipt — a retry UPDATEs the record a previous attempt's receipt names — is the
+ * mechanism; the key is still sent because it is harmless and free.
  */
 export function deriveInstanceIdempotencyKey(
   itemKey: string,
@@ -69,6 +81,7 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
     reviewed,
     idempotencyKey,
     ctx,
+    recordReceipt,
   }: SessionWriteInput): Promise<SessionWriteResult> => {
     const parsedCtx = adapter.ctxSchema.safeParse(ctx);
     if (!parsedCtx.success) {
@@ -102,14 +115,14 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
       );
     }
 
-    const singletonPatch: Record<string, unknown> = {};
+    const singletonGroups: Array<{ group: string; value: unknown }> = [];
     const collections: Array<{ group: string; instances: unknown[] }> = [];
 
     for (const [key, value] of Object.entries(fields.data)) {
       if (collectionGroups.includes(key) && Array.isArray(value)) {
         collections.push({ group: key, instances: value });
       } else {
-        singletonPatch[key] = value;
+        singletonGroups.push({ group: key, value });
       }
     }
 
@@ -117,11 +130,24 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
       instances: {},
     };
 
-    if (Object.keys(singletonPatch).length > 0) {
-      const { uuid } = await adapter.write(adapter.schema.parse(singletonPatch), parsedCtx.data, {
+    // ONE GROUP PER CALL, singletons included. This used to batch every singleton
+    // group into a single `write`, which pushed a fan-out into the adapter: it
+    // received a patch spanning several endpoints, issued a request per group, and
+    // then had to collapse N vendor receipts into the one string this contract
+    // returns — which it could only do by inventing a marker that identified none of
+    // them. Splitting here deletes that: every call is one group, so every receipt
+    // the adapter returns is the real one for the record it wrote.
+    //
+    // No singleton receipt is recorded, deliberately. Nothing reads
+    // `receipts.singleton` — only `receipts.instances` is consulted, below, to turn a
+    // retry into an update — and a singleton endpoint is an upsert addressed by the
+    // job, so re-sending it rewrites the same record and cannot duplicate. There is
+    // nothing for a singleton receipt to protect, and with N groups there is no one
+    // value it could honestly hold.
+    for (const { group, value } of singletonGroups) {
+      await adapter.write(adapter.schema.parse({ [group]: value }), parsedCtx.data, {
         idempotencyKey,
       });
-      receipts.singleton = uuid;
     }
 
     for (const { group, instances } of collections) {
@@ -143,8 +169,16 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
         // ever disagree, a human's link decision attaches to the wrong physical
         // record — which is why the alignment is pinned in the tests, not
         // enforced here.
-        const linkTarget = outcome.linkTargets?.[group]?.[index];
-        const { uuid } = await adapter.write(
+        // A human's link decision wins. Without one — including an explicit
+        // `null`, whose create has already happened if a receipt exists — a
+        // receipt from an earlier attempt means the record exists: UPDATE it
+        // rather than create a duplicate.
+        const decision = outcome.linkTargets?.[group]?.[index];
+        const linkTarget =
+          typeof decision === "string"
+            ? decision
+            : session.receipts?.instances?.[group]?.[instanceKey];
+        const { receipt } = await adapter.write(
           adapter.schema.parse(instancePatch),
           parsedCtx.data,
           // A missing or `null` target means CREATE — the documented default,
@@ -159,7 +193,10 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
           },
         );
         receipts.instances[group] ??= {};
-        receipts.instances[group][instanceKey] = uuid;
+        receipts.instances[group][instanceKey] = receipt;
+        // Checkpoint the receipt as it is earned, not just at the end: a throw
+        // on a later instance must not discard the ones that already landed.
+        await recordReceipt(group, instanceKey, receipt);
       }
     }
 

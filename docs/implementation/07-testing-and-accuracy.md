@@ -55,7 +55,7 @@ subscriber-shaped test that should have caught it.
 
 ## Accuracy harness (the gate)
 
-- **Corpus (PoC — synthetic, see below):** the intended corpus is real home-energy audit dictation clips, each paired with a hand-checked reference transcript **and** the expected field values. That is **not what we have**. For the PoC the corpus is the 14 synthetic transcripts in `spikes/extraction-snuggpro/` plus the proposed TTS-synthesized audio built from them ([01](01-feasibility-spike.md)).
+- **Corpus (PoC — synthetic, see below):** the intended corpus is real home-energy audit dictation clips, each paired with a hand-checked reference transcript **and** the expected field values. That is **not what we have**. For the PoC the corpus is the 14 synthetic transcripts in `docs/spikes/0001-extraction-snuggpro/` plus the proposed TTS-synthesized audio built from them ([01](01-feasibility-spike.md)).
 - **Scores:** transcription WER (per transcriber/model), and — more important — **field-level extraction accuracy / measure-relevance** end to end. Because structured outputs guarantee _shape_, failures are now purely **semantic** (wrong value) rather than a mix of semantic and format noise — so the numbers mean something.
 - **Tooling:** Helix's OpenAI-compatible route means off-the-shelf eval runners work against it — we can score extraction runs with existing tools instead of hand-rolling a harness runner.
 - **Use:** tune the extraction prompt and the bounded field set against real speech; catch regressions; produce the numbers that back the benefit case.
@@ -70,7 +70,7 @@ This is written down rather than quietly dropped **because the team set that rul
 
 What that buys, and what it does not:
 
-- The extraction numbers in `spikes/extraction-snuggpro/` are **a floor, not a forecast.** They are scored on authored text, not on speech. Real audio arrives through Whisper at some WER, in HVAC jargon it was never fine-tuned on, next to a running furnace. Real accuracy will be lower.
+- The extraction numbers in `docs/spikes/0001-extraction-snuggpro/` are **a floor, not a forecast.** They are scored on authored text, not on speech. Real audio arrives through Whisper at some WER, in HVAC jargon it was never fine-tuned on, next to a running furnace. Real accuracy will be lower.
 - The proposed TTS-synthesized audio path ([01](01-feasibility-spike.md)) extends the reach of the synthetic corpus to a genuine **end-to-end** measurement — including the transcription→extraction interaction nothing has tested — but TTS audio is cleaner than field speech, so it too is a floor.
 - Nothing synthetic tells us how the system behaves on disfluent delivery, cross-talk, mic handling or attic acoustics. Those are exactly the conditions the product ships into.
 

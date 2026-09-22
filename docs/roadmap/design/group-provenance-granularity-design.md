@@ -161,7 +161,7 @@ being worth acting on, which is precisely how `confidence` became useless.
 additively as `ReviewField.groundedness`. `isSpanGrounded` still means verbatim and is unchanged, so
 no existing card changes.
 
-The extraction spike's scorer (`spikes/extraction-snuggpro/score.mjs`) already draws this line, and
+The extraction spike's scorer (`docs/spikes/0001-extraction-snuggpro/score.mjs`) already draws this line, and
 this is that rule — case, whitespace runs and quote characters. It draws two more that are
 **deliberately not adopted**: a punctuation-insensitive match, and a "some 4-word fragment appears"
 match. Both are right for grading a corpus, where the question is whether the model found the

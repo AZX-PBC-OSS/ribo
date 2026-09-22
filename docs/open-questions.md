@@ -107,7 +107,7 @@ expected files rather than merely asserting "no raw `.ts` reached the tarball" (
 
 Not answered, and deliberately **not** waited on. The client's in-home recording-consent
 policy path (design spec §10) is outside our control, so for the PoC the accuracy corpus
-stays **synthetic** (`spikes/extraction-snuggpro/`, plus the proposed TTS-synthesized audio path in
+stays **synthetic** (`docs/spikes/0001-extraction-snuggpro/`, plus the proposed TTS-synthesized audio path in
 [`01`](implementation/01-feasibility-spike.md)).
 
 This deliberately overrides the team's own stated hard line, _"no production code against assumptions"_,

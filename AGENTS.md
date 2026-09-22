@@ -60,8 +60,12 @@ understanding API behind the host's transport with no capacity to authenticate, 
 pdf.js in a `fallbackTranscriber` ladder. `@azx/ribo-ui-react` is now the **headless hook layer**: `RiboProvider` plus
 the `use*` hooks over core's engine listed in its barrel (`packages/ribo-ui-react/src/index.ts`) —
 `useRecorder`, `useCaptures`, `useReview`, `useSessions`, `useConnectivity`, `useWorkSafety` and
-`useStoragePersistence` — no components beyond the provider, no markup, no stylesheet. **Write-back is scaffolded but gated** on a Helix platform ask (egress HMAC
-signing — `docs/implementation/13-helix-platform-asks.md`). The consuming **field app lives in a
+`useStoragePersistence` — no components beyond the provider, no markup, no stylesheet. **Write-back
+is scaffolded, and no longer gated:** the Helix egress layer signs each Snugg Pro request
+server-side and injects its stored credential, verified 2026-09-21 against staging, so ask A1 is
+confirmed (`docs/implementation/13-helix-platform-asks.md`). What remains is the adapter's own HTTP
+layer. **Snugg Pro ignores `Idempotency-Key`** — measured, so duplicate protection on a retry rests
+on the write receipt, never on that header. The consuming **field app lives in a
 separate repo** and is not built here; the `playground/` app is this repo's stand-in for a consumer.
 
 Background reading: [implementation proposal](docs/implementation/00-overview.md) and
@@ -212,6 +216,18 @@ authority for everything in §5 and §6 below.
   likely to hide a wrong shape.
 - Formatting is Prettier's (`.prettierrc.json`: semicolons, double quotes, trailing commas, 100
   columns). Do not hand-format; run `pnpm format`.
+- **A probe's finding and its code have different homes** ([ADR
+  0019](docs/adr/0019-a-probes-finding-and-its-code-have-different-homes.md)). Throwaway code that
+  answers a question keeps arriving, so route it by shelf life rather than arguing each time. The
+  **finding** goes in a doc, or an ADR if it drove a decision — code adds nothing to it. The
+  **reproduction** is worth keeping only when something outside our control can change the answer,
+  which in practice means a live dependency: that is a `packages/*/acceptance/*.manual.ts`, opt-in,
+  skipping cleanly without its env, never in CI, reversible by construction if it writes. The
+  **scaffolding** is deleted. A multi-file investigation with a corpus and results goes in
+  `docs/spikes/NNNN-name/` with a README that opens with Status and Date and states the answer before
+  the method — see [`docs/spikes/index.md`](docs/spikes/index.md), which is the record. Spikes are outside
+  every gate but Prettier, which is exactly why the answer must be in the prose: the script will
+  rot and nothing will tell you.
 
 ## 5. Non-obvious mechanisms — do not "simplify" these
 

@@ -3,8 +3,8 @@
 **Date:** 2026-09-08
 **Status:** Result, recorded. Corpus runs against the **real Helix managed LLM route**
 (`POST /_api/llm/chat`) through `helixChat`, over the same 14-transcript corpus as docs 18 and
-19, scored with `spikes/extraction-snuggpro/score.mjs` **reused verbatim** (13 graded; `score.mjs`
-excludes `02-oil-boiler-basement` as contaminated). Harness: `spikes/managed-three-phase/`.
+19, scored with `docs/spikes/0001-extraction-snuggpro/score.mjs` **reused verbatim** (13 graded; `score.mjs`
+excludes `02-oil-boiler-basement` as contaminated). Harness: `docs/spikes/0006-managed-three-phase/`.
 **Nothing under `packages/` was modified.**
 
 ## The one thing to take away
@@ -295,7 +295,7 @@ call that a win."** Fixing the cap for per-group (§6) beats accepting a 37% mis
 Sanity-checked with a synthesized placeholder slice shaped like the 163-field "honest capture"
 `basedata` target from doc 17 — the same enum/number/string/boolean mix and the measured
 298-char average vendor description, enveloped through the real `enveloped()` helper
-(`spikes/managed-three-phase/cap-probe.mjs`; run independently and reproduced).
+(`docs/spikes/0006-managed-three-phase/cap-probe.mjs`; run independently and reproduced).
 
 Today's real groups, confirmed against the doc-16 figures:
 
@@ -448,15 +448,15 @@ Three-phase itself remains NO-GO for managed, per §6.
 
 ## Sources
 
-- `spikes/managed-three-phase/` — the whole harness, committed. `run.mjs` (corpus runner over
+- `docs/spikes/0006-managed-three-phase/` — the whole harness, committed. `run.mjs` (corpus runner over
   `helixChat`), `compare.mjs` (the §3 table), and the probes each finding rests on:
   `root-probe.mjs` (§1.3), `group-probe.mjs` / `subset-probe.mjs` / `factor-probe.mjs` /
   `anyof-probe.mjs` (§2), `cap-probe.mjs` (§4), `phase-cap-probe.mjs` (§5). Results land in
-  `spikes/extraction-snuggpro/results/managed-*`, which is gitignored.
+  `docs/spikes/0001-extraction-snuggpro/results/managed-*`, which is gitignored.
 
   Reproduce with `pnpm build:packages`, then
-  `node spikes/managed-three-phase/run.mjs --strategy <three-phase|per-group|per-group-singleton> --model <id>`,
-  then `node spikes/extraction-snuggpro/score.mjs <results-dir>`. Needs `HELIX_DEV_TOKEN`,
+  `node docs/spikes/0006-managed-three-phase/run.mjs --strategy <three-phase|per-group|per-group-singleton> --model <id>`,
+  then `node docs/spikes/0001-extraction-snuggpro/score.mjs <results-dir>`. Needs `HELIX_DEV_TOKEN`,
   `HELIX_BASE_URL` and `HELIX_ORIGIN` in the repo-root `.env.local`, against an app whose
   manifest grants `capabilities.llm`. **Run the strategies one at a time** — two concurrent
   corpus runs exhaust the route's burst spend budget, and a `429` reaches `threePhaseExtractor`
@@ -467,7 +467,7 @@ Three-phase itself remains NO-GO for managed, per §6.
   What should reproduce are the structural results: §1's three failures, §2's 16/8 caps, and
   per-group's 0/14 against `claude-sonnet-5`.
 
-- `spikes/extraction-snuggpro/score.mjs` — the scorer, reused verbatim, as docs 16, 18 and 19 all
+- `docs/spikes/0001-extraction-snuggpro/score.mjs` — the scorer, reused verbatim, as docs 16, 18 and 19 all
   require.
 - [Doc 16](16-extraction-schema-scale.md) §1 (the strict-subset rules, including the
   root-must-be-an-object rule §1.3 measures) and §5 (the frontier baseline, and the earlier

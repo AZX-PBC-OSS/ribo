@@ -7,10 +7,16 @@ import { enveloped } from "../provenance/enveloped.js";
 import { FakeTranscriber } from "../transcription/fake-transcriber.js";
 import { isTransientFailure, TerminalError } from "../storage/backoff.js";
 import { openStorage, type Storage } from "../storage/storage.js";
-import { createRelay } from "../storage/relay.js";
+import { createRelay, type SessionWriteInput } from "../storage/relay.js";
 import { restrictToKind } from "../transcription/restrict-to-kind.js";
 import { sessionItemSchema, type SessionItem } from "../storage/session-schema.js";
 import { toWriteStep } from "./write-step.js";
+
+/**
+ * `SessionWriteInput.recordReceipt` is required, so every input literal here supplies
+ * one. A test that cares what was checkpointed passes its own recorder instead.
+ */
+const noRecordReceipt = async (): Promise<void> => {};
 
 /**
  * @file `toWriteStep` — the trust boundary, and the per-session context resolution.
@@ -62,7 +68,7 @@ const makeAdapter = (sink: Write[]): ToolAdapter<AtticValues, JobContext> => ({
   instructions: "Extract the attic insulation R-value and area in square feet.",
   write: async (fields, ctx, meta) => {
     sink.push({ fields, ctx, meta });
-    return { uuid: `uuid-${meta.idempotencyKey}` };
+    return { receipt: `uuid-${meta.idempotencyKey}` };
   },
 });
 
@@ -92,6 +98,7 @@ test("the reviewed patch and the session's ctx reach write, both parsed", async 
   const step = toWriteStep(makeAdapter(written));
 
   const result = await step({
+    recordReceipt: noRecordReceipt,
     session: sessionAt("session-1"),
     // A stray key a UI might have persisted alongside the real leaves.
     reviewed: { rValue: 19, area: 400, notADeclaredLeaf: "🙈" },
@@ -117,6 +124,7 @@ test("a rejected leaf stays absent and an accepted null stays present through th
   const step = toWriteStep(makeAdapter(written));
 
   await step({
+    recordReceipt: noRecordReceipt,
     session: sessionAt("session-1"),
     // `rValue` accepted as null ("write it empty"); `area` rejected ("leave it alone").
     reviewed: { rValue: null },
@@ -135,15 +143,18 @@ test("the idempotency key reaches write in meta, unchanged across a retry of the
   const written: Write[] = [];
   const step = toWriteStep(makeAdapter(written));
   const input = {
+    recordReceipt: noRecordReceipt,
     session: sessionAt("session-1"),
     reviewed: { rValue: 19 },
     idempotencyKey: "key-session-1",
     ctx: { jobId: "job-7" },
   };
 
-  // The relay hands the same session back after a transient failure; the key is the
-  // session's, not the attempt's, which is the only thing standing between an
-  // ambiguous success and a double-write.
+  // The relay hands the same session back after a transient failure, and the key is
+  // the session's rather than the attempt's — so the same key reaches the vendor
+  // twice. That stability is all this pins. It is NOT double-write protection:
+  // Snugg Pro ignores `Idempotency-Key` (measured 2026-09-21), and for a one-patch
+  // write the protection is that the endpoint is an upsert addressed by job.
   await step(input);
   await step(input);
 
@@ -162,12 +173,14 @@ test("two sessions from two jobs write to two destinations", async () => {
   const step = toWriteStep(makeAdapter(written));
 
   await step({
+    recordReceipt: noRecordReceipt,
     session: sessionAt("session-1"),
     reviewed: { rValue: 19 },
     idempotencyKey: "key-session-1",
     ctx: { jobId: "job-7" },
   });
   await step({
+    recordReceipt: noRecordReceipt,
     session: sessionAt("session-2"),
     reviewed: { rValue: 30 },
     idempotencyKey: "key-session-2",
@@ -190,6 +203,7 @@ test("a patch the adapter's schema rejects is terminal, and write is never calle
   const step = toWriteStep(makeAdapter(written));
 
   const thrown = await step({
+    recordReceipt: noRecordReceipt,
     session: sessionAt("session-1"),
     reviewed: { rValue: "thirty" },
     idempotencyKey: "key-session-1",
@@ -214,6 +228,7 @@ test("a session ctx the adapter's ctxSchema rejects is terminal, and write is ne
   const step = toWriteStep(makeAdapter(written));
 
   const thrown = await step({
+    recordReceipt: noRecordReceipt,
     session: sessionAt("session-1"),
     // An empty `jobId` — a write with no destination, not a harmless default. The patch
     // below is perfectly valid, so the ctx is the only thing wrong.
@@ -241,6 +256,7 @@ test("the ctx is parsed first: a session wrong in both ways reports the ctx", as
   const step = toWriteStep(makeAdapter(written));
 
   const thrown = await step({
+    recordReceipt: noRecordReceipt,
     session: sessionAt("session-1"),
     reviewed: { rValue: "thirty" },
     idempotencyKey: "key-session-1",
@@ -269,6 +285,7 @@ test("a failing write propagates unchanged — the relay's retry contract is not
   };
 
   const thrown = await toWriteStep(adapter)({
+    recordReceipt: noRecordReceipt,
     session: sessionAt("session-1"),
     reviewed: { rValue: 19 },
     idempotencyKey: "key-session-1",
@@ -359,4 +376,26 @@ test("the relay records a terminal write failure as dead on the first attempt, n
   expect(dead?.attempts).toBe(1);
   expect(dead?.lastError).toContain("not a valid patch");
   expect(written).toEqual([]);
+});
+
+test("SessionWriteInput refuses a literal that omits recordReceipt", () => {
+  // Why the member is required rather than optional, pinned so it stays that way.
+  // Snugg Pro ignores `Idempotency-Key` (measured 2026-09-21), so the per-instance
+  // receipt checkpoint is the only thing between an interrupted write and a
+  // duplicate record on a customer's audit. As an OPTIONAL member it read as a
+  // convenience and behaved as an opt-out: `recordReceipt?.(…)` short-circuits in
+  // silence, so a caller that forgot it would accumulate receipts in a local
+  // closure, lose all of them to a mid-loop throw, and re-create every instance on
+  // the retry — reinstating the exact defect, with nothing raised to notice it.
+  //
+  // The `@ts-expect-error` IS the assertion: it fails the typecheck if the member
+  // ever goes back to optional, which is the only way this regression could return.
+  // @ts-expect-error - recordReceipt is required; a literal omitting it must not compile
+  const withoutReceipt: SessionWriteInput = {
+    session: sessionAt("session-refusal"),
+    reviewed: {},
+    idempotencyKey: "key-session-refusal",
+    ctx: { jobId: "job-7" },
+  };
+  expect(withoutReceipt.idempotencyKey).toBe("key-session-refusal");
 });

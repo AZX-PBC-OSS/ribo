@@ -15,7 +15,7 @@
 Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
 
 - **Do not break `./check.sh`.** It is the one "am I done?" signal. Run it before every commit that touches package code.
-- **Never edit `spikes/extraction-snuggpro/score.mjs` or `ground-truth.mjs`.** They are imported read-only so the gate grades exactly as the spike does.
+- **Never edit `docs/spikes/0001-extraction-snuggpro/score.mjs` or `ground-truth.mjs`.** They are imported read-only so the gate grades exactly as the spike does.
 - **Never put `node:*` imports under `packages/ribo-adapter-snuggpro/src/`.** That directory compiles into the published, browser-targeted `dist/`. This is the defect commit `deceacd` fixed by moving `cliChat` out of `@azx/ribo-extractor-openai`.
 - **New acceptance test files must be named `*.test.ts` and sit FLAT in `acceptance/`.** The root vitest `unit` project's glob is `packages/ribo-adapter-snuggpro/acceptance/*.test.{ts,tsx}` — one level, not `**`. A file in a subdirectory silently never runs.
 - **`*.manual.ts` is the manual-only naming convention.** `vitest.acceptance.config.ts` includes `packages/ribo-adapter-snuggpro/acceptance/**/*.manual.ts` and nothing else.
@@ -474,7 +474,7 @@ git commit -m "Add the persisted run-record schemas for extraction accuracy"
 
 ### Task 3: The densifier
 
-Turns the scorer's _sparse_ problem lists into a _dense_ grid. Pure — no `fs`, no imports from `spikes/`.
+Turns the scorer's _sparse_ problem lists into a _dense_ grid. Pure — no `fs`, no imports from `docs/spikes/`.
 
 **Files:**
 
@@ -689,7 +689,7 @@ import { HistoryEntrySchema } from "./run-record.js";
 /**
  * Densifies the acceptance gate's scored reports into a self-contained RunRecord.
  *
- * PURE, and deliberately imports NOTHING from `spikes/`. Two reasons, both
+ * PURE, and deliberately imports NOTHING from `docs/spikes/`. Two reasons, both
  * load-bearing:
  *
  *   1. `score.mjs` and `ground-truth.mjs` are untyped `.mjs` and must never be
@@ -1359,13 +1359,13 @@ import { buildRunRecord } from "./build-run-record.js";
 import { openRunStore } from "./run-store.js";
 ```
 
-And extend the existing `ground-truth.mjs` import to bring in the resolver — it is already exported from that module, so this adds an import and edits nothing in `spikes/`:
+And extend the existing `ground-truth.mjs` import to bring in the resolver — it is already exported from that module, so this adds an import and edits nothing in `docs/spikes/`:
 
 ```ts
 import {
   readGroundTruth,
   resolveGroundTruth,
-} from "../../../spikes/extraction-snuggpro/ground-truth.mjs";
+} from "../../../docs/spikes/0001-extraction-snuggpro/ground-truth.mjs";
 ```
 
 Also import the leaf-path lists from the scorer, extending the existing `score.mjs` import line:
@@ -1376,7 +1376,7 @@ import {
   HEALTH_TEST_PATHS,
   aggregate,
   scoreTranscript,
-} from "../../../spikes/extraction-snuggpro/score.mjs";
+} from "../../../docs/spikes/0001-extraction-snuggpro/score.mjs";
 ```
 
 - [ ] **Step 2: Record which leaves ground truth asserted, inside the existing extraction loop**
@@ -1697,7 +1697,7 @@ Every item from the design doc's §9, verified rather than assumed:
 - [x] With a mutated fingerprint, the page shows the stale banner, and clears it when restored.
 - [x] `./check.sh` is green.
 - [x] No new dependency was added to `pnpm-workspace.yaml`. (`@types/node` was added to one package's `devDependencies` from the existing catalog entry — no new catalog entry.)
-- [x] `spikes/extraction-snuggpro/score.mjs` and `ground-truth.mjs` are untouched.
+- [x] `docs/spikes/0001-extraction-snuggpro/score.mjs` and `ground-truth.mjs` are untouched.
 
 ## Corrections made to this plan during execution
 

@@ -16,7 +16,7 @@ threshold.
 
 ::: warning Model: Moonshine, the current default
 The on-device runs below used `whisper-base.en`, but
-`spikes/transcription-measurement/run-real-ondevice.mjs` now defaults to the on-device package's
+`docs/spikes/0002-transcription-measurement/run-real-ondevice.mjs` now defaults to the on-device package's
 `DEFAULT_MODEL_ID` (`onnx-community/moonshine-base-ONNX`). These clips have not been re-measured
 against that default.
 :::

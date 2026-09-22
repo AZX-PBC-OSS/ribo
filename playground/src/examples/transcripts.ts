@@ -1,9 +1,9 @@
 /**
  * @file Example source texts for the dev-only "Try it" extraction panel.
  *
- * These are three of the SnuggPro spike transcripts (`spikes/extraction-snuggpro/
+ * These are three of the SnuggPro spike transcripts (`docs/spikes/0001-extraction-snuggpro/
  * transcripts/`), copied here as string literals. They cannot be imported across
- * the bundle boundary from `spikes/` (outside the workspace build), so they are
+ * the bundle boundary from `docs/spikes/` (outside the workspace build), so they are
  * duplicated — a copy is the honest way to ship them into the browser bundle.
  *
  * Each is a home-energy auditor narrating a walkthrough; between them they cover a

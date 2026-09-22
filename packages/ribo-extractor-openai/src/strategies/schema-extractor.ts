@@ -16,7 +16,7 @@
  *   - **The single-shot-vs-per-group selection runs here.** If the WHOLE derived
  *     schema fits under the caps, one call does the work — single-shot with a
  *     good prompt is at the accuracy floor on the measured Snugg corpus, route
- *     and model (`spikes/extraction-search-plan/README.md` — a measurement on
+ *     and model (`docs/spikes/0003-extraction-search-plan/README.md` — a measurement on
  *     THAT corpus, not a general property); otherwise the schema is split and
  *     each piece gets its own call.
  *

@@ -38,7 +38,9 @@ export default defineConfig({
   // The internal process docs live under docs/ but are not part of the public site. The roadmap
   // (design specs and per-phase plans) stays committed but unpublished; the implementation findings
   // are repackaged into Deep Dives (Task 2), not served raw.
-  srcExclude: ["roadmap/**", "implementation/**", "open-questions.md"],
+  // `spikes/**` joins these for the same reason: a working record with corpora and
+  // result trees, not a published page. See `spikes/index.md` and ADR 0019.
+  srcExclude: ["roadmap/**", "implementation/**", "spikes/**", "open-questions.md"],
   themeConfig: {
     nav: [
       { text: "Guide", link: "/guide/" },

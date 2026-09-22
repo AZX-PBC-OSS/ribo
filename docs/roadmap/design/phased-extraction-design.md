@@ -667,8 +667,8 @@ PhaseDef<V, P, I, C>) => R) => R`, with `id`, `requires`, `produces`, `concurren
    amending its suite, and tune the on-device preset's ceiling and delay.
 8. **The acceptance gate, once, after every port has landed** — doc 19 §6a's structural bar:
    completions, zero degenerations, 100% span fidelity. Two harnesses: the on-device arm through
-   `spikes/ondevice-acceptance` (manual, real Chrome — it refuses Chromium's stub), the managed arm
-   through `spikes/managed-three-phase/run.mjs` (needs secrets). A failure here bisects across steps
+   `docs/spikes/0005-ondevice-acceptance` (manual, real Chrome — it refuses Chromium's stub), the managed arm
+   through `docs/spikes/0006-managed-three-phase/run.mjs` (needs secrets). A failure here bisects across steps
    5–7 rather than being attributed by construction; that is the accepted trade for not running a
    manual gate three times.
 9. Guide updates and the `major` changeset.

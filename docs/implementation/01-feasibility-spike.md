@@ -98,14 +98,14 @@ Capability is assumed per the baseline; the column that matters is throughput. F
 
 ### What it does
 
-1. Take the **14 existing transcripts** in `spikes/extraction-snuggpro/transcripts/*.txt` — synthetic auditor dictations already written to stress the hard cases.
+1. Take the **14 existing transcripts** in `docs/spikes/0001-extraction-snuggpro/transcripts/*.txt` — synthetic auditor dictations already written to stress the hard cases.
 2. Run each through **text-to-speech** to synthesize audio.
 3. Feed that audio to **on-device Whisper** and measure **WER against the known-exact source text**. The ground truth is perfect by construction: we authored the text, so there is no hand-transcription step and no reference-transcript ambiguity. This is a genuinely better WER measurement than a hand-checked real recording would give.
-4. Then feed **the Whisper output** — not the clean source text — into the extraction step, and re-score it against `spikes/extraction-snuggpro/ground-truth/`.
+4. Then feed **the Whisper output** — not the clean source text — into the extraction step, and re-score it against `docs/spikes/0001-extraction-snuggpro/ground-truth/`.
 
 ### Why step 4 is the valuable part
 
-Step 4 measures the **transcription → extraction interaction**, which **no test we have has ever touched**. The extraction spike (`spikes/extraction-snuggpro/`) explicitly could not cover it: it runs on clean authored text, and its own README says so — real input arrives through a WASM Whisper model at some word error rate. The feasibility spike measures WER in isolation. Neither answers the question that actually decides the product: _does a 12% WER transcript still yield the right AFUE, or does it yield a confidently wrong one?_
+Step 4 measures the **transcription → extraction interaction**, which **no test we have has ever touched**. The extraction spike (`docs/spikes/0001-extraction-snuggpro/`) explicitly could not cover it: it runs on clean authored text, and its own README says so — real input arrives through a WASM Whisper model at some word error rate. The feasibility spike measures WER in isolation. Neither answers the question that actually decides the product: _does a 12% WER transcript still yield the right AFUE, or does it yield a confidently wrong one?_
 
 The specific things to look for, since they are cheap to check once the pipeline exists:
 
