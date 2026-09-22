@@ -1349,7 +1349,7 @@ describe("scopedInstanceExtractor — byte-cap option flow-through (flat partiti
 
     const requests: ChatRequest[] = [];
     const chat: ChatClient = {
-      complete: (request) => {
+      complete: async (request) => {
         requests.push(request);
         const name = request.response_format.json_schema.name;
         const m = /-(\d+)$/.exec(name);

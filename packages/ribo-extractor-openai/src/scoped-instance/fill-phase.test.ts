@@ -473,7 +473,7 @@ describe("fillPhase — merge", () => {
     });
   });
 
-  test("the \"\" fallback's single fill assignment lands flat — the assignment path the non-grouped case was broken on before the merge read fix", async () => {
+  test('the "" fallback\'s single fill assignment lands flat — the assignment path the non-grouped case was broken on before the merge read fix', async () => {
     // REGRESSION PIN — the latent bug the partition-flatfallback commit fixes:
     // on `origin/main` the merge read `outcome.output.value[job.group.key]`,
     // which is undefined for `key === ""`, wrote `groupResult[""] = undefined`,
@@ -517,7 +517,7 @@ describe("fillPhase — merge", () => {
       }
       const merged = def.merge(draft, outcomes);
       const fields = merged.fields as Record<string, { value: string | null }>;
-      expect(fields.color.value).toBe("blue");
+      expect(fields.color!.value).toBe("blue");
       // The schema has both leaves; the merge assigns each from the parsed response.
       expect(fields.size).toBeDefined();
       // And `raw` carries the same record — the merge wrote it.
@@ -592,10 +592,7 @@ describe("fillPhase — merge", () => {
       if (m === null) throw new Error(`unexpected flat piece name: ${name}`);
       const part = Number(m[1]);
       const piece = flatEnumPieces[part]!;
-      const shape = (piece.schema as z.ZodObject<z.ZodRawShape>).shape as Record<
-        string,
-        z.ZodType
-      >;
+      const shape = (piece.schema as z.ZodObject<z.ZodRawShape>).shape as Record<string, z.ZodType>;
       const fields: Record<string, unknown> = {};
       for (const leafKey of Object.keys(shape)) {
         fields[leafKey] = leafEnvelope(leafKey);

@@ -452,10 +452,7 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
             : (target.examples ?? []).map(
                 (ex): ToolAdapterExample<Enveloped<Pick<V, typeof key>, P>> => ({
                   transcript: ex.transcript,
-                  fields: narrowToLeaves(ex.fields, leafKeys) as Enveloped<
-                    Pick<V, typeof key>,
-                    P
-                  >,
+                  fields: narrowToLeaves(ex.fields, leafKeys) as Enveloped<Pick<V, typeof key>, P>,
                 }),
               );
         pieceTarget = {

@@ -872,14 +872,46 @@ describe("perGroupExtractor — flat partitioning under the byte cap", () => {
         {
           transcript: "All eight fields were present.",
           fields: {
-            a: { value: "option-alpha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", confidence: 0.9, sourceSpan: "a" },
-            b: { value: "option-bravo-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", confidence: 0.9, sourceSpan: "b" },
-            c: { value: "option-charlie-cccccccccccccccccccccccccccccc", confidence: 0.9, sourceSpan: "c" },
-            d: { value: "option-delta-dddddddddddddddddddddddddddddddddd", confidence: 0.9, sourceSpan: "d" },
-            e: { value: "option-echo-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", confidence: 0.9, sourceSpan: "e" },
-            f: { value: "option-foxtrot-ffffffffffffffffffffffffffffffffff", confidence: 0.9, sourceSpan: "f" },
-            g: { value: "option-golf-gggggggggggggggggggggggggggggggggggg", confidence: 0.9, sourceSpan: "g" },
-            h: { value: "option-hotel-hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", confidence: 0.9, sourceSpan: "h" },
+            a: {
+              value: "option-alpha-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              confidence: 0.9,
+              sourceSpan: "a",
+            },
+            b: {
+              value: "option-bravo-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              confidence: 0.9,
+              sourceSpan: "b",
+            },
+            c: {
+              value: "option-charlie-cccccccccccccccccccccccccccccc",
+              confidence: 0.9,
+              sourceSpan: "c",
+            },
+            d: {
+              value: "option-delta-dddddddddddddddddddddddddddddddddd",
+              confidence: 0.9,
+              sourceSpan: "d",
+            },
+            e: {
+              value: "option-echo-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              confidence: 0.9,
+              sourceSpan: "e",
+            },
+            f: {
+              value: "option-foxtrot-ffffffffffffffffffffffffffffffffff",
+              confidence: 0.9,
+              sourceSpan: "f",
+            },
+            g: {
+              value: "option-golf-gggggggggggggggggggggggggggggggggggg",
+              confidence: 0.9,
+              sourceSpan: "g",
+            },
+            h: {
+              value: "option-hotel-hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+              confidence: 0.9,
+              sourceSpan: "h",
+            },
           },
         },
       ],
@@ -896,16 +928,12 @@ describe("perGroupExtractor — flat partitioning under the byte cap", () => {
     const flatTargets = flatTargetsRecord[""]!;
     expect(flatTargets.length).toBeGreaterThan(1);
     for (const piece of flatTargets) {
-      const assistantFields = piece.examples?.[0]?.fields as
-        | Record<string, unknown>
-        | undefined;
+      const assistantFields = piece.examples?.[0]?.fields as Record<string, unknown> | undefined;
       // Every piece carries exactly its subset of leaves — never the full
       // eight, which would show the model an assistant turn wider than its
       // response_format accepts.
       const present = Object.keys(assistantFields ?? {}).sort();
-      const expected = Object.keys(
-        (piece.extractionSchema as unknown as z.ZodObject).shape as Record<string, unknown>,
-      ).sort();
+      const expected = Object.keys((piece.extractionSchema as z.ZodObject).shape).sort();
       expect(present, `piece name=${piece.name} expected=${JSON.stringify(expected)}`).toEqual(
         expected,
       );
