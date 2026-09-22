@@ -186,6 +186,11 @@ const proposedOperationsSchema = z.object({
         group: z.string(),
         moves: z.array(z.object({ from: z.string(), to: z.string() })).min(1),
       }),
+      z.object({
+        op: z.literal("nest"),
+        group: z.string(),
+        moves: z.array(z.object({ from: z.string(), to: z.string() })).min(1),
+      }),
     ]),
   ),
 });
@@ -235,11 +240,12 @@ The supported operations, and their closed composition rule:
 - drop { path }: remove the leaf or whole subtree at this dotted object path. Use for fields a speaker virtually never states — audit/capture scoping, NOT to hide hard cases. The path is a dotted object path; instance-key brackets are not allowed.
 - retype { path, to: "number" }: model the leaf as a number instead of its declared kind. ONLY for leaves whose declared kind in the schema is "string" — the closed retype set is exactly string→number. Use for fields the vendor typed as form-input strings but mean a number (the model's \`Number(quote)\` is the only legal forward).
 - regroup { group, moves: { from: to } }: re-nest leaves within ONE top-level group (deepen, flatten, rename). The moves' sources and destinations are below the group, never at it. NEVER across a top-level boundary, NEVER passing through or landing on an array — one extraction value would have to fill every element.
+- nest { group, moves: { from: to } }: CREATE a new top-level group and move top-level fields into it — this is how you give a flat schema structure. Every source is a top-level field (never an existing group, never a collection, never a nested path); the group is a new name you invent, never the name of an existing or dropped top-level key; destinations are paths below the new group.
 
 The operations are a SET, not a sequence. Composition rules the applier enforces and will refuse with the offending path named:
-- a duplicate drop / retype on the same path / regroup on the same group is refused, not silently overwritten;
-- retype and regroup compose on the same leaf (retype the kind, move the position — orthogonal);
-- one regroup's move destinations are pairwise distinct, no two destinations prefix one another, and no destination lies under a dropped path;
+- a duplicate drop / retype on the same path / regroup or nest on the same group is refused, not silently overwritten, and a top-level field may be moved by at most one nest;
+- retype and a move (regroup or nest) compose on the same leaf (retype the kind, move the position — orthogonal);
+- one regroup's or nest's move destinations are pairwise distinct, no two destinations prefix one another, and no regroup destination lies under a dropped path;
 - a retype names a patch LEAF whose declared kind is "string";
 - a move's source and destination are inside the group's element for a collection group, never passing through or landing on the array;
 - a drop that empties the parent object is refused — drop the parent instead.
@@ -445,6 +451,8 @@ const runAttempt = async (
     const operations: ShapeOperation[] = parsed.operations.map((op) => {
       if (op.op === "regroup")
         return { op: "regroup", group: op.group, moves: movesToRecord(op.moves) };
+      if (op.op === "nest")
+        return { op: "nest", group: op.group, moves: movesToRecord(op.moves) };
       return op;
     });
     deriveExtractionShape(schema, { operations });
@@ -484,7 +492,7 @@ const repairFeedback = (
     return (
       `Your previous response did not match the response schema: ${refusal}. Return ` +
       "a JSON object with one `operations` array of valid operation objects whose discriminators " +
-      'are "drop", "retype", or "regroup". No prose outside the object.'
+      'are "drop", "retype", "regroup", or "nest". No prose outside the object.'
     );
   }
   // `failure === "shape"` — the response parsed, but the operations would

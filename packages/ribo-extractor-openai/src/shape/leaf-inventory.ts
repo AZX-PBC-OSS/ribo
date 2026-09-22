@@ -122,11 +122,12 @@ const walkField = (
  * path has no dot — i.e. one that lives at the schema's root rather than
  * under a nested object — is the inventory's basic case, not a group. The
  * header carries "this is a group you can address" (it shapes what
- * `regroup` can move), and a top-level field is not a group: rendering
- * `- <leaf> (object)\n    -  (kind)` would have asserted the leaf is an
- * object and produced a nameless leaf line, neither of which is true.
- * Such leaves appear at the inventory's top level alongside their kind
- * and description.
+ * `regroup` can move), and a top-level field is not a group — it is what
+ * `nest` moves, and the flat rendering is exactly what lets the model see it
+ * as a nest source: rendering `- <leaf> (object)\n    -  (kind)` would have
+ * asserted the leaf is an object and produced a nameless leaf line, neither
+ * of which is true. Such leaves appear at the inventory's top level alongside
+ * their kind and description.
  */
 export function renderLeafInventory(entries: readonly LeafInventoryEntry[]): string {
   if (entries.length === 0) return "Schema has no leaves.";

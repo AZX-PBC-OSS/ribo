@@ -307,6 +307,23 @@ describe("proposer — chat-call discipline", () => {
     expect(systemMessage?.content).not.toMatch(/max(imum)?\s+\d+\s+(operations|ops)/);
   });
 
+  test("the directive names nest and states its source restriction", async () => {
+    // The vocabulary the model may use is the directive's operation list; a
+    // flat schema is exactly the case nest exists for (spike 0009), so the
+    // bullet must say what it does and what it may move.
+    const { chat, requests } = scriptedChat([completion({ operations: [] })]);
+    await proposeShapeOperations(surveySchema, {
+      chat,
+      model: "m",
+      context: "directive-nest",
+      instructions: "",
+    });
+    const systemMessage = requests[0]!.messages.find((m) => m.role === "system");
+    expect(systemMessage?.content).toContain("nest { group, moves: { from: to } }");
+    expect(systemMessage?.content).toMatch(/nest[^\n]*top-level field/);
+    expect(systemMessage?.content).toMatch(/never an existing group|never a group/);
+  });
+
   test("cancellation and deadline reach every chat call (initial + repair)", async () => {
     const initialFailing = { operations: [{ op: "drop", path: "missing.path" as const }] };
     const repairSucceeding = { operations: [{ op: "drop", path: "vessel.notes" as const }] };
@@ -649,6 +666,9 @@ describe("proposer — the closed overlap with deriveExtractionShape", () => {
     const feedback = repair.messages.at(-1)!;
     expect(feedback.role).toBe("user");
     expect(feedback.content).toContain("did not match the response schema");
+    // The repair names the whole vocabulary — naming three of four would teach
+    // the wrong one.
+    expect(feedback.content).toContain('"drop", "retype", "regroup", or "nest"');
   });
 
   test("a parsed response whose operations compose is accepted on the first attempt", async () => {
@@ -703,6 +723,45 @@ describe("proposer — the closed overlap with deriveExtractionShape", () => {
       expect(regroup.moves).toEqual({
         "identification.buildYear": "papers.yearOfBuild",
         "dimensions.lengthM": "dimensions.loa",
+      });
+    }
+  });
+
+  test("a nest's moves come in as an array of {from, to} pairs and go out as a record", async () => {
+    // The same wire accommodation as regroup, and the same conversion site —
+    // a missing branch leaves `moves` an array, which the applier cannot read
+    // as a record, so the proposal would fail its shape check and exhaust to [].
+    const flat = z.object({
+      yearBuilt: z.string().nullable().optional(),
+      squareMeters: z.number().nullable().optional(),
+    });
+    const { chat } = scriptedChat([
+      completion({
+        operations: [
+          {
+            op: "nest",
+            group: "construction",
+            moves: [
+              { from: "yearBuilt", to: "yearBuilt" },
+              { from: "squareMeters", to: "area.squareMeters" },
+            ],
+          },
+        ],
+      }),
+    ]);
+    const ops = await proposeShapeOperations(flat, {
+      chat,
+      model: "m",
+      context: "nest-array-to-record",
+      instructions: "",
+    });
+    expect(ops).toHaveLength(1);
+    const nest = ops[0];
+    expect(nest?.op).toBe("nest");
+    if (nest?.op === "nest") {
+      expect(nest.moves).toEqual({
+        yearBuilt: "yearBuilt",
+        squareMeters: "area.squareMeters",
       });
     }
   });
