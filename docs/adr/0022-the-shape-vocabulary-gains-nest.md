@@ -59,15 +59,29 @@ nests cover every top-level key.** The split's gate is `everyKeyIsGroup`: one un
 leaf collapses the whole schema to the flat fallback, and every nest group with it. Measured, not
 inferred — nesting two of three flat leaves yields `[""]`; nesting all three yields the groups.
 
-That is exactly the spike's shape: 19 proposed groups over 294 leaves is partial nesting, so a
-proposal like the one that motivated this operation buys **no** split payoff today. What it buys
-unconditionally is the model-facing schema — the extraction schema carries `attic` as a subject
-rather than as loose fields, which is what the proposer reasons over and what a caller reads.
+That is exactly the spike's shape: 19 proposed groups over 294 leaves is partial nesting.
 
-Teaching the splitter to partition a mixed schema — real groups as groups, leftover top-level
-leaves packed as one — is the work that would make the payoff unconditional. It is named here and
-deliberately not done: it changes the splitter, which this change does not touch. The limitation
-is pinned by a test, so it is recorded in code and not only in this paragraph.
+**And it is worse than buying nothing — a partially nested schema may not extract at all.** The
+flat fallback partitions over top-level keys and treats each one as ATOMIC. A top-level key that
+is itself a group larger than a cap "cannot fit any piece", so the split throws. Measured on the
+live proposal: the raw flat schema splits into 38 pieces and the drops-and-retypes version into
+30, but the version carrying the model's 14 nests **fails to split**, because the `pool` group is
+24 nullable unions against a cap of 16. Nest all 294 leaves and it splits into 27 pieces, with
+oversized groups partitioned within themselves — the per-group path handles them correctly. It is
+only the mixed schema that has nowhere to go.
+
+**This is not a defect `nest` introduces.** A hand-written schema with an oversized group beside
+a loose top-level leaf fails identically, with no nest anywhere near it; the limitation is the
+flat fallback's and predates this change. What `nest` does is make it easy and likely to reach,
+because a partially nested schema is the proposer's natural output. The failure is loud — a named
+throw at extractor construction, not a silent truncation — and a caller can raise the caps, at the
+accuracy cost the caps exist to prevent.
+
+So: teaching the splitter to partition a mixed schema — real groups routed through the per-group
+partitioning, leftover top-level leaves packed as one — is not the optional follow-on this ADR
+first called it. It is what makes `nest` useful on the input that motivated it, and it is the
+immediate next piece of work. The limitation is pinned by a test so it lives in code, and this
+paragraph is here so nobody has to rediscover it from a stack trace.
 
 What it does not buy, stated plainly so this record cannot be read as overselling: review still
 renders the moved leaves FLAT (`buildReviewRequest` walks the patch schema, which a nest leaves

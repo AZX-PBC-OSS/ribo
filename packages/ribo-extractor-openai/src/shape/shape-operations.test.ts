@@ -643,6 +643,66 @@ test("the payoff is CONDITIONAL: one unmoved top-level leaf collapses the split 
   expect(groups.map((group) => group.key)).toEqual([""]);
 });
 
+test("a partially nested schema whose nest group exceeds a cap cannot be split at all", () => {
+  // The sharp end of the conditional payoff, and the reason ADR 0022 calls the
+  // mixed-schema splitter work the immediate next piece rather than a
+  // follow-on. The flat fallback partitions over top-level keys and treats each
+  // as ATOMIC, so a top-level key that is itself an oversized GROUP has nowhere
+  // to go. Measured on the live vendor proposal: the flat schema split into 38
+  // pieces, the same schema carrying the model's nests would not split at all.
+  //
+  // The limitation is the flat fallback's and predates `nest` — a hand-written
+  // schema with an oversized group beside a loose top-level leaf fails the same
+  // way. `nest` only makes it easy to reach, because a partially nested schema
+  // is what the proposer naturally emits.
+  const leaf = (description: string) => z.string().describe(description).nullable().optional();
+  const wide: Record<string, z.ZodType> = { loose: leaf("a top-level leaf no nest moves") };
+  for (let i = 0; i < 24; i++)
+    wide[`f${i}`] = leaf(`Field number ${i}, with prose to spend bytes.`);
+
+  const shape = deriveExtractionShape(z.object(wide), {
+    operations: [
+      {
+        op: "nest",
+        group: "wide",
+        moves: Object.fromEntries(
+          Object.keys(wide)
+            .filter((key) => key !== "loose")
+            .map((key) => [key, key]),
+        ),
+      },
+    ],
+  });
+  expect(() =>
+    splitExtractionSchema(shape.extractionSchema, {
+      maxNullableUnionsPerGroup: 16,
+      maxSerializedCharsPerGroup: 19_000,
+    }),
+  ).toThrow(/property "wide" that cannot fit any piece/);
+
+  // Nest the leftover leaf too and every top-level key is a group, so the
+  // per-group path partitions the oversized group within itself.
+  const total = deriveExtractionShape(z.object(wide), {
+    operations: [
+      {
+        op: "nest",
+        group: "wide",
+        moves: Object.fromEntries(
+          Object.keys(wide)
+            .filter((key) => key !== "loose")
+            .map((key) => [key, key]),
+        ),
+      },
+      { op: "nest", group: "rest", moves: { loose: "loose" } },
+    ],
+  });
+  const pieces = splitExtractionSchema(total.extractionSchema, {
+    maxNullableUnionsPerGroup: 16,
+    maxSerializedCharsPerGroup: 19_000,
+  });
+  expect(pieces.filter((piece) => piece.key === "wide").length).toBeGreaterThan(1);
+});
+
 test("refusals: a nest group collides with a surviving top-level key, or resurrects a dropped one", () => {
   expect(() =>
     deriveExtractionShape(mixedSchema, {
