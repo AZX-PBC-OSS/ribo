@@ -302,6 +302,103 @@ describe("overrideGroups — the defaults everywhere except…", () => {
   });
 });
 
+// --- The mixed plan: "" beside named keys ---------------------------------------
+
+describe("perGroupPlan — the mixed plan", () => {
+  /**
+   * One group and one loose leaf. The split's mixed branch emits the group
+   * entry and a trailing "" piece; the plan flows the "" piece through the
+   * same branch the byte-cap flat path always used (per-group.ts's
+   * `group.key === ""` arm) — no plan code changed for the mixed case
+   * (mixed-schema-split design §3, rows 8–9).
+   */
+  const mixedPatch = z
+    .object({
+      hvac: z.object({ fuel: leaf(), equipmentType: leaf() }).strict().optional(),
+      attic: z.object({ depth: leaf() }).strict().optional(),
+      note: leaf(),
+    })
+    .strict();
+  type MixedValues = z.infer<typeof mixedPatch>;
+  const mixedTarget: ExtractionTarget<MixedValues> = {
+    name: "demo-mixed",
+    extractionSchema: enveloped(mixedPatch),
+    instructions: "Extract the groups and the loose note.",
+    examples: [],
+  };
+
+  test("a mixed schema yields the named groups beside a \"\" entry, loose last", () => {
+    const plan = perGroupPlan({ target: mixedTarget, chat: fakeChat({}).chat, model: "m" });
+    const groups = planGroups(plan);
+
+    // Insertion order is the split's: groups in declaration order, loose last.
+    expect(Object.keys(groups)).toEqual(["hvac", "attic", ""]);
+    // And the widened GroupMap accepts the plan's own output — the evidence-§5
+    // failure was exactly this map refused by groupedExtractor.
+    const extractor = groupedExtractor({ target: mixedTarget, groups: plan.groups });
+    expect(typeof extractor.extract).toBe("function");
+  });
+
+  test("the loose piece's target carries the target's name, instructions and full examples", () => {
+    const example = {
+      transcript: "t",
+      fields: {
+        hvac: { fuel: envelope("gas", "s"), equipmentType: envelope("boiler", "s") },
+        attic: { depth: envelope("blown", "s") },
+        note: envelope("a note", "s"),
+      },
+    } as unknown as NonNullable<ExtractionTarget<MixedValues>["examples"]>[number];
+    const withExample: ExtractionTarget<MixedValues> = { ...mixedTarget, examples: [example] };
+
+    const plan = perGroupPlan({ target: withExample, chat: fakeChat({}).chat, model: "m" });
+    const targets = planTargets(plan);
+
+    // The loose piece is unpartitioned, so its target is the flat fallback's:
+    // the target's own name (no infix, no part suffix), instructions and the
+    // FULL unprojected examples — reference-equal (design §6).
+    const loose = targets[""] as ExtractionTarget<MixedValues>;
+    expect(loose.name).toBe("demo-mixed");
+    expect(loose.instructions).toBe(withExample.instructions);
+    expect(loose.examples).toBe(withExample.examples);
+    // Its schema is the loose piece's strict object — exactly the loose leaf.
+    expect(Object.keys((loose.extractionSchema as unknown as z.ZodObject).shape)).toEqual([
+      "note",
+    ]);
+  });
+
+  test("an override against a named group of a mixed plan applies as today, per piece", () => {
+    const plan = perGroupPlan({ target: mixedTarget, chat: fakeChat({}).chat, model: "m" });
+    const cheap = fakeChat({});
+    const overridden = overrideGroups(plan, {
+      hvac: (_entry, pieceTarget) =>
+        singleShotExtractor({ target: pieceTarget, chat: cheap.chat, model: "cheap" }),
+    });
+
+    const groups = planGroups({ groups: overridden, targets: plan.targets });
+    const defaults = planGroups(plan);
+    expect(groups.attic).toBe(defaults.attic);
+    expect(groups[""]).toBe(defaults[""]);
+    expect(groups.hvac).not.toBe(defaults.hvac);
+  });
+
+  test("an override against a loose leaf names the \"\" entry and points at hand composition — not \"not an object of groups\"", () => {
+    const plan = perGroupPlan({ target: mixedTarget, chat: fakeChat({}).chat, model: "m" });
+
+    // `note` IS a key of the values type, so this typechecks — the runtime
+    // refusal is the only guard. The message must not claim the plan is
+    // ""-only: there ARE per-group entries; the loose leaves ride the ""
+    // entry, which takes no override (design §7 row 12, open question 4).
+    expect(() => overrideGroups(plan, { note: (entry) => entry })).toThrowError(/no group "note"/);
+    expect(() => overrideGroups(plan, { note: (entry) => entry })).toThrowError(/"" entry/);
+    expect(() => overrideGroups(plan, { note: (entry) => entry })).toThrowError(
+      /compose the map by hand/i,
+    );
+    expect(() => overrideGroups(plan, { note: (entry) => entry })).not.toThrowError(
+      /not an object of groups/,
+    );
+  });
+});
+
 // --- The deliverable -----------------------------------------------------------
 
 describe("overrideGroups — the running example", () => {
