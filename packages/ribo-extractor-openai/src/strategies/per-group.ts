@@ -243,7 +243,17 @@ export type GroupTargets<V extends Record<string, unknown>, P = NoProvenance> =
       readonly [K in keyof V & string]:
         ExtractionTarget<Pick<V, K>, P> | readonly ExtractionTarget<Pick<V, K>, P>[];
     }
-  | { readonly "": ExtractionTarget<V, P> };
+  // The "" arm mirrors `GroupMap`'s: a flat schema whose top-level properties
+  // are leaf envelopes yields one entry (the whole target), or — when a byte
+  // cap partitions it — an ordered list, index-aligned with `parts`. The
+  // singular option is the historical non-grouped fallback; the array form is
+  // what `splitExtractionSchema` now emits under a byte cap. The widening
+  // matches `combinator`/`merge`/`override` behaviour and is what a host
+  // overriding the flat fallback sees — the same shape a per-group override
+  // sees for a partitioned grouped key.
+  | {
+      readonly "": ExtractionTarget<V, P> | readonly ExtractionTarget<V, P>[];
+    };
 
 /** What {@link perGroupPlan} returns — see {@link GroupMap} and {@link GroupTargets}. */
 export interface PerGroupPlan<V extends Record<string, unknown>, P = NoProvenance> {

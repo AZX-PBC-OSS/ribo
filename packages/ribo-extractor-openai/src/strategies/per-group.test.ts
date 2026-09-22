@@ -744,14 +744,22 @@ describe("perGroupExtractor — flat partitioning under the byte cap", () => {
     const recordKeys = Object.keys(plan.groups);
     expect(recordKeys).toEqual([""]);
 
-    const flatEntries = (plan.groups as Record<string, unknown>)[""];
+    const flatEntriesRecord = plan.groups as Readonly<
+      Record<string, readonly { extract: unknown }[]>
+    >;
+    const flatEntries = flatEntriesRecord[""]!;
     expect(Array.isArray(flatEntries)).toBe(true);
-    const pieces = flatEntries as readonly { extract: unknown }[];
-    expect(pieces.length).toBeGreaterThan(1);
+    expect(flatEntries.length).toBeGreaterThan(1);
+    const pieces = flatEntries;
 
-    const flatTargets = (plan.targets as Record<string, unknown>)[
-      ""
-    ] as readonly ExtractionTarget<BigFlatValues>[];
+    // The union's "" arm widens to ExtractionTarget<V, P> | readonly ExtractionTarget<V, P>[] —
+    // runtime keying needs a single cast that names the recorded shape. The
+    // previous readback cast through Record<string, unknown> lied about both keys
+    // and values; this one names the field type each entry actually carries.
+    const flatTargetsRecord = plan.targets as Readonly<
+      Record<string, readonly ExtractionTarget<BigFlatValues>[]>
+    >;
+    const flatTargets = flatTargetsRecord[""]!;
     expect(flatTargets.length).toBe(pieces.length);
     // Wire names: `${target.name}-<part>`, with NO `-${key}` infix because flat
     // pieces have no group key. Each name is distinct so the request side can
