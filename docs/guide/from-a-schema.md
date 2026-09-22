@@ -103,6 +103,12 @@ them the way it helps bytes and unions: the structured-output **property-count**
 **nesting-depth** cap named in the same error text. If your schema trips one of those, narrow
 it — no call shape fixes it.
 
+To know which side of every cap your schema lands on before building anything,
+`describeExtraction` dry-runs all of it — the split, the call-shape selection, the per-piece
+measurements, and the refusal construction would raise — synchronously and without a model.
+[Schema at Scale](/guide/schema-at-scale#ask-before-you-build-describeextraction) has the
+walkthrough.
+
 ## The name is on the wire
 
 A structured-output schema name is constrained to `[A-Za-z0-9_-]` by at least one platform route —
