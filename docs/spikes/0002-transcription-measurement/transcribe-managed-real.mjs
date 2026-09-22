@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import { ManagedTranscriber } from "../../../packages/ribo-transcriber-managed/dist/index.js";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const REPO = join(HERE, "..", "..");
+const REPO = join(HERE, "..", "..", "..");
 const REAL_DIR = join(HERE, "testdata", "real");
 const RAW_DIR = join(HERE, "results", "real", "_raw");
 const AUDIO_EXT = /\.(m4a|mp3|wav)$/i;
