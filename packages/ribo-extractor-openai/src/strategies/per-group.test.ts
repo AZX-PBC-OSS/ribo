@@ -933,7 +933,7 @@ describe("perGroupExtractor — flat partitioning under the byte cap", () => {
       // eight, which would show the model an assistant turn wider than its
       // response_format accepts.
       const present = Object.keys(assistantFields ?? {}).sort();
-      const expected = Object.keys((piece.extractionSchema as z.ZodObject).shape).sort();
+      const expected = Object.keys((piece.extractionSchema as unknown as z.ZodObject).shape).sort();
       expect(present, `piece name=${piece.name} expected=${JSON.stringify(expected)}`).toEqual(
         expected,
       );
