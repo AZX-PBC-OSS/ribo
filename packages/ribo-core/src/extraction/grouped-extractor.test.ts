@@ -622,11 +622,14 @@ describe("groupedExtractor — the non-grouped fallback arm", () => {
     ]);
   });
 
-  test('the "" key combined with per-key entries throws at construction', () => {
+  test('the "" key combined with per-key entries is no longer refused outright — see the mixed arm below', () => {
+    // The old blanket refusal ("either the schema has groups or it does not")
+    // narrowed to the redundancy rule (mixed-schema-split design §4.2): this
+    // map names hvac and leaves attic to the "" entry, which is the accepted
+    // mixed shape. The refusal's surviving half is pinned in the mixed arm.
     const entry = wholeEntry(whole);
-    // The cast is the JS-caller path — the type level cannot express the mix either.
     const groups = { "": entry, hvac: entry } as unknown as GroupMap<Values>;
-    expect(() => groupedExtractor({ target, groups })).toThrowError(/non-grouped fallback/);
+    expect(() => groupedExtractor({ target, groups })).not.toThrow();
   });
 
   test("the fallback entry's retry budget derives from one entry — one batch", () => {
@@ -642,6 +645,162 @@ describe("groupedExtractor — the non-grouped fallback arm", () => {
     // 1 entry / concurrency 4 = 1 batch. r=3 → 1 × (4·120000 + 7000) = 487000 ≤ 700000,
     // so nothing is reduced and the event does not fire — the derivation ran on 1 entry.
     expect(budgets).toEqual([]);
+  });
+});
+
+// --- The mixed arm: "" beside named keys ---------------------------------------
+
+describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
+  /**
+   * A schema with one group and loose top-level leaves — the shape
+   * `splitExtractionSchema` now emits for a mixed schema: one entry per group,
+   * plus the loose leaves carried as piece(s) keyed `""` (mixed-schema-split
+   * design §4). The loose entries' runtime fields carry only their piece's leaf
+   * subset under the whole-shape entry type — the same over-claim the per-group
+   * plan's flat pieces already make; the second trust-boundary parse validates
+   * the merge (design §4.1, open question 2).
+   */
+  const mixedPatch = z
+    .object({
+      hvac: z
+        .object({
+          equipmentType: z.string().nullable().optional(),
+          fuel: z.string().nullable().optional(),
+        })
+        .strict()
+        .optional(),
+      note: z.string().nullable().optional(),
+      yearBuilt: z.number().nullable().optional(),
+    })
+    .strict();
+  type MixedValues = z.infer<typeof mixedPatch>;
+  type MixedFields = Enveloped<MixedValues>;
+  const mixedTarget: ExtractionTarget<MixedValues> = {
+    name: "demo-mixed",
+    extractionSchema: enveloped(mixedPatch),
+    instructions: "Extract the hvac group and the loose leaves.",
+  };
+
+  const noteLeaf = { value: "a note", confidence: 0.9, sourceSpan: "the note" };
+  const yearLeaf = { value: 1978, confidence: 0.8, sourceSpan: "built in 1978" };
+
+  /**
+   * One piece of a mixed map: its runtime fields carry exactly the piece's leaf
+   * subset, cast to the whole-shape entry type — the over-claim named above.
+   * Covariance lets the same fake serve a named slot
+   * (`Extractor<Pick<MixedFields, "hvac">>`) and the `""` slot
+   * (`Extractor<MixedFields>`).
+   */
+  function pieceEntry(value: Partial<MixedFields>): Extractor<MixedFields> & {
+    readonly calls: readonly EntryCall[];
+  } {
+    const calls: EntryCall[] = [];
+    return {
+      extract: (t, options) => {
+        calls.push({ text: t.text, options });
+        return Promise.resolve({ fields: value as MixedFields, usage: { calls: 1 } });
+      },
+      get calls() {
+        return calls;
+      },
+    };
+  }
+
+  test('a "" entry beside named keys that do not cover the schema is accepted, and "" owns the unnamed remainder', async () => {
+    // The inversion of the old blanket refusal: named keys cover hvac only, so
+    // the "" entry declares the rest of the schema (note, yearBuilt) covered.
+    // No cast — arm 3 of the widened GroupMap admits the mix at the type level.
+    const groups: GroupMap<MixedValues> = {
+      hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }),
+      "": pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }),
+    };
+    const extractor = groupedExtractor({ target: mixedTarget, groups });
+
+    const result = await extractor.extract(transcript);
+
+    // The named entry merges under its key; the "" entry assigns its loose
+    // leaves flat — one merged whole, validated by the closing parse.
+    expect(result.fields).toEqual({ hvac: hvacLeaf("Boiler"), note: noteLeaf, yearBuilt: yearLeaf });
+    expect(result.usage).toEqual({ calls: 2 });
+  });
+
+  test('a "" entry beside named keys that already cover every schema key is refused as redundant', () => {
+    // The narrowed refusal's surviving half: the named entries cover hvac AND
+    // attic — every top-level key — so the "" entry would declare coverage the
+    // named entries already declare.
+    const redundant: GroupMap<Values> = {
+      hvac: groupEntry("hvac", hvacLeaf("Boiler")),
+      attic: groupEntry("attic", atticLeaf("10-12")),
+      "": {
+        extract: () =>
+          Promise.resolve({
+            fields: { hvac: hvacLeaf("Boiler"), attic: atticLeaf("10-12") },
+            usage: { calls: 1 },
+          }),
+      },
+    };
+    expect(() => groupedExtractor({ target, groups: redundant })).toThrowError(/redundant/);
+  });
+
+  test("a named key the schema lacks still throws beside a \"\" entry — the extra-keys check is unchanged", () => {
+    // The cast is the JS-caller path — `ghost` is not a key of the values type.
+    const groups = {
+      hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }),
+      ghost: pieceEntry({}),
+      "": pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }),
+    } as unknown as GroupMap<MixedValues>;
+    expect(() => groupedExtractor({ target: mixedTarget, groups })).toThrowError(
+      /"ghost".*does not have/,
+    );
+  });
+
+  test('a "" entry that does not deliver the unnamed remainder is accepted at construction and caught by the closing parse', async () => {
+    // The coverage waiver's guarantee: with "" present the missing-keys check
+    // is waived — the "" entry IS the declaration — so a lying declaration
+    // surfaces exactly where the fallback arm's always did: the second
+    // trust-boundary parse (design §4.2).
+    const lying = pieceEntry({ note: noteLeaf }); // yearBuilt never arrives
+    const extractor = groupedExtractor({
+      target: mixedTarget,
+      groups: { hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }), "": lying },
+    });
+
+    await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(SchemaParseError);
+  });
+
+  test("named keys without a \"\" entry are still exhaustive at the type level — a missing group stays a compile error", () => {
+    const hvac = pieceEntry({ hvac: hvacLeaf("Boiler") });
+    // The widening must admit "" beside named keys WITHOUT losing the guard the
+    // named-only arm always had: named entries, no "", and a key missing.
+    // @ts-expect-error — `note`/`yearBuilt` uncovered and no "" entry to own them.
+    const missing: GroupMap<MixedValues> = { hvac };
+    // And the runtime check behind it is untouched (pinned above the fallback arm).
+    expect(() => groupedExtractor({ target: mixedTarget, groups: missing })).toThrowError(
+      /missing top-level key/,
+    );
+  });
+
+  test('a partitioned "" entry schedules its pieces after the named entries, sharing key "" with part/parts', async () => {
+    const events: GroupUnit[] = [];
+    const onUnit: ExtractionObserver<GroupUnit>["onUnit"] = (event) => events.push(event);
+    const groups: GroupMap<MixedValues> = {
+      hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }),
+      "": [pieceEntry({ note: noteLeaf }), pieceEntry({ yearBuilt: yearLeaf })],
+    };
+    const extractor = groupedExtractor({ target: mixedTarget, groups, onUnit });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.fields).toEqual({ hvac: hvacLeaf("Boiler"), note: noteLeaf, yearBuilt: yearLeaf });
+    // The schedule runs named entries in schema declaration order with the ""
+    // pieces last (design §5.2). Pieces start concurrently, but every start
+    // fires before its first await, so the start order IS the schedule order.
+    const starts = events.filter((event) => event.phase === "start");
+    expect(starts.map((event) => [event.key, event.part, event.parts])).toEqual([
+      ["hvac", 1, 1],
+      ["", 1, 2],
+      ["", 2, 2],
+    ]);
   });
 });
 
