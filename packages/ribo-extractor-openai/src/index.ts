@@ -32,8 +32,14 @@ export type {
 // The derived extraction shape: apply explicit shape operations to a caller's
 // plain zod schema and get the artifact pair — an extraction schema, and the
 // mapping back as data — plus the reversal combinator that turns an extractor
-// over the extraction shape into one over the derived patch. Model-free: a
-// model-driven derivation composes the same applier over its own proposal.
+// over the extraction shape into one over the derived patch.
+//
+// Two derivation surfaces. `deriveExtractionShape` is the model-free applier:
+// the caller hands in explicit operations and the artifact comes out. The
+// model-driven counterpart is `proposeShapeOperations` — the model emits the
+// operations, the same applier applies them. `proposeExtractionShape` is the
+// one-call convenience that composes the two for a host that wants the
+// artifact directly.
 export { deriveExtractionShape } from "./shape/shape-operations.js";
 export type { DeriveExtractionShapeOptions } from "./shape/shape-operations.js";
 export type { ShapeOperation } from "./shape/shape-operation.js";
@@ -44,6 +50,10 @@ export { reverseShapedFields } from "./shape/shape-reverse.js";
 export { reshapedExtractor } from "./shape/reshaped-extractor.js";
 export { generateShapedValue } from "./shape/shape-generate.js";
 export type { GenerateOptions } from "./shape/shape-generate.js";
+export { proposeExtractionShape, proposeShapeOperations } from "./shape/operations-proposer.js";
+export type { ProposeOptions } from "./shape/operations-proposer.js";
+export { renderLeafInventory, walkLeafInventory } from "./shape/leaf-inventory.js";
+export type { LeafInventoryEntry } from "./shape/leaf-inventory.js";
 
 // Projection of an extraction target onto one top-level group key — the pure
 // narrow half of per-group prompt assembly, reusable by any strategy.

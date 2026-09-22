@@ -1,4 +1,4 @@
-# 0017. `write` returns a receipt, core never parses it, and one call carries one group
+# 0018. `write` returns a receipt, core never parses it, and one call carries one group
 
 Status: Accepted
 Date: 2026-09-21

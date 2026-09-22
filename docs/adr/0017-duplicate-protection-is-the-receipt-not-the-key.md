@@ -1,4 +1,4 @@
-# 0016. Duplicate protection is the write receipt, not the idempotency key
+# 0017. Duplicate protection is the write receipt, not the idempotency key
 
 Status: Accepted
 Date: 2026-09-21

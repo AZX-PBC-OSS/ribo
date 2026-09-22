@@ -213,7 +213,7 @@ next worth probing if anyone wants certainty.
 **`Idempotency-Key` is IGNORED.** A create, then a byte-identical replay with the same key,
 returned `200` with a _different_ uuid. The spec declares no header parameters on any endpoint and
 never mentions idempotency. Anything reasoning from that header is wrong; duplicate protection has
-to come from the write receipt (see ADR 0016).
+to come from the write receipt (see ADR 0017).
 
 ### 3.4 The thermostat setpoints accept a RANGE, and usually carry one
 
