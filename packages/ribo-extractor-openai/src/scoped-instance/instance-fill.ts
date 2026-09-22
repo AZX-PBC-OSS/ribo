@@ -134,6 +134,17 @@ export interface ScopedFillOptions<V extends Record<string, unknown>, P = NoProv
    * {@link PerGroupOptions.maxNullableUnionsPerGroup}.
    */
   readonly maxNullableUnionsPerGroup?: number;
+  /**
+   * Max serialized JSON Schema characters per piece ({@link splitExtractionSchema}'s
+   * `maxSerializedCharsPerGroup`). The library carries no provider's number for it
+   * (ADR 0015) — the route's ceiling is the caller's to know. Omitted, no byte-cap
+   * packing runs and the union cap is the only partition boundary. Same effect as
+   * the per-group preset's option; supplied here so callers routing through the
+   * scoped-instance preset don't have to compose `prepareGroups`+`fillPhase` by
+   * hand to opt in. Partitioning multiplies fill calls per instance, never the
+   * instance count.
+   */
+  readonly maxSerializedCharsPerGroup?: number;
 }
 
 /**
@@ -430,6 +441,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
     buildFillInstructions,
     instanceCap = DEFAULT_INSTANCE_CAP,
     maxNullableUnionsPerGroup,
+    maxSerializedCharsPerGroup,
     onUnit,
     onRetryBudget,
     requireRetryBudget,
@@ -438,11 +450,19 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
   // The union cap defaults to the same ceiling the per-group extractor applies,
   // for the same reason: an over-cap per-instance schema is rejected
   // provider-side, and tier 1 was the one strategy still sending every group
-  // whole. `maxNullableUnionsPerGroup` lets a caller tune it to its route's real limit.
-  const groups = splitExtractionSchema(
-    target.extractionSchema,
-    maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
-  );
+  // whole. The byte cap is a separate opt-in: when the route's structured-
+  // output ceiling is character-counted, the union check passes through and
+  // the request is rejected at the provider with a 400 indistinguishable from
+  // every other schema rejection. PerGroupOptions exposes the same pair for the
+  // per-group extractor; this option keeps the two presets symmetric so a
+  // caller moving between them doesn't have to learn a second knob shape.
+  const splitOptions: { maxNullableUnionsPerGroup: number; maxSerializedCharsPerGroup?: number } = {
+    maxNullableUnionsPerGroup: maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
+  };
+  if (maxSerializedCharsPerGroup !== undefined) {
+    splitOptions.maxSerializedCharsPerGroup = maxSerializedCharsPerGroup;
+  }
+  const groups = splitExtractionSchema(target.extractionSchema, splitOptions);
   const prepared = prepareGroups(target, groups);
 
   const engine = phasedExtractor<V, P>({
