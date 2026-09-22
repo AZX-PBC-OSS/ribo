@@ -52,36 +52,27 @@ nest moved away; the derivation refuses both, at construction, where the author 
 
 ## Consequences
 
-What `nest` buys is extraction-side, and only extraction-side — and **the split payoff is
-conditional, on a condition the motivating case does not meet.** A nest group becomes its own
-`splitExtractionSchema` entry, with its own call and its own prompt assembly, **only when the
-nests cover every top-level key.** The split's gate is `everyKeyIsGroup`: one unmoved top-level
-leaf collapses the whole schema to the flat fallback, and every nest group with it. Measured, not
-inferred — nesting two of three flat leaves yields `[""]`; nesting all three yields the groups.
+What `nest` buys is extraction-side, and only extraction-side. A nest group becomes its own
+`splitExtractionSchema` entry, with its own call and its own prompt assembly.
 
-That is exactly the spike's shape: 19 proposed groups over 294 leaves is partial nesting.
-
-**And it is worse than buying nothing — a partially nested schema may not extract at all.** The
-flat fallback partitions over top-level keys and treats each one as ATOMIC. A top-level key that
-is itself a group larger than a cap "cannot fit any piece", so the split throws. Measured on the
-live proposal: the raw flat schema splits into 38 pieces and the drops-and-retypes version into
-30, but the version carrying the model's 14 nests **fails to split**, because the `pool` group is
-24 nullable unions against a cap of 16. Nest all 294 leaves and it splits into 27 pieces, with
-oversized groups partitioned within themselves — the per-group path handles them correctly. It is
-only the mixed schema that has nowhere to go.
-
-**This is not a defect `nest` introduces.** A hand-written schema with an oversized group beside
-a loose top-level leaf fails identically, with no nest anywhere near it; the limitation is the
-flat fallback's and predates this change. What `nest` does is make it easy and likely to reach,
-because a partially nested schema is the proposer's natural output. The failure is loud — a named
-throw at extractor construction, not a silent truncation — and a caller can raise the caps, at the
-accuracy cost the caps exist to prevent.
-
-So: teaching the splitter to partition a mixed schema — real groups routed through the per-group
-partitioning, leftover top-level leaves packed as one — is not the optional follow-on this ADR
-first called it. It is what makes `nest` useful on the input that motivated it, and it is the
-immediate next piece of work. The limitation is pinned by a test so it lives in code, and this
-paragraph is here so nobody has to rediscover it from a stack trace.
+> **Rewritten in place, 2026-09-22.** This section originally recorded a hard limit: the split's
+> `everyKeyIsGroup` gate meant one unmoved top-level leaf collapsed the whole schema to the flat
+> fallback, so a **partially** nested schema — 19 proposed groups over 294 leaves, the shape the
+> proposer actually emits — bought no per-group payoff and, when a nest group exceeded a cap,
+> **could not be split at all**. That was measured, and it was true when written.
+>
+> **ADR 0023 lifted it**, before either decision shipped in a released version — which is why this
+> is a rewrite rather than a supersession note (`docs/adr/index.md`'s stated exception). A mixed
+> schema now splits: each group through the group packer, the loose leaves as the unwrapped
+> portion under `""`. The test that pinned the limitation was inverted to pin the lifting.
+>
+> The reasoning is kept because it is still load-bearing for one claim below — the limitation was
+> never a defect `nest` introduced. A hand-written schema with an oversized group beside a loose
+> top-level leaf failed identically, with no nest anywhere near it; the gate was the flat
+> fallback's and predated this operation. What `nest` did was make the shape easy to reach,
+> because a partially nested schema is the proposer's natural output. That is what made the split
+> the immediate next piece of work rather than an optional follow-on, and ADR 0023 is the record
+> of doing it.
 
 What it does not buy, stated plainly so this record cannot be read as overselling: review still
 renders the moved leaves FLAT (`buildReviewRequest` walks the patch schema, which a nest leaves

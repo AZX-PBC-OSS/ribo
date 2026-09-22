@@ -232,12 +232,12 @@ is the model's call; the schema packing is `schemaExtractor`'s downstream concer
 (0016) records the cap-policy argument.
 
 A `nest` buys extraction-side structure only: the extraction schema carries the new group as a
-subject rather than as loose fields. It also becomes its own `splitExtractionSchema` entry — its
-own call and prompt assembly — but only if the nests cover **every** top-level key; one unmoved
-top-level leaf collapses the whole schema to the flat fallback, nest groups included. The derived
-patch is unchanged by a nest, so review still renders the moved leaves at their flat paths, and
-`requiredOnCreate`, `identifyingFields` and provenance cannot be declared on the new group. ADR
-0022 records the decision and its limits.
+subject rather than as loose fields, and it becomes its own `splitExtractionSchema` entry — its
+own call and prompt assembly. Top-level leaves no nest moved are not stranded by that: they ride
+one or more pieces of the unwrapped portion, keyed `""` (ADR 0023), beside the named groups. The
+derived patch is unchanged by a nest, so review still renders the moved leaves at their flat
+paths, and `requiredOnCreate`, `identifyingFields` and provenance cannot be declared on the new
+group. ADR 0022 records the decision and its limits.
 
 How it lands on a working extraction at every failure mode:
 
