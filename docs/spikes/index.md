@@ -53,6 +53,7 @@ two copies of the same probe.
 | 0007 | [`0007-snuggpro-write-semantics`](./0007-snuggpro-write-semantics/)   | Does the vendor honour `Idempotency-Key`, and does a write merge or replace?  | Answered | 2026-09-21 |
 | 0008 | [`0008-typesafe-jev`](./0008-typesafe-jev/)                           | Where does a System One model (TypeSafe's Jev) fit ribo's pipeline?           | Answered | 2026-09-21 |
 | 0009 | [`0009-basedata-proposer`](./0009-basedata-proposer/)                 | Can a model shape a real API POST body into an extraction target?             | Answered | 2026-09-21 |
+| 0010 | [`0010-kev-ondevice`](./0010-kev-ondevice/)                           | Can a System One model run in the browser, and is it good enough to ship?     | Answered | 2026-09-22 |
 
 Numbers are assigned by first-commit date. The three sharing 2026-07-24 arrived in one squashed
 initial release and are ordered by the doc that reports each (01, 14, 16).

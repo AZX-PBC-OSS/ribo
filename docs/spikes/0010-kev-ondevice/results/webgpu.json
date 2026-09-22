@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "adapter": {},
+  "loadMs": 15576,
+  "tokens": 2537,
+  "questions": 40,
+  "firstPassMs": 1117,
+  "warmPassMs": [
+    868,
+    860,
+    860
+  ],
+  "uniform": false,
+  "log": [
+    "adapter ok: {}",
+    "loaded q4f16/webgpu in 15.6s",
+    "packed 2537 tokens, 40 questions",
+    "first pass (includes shader compile) 1117ms",
+    "warm passes 868, 860, 860ms",
+    "p(yes) range 0.633..0.817 (spread 0.184)"
+  ]
+}
