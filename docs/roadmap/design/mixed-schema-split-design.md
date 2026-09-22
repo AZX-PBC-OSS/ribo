@@ -13,6 +13,13 @@ constructing pieces and everything emitted must satisfy the caps it was given �
 options the motivating shape otherwise emitted one 94-union loose piece behind a cap of 16. The
 all-flat rule survives for all-flat schemas: there the module declines to split at all and
 returns the input, claiming nothing. Open question 1's recommendation is superseded.
+(3) `narrowToAbstained` never narrowed a `""` piece — `pieceLeafKeys` read `shape[""]` (an
+empty leaf set) and `jobFullyCommitted` read `fields[""]` (a slot no merge writes), so a
+narrowed second fill re-issued the loose job and could overwrite the first fill's committed
+loose leaves with a fresh abstention's nulls. Both helpers now take the `""` branch
+(`partitionedLeafKeys`'s read; the draft itself as the slot). The misreads were pre-existing;
+§3's consumer inventory covered the fill phase's plan/merge message paths (rows 14–15) but not
+the narrowing helpers, which is how they slipped the "inventory held" verification.
 **Question answered:** `splitExtractionSchema` groups only when every top-level key is a group; a
 schema that is 14 groups plus a few loose leaves collapses to the flat fallback. How does the
 split — and every consumer of its `""` marker — handle groups and loose leaves in one schema?

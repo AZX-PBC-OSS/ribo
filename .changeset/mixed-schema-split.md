@@ -38,6 +38,12 @@ partitioned), no group-key infix in the wire name, and `groupInstructions` is ne
 no longer claims "not an object of groups" — it names the `""` entry, which takes no override,
 and points at hand composition.
 
-The scoped-instance preset needed no code: `prepareGroups`, the inventory phase and the fill
-phase already handled a `""` piece as one entry among several, and new pins lock that a mixed
-split flows through them with zero behavioural drift. ADR 0023 records the contract change.
+The scoped-instance preset needed no code for the split itself: `prepareGroups`, the inventory
+phase and the fill phase already handled a `""` piece as one entry among several, and new pins
+lock that a mixed split flows through them with zero behavioural drift. One pre-existing fill
+misread reached further once `""` pieces became common: `narrowToAbstained` never narrowed a
+`""` piece — its leaf set read `shape[""]` and its committed check read `fields[""]`, a slot no
+merge writes — so a narrowed second fill re-issued the loose job and its merge could overwrite
+the first fill's committed loose leaves with a fresh abstention's nulls. Both helpers now take
+the `""` branch: the leaves are the piece schema's own top-level keys, and the slot is the
+draft itself. ADR 0023 records the contract change.

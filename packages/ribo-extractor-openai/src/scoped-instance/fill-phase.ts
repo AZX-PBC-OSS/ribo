@@ -127,14 +127,21 @@ interface FillJob {
 
 /**
  * The leaves one fill job asks the model about: a partitioned piece names its
- * own subset (`leafKeys`); any other piece's schema is the one-key object
- * `{ [key]: leaves }`, so the element's property names are the leaf set. An
- * empty set is never treated as satisfied — narrowing may plan a job that did
- * not need re-asking, never skip one that did.
+ * own subset (`leafKeys`); any other GROUPED piece's schema is the one-key
+ * object `{ [key]: leaves }`, so the element's property names are the leaf
+ * set; and a `""` piece's schema is the unwrapped strict object of its leaves,
+ * so the leaf set is the schema's own top-level keys — the same read
+ * `partitionedLeafKeys` makes (`per-group.ts`). An empty set is never treated
+ * as satisfied — narrowing may plan a job that did not need re-asking, never
+ * skip one that did.
  */
 const pieceLeafKeys = (group: PreparedGroup): readonly string[] => {
   if (group.leafKeys !== undefined) return group.leafKeys;
   if (!(group.schema instanceof z.ZodObject)) return [];
+  // A "" piece's schema IS the piece — there is no wrapping key to read under,
+  // and shape[""] is undefined, which read as an empty leaf set and disabled
+  // narrowing for every "" piece.
+  if (group.key === "") return Object.keys(group.schema.shape);
   const shape = group.schema.shape as Record<string, z.ZodType>;
   const element = shape[group.key];
   return element instanceof z.ZodObject ? Object.keys(element.shape) : [];
@@ -154,14 +161,21 @@ const jobFullyCommitted = <V extends Record<string, unknown>, P = NoProvenance>(
   if (leaves.length === 0) return false;
   // THE CAST: the slot is read by dynamic key, which the deep partial's mapped
   // type cannot index; every leaf read is checked through `isExtractedLeaf` first.
-  const entry = (fields as Record<string, unknown>)[group.key];
-  // A collection's slot is the instance's element of the group's array; a
-  // singleton's is the group entry itself.
-  const slot = group.isCollection
-    ? Array.isArray(entry)
-      ? (entry as unknown[])[instanceIndex]
-      : undefined
-    : entry;
+  const fieldsRecord = fields as Record<string, unknown>;
+  // The slot one job's leaves live in: a collection's is the instance's
+  // element of the group's array; a singleton's is the group entry itself; a
+  // "" piece's leaves are the draft's OWN top-level entries — the merge
+  // assigns them flat (fields.note, never fields[""] — a slot no merge
+  // writes), so the draft itself is the slot.
+  const entry = fieldsRecord[group.key];
+  const slot =
+    group.key === ""
+      ? fieldsRecord
+      : group.isCollection
+        ? Array.isArray(entry)
+          ? (entry as unknown[])[instanceIndex]
+          : undefined
+        : entry;
   if (slot === null || typeof slot !== "object" || Array.isArray(slot)) return false;
   const map = slot as Record<string, unknown>;
   return leaves.every((leaf) => {

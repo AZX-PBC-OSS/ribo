@@ -1007,6 +1007,166 @@ describe("fillPhase — narrowToAbstained", () => {
     expect(house.color.value).toBe("main");
     expect(house.size.value).toBe("1950");
   });
+
+  // --- The mixed arm: a "" piece's job narrows too ------------------------------
+  //
+  // The two "" misreads these tests pin (both pre-existing, both reaching much
+  // further now that "" pieces are the common case for the motivating schema
+  // class): `pieceLeafKeys` read `shape[""]` → `undefined` → `[]`, and
+  // `jobFullyCommitted` read `fields[""]` — a slot no merge ever writes, loose
+  // leaves landing at `fields.note` etc. — so a "" piece's fill job was NEVER
+  // skipped: a narrowed second fill re-issued the loose job, and its merge's
+  // `Object.assign` overwrote the first fill's committed loose leaves with a
+  // fresh abstention's nulls. The "" branches now match `per-group.ts`'s
+  // `partitionedLeafKeys`: the leaves are the piece schema's own top-level
+  // keys, and the slot is the draft itself.
+  const mixedNarrowPatch = z
+    .object({
+      widgets: z.array(widgetValues).optional(),
+      note: z.string().nullable().optional(),
+    })
+    .strict();
+  type MixedNarrowValues = z.infer<typeof mixedNarrowPatch>;
+  const mixedNarrowTarget: ExtractionTarget<MixedNarrowValues> = {
+    name: "demo",
+    extractionSchema: enveloped(mixedNarrowPatch),
+    instructions: "Demo extraction instructions.",
+    examples: [],
+  };
+  const mixedNarrowPrepared = prepareGroups(
+    mixedNarrowTarget,
+    splitExtractionSchema(mixedNarrowTarget.extractionSchema, MAX_NULLABLE_UNIONS_PER_CALL),
+  );
+  const mixedNarrowCtx: PhaseContext<MixedNarrowValues> = {
+    transcript: { text: "the full transcript", annotations: {} },
+    target: mixedNarrowTarget,
+  };
+
+  /** The loose piece's fill response: the note committed, or abstained on null. */
+  const noteResponse = (value: string | null): Record<string, unknown> => ({
+    note: { value, sourceSpan: value === null ? null : "the note", confidence: 1 },
+  });
+
+  /** Plan, run every job against the phase's chat, fold through merge — the mixed-typed runner. */
+  async function runMixedPhase(
+    phase: Phase<MixedNarrowValues>,
+    draft: PhaseDraft<MixedNarrowValues>,
+  ): Promise<{ names: string[]; merged: PhaseDraft<MixedNarrowValues> }> {
+    return phase.with(async (def) => {
+      const items = def.plan(draft, mixedNarrowCtx);
+      const names = items.map((item) => jobOf(item).requestName);
+      const outcomes = [];
+      for (const item of items) {
+        outcomes.push({
+          outcome: "result" as const,
+          item,
+          output: await def.run(item, draft, mixedNarrowCtx),
+        });
+      }
+      return { names, merged: def.merge(draft, outcomes) };
+    });
+  }
+
+  test("[inventory, fill, fill(narrowToAbstained)] over a mixed schema: a committed loose piece's job is not re-issued, and its value survives", async () => {
+    // The two-fills composition above, extended to the loose portion. The
+    // first fill commits the widget AND the loose note; the narrowed second
+    // fill must plan NOTHING. Before the "" fix it re-issued "demo-fill", and
+    // the second pass's abstention overwrote the committed note with null.
+    const roster: Roster = { widgets: [currentCandidate("the red widget")] };
+    const inventory = inventoryPhase<MixedNarrowValues>({
+      inventory: async () => roster,
+      prepared: mixedNarrowPrepared,
+      instanceCap: 10,
+    });
+    const draft1 = (await runMixedPhase(inventory, emptyDraft<MixedNarrowValues>())).merged;
+
+    const firstChat = fakeChat((name) => {
+      if (name === "demo-widgets-fill-0") return { widgets: committedLeaves("red", "1") };
+      if (name === "demo-fill") return noteResponse("a note");
+      throw new Error(`unexpected request ${name}`);
+    });
+    const first = fillPhase<MixedNarrowValues>({
+      target: mixedNarrowTarget,
+      chat: firstChat.chat,
+      model: "m",
+      prepared: mixedNarrowPrepared,
+      buildFillInstructions,
+    });
+    const firstRun = await runMixedPhase(first, draft1);
+    expect(firstRun.names).toEqual(["demo-widgets-fill-0", "demo-fill"]);
+
+    // The second pass would abstain on the note IF ASKED — the hazard's exact
+    // shape: a model abstention becoming null over a committed value.
+    const secondChat = fakeChat((name) => {
+      if (name === "demo-fill") return noteResponse(null);
+      throw new Error(`the narrowed second fill must not call ${name}`);
+    });
+    const second = fillPhase<MixedNarrowValues>({
+      target: mixedNarrowTarget,
+      chat: secondChat.chat,
+      model: "m",
+      prepared: mixedNarrowPrepared,
+      buildFillInstructions,
+      narrowToAbstained: true,
+    });
+    const secondRun = await runMixedPhase(second, firstRun.merged);
+
+    expect(secondRun.names).toEqual([]);
+    expect(secondChat.requests).toHaveLength(0);
+    const fields = secondRun.merged.fields as Record<string, unknown>;
+    expect((fields.note as { value: unknown }).value).toBe("a note");
+    const widgets = fields.widgets as { color: { value: unknown } }[];
+    expect(widgets[0]!.color.value).toBe("red");
+  });
+
+  test("a loose leaf that abstained re-plans exactly the loose job — the committed group stays skipped", async () => {
+    // The narrowing is sound, not just absent: an abstained loose leaf is
+    // re-asked, and only it. The first fill commits the widget and abstains
+    // on the note; the narrowed second fill re-issues ONLY "demo-fill", and
+    // the first fill's committed widget survives the second merge.
+    const roster: Roster = { widgets: [currentCandidate("the red widget")] };
+    const inventory = inventoryPhase<MixedNarrowValues>({
+      inventory: async () => roster,
+      prepared: mixedNarrowPrepared,
+      instanceCap: 10,
+    });
+    const draft1 = (await runMixedPhase(inventory, emptyDraft<MixedNarrowValues>())).merged;
+
+    const firstChat = fakeChat((name) => {
+      if (name === "demo-widgets-fill-0") return { widgets: committedLeaves("red", "1") };
+      if (name === "demo-fill") return noteResponse(null);
+      throw new Error(`unexpected request ${name}`);
+    });
+    const first = fillPhase<MixedNarrowValues>({
+      target: mixedNarrowTarget,
+      chat: firstChat.chat,
+      model: "m",
+      prepared: mixedNarrowPrepared,
+      buildFillInstructions,
+    });
+    const firstRun = await runMixedPhase(first, draft1);
+
+    const secondChat = fakeChat((name) => {
+      if (name === "demo-fill") return noteResponse("found on the second pass");
+      throw new Error(`the narrowed second fill must not call ${name}`);
+    });
+    const second = fillPhase<MixedNarrowValues>({
+      target: mixedNarrowTarget,
+      chat: secondChat.chat,
+      model: "m",
+      prepared: mixedNarrowPrepared,
+      buildFillInstructions,
+      narrowToAbstained: true,
+    });
+    const secondRun = await runMixedPhase(second, firstRun.merged);
+
+    expect(secondRun.names).toEqual(["demo-fill"]);
+    expect(secondChat.requests).toHaveLength(1);
+    const fields = secondRun.merged.fields as Record<string, unknown>;
+    expect((fields.note as { value: unknown }).value).toBe("found on the second pass");
+    const widgets = fields.widgets as { color: { value: unknown } }[];
+    expect(widgets[0]!.color.value).toBe("red");
+  });
 });
 
 describe("fillPhase — id", () => {
