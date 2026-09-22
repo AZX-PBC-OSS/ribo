@@ -3,6 +3,8 @@ import { expect, test } from "vitest";
 
 import { deriveExtractionShape } from "./shape-operations.js";
 import type { ShapeOperation } from "./shape-operation.js";
+import { reverseShapedFields } from "./shape-reverse.js";
+import { splitExtractionSchema } from "../schema/split-schema.js";
 import { stripOptionalNullable } from "@azx/ribo-core";
 
 /**
@@ -460,10 +462,327 @@ test("the operations type is a discriminated union a caller can switch on", () =
     { op: "drop", path: "vessel.notes" },
     { op: "retype", path: "engines.ratingKw", to: "number" },
     { op: "regroup", group: "vessel", moves: { notes: "surveyor.notes" } },
+    { op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } },
   ];
   for (const operation of ops) {
     if (operation.op === "drop") expect(operation.path).toBeTruthy();
     if (operation.op === "retype") expect(operation.to).toBe("number");
     if (operation.op === "regroup") expect(Object.keys(operation.moves)).toBeTruthy();
+    if (operation.op === "nest") expect(Object.keys(operation.moves)).toBeTruthy();
   }
+});
+
+/** A flat schema — the shape spike 0009 probed: every leaf at the root, no groups. */
+const flatSchema = z.object({
+  yearBuilt: z.string().describe("Year the home was constructed.").nullable().optional(),
+  squareMeters: z.number().nullable().optional(),
+  heatingType: z.enum(["gas", "oil", "electric"]).nullable().optional(),
+  hasGarage: z.boolean().nullable().optional(),
+});
+
+/** One real group and one collection beside the flat leaves, for collisions and bad sources. */
+const mixedSchema = z.object({
+  client: z.object({
+    name: z.string().nullable().optional(),
+  }),
+  systems: z.array(z.object({ fuel: z.string().nullable().optional() })),
+  yearBuilt: z.string().nullable().optional(),
+  squareMeters: z.number().nullable().optional(),
+});
+
+test("nest: top-level leaves move under a new group; the patch schema is unchanged", () => {
+  const shape = deriveExtractionShape(flatSchema, {
+    operations: [
+      {
+        op: "nest",
+        group: "construction",
+        moves: { yearBuilt: "yearBuilt", squareMeters: "area.squareMeters" },
+      },
+    ],
+  });
+
+  // The patch is byte-identical to an unshaped derivation's — review and the
+  // write see the caller's own flat shape.
+  const unshaped = deriveExtractionShape(flatSchema);
+  expect(JSON.stringify(z.toJSONSchema(shape.patchSchema))).toBe(
+    JSON.stringify(z.toJSONSchema(unshaped.patchSchema)),
+  );
+
+  // The extraction schema carries the new group with the moved leaves under it.
+  expect(Object.keys(shape.extractionSchema.shape).sort()).toEqual([
+    "construction",
+    "hasGarage",
+    "heatingType",
+  ]);
+  const construction = stripOptionalNullable(
+    shape.extractionSchema.shape.construction as z.ZodType,
+  ) as z.ZodObject;
+  expect(construction).toBeInstanceOf(z.ZodObject);
+  expect(Object.keys(construction.shape)).toEqual(["yearBuilt", "area"]);
+
+  // The mapping pairs every moved leaf with its original top-level path.
+  expect(shape.mapping.leaves["construction.yearBuilt"]!.source).toBe("yearBuilt");
+  expect(shape.mapping.leaves["construction.area.squareMeters"]!.source).toBe("squareMeters");
+  // The unmoved leaves stay at the top level of both spaces.
+  expect(shape.mapping.leaves["heatingType"]!.source).toBe("heatingType");
+  expect(shape.mapping.leaves["hasGarage"]!.source).toBe("hasGarage");
+
+  // Descriptions survive the move.
+  const extractionJson = JSON.stringify(z.toJSONSchema(shape.extractionSchema));
+  expect(extractionJson).toContain("Year the home was constructed.");
+});
+
+test("a nest and a retype compose on the same leaf", () => {
+  const shape = deriveExtractionShape(flatSchema, {
+    operations: [
+      { op: "retype", path: "yearBuilt", to: "number" },
+      { op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } },
+    ],
+  });
+  expect(shape.mapping.leaves["construction.yearBuilt"]).toEqual({
+    source: "yearBuilt",
+    retype: { extraction: "number", patch: "string" },
+  });
+});
+
+test("two nests create two groups from one flat schema, leaving a leaf at top level", () => {
+  const shape = deriveExtractionShape(flatSchema, {
+    operations: [
+      { op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } },
+      { op: "nest", group: "amenities", moves: { hasGarage: "hasGarage" } },
+    ],
+  });
+  expect(Object.keys(shape.extractionSchema.shape).sort()).toEqual([
+    "amenities",
+    "construction",
+    "heatingType",
+    "squareMeters",
+  ]);
+  expect(shape.mapping.leaves["construction.yearBuilt"]!.source).toBe("yearBuilt");
+  expect(shape.mapping.leaves["amenities.hasGarage"]!.source).toBe("hasGarage");
+  expect(shape.mapping.leaves["squareMeters"]!.source).toBe("squareMeters");
+});
+
+test("a nest that moves every top-level leaf succeeds — the shaped root holds the new groups", () => {
+  // `refuseEmptyObjects` must not fire: the root is not empty, it holds the
+  // new groups.
+  const shape = deriveExtractionShape(flatSchema, {
+    operations: [
+      {
+        op: "nest",
+        group: "construction",
+        moves: { yearBuilt: "yearBuilt", squareMeters: "squareMeters" },
+      },
+      {
+        op: "nest",
+        group: "amenities",
+        moves: { heatingType: "heatingType", hasGarage: "hasGarage" },
+      },
+    ],
+  });
+  expect(Object.keys(shape.extractionSchema.shape).sort()).toEqual(["amenities", "construction"]);
+});
+
+test("a nested leaf reverses to its original top-level patch path — value, confidence and sourceSpan verbatim", () => {
+  const shape = deriveExtractionShape(flatSchema, {
+    operations: [{ op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } }],
+  });
+  const reversed = reverseShapedFields(
+    {
+      construction: {
+        yearBuilt: { value: "1972", confidence: 0.9, sourceSpan: "built in seventy-two" },
+      },
+      squareMeters: { value: 210, confidence: 0.8, sourceSpan: "two ten" },
+      heatingType: { value: "gas", confidence: 0.7, sourceSpan: "gas heat" },
+      hasGarage: { value: true, confidence: 1, sourceSpan: "a garage" },
+    },
+    shape.mapping,
+  );
+  expect(reversed.yearBuilt).toEqual({
+    value: "1972",
+    confidence: 0.9,
+    sourceSpan: "built in seventy-two",
+  });
+  // Nothing is written under the synthetic group — it exists only in the
+  // extraction space.
+  expect(reversed).not.toHaveProperty("construction");
+  // The unmoved leaves reverse as themselves.
+  expect(reversed.squareMeters).toEqual({ value: 210, confidence: 0.8, sourceSpan: "two ten" });
+});
+
+test("the payoff: splitExtractionSchema groups a nest-derived extraction schema by the new group", () => {
+  // Nesting gives the split something to split on: the new group becomes its
+  // own call with its own prompt assembly, instead of one flat request.
+  const shape = deriveExtractionShape(mixedSchema, {
+    operations: [
+      {
+        op: "nest",
+        group: "construction",
+        moves: { yearBuilt: "yearBuilt", squareMeters: "squareMeters" },
+      },
+    ],
+  });
+  const groups = splitExtractionSchema(shape.extractionSchema);
+  expect(groups.map((group) => group.key).sort()).toEqual(["client", "construction", "systems"]);
+});
+
+test("refusals: a nest group collides with a surviving top-level key, or resurrects a dropped one", () => {
+  expect(() =>
+    deriveExtractionShape(mixedSchema, {
+      operations: [{ op: "nest", group: "client", moves: { yearBuilt: "yearBuilt" } }],
+    }),
+  ).toThrow(/nest names group "client", which is already a top-level key/);
+
+  // A name the caller deliberately removed reappearing as a synthetic group is
+  // confusing at review — refused on the same ground as regroup's
+  // no-resurrection rule.
+  expect(() =>
+    deriveExtractionShape(flatSchema, {
+      operations: [
+        { op: "drop", path: "hasGarage" },
+        { op: "nest", group: "hasGarage", moves: { yearBuilt: "yearBuilt" } },
+      ],
+    }),
+  ).toThrow(/nest names group "hasGarage", which a drop removed/);
+});
+
+test("refusals: duplicate nests and doubly-moved sources are refused at bucketing", () => {
+  expect(() =>
+    deriveExtractionShape(flatSchema, {
+      operations: [
+        { op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } },
+        { op: "nest", group: "construction", moves: { squareMeters: "squareMeters" } },
+      ],
+    }),
+  ).toThrow(/nest names group "construction" twice/);
+
+  expect(() =>
+    deriveExtractionShape(flatSchema, {
+      operations: [
+        { op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } },
+        { op: "nest", group: "location", moves: { yearBuilt: "yearBuilt" } },
+      ],
+    }),
+  ).toThrow(/nests "construction" and "location" both move "yearBuilt"/);
+});
+
+test("refusals: an empty moves record — a nest creates its target, so there is nothing to create it from", () => {
+  // A `regroup` with no moves is a silent no-op; a `nest` cannot inherit that,
+  // because the group it names exists only if a move puts something in it.
+  // Without its own refusal this would surface from `refuseEmptyObjects` as
+  // "the object at … has no fields left", naming the wrong thing.
+  expect(() =>
+    deriveExtractionShape(flatSchema, {
+      operations: [{ op: "nest", group: "construction", moves: {} }],
+    }),
+  ).toThrow(/nest names group "construction" with an empty moves record/);
+});
+
+test("refusals: a nest source must be a top-level leaf — not a group, a collection, a nested path, or nothing", () => {
+  // An object group.
+  expect(() =>
+    deriveExtractionShape(mixedSchema, {
+      operations: [{ op: "nest", group: "meta", moves: { client: "client" } }],
+    }),
+  ).toThrow(/nest on "meta" moves "client", which is a group, not a top-level leaf/);
+  // A collection.
+  expect(() =>
+    deriveExtractionShape(mixedSchema, {
+      operations: [{ op: "nest", group: "meta", moves: { systems: "systems" } }],
+    }),
+  ).toThrow(/nest on "meta" moves "systems", which is a collection, not a top-level leaf/);
+  // A nested (multi-segment) path.
+  expect(() =>
+    deriveExtractionShape(mixedSchema, {
+      operations: [{ op: "nest", group: "meta", moves: { "client.name": "name" } }],
+    }),
+  ).toThrow(/nest on "meta" moves "client\.name" — a nest source is one segment/);
+  // Nothing at all.
+  expect(() =>
+    deriveExtractionShape(mixedSchema, {
+      operations: [{ op: "nest", group: "meta", moves: { nope: "nope" } }],
+    }),
+  ).toThrow(/nest on "meta" moves "nope", which is not a top-level leaf of the schema/);
+  // A path a drop removed.
+  expect(() =>
+    deriveExtractionShape(mixedSchema, {
+      operations: [
+        { op: "drop", path: "yearBuilt" },
+        { op: "nest", group: "meta", moves: { yearBuilt: "yearBuilt" } },
+      ],
+    }),
+  ).toThrow(/nest on "meta" moves "yearBuilt", which is not a top-level leaf of the schema/);
+});
+
+test("refusals: a nest group name must be a usable top-level object key", () => {
+  for (const group of ["", "7", "a.b", "a[0]"]) {
+    expect(() =>
+      deriveExtractionShape(flatSchema, {
+        operations: [{ op: "nest", group, moves: { yearBuilt: "yearBuilt" } }],
+      }),
+    ).toThrow(/nest names group .* which is not a usable top-level object key/);
+  }
+});
+
+test("refusals: nest destinations are non-empty, pairwise distinct, and none prefixes another", () => {
+  expect(() =>
+    deriveExtractionShape(flatSchema, {
+      operations: [{ op: "nest", group: "construction", moves: { yearBuilt: "" } }],
+    }),
+  ).toThrow(/nest on "construction" moves "yearBuilt" to an empty destination/);
+
+  expect(() =>
+    deriveExtractionShape(flatSchema, {
+      operations: [
+        {
+          op: "nest",
+          group: "construction",
+          moves: { yearBuilt: "a", squareMeters: "a" },
+        },
+      ],
+    }),
+  ).toThrow(/moves "yearBuilt" and "squareMeters" to the same destination/);
+
+  expect(() =>
+    deriveExtractionShape(flatSchema, {
+      operations: [
+        {
+          op: "nest",
+          group: "construction",
+          moves: { yearBuilt: "a", squareMeters: "a.b" },
+        },
+      ],
+    }),
+  ).toThrow(/to destinations, one under the other/);
+});
+
+test("refusals: provenance may not name a nest group — it exists in the extraction schema only", () => {
+  // `mapping.provenance` is applied to BOTH schemas (the extraction schema at
+  // derivation, the patch at the combinator's construction), and a nest group
+  // exists in only one. Tested at "row" AND "none": an implementation that
+  // special-cases "row" would pass the first alone.
+  expect(() =>
+    deriveExtractionShape(flatSchema, {
+      operations: [{ op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } }],
+      provenance: { construction: "row" },
+    }),
+  ).toThrow(/provenance names group "construction", which a nest creates/);
+  expect(() =>
+    deriveExtractionShape(flatSchema, {
+      operations: [{ op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } }],
+      provenance: { construction: "none" },
+    }),
+  ).toThrow(/provenance names group "construction", which a nest creates/);
+});
+
+test("refusals: provenance may not name a leaf a nest moved away", () => {
+  // "none" is the only non-default granularity a top-level leaf can legally
+  // carry; nesting the leaf forces the caller to remove the declaration, and
+  // the refusal names both the key and why it vanished.
+  expect(() =>
+    deriveExtractionShape(flatSchema, {
+      operations: [{ op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } }],
+      provenance: { yearBuilt: "none" },
+    }),
+  ).toThrow(/provenance names group "yearBuilt".*(dropped|moved)/);
 });
