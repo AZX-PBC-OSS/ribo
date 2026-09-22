@@ -312,9 +312,19 @@ export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvena
   /**
    * Writes accepted fields into the host tool. Rejects if the write fails.
    *
-   * Resolves with the vendor's own identifier for the record it just created —
-   * the id a future amend pass needs in order to update that record rather than
-   * duplicate it.
+   * Resolves with a **receipt**: whatever string lets a later attempt address the
+   * record this write landed, so an amend updates it rather than duplicating it.
+   * Core stores it and hands it back as {@link WriteMetadata.linkTarget}; it never
+   * parses it, and its shape is entirely the adapter's business.
+   *
+   * **It is deliberately not called a uuid.** It was, and the name was a host
+   * tool's word for its own identifiers leaking into a tool-agnostic contract —
+   * the thing this package exists to keep out. It also made honest adapters lie:
+   * a Snugg Pro singleton endpoint returns no identifier at all, so its adapter
+   * has to synthesise one, and a value shaped `singleton:basedata:588613` being
+   * returned from something typed `uuid` needed a comment apologising for itself.
+   * "Receipt" is the word core already uses everywhere it stores one
+   * (`receipts`, `recordReceipt`, `mergeReceipts`), and it is true of every case.
    *
    * `meta` is a third parameter rather than a member of `ctx` deliberately: `ctx`
    * is *where to write* and travels with the recording, while `meta` is *how to
@@ -322,5 +332,5 @@ export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvena
    * different sources, and merging them would let a host persist an idempotency
    * key into a recording's context.
    */
-  write: (fields: V, ctx: C, meta: WriteMetadata) => Promise<{ readonly uuid: string }>;
+  write: (fields: V, ctx: C, meta: WriteMetadata) => Promise<{ readonly receipt: string }>;
 }

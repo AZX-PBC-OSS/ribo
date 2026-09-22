@@ -44,7 +44,7 @@ export type SnuggHttpWriter = (
   values: Record<string, unknown>,
   ctx: SnuggWriteContext,
   meta: WriteMetadata,
-) => Promise<{ readonly uuid: string }>;
+) => Promise<{ readonly receipt: string }>;
 
 /**
  * An HTTP failure the relay's backoff owns: 408, 429 or a 5xx. Carries
@@ -208,13 +208,13 @@ const readReceipt = async (
   group: string,
   kind: SnuggEndpointKind,
   ctx: SnuggWriteContext,
-): Promise<{ readonly uuid: string }> => {
+): Promise<{ readonly receipt: string }> => {
   if (kind === "collection") {
-    return snuggRecordSchema.parse(await response.json());
+    return { receipt: snuggRecordSchema.parse(await response.json()).uuid };
   }
   const receipt =
     kind === "job" ? `job:${ctx.assessmentId}` : `singleton:${group}:${ctx.assessmentId}`;
-  return { uuid: receipt };
+  return { receipt };
 };
 
 export const createSnuggHttpWriter = (options: SnuggHttpWriterOptions = {}): SnuggHttpWriter => {

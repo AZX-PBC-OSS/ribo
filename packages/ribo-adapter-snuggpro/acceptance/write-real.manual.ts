@@ -108,7 +108,7 @@ test.runIf(configured)(
     const adapter = createSnuggProAdapter({ fetchImpl: gatewayFetch });
     const before = await listHvacs();
 
-    const { uuid } = await adapter.write(
+    const { receipt } = await adapter.write(
       {
         hvac: [
           {
@@ -126,17 +126,20 @@ test.runIf(configured)(
       meta(),
     );
 
-    expect(uuid).toMatch(/[0-9a-f-]{16,}/);
-    created.push(uuid);
+    // For a COLLECTION the receipt is the vendor's own uuid — the one case where the
+    // two coincide. A singleton's receipt is a synthesised string, which is why the
+    // contract calls it a receipt rather than a uuid.
+    expect(receipt).toMatch(/[0-9a-f-]{16,}/);
+    created.push(receipt);
 
-    const stored = (await listHvacs()).find((record) => record["uuid"] === uuid);
+    const stored = (await listHvacs()).find((record) => record["uuid"] === receipt);
     expect(stored, "the created record reads back").toBeDefined();
     expect(stored?.["hvacSystemName"]).toBe(PROBE_NAME);
     // Sent as the number 2001; the vendor's field is a string.
     expect(stored?.["hvacHeatingSystemModelYear"]).toBe("2001");
     // Sent as "Duct Board 1.5 inch"; the vendor stores its own quoted literal.
     expect(stored?.["hvacDuctInsulation"]).toBe('Duct Board 1.5"');
-    expect(before.some((record) => record["uuid"] === uuid)).toBe(false);
+    expect(before.some((record) => record["uuid"] === receipt)).toBe(false);
   },
 );
 

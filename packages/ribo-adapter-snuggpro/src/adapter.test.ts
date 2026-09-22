@@ -208,7 +208,7 @@ const fetchRecording = (
   return { fetchImpl, calls };
 };
 
-const rejectionOf = async (write: Promise<{ readonly uuid: string }>): Promise<unknown> => {
+const rejectionOf = async (write: Promise<{ readonly receipt: string }>): Promise<unknown> => {
   try {
     await write;
   } catch (error) {
@@ -231,7 +231,7 @@ describe("createSnuggProAdapter — the patch-to-receipt bridge", () => {
 
     await expect(
       adapter.write({ hvac: [hvacInstance] }, wiredCtx, { idempotencyKey: "key-1" }),
-    ).resolves.toEqual({ uuid: "vendor-hvac-uuid" });
+    ).resolves.toEqual({ receipt: "vendor-hvac-uuid" });
 
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toBe("https://gateway.example/snugg/jobs/123/hvac");
@@ -279,7 +279,7 @@ describe("createSnuggProAdapter — the patch-to-receipt bridge", () => {
         wiredCtx,
         { idempotencyKey: "key-1" },
       ),
-    ).resolves.toEqual({ uuid: "assessment:123" });
+    ).resolves.toEqual({ receipt: "assessment:123" });
 
     expect(calls).toHaveLength(2);
     // The schema's group order, not the patch object's key order.

@@ -96,7 +96,7 @@ export function toWriteStep<V extends Record<string, unknown>, C>(
       );
     }
 
-    const { uuid } = await adapter.write(fields.data, parsedCtx.data, { idempotencyKey });
-    return { receipts: { singleton: uuid } };
+    const { receipt } = await adapter.write(fields.data, parsedCtx.data, { idempotencyKey });
+    return { receipts: { singleton: receipt } };
   };
 }

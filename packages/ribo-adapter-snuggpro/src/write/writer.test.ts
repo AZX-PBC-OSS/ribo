@@ -46,7 +46,7 @@ const fetchRecording = (
   return { fetchImpl, calls };
 };
 
-const failureOf = async (write: Promise<{ readonly uuid: string }>): Promise<unknown> => {
+const failureOf = async (write: Promise<{ readonly receipt: string }>): Promise<unknown> => {
   try {
     await write;
   } catch (error) {
@@ -68,7 +68,7 @@ describe("createSnuggHttpWriter", () => {
     );
     const write = createSnuggHttpWriter({ fetchImpl });
 
-    await expect(write("hvac", hvacValues, ctx, meta())).resolves.toEqual({ uuid: "new-uuid" });
+    await expect(write("hvac", hvacValues, ctx, meta())).resolves.toEqual({ receipt: "new-uuid" });
 
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toBe("https://gateway.example/snugg/jobs/123/hvac");
@@ -123,10 +123,10 @@ describe("createSnuggHttpWriter", () => {
     const write = createSnuggHttpWriter({ fetchImpl });
 
     await expect(write("basedata", { yearBuilt: 1987 }, ctx, meta())).resolves.toEqual({
-      uuid: "singleton:basedata:123",
+      receipt: "singleton:basedata:123",
     });
     await expect(write("health", {}, ctx, meta())).resolves.toEqual({
-      uuid: "singleton:health:123",
+      receipt: "singleton:health:123",
     });
 
     // The vendor's singleton responses carry no uuid or id; the write reads
@@ -144,7 +144,7 @@ describe("createSnuggHttpWriter", () => {
     const write = createSnuggHttpWriter({ fetchImpl });
 
     await expect(write("basedata", { yearBuilt: 1987 }, ctx, meta())).resolves.toEqual({
-      uuid: "singleton:basedata:123",
+      receipt: "singleton:basedata:123",
     });
   });
 
@@ -168,7 +168,7 @@ describe("createSnuggHttpWriter", () => {
     const write = createSnuggHttpWriter({ fetchImpl });
 
     await expect(write("job", { note: "Bring the blower door" }, ctx, meta())).resolves.toEqual({
-      uuid: "job:123",
+      receipt: "job:123",
     });
     await write("job", { note: "Bring the blower door" }, ctx, meta({ linkTarget: "job:123" }));
 

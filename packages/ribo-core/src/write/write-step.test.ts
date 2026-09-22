@@ -68,7 +68,7 @@ const makeAdapter = (sink: Write[]): ToolAdapter<AtticValues, JobContext> => ({
   instructions: "Extract the attic insulation R-value and area in square feet.",
   write: async (fields, ctx, meta) => {
     sink.push({ fields, ctx, meta });
-    return { uuid: `uuid-${meta.idempotencyKey}` };
+    return { receipt: `uuid-${meta.idempotencyKey}` };
   },
 });
 

@@ -19,7 +19,7 @@ import { describeLocated, zodIssues } from "../review/zod-issues.js";
  * Duplicate protection is the **receipt**. Each successful instance write is
  * checkpointed through `SessionWriteInput.recordReceipt` as it is earned — so
  * a throw later in the loop cannot discard it — and the next attempt UPDATEs
- * the receipted uuid instead of creating again. The accumulate-and-return of
+ * the receipted record instead of creating again. The accumulate-and-return of
  * `SessionWriteResult.receipts` stays as the second channel; the return, not
  * the checkpoint, is the contract a host step must keep.
  *
@@ -57,7 +57,7 @@ export interface ToInstanceWriteStepOptions<V extends Record<string, unknown>, C
  *
  * Stability is not duplicate protection: no vendor here honours
  * `Idempotency-Key` (measured 2026-09-21 against Snugg Pro's staging API). The
- * receipt — a retry UPDATEs the uuid a previous attempt recorded — is the real
+ * receipt — a retry UPDATEs the record a previous attempt's receipt names — is the
  * mechanism; the key is still sent because it is harmless and free.
  */
 export function deriveInstanceIdempotencyKey(
@@ -131,10 +131,14 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
     };
 
     if (Object.keys(singletonPatch).length > 0) {
-      const { uuid } = await adapter.write(adapter.schema.parse(singletonPatch), parsedCtx.data, {
-        idempotencyKey,
-      });
-      receipts.singleton = uuid;
+      const { receipt } = await adapter.write(
+        adapter.schema.parse(singletonPatch),
+        parsedCtx.data,
+        {
+          idempotencyKey,
+        },
+      );
+      receipts.singleton = receipt;
     }
 
     for (const { group, instances } of collections) {
@@ -165,7 +169,7 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
           typeof decision === "string"
             ? decision
             : session.receipts?.instances?.[group]?.[instanceKey];
-        const { uuid } = await adapter.write(
+        const { receipt } = await adapter.write(
           adapter.schema.parse(instancePatch),
           parsedCtx.data,
           // A missing or `null` target means CREATE — the documented default,
@@ -180,10 +184,10 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
           },
         );
         receipts.instances[group] ??= {};
-        receipts.instances[group][instanceKey] = uuid;
+        receipts.instances[group][instanceKey] = receipt;
         // Checkpoint the receipt as it is earned, not just at the end: a throw
         // on a later instance must not discard the ones that already landed.
-        await recordReceipt(group, instanceKey, uuid);
+        await recordReceipt(group, instanceKey, receipt);
       }
     }
 

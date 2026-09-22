@@ -85,7 +85,7 @@ const stubAdapter = (sink: Write[]): ToolAdapter<SnuggValues, SnuggWriteContext>
   examples: snuggExamples,
   write: async (fields, ctx, meta) => {
     sink.push({ fields, ctx, meta });
-    return { uuid: "unused" };
+    return { receipt: "unused" };
   },
 });
 

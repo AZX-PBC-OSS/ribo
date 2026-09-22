@@ -32,14 +32,6 @@ const UNRESOLVED_REFERENCE_LEAVES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The only leaf `HvacDuctInsulation` types today. Its quote-free aliases are
- * for the platform's structured-output route; the vendor's wire strings carry
- * the inch mark, so the value resolves through the normalization table before
- * it is sent.
- */
-const DUCT_INSULATION_LEAF = "hvacDuctInsulation";
-
-/**
  * Refuse a reference leaf that would actually be SENT, rather than one merely
  * present in the patch.
  *
@@ -66,13 +58,21 @@ const refuseUnresolvedReference = (group: string, name: string): void => {
  * passes through untouched — the vendor clears a `null` field and leaves an
  * absent one alone — and a number stringifies only where the spec types the
  * parameter `string`, never by field-name list.
+ *
+ * **Both transforms key on the VALUE, never on the leaf's name.** An earlier
+ * version matched `name === "hvacDuctInsulation"`, which put a copy of a schema
+ * identifier here as a bare string: renaming the leaf would move `schema.ts` and
+ * leave this comparison quietly never matching again, so the alias would reach
+ * the vendor unmapped and be rejected — a silent break with no failing test,
+ * because nothing ties the literal to the schema. `resolveDuctInsulationVendorLiteral`
+ * returns its input unchanged on a miss, so asking it about every string costs a
+ * `Map.get` and removes the coupling. It also means a second leaf carrying the
+ * same enum is handled for free rather than silently missed.
  */
-const transformLeaf = (name: string, value: unknown, specType: string): unknown => {
+const transformLeaf = (value: unknown, specType: string): unknown => {
   if (value === null) return null;
   if (typeof value === "number" && specType === "string") return String(value);
-  if (name === DUCT_INSULATION_LEAF && typeof value === "string") {
-    return resolveDuctInsulationVendorLiteral(value);
-  }
+  if (typeof value === "string") return resolveDuctInsulationVendorLiteral(value);
   return value;
 };
 
@@ -110,7 +110,7 @@ export const buildWriteBody = (
     // Last, so it fires only for a leaf the filters above have already decided
     // is bound for the wire. See the refusal's own note.
     refuseUnresolvedReference(group, name);
-    body[name] = transformLeaf(name, value, specType);
+    body[name] = transformLeaf(value, specType);
   }
   return body;
 };

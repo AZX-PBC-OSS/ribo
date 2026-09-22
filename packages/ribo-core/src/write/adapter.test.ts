@@ -50,7 +50,7 @@ const makeAdapter = (sink: Written[]): ToolAdapter<AtticFields, JobContext> => (
   ],
   write: async (fields, ctx, meta) => {
     sink.push({ fields, ctx, meta });
-    return { uuid: `uuid-${meta?.idempotencyKey ?? "no-meta"}` };
+    return { receipt: `uuid-${meta?.idempotencyKey ?? "no-meta"}` };
   },
 });
 
@@ -182,7 +182,7 @@ test("examples are optional", () => {
     extractionSchema: atticExtractionSchema,
     ctxSchema: jobContextSchema,
     instructions: "Extract nothing in particular.",
-    write: async () => ({ uuid: "unused" }),
+    write: async () => ({ receipt: "unused" }),
   };
 
   expect(minimal.examples).toBeUndefined();
@@ -249,7 +249,7 @@ test("the extraction schema cannot be the patch schema", () => {
     extractionSchema: atticSchema,
     ctxSchema: jobContextSchema,
     instructions: "Extract nothing in particular.",
-    write: async () => ({ uuid: "unused" }),
+    write: async () => ({ receipt: "unused" }),
   };
 
   expect(misdeclared.name).toBe("misdeclared");
@@ -267,7 +267,7 @@ test("a richer ctx cannot be silently narrowed away", () => {
     extractionSchema: atticExtractionSchema,
     ctxSchema: z.object({ jobId: z.string(), userId: z.string() }),
     instructions: "Needs a user as well as a job.",
-    write: async () => ({ uuid: "unused" }),
+    write: async () => ({ receipt: "unused" }),
   };
 
   // @ts-expect-error - an adapter that needs `userId` cannot pose as one that
@@ -307,7 +307,7 @@ test("`schema` still binds V: a leaf whose type disagrees does not compile", () 
     extractionSchema: atticExtractionSchema,
     ctxSchema: jobContextSchema,
     instructions: "Extract nothing in particular.",
-    write: async () => ({ uuid: "unused" }),
+    write: async () => ({ receipt: "unused" }),
   };
 
   expect(misdeclared.name).toBe("misdeclared");
@@ -335,7 +335,7 @@ test("a schema for a different tool is refused at `schema` itself", () => {
     extractionSchema: enveloped(foreignPatch),
     ctxSchema: jobContextSchema,
     instructions: "Extract nothing in particular.",
-    write: async () => ({ uuid: "unused" }),
+    write: async () => ({ receipt: "unused" }),
   };
 
   expect(misdeclared.name).toBe("misdeclared");
@@ -360,7 +360,7 @@ test("the MIXED pairing is refused: a foreign `schema` beside a correct `extract
     extractionSchema: atticExtractionSchema,
     ctxSchema: jobContextSchema,
     instructions: "Extract nothing in particular.",
-    write: async () => ({ uuid: "unused" }),
+    write: async () => ({ receipt: "unused" }),
   };
 
   expect(misdeclared.name).toBe("misdeclared");
@@ -411,7 +411,7 @@ test("a row-provenance adapter types its derived extraction schema without a cas
         fields: { rooms: [{ name: "L1.Bathrm", sourceSpan: "the bathroom on level one" }] },
       },
     ],
-    write: () => Promise.resolve({ uuid: "uuid-rooms" }),
+    write: () => Promise.resolve({ receipt: "uuid-rooms" }),
   };
 
   expect(

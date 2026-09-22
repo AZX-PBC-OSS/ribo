@@ -167,7 +167,7 @@ const adapterWithoutWrite: Omit<ToolAdapter<SnuggValues, SnuggWriteContext>, "wr
  * Everything but `write` works off it; the write names the fix instead of
  * resolving into a network call the host never configured.
  */
-const writeWithoutTransport = async (): Promise<{ readonly uuid: string }> => {
+const writeWithoutTransport = async (): Promise<{ readonly receipt: string }> => {
   throw new Error(
     "snuggProAdapter.write: no transport is configured. Snugg Pro egress needs the host's " +
       "credential-attaching transport — build the adapter with " +
@@ -191,7 +191,7 @@ const writePatch = async (
   fields: SnuggValues,
   ctx: SnuggWriteContext,
   meta: WriteMetadata,
-): Promise<{ readonly uuid: string }> => {
+): Promise<{ readonly receipt: string }> => {
   const records: Array<{ group: string; values: Record<string, unknown> }> = [];
   for (const group of Object.keys(snuggValuesSchema.shape)) {
     const value = fields[group as keyof SnuggValues];
@@ -222,11 +222,11 @@ const writePatch = async (
 
   const receipts: string[] = [];
   for (const { group, values } of records) {
-    const { uuid } = await writer(group, values, ctx, meta);
-    receipts.push(uuid);
+    const { receipt } = await writer(group, values, ctx, meta);
+    receipts.push(receipt);
   }
   if (receipts.length === 1) {
-    return { uuid: receipts[0]! };
+    return { receipt: receipts[0]! };
   }
   // More than one record, so this return cannot be the individual receipts: the
   // vendor assigned each its own uuid and this contract carries one string. The
@@ -235,7 +235,7 @@ const writePatch = async (
   // instance, one real receipt each, checkpointed as earned) and is the supported
   // composition for this adapter. A host that batches loses per-record receipts
   // and will create duplicates on a retry.
-  return { uuid: `assessment:${ctx.assessmentId}` };
+  return { receipt: `assessment:${ctx.assessmentId}` };
 };
 
 /**

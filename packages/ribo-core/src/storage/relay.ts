@@ -99,7 +99,7 @@ export interface SessionWriteInput {
    */
   ctx: unknown;
   /**
-   * Durably record one collection instance's vendor uuid the moment it is
+   * Durably record one collection instance's write receipt the moment it is
    * earned, so a throw later in the step's loop cannot discard it. Each call
    * patches the session's receipts additively, and the receipt is what the next
    * attempt UPDATEs instead of creating again.
@@ -124,7 +124,7 @@ export interface SessionWriteInput {
    * not an array), so re-sending it rewrites the same record and cannot
    * duplicate — there is nothing a lost singleton receipt would cost.
    */
-  recordReceipt: (group: string, instanceKey: string, uuid: string) => Promise<void>;
+  recordReceipt: (group: string, instanceKey: string, receipt: string) => Promise<void>;
 }
 
 /**
