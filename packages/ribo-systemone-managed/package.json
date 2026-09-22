@@ -30,7 +30,8 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@azx/ribo-core": "workspace:^"
+    "@azx/ribo-core": "workspace:^",
+    "@typesafe-ai/sdk": "catalog:"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "catalog:",

@@ -168,7 +168,7 @@ import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
 import { ManagedDocsTranscriber, MANAGED_DOCS_ENGINE } from "@azx/ribo-transcriber-managed-docs";
 import { PdfjsTranscriber, PDFJS_ENGINE } from "@azx/ribo-transcriber-pdfjs";
 import { openRxdbBackend, createRxdbBackend } from "@azx/ribo-storage-rxdb";
-import { systemOneClient, SystemOneError } from "@azx/ribo-systemone-managed";
+import { systemOneClient, SystemOneError, noul } from "@azx/ribo-systemone-managed";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import React from "react";
 import { createRoot } from "react-dom/client";
@@ -273,8 +273,9 @@ async function run() {
           headers: { "content-type": "application/json" },
         }),
     });
-    const soAnswers = await soClient.ask("some state", { q: { instructions: "is it?" } });
-    checks.systemOneAnswers = soAnswers.q === 0.75;
+    const soAnswers = await soClient.ask("some state", { q: noul("is it?") });
+    // The answer is discriminated on \`type\`, the way the wire is — not a bare number.
+    checks.systemOneAnswers = soAnswers.q.type === "noul" && soAnswers.q.noul === 0.75;
     checks.systemOneTerminalIdentity = new SystemOneError(401, "x") instanceof TerminalError;
 
     // ribo-transcriber-managed-docs: real capability logic across the tarball

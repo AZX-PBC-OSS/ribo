@@ -62,6 +62,10 @@ catalog:
   # that imports it. Pinned EXACT like every other catalog entry.
   "pdfjs-dist": "5.7.284"
 
+  # The official TypeSafe SDK for the System One API. A `dependencies` entry of
+  # @azx/ribo-systemone-managed — the only package that imports it.
+  "@typesafe-ai/sdk": "0.6.0"
+
   # --- types ---
   # Held on the 24.x line to match `engines.node: ">=24"` — @types/node majors
   # track Node majors, so a newer major would type APIs this repo cannot rely on.
