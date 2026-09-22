@@ -3,16 +3,16 @@
 // The question this answers: is "grounded but unsupported" a real, common cell, or a corner
 // case? If it is near-empty, support adds nothing that groundedness does not already flag.
 //
-// Uses the OLD-schema single-shot results in ../extraction-snuggpro/results/, which are the
+// Uses the OLD-schema single-shot results in ../0001-extraction-snuggpro/results/, which are the
 // only extractions in the repo carrying real model-produced sourceSpans. Field names are
 // pre-rebuild; that does not matter here, because the unit of measurement is the envelope.
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { spanGroundedness } from "../../packages/ribo-core/dist/index.js";
+import { spanGroundedness } from "../../../packages/ribo-core/dist/index.js";
 import { ask } from "./env.mjs";
 
 const RESULTS = process.argv[2] ?? "codex";
-const spikeDir = fileURLToPath(new URL("../extraction-snuggpro/", import.meta.url));
+const spikeDir = fileURLToPath(new URL("../0001-extraction-snuggpro/", import.meta.url));
 
 const rows = [];
 for (const file of readdirSync(`${spikeDir}results/${RESULTS}`).filter((f) =>

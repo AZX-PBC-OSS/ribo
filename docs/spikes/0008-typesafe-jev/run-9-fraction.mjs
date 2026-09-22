@@ -8,8 +8,8 @@
 //   node run-9-fraction.mjs <model>
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { mapExtractedLeaves, spanGroundedness } from "../../packages/ribo-core/dist/index.js";
-import { LEAF_BY_PATH } from "../extraction-snuggpro/schema-leaves.mjs";
+import { mapExtractedLeaves, spanGroundedness } from "../../../packages/ribo-core/dist/index.js";
+import { LEAF_BY_PATH } from "../0001-extraction-snuggpro/schema-leaves.mjs";
 import { ask } from "./env.mjs";
 import { corpus } from "./corpus.mjs";
 

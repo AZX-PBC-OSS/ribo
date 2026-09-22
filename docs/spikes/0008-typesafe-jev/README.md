@@ -1,12 +1,38 @@
-# TypeSafe / Jev spike
+# 0008 — TypeSafe / Jev for ribo
 
-**Throwaway.** Nine probes answering "how could TypeSafe's System One model (`jev-latest`) fit
-ribo?" — run 2026-09-21 against `jev-1.13.0`. Nothing here is a package, and nothing here should
-be promoted to one without being rewritten. The decisions this fed are ADR 0020 and ADR 0021;
-what survives here is the evidence behind them and a harness for the one measurement still open.
+**Status:** Answered, one measurement still open · **Date:** 2026-09-21 · **Target:**
+`api.typesafe.ai`, model `jev-1.13.0`
+
+## The answer
+
+**Two of the four surfaces probed are worth building; two are not, and the negatives are the more
+useful half.**
+
+- **Corroboration — build it.** One `choice` per committed value, asking whether the transcript
+  `supports` / `contradicts` / `says_nothing` about it, catches 97.9% of substituted values at an
+  8.4% false-escalation rate. It shipped as `corroborateExtractor` (ADR 0021).
+- **Presence — build it.** Every leaf of every group answered in one ~570ms request, where core's
+  chat-backed phase asks one call per group. Recall 1.000, at a threshold that must sit well below
+  the obvious one.
+- **Enum extraction — do not.** The model invents a value for **100%** of fields nobody mentioned,
+  and its confidence is _higher_ on silence (0.939) than on speech (0.929). No threshold separates
+  them.
+- **A per-leaf review flag — do not.** Identical mappings score 0.41 and 0.61 across transcripts.
+  A flag an auditor sees on one leaf and not its twin is one they learn to ignore — the way
+  `confidence` already failed here.
+
+Two constraints bind anything built on this: the hosted API sends **no CORS headers for any
+origin**, so a browser host needs a proxy; and the rejection ratio is **unmeasured on the current
+schema** because producing the input is credential-limited, not merely expensive.
+
+## The method
+
+Eleven probes, run against `jev-1.13.0`. Nothing here is a package, and nothing here should be
+promoted to one without being rewritten. What survives is the evidence behind ADR 0020 and ADR
+0021, and a harness that finishes the open measurement when a credential allows.
 
 Everything is scored against the **existing annotated corpus** in
-[`../extraction-snuggpro/`](../extraction-snuggpro/) — 14 real audit transcripts with ground truth
+[`../0001-extraction-snuggpro/`](../0001-extraction-snuggpro/) — 14 real audit transcripts with ground truth
 in the `leaves` format, over the real 51-leaf schema. Enum members come from the built adapter
 via that spike's `schema-leaves.mjs`; no member list is hand-copied here.
 
@@ -145,7 +171,7 @@ to reason: an invented value is plausible, and that is exactly why the model inv
 
 ## Probe 6 — grounded x supported, on real extractions
 
-Run against `../extraction-snuggpro/results/codex`, the only extractions in the repo carrying
+Run against `../0001-extraction-snuggpro/results/codex`, the only extractions in the repo carrying
 real model-produced `sourceSpan`s. 124 committed leaves.
 
 | groundedness | supported | unsupported |
@@ -296,7 +322,7 @@ plausible size.
 ## Probe 8/9 — the ratio on the current schema
 
 Blocked, and worth recording why. Measuring the rejection ratio needs current-schema extractions;
-none exist, because everything in `../extraction-snuggpro/results/` predates the 51-leaf rebuild.
+none exist, because everything in `../0001-extraction-snuggpro/results/` predates the 51-leaf rebuild.
 Producing them means the production path — `perGroupExtractor` over `snuggProAdapter`, which
 carries the 467-leaf schema through all 20 groups for **376k input tokens and 66 calls per
 transcript**. Group scoping cannot trim it (ADR 0009).

@@ -2,7 +2,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const dir = fileURLToPath(new URL("../extraction-snuggpro/", import.meta.url));
+const dir = fileURLToPath(new URL("../0001-extraction-snuggpro/", import.meta.url));
 
 export function corpus() {
   const names = readdirSync(`${dir}ground-truth`)

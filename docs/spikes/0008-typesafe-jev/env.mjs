@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const root = fileURLToPath(new URL("../../.env.local", import.meta.url));
+const root = fileURLToPath(new URL("../../../.env.local", import.meta.url));
 
 export function loadEnv() {
   const out = {};

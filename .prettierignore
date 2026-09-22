@@ -17,4 +17,4 @@ docs/spikes/0003-extraction-search-plan/results/*/*/
 docs/spikes/0001-extraction-snuggpro/results/**
 
 # TypeSafe/Jev spike: same reasoning as above — generated result JSON and run logs.
-spikes/typesafe-jev/results/**
+docs/spikes/0008-typesafe-jev/results/**

@@ -1,6 +1,6 @@
 // Enum leaves of the five groups the annotated corpus covers, read from the BUILT adapter
 // schema via the existing spike's schema-leaves.mjs — never a hand-copied member list.
-import { LEAVES } from "../extraction-snuggpro/schema-leaves.mjs";
+import { LEAVES } from "../0001-extraction-snuggpro/schema-leaves.mjs";
 
 export const COVERED_GROUPS = ["attic", "hvac", "wall", "window", "dhw"];
 export const NOT_STATED = "Not stated";

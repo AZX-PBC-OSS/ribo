@@ -51,6 +51,7 @@ two copies of the same probe.
 | 0005 | [`0005-ondevice-acceptance`](./0005-ondevice-acceptance/)             | Does the platform's on-device model survive a real extraction?                | Answered | 2026-08-27 |
 | 0006 | [`0006-managed-three-phase`](./0006-managed-three-phase/)             | Which phase decomposition fits the managed route's caps?                      | Answered | 2026-09-08 |
 | 0007 | [`0007-snuggpro-write-semantics`](./0007-snuggpro-write-semantics/)   | Does the vendor honour `Idempotency-Key`, and does a write merge or replace?  | Answered | 2026-09-21 |
+| 0008 | [`0008-typesafe-jev`](./0008-typesafe-jev/)                           | Where does a System One model (TypeSafe's Jev) fit ribo's pipeline?           | Answered | 2026-09-21 |
 
 Numbers are assigned by first-commit date. The three sharing 2026-07-24 arrived in one squashed
 initial release and are ordered by the doc that reports each (01, 14, 16).

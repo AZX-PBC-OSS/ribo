@@ -1,11 +1,11 @@
 // Enum vocabularies of the OLD spike schema, which is the schema
-// ../extraction-snuggpro/results/ was produced against. Regex-parsed because that file is
+// ../0001-extraction-snuggpro/results/ was produced against. Regex-parsed because that file is
 // frozen and dead — importing it would mean a resolver this throwaway does not need.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const src = readFileSync(
-  fileURLToPath(new URL("../extraction-snuggpro/schema.ts", import.meta.url)),
+  fileURLToPath(new URL("../0001-extraction-snuggpro/schema.ts", import.meta.url)),
   "utf8",
 );
 

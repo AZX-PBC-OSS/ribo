@@ -13,7 +13,7 @@
 // CONTRADICTED (a wrong value, which gap-fill could re-ask) versus UNSUPPORTED (a value nobody
 // mentioned, which should be nulled).
 import { readFileSync, writeFileSync } from "node:fs";
-import { LEAF_BY_PATH } from "../extraction-snuggpro/schema-leaves.mjs";
+import { LEAF_BY_PATH } from "../0001-extraction-snuggpro/schema-leaves.mjs";
 import { ask } from "./env.mjs";
 import { corpus } from "./corpus.mjs";
 

@@ -7,11 +7,14 @@
 //   node run-8-extract.mjs <model> [transcriptLimit]
 import { writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { openAiChat, perGroupExtractor } from "../../packages/ribo-extractor-openai/dist/index.js";
+import {
+  openAiChat,
+  perGroupExtractor,
+} from "../../../packages/ribo-extractor-openai/dist/index.js";
 import {
   snuggProAdapter,
   snuggGroupInstructions,
-} from "../../packages/ribo-adapter-snuggpro/dist/index.js";
+} from "../../../packages/ribo-adapter-snuggpro/dist/index.js";
 import { loadEnv } from "./env.mjs";
 import { corpus } from "./corpus.mjs";
 

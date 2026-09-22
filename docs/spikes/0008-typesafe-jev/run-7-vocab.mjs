@@ -19,7 +19,7 @@ for (const r of prior) {
   if (!byName.has(r.name)) byName.set(r.name, []);
   byName.get(r.name).push(r);
 }
-const spikeDir = new URL("../extraction-snuggpro/", import.meta.url);
+const spikeDir = new URL("../0001-extraction-snuggpro/", import.meta.url);
 
 const vocabLine = (field) => {
   const opts = FIELD_OPTIONS.get(field);
