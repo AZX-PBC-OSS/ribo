@@ -158,6 +158,53 @@ describe("prepareGroups", () => {
   });
 });
 
+describe("prepareGroups — a mixed split", () => {
+  /**
+   * A collection group beside a loose leaf — `splitExtractionSchema`'s mixed
+   * branch. Verify-only (mixed-schema-split design §3 row 13, §8 step 4): the
+   * loose piece must flow the same `""` arm the flat fallback always used —
+   * no array unwrap, the fill name without the group infix, the piece schema
+   * by identity. No prepareGroups code changed for the mixed case.
+   */
+  const mixedPatch = z
+    .object({
+      widgets: z.array(widgetValues).optional(),
+      note: z.string().nullable().optional(),
+    })
+    .strict();
+  type MixedValues = z.infer<typeof mixedPatch>;
+  const mixedTarget: ExtractionTarget<MixedValues> = {
+    name: "demo-mixed",
+    extractionSchema: enveloped(mixedPatch),
+    instructions: "Demo extraction instructions.",
+    examples: [],
+  };
+
+  test("the loose piece is prepared by the existing \"\" arm, after the groups", () => {
+    const pieces = splitExtractionSchema(
+      mixedTarget.extractionSchema,
+      MAX_NULLABLE_UNIONS_PER_CALL,
+    );
+    expect(pieces.map((p) => p.key)).toEqual(["widgets", ""]);
+
+    const prepared = prepareGroups(mixedTarget, pieces);
+
+    expect(prepared.map((p) => [p.key, p.name])).toEqual([
+      ["widgets", "demo-mixed-widgets-fill"],
+      ["", "demo-mixed-fill"],
+    ]);
+    const loose = prepared[1]!;
+    // No unwrap: the loose piece's schema IS the split piece's schema — a
+    // strict object of the loose leaves, not a one-instance narrowing.
+    expect(loose.isCollection).toBe(false);
+    expect(loose.schema).toBe(pieces[1]!.schema);
+    expect(Object.keys((loose.schema as z.ZodObject).shape)).toEqual(["note"]);
+    // Unpartitioned: no leafKeys narrowing, no part suffix in the context.
+    expect(loose.leafKeys).toBeUndefined();
+    expect(loose.context).toBe('scopedInstanceExtractor: fill for "demo-mixed"');
+  });
+});
+
 describe("the wire-safe name guard", () => {
   const colonTarget: ExtractionTarget<PatchValues> = {
     ...target,

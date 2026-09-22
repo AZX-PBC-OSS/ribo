@@ -473,6 +473,91 @@ describe("fillPhase — merge", () => {
     });
   });
 
+  test('a loose "" piece beside a collection group: one fill per piece, buildMessages, merged flat beside the keyed array', async () => {
+    // Verify-only (mixed-schema-split design §3 rows 14–15, §8 step 4): a
+    // mixed split's loose piece takes the singleton/fallback branch the flat
+    // fallback always used — one fill call, no scope semantics, messages from
+    // buildMessages — and the merge assigns its leaves flat beside the
+    // collection's keyed array. No fill-phase code changed for the mixed case.
+    const mixedPatch = z
+      .object({
+        widgets: z.array(widgetValues).optional(),
+        note: z.string().nullable().optional(),
+      })
+      .strict();
+    type MixedValues = z.infer<typeof mixedPatch>;
+    const mixedTarget: ExtractionTarget<MixedValues> = {
+      name: "demo",
+      extractionSchema: enveloped(mixedPatch),
+      instructions: "Demo extraction instructions.",
+      examples: [],
+    };
+    const mixedPrepared = prepareGroups(
+      mixedTarget,
+      splitExtractionSchema(mixedTarget.extractionSchema, MAX_NULLABLE_UNIONS_PER_CALL),
+    );
+    const mixedCtx: PhaseContext<MixedValues> = {
+      transcript: { text: "the full transcript", annotations: {} },
+      target: mixedTarget,
+    };
+
+    const { chat, requests } = fakeChat((name) => {
+      if (name === "demo-widgets-fill-0") return widgetResponse("red");
+      if (name === "demo-fill") {
+        return { note: { value: "a note", sourceSpan: "the note", confidence: 1 } };
+      }
+      throw new Error(`unexpected request ${name}`);
+    });
+    const phase = fillPhase<MixedValues>({
+      target: mixedTarget,
+      chat,
+      model: "m",
+      prepared: mixedPrepared,
+      buildFillInstructions,
+    });
+    const roster: Roster = { widgets: [currentCandidate("the red widget")] };
+    const draft: PhaseDraft<MixedValues> = {
+      ...emptyDraft<MixedValues>(),
+      notes: emptyNotes().set(rosterNoteKey, roster),
+    };
+
+    await phase.with(async (def) => {
+      const items = def.plan(draft, mixedCtx);
+      // One fill for the one current widget, then the loose piece's single
+      // fill — the loose piece never consults the roster.
+      expect(items.map(jobOf).map((j) => j.requestName)).toEqual([
+        "demo-widgets-fill-0",
+        "demo-fill",
+      ]);
+      const outcomes = [];
+      for (const item of items) {
+        outcomes.push({
+          outcome: "result" as const,
+          item,
+          output: await def.run(item, draft, mixedCtx),
+        });
+      }
+      const merged = def.merge(draft, outcomes);
+      const fields = merged.fields as {
+        widgets?: { color: { value: string } }[];
+        note?: { value: string };
+      };
+      // The keyed collection assembled by instance index; the loose leaf
+      // assigned flat — disjoint by construction, so neither clobbers the other.
+      expect(fields.widgets).toHaveLength(1);
+      expect(fields.widgets![0]!.color.value).toBe("red");
+      expect(fields.note!.value).toBe("a note");
+    });
+
+    // buildMessages, not the scoped builder: the loose request's system
+    // message is the target's instructions verbatim, with no scope block.
+    const looseReq = requests.find((r) => r.response_format.json_schema.name === "demo-fill")!;
+    expect(looseReq.messages[0]).toEqual({
+      role: "system",
+      content: "Demo extraction instructions.",
+    });
+  });
+
   test('the "" fallback\'s single fill assignment lands flat — the assignment path the non-grouped case was broken on before the merge read fix', async () => {
     // REGRESSION PIN — the latent bug the partition-flatfallback commit fixes:
     // on `origin/main` the merge read `outcome.output.value[job.group.key]`,

@@ -206,6 +206,46 @@ describe("inventoryPhase — merge", () => {
       'scopedInstanceExtractor: group "widgets" has 2 current instances, exceeding the cap of 1',
     );
   });
+
+  test('a loose "" piece of a mixed split is not roster-interpreted — no statedEmptyGroups[""] ever', async () => {
+    // Verify-only (mixed-schema-split design §3 row 16, §8 step 4): the roster
+    // pass is house-wide and stays so; loose pieces are not collections,
+    // cannot be stated empty, and skip roster interpretation — even a roster
+    // carrying a "" or loose-leaf key leaks nothing into statedEmptyGroups.
+    const mixedPatch = z
+      .object({
+        widgets: z.array(widgetValues).optional(),
+        note: z.string().nullable().optional(),
+      })
+      .strict();
+    const mixedExtraction = enveloped(mixedPatch);
+    const mixedTarget: ExtractionTarget<z.infer<typeof mixedPatch>> = {
+      name: "demo",
+      extractionSchema: mixedExtraction,
+      instructions: "Demo extraction instructions.",
+    };
+    const mixedPrepared: readonly PreparedGroup[] = prepareGroups(
+      mixedTarget,
+      splitExtractionSchema(mixedExtraction, MAX_NULLABLE_UNIONS_PER_CALL),
+    );
+    expect(mixedPrepared.map((p) => p.key)).toEqual(["widgets", ""]);
+
+    const roster = {
+      widgets: { stated: "none", span: "there are no widgets" },
+      // Loose-shaped roster entries the interpretation must not touch.
+      "": { stated: "none", span: "nothing loose" },
+      note: { stated: "none", span: "no note" },
+    } as unknown as Roster;
+    const merged = await mergedWith(roster, { prepared: mixedPrepared });
+
+    // The collection interprets exactly as today; the loose piece contributed
+    // nothing — no "" or note key in statedEmptyGroups or in the seeded fields.
+    // (Object.keys, not toHaveProperty: the matcher cannot take a "" key path.)
+    expect(merged.statedEmptyGroups).toEqual({ widgets: "there are no widgets" });
+    expect(merged.fields.widgets).toEqual([]);
+    expect(Object.keys(merged.fields)).not.toContain("");
+    expect(Object.keys(merged.fields)).not.toContain("note");
+  });
 });
 
 describe("inventoryPhase — id", () => {
