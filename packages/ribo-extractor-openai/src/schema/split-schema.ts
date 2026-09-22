@@ -237,6 +237,35 @@ export function serializedCharCount(schema: z.ZodType): number {
 }
 
 /**
+ * The nesting depth of a schema's serialized JSON Schema rendering — the same
+ * rendering {@link serializedCharCount} measures — counting one level per
+ * `properties` descent. Measured, never packed against: the split partitions
+ * on unions and bytes, while the provider's depth cap is named in the same
+ * route error and deliberately NOT packed against (see the file header), so
+ * this number exists for a caller to compare against their own route's cap —
+ * the adapter's `SCHEMA_NESTING_DEPTH_CAP` suite is the worked example.
+ * Exported so library and adapter share ONE walk over what a "level" is
+ * rather than two that can drift.
+ */
+export function serializedNestingDepth(schema: z.ZodType): number {
+  return jsonNestingDepth(z.toJSONSchema(schema, { target: "draft-2020-12" }), 0);
+}
+
+/** Walk a rendered JSON Schema node: deepest level, +1 per `properties` descent. */
+function jsonNestingDepth(node: unknown, depth: number): number {
+  let deepest = depth;
+  if (Array.isArray(node)) {
+    for (const child of node) deepest = Math.max(deepest, jsonNestingDepth(child, depth));
+    return deepest;
+  }
+  if (node === null || typeof node !== "object") return deepest;
+  for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
+    deepest = Math.max(deepest, jsonNestingDepth(child, key === "properties" ? depth + 1 : depth));
+  }
+  return deepest;
+}
+
+/**
  * How many nullable unions a whole schema costs the response schema — the
  * per-call unit {@link MAX_NULLABLE_UNIONS_PER_CALL} counts in. Exported beside
  * {@link serializedCharCount} for the same reason: a strategy deciding between
@@ -614,6 +643,67 @@ function partitionFlatTwoCaps(
 const isGroupObject = (obj: z.ZodObject): boolean =>
   Object.keys(obj.shape).length > 0 && !isExtractedSchema(obj);
 
+/** How the split sees one top-level key: a group it can split per key, or a loose leaf. */
+export type TopLevelKeyKind = "group" | "loose";
+
+/** One top-level key of an extraction schema, with the kind the split's gate assigns it. */
+export interface TopLevelKey {
+  readonly key: string;
+  readonly kind: TopLevelKeyKind;
+}
+
+/**
+ * The answer to the split's opening question, as a value a caller can read.
+ *
+ * `"not-an-object"` and `"empty"` are the two pre-key fallbacks: a schema that
+ * is not a `ZodObject`, or one with no properties, takes the single `""` entry
+ * under every cap. The `"keys"` form carries the object back, narrowed, so the
+ * split — and only code sharing its walk — reads the same keys and values the
+ * verdict was computed from, with no second `instanceof` narrowing to drift
+ * from.
+ */
+export type TopLevelKeyKinds =
+  | { readonly form: "not-an-object" }
+  | { readonly form: "empty" }
+  | {
+      readonly form: "keys";
+      readonly schema: z.ZodObject;
+      readonly keys: readonly TopLevelKey[];
+    };
+
+/**
+ * Classify a schema's top-level keys the way {@link splitExtractionSchema}
+ * does — because the split derives its grouped/flat decision from THIS
+ * function's answer. Every top-level property must be a group (a `ZodObject`,
+ * or a `ZodArray` of one, that is not itself a leaf envelope) for the split to
+ * apply; a single loose top-level leaf — the shape a flat (non-grouped)
+ * enveloped schema has at every key — sends the whole schema down the flat
+ * fallback. Exported so a diagnostic (`describeExtraction`) reports the split's
+ * own verdict rather than a parallel walk that agrees today and drifts
+ * tomorrow.
+ */
+export function topLevelKeyKinds(schema: z.ZodType): TopLevelKeyKinds {
+  if (!(schema instanceof z.ZodObject)) {
+    return { form: "not-an-object" };
+  }
+  const shape = schema.shape;
+  const keys = Object.keys(shape);
+  if (keys.length === 0) {
+    return { form: "empty" };
+  }
+  return {
+    form: "keys",
+    schema,
+    keys: keys.map((key) => {
+      const candidate = groupCandidate(fieldAt(shape, key));
+      return {
+        key,
+        kind: candidate instanceof z.ZodObject && isGroupObject(candidate) ? "group" : "loose",
+      };
+    }),
+  };
+}
+
 /**
  * Split an extraction schema into per-group schemas.
  *
@@ -678,30 +768,31 @@ export function splitExtractionSchema(
 ): readonly ExtractionGroup[] {
   const { maxNullableUnionsPerGroup, maxSerializedCharsPerGroup } = normalizeOptions(options);
 
-  if (!(schema instanceof z.ZodObject)) {
+  // The grouped/flat question is asked of the shared classifier — asked ONCE,
+  // here, so `describeExtraction` can report this function's own answer rather
+  // than re-implement it. The `"keys"` form carries the shape the verdict was
+  // computed from, so nothing below re-narrows the schema.
+  const classification = topLevelKeyKinds(schema);
+  if (classification.form !== "keys") {
     return [{ key: "", schema }];
   }
+  const objectSchema = classification.schema;
+  const shape = objectSchema.shape;
 
-  const shape = schema.shape;
-  const keys = Object.keys(shape);
-  if (keys.length === 0) {
-    return [{ key: "", schema }];
-  }
-
-  // Classify the top-level keys once: a key is a group when its candidate (the
-  // value, or the array's element) is a ZodObject that is not itself a leaf
-  // envelope; loose otherwise — a leaf envelope (the flat case) or an array of
-  // envelopes. One loose key used to veto the whole split (the old
-  // `everyKeyIsGroup` gate collapsed a mixed schema to the flat fallback);
-  // now the groups split as groups and the loose keys ride their own piece(s)
-  // keyed "" — the unwrapped portion (mixed-schema-split design §5.1).
+  // Split the classified keys into the two the mixed split needs. The KINDS come
+  // from the shared classifier above, not from a second walk: `describeExtraction`
+  // reports this function's own verdict, and a duplicated predicate here is
+  // exactly the drift its agreement matrix exists to catch. A key is a group when
+  // its candidate (the value, or the array's element) is a ZodObject that is not
+  // itself a leaf envelope; loose otherwise — a leaf envelope (the flat case) or
+  // an array of envelopes. One loose key used to veto the whole split (the old
+  // `everyKeyIsGroup` gate collapsed a mixed schema to the flat fallback); now the
+  // groups split as groups and the loose keys ride their own piece(s) keyed "" —
+  // the unwrapped portion (mixed-schema-split design §5.1).
   const groupKeys: string[] = [];
   const looseKeys: string[] = [];
-  for (const key of keys) {
-    const candidate = groupCandidate(fieldAt(shape, key));
-    (candidate instanceof z.ZodObject && isGroupObject(candidate) ? groupKeys : looseKeys).push(
-      key,
-    );
+  for (const entry of classification.keys) {
+    (entry.kind === "group" ? groupKeys : looseKeys).push(entry.key);
   }
 
   if (groupKeys.length === 0) {
@@ -724,7 +815,11 @@ export function splitExtractionSchema(
     // No groups to partition over — the boundary property the grouped branch
     // walks doesn't exist. The flat packer reads the schema's own top-level keys
     // and produces pieces without a wrapping object.
-    return partitionFlatTwoCaps(schema, maxNullableUnionsPerGroup, maxSerializedCharsPerGroup);
+    return partitionFlatTwoCaps(
+      objectSchema,
+      maxNullableUnionsPerGroup,
+      maxSerializedCharsPerGroup,
+    );
   }
 
   // The group entries are the grouped path verbatim, run over the group keys.

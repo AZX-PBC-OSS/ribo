@@ -16,9 +16,22 @@ export type { SingleShotOptions } from "./strategies/single-shot.js";
 // entry covering the whole schema). The per-group extractor consumes this. The
 // split packs against two caps — nullable unions and, when the caller supplies
 // it, serialized size — both as options (`SplitOptions`); the library carries no
-// provider's byte cap.
-export { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./schema/split-schema.js";
-export type { ExtractionGroup, SplitOptions } from "./schema/split-schema.js";
+// provider's byte cap. The split's top-level classifier and its nesting-depth
+// measure are exported beside it: `describeExtraction` reports with them, and a
+// host comparing a piece against its route's depth cap reads the same walk.
+export {
+  MAX_NULLABLE_UNIONS_PER_CALL,
+  serializedNestingDepth,
+  splitExtractionSchema,
+  topLevelKeyKinds,
+} from "./schema/split-schema.js";
+export type {
+  ExtractionGroup,
+  SplitOptions,
+  TopLevelKey,
+  TopLevelKeyKind,
+  TopLevelKeyKinds,
+} from "./schema/split-schema.js";
 
 // The entry point that takes a RAW zod schema: the `enveloped()` derivation and
 // the single-shot-vs-per-group selection run inside, so a newcomer hands over
