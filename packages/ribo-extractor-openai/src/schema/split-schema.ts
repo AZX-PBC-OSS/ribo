@@ -599,15 +599,26 @@ const isGroupObject = (obj: z.ZodObject): boolean =>
  * from the schema's own top-level properties, so this works for any adapter and
  * requires no adapter change.
  *
- * A schema that is not an object of groups — a flat enveloped schema whose
- * top-level properties are leaf envelopes, a top-level array of envelopes, a
- * non-object schema, or an empty object — yields entries whose `key` is `""`.
- * Without a byte cap, that is a single entry whose `schema` is the whole input
- * (one call carrying everything — the measured-good single-shot path). With a
- * byte cap, the flat fallback now partitions the schema over its top-level
- * keys into several entries that all share `key === ""`, each a strict object
- * carrying a disjoint subset of leaves. Every consumer that special-cases
- * `""` (the per-group plan's early-return for the under-cap flat case,
+ * A schema that is not an object of groups — a top-level array of envelopes,
+ * a non-object schema, or an empty object — returns ONE entry whose `key` is
+ * `""` and whose `schema` is the whole input, under every cap. The packed-flat
+ * path only applies to schemas that ARE objects: a flat enveloped schema
+ * (top-level properties are leaf envelopes) is one with N>0 leaves and a byte
+ * cap can partition it over those leaves. An empty object or a non-object is
+ * either un-partitionable (a non-object cannot be packed by top-level keys,
+ * because there are no top-level keys) or has nothing to partition (an empty
+ * object has no leaves), so the whole schema lands in a single fallback entry.
+ * A caller with a top-level array of envelopes over a byte cap still gets the
+ * silent oversized request this change set out to kill — that schema is a real
+ * call site, and the fix is to wrap it in an object of groups (or to skip the
+ * byte cap). The split does not invent structure the schema does not carry.
+ *
+ * Without a byte cap, the flat object path is also a single entry: one call
+ * carrying everything — the measured-good single-shot path. With a byte cap,
+ * the flat object path partitions over its top-level keys into several
+ * entries that all share `key === ""`, each a strict object carrying a
+ * disjoint subset of leaves. Every consumer that special-cases `""` (the
+ * per-group plan's early-return for the under-cap flat case,
  * `groupedExtractor`'s merge, `prepareGroups`, the inventory/fill phases) was
  * written to handle that case — its shallow-assign merge recombines a
  * partitioned flat schema's pieces in declaration order, because each piece's

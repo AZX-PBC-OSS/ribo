@@ -150,8 +150,10 @@ a replacement from inside an override without touching the other nineteen groups
 Two edges of the map are worth knowing. A group entry can be an **ordered list** of extractors —
 that is what a partitioned group is — and a map whose only key is `""` declares the
 **non-grouped fallback**: one entry covering the whole schema, the shape the preset yields when the
-target isn't an object of groups. The fallback cannot be combined with per-key entries; either the
-schema has groups or it doesn't.
+target isn't an object of groups and the byte cap (when supplied) doesn't partition it.
+With a supplied byte cap the flat fallback itself can partition — N pieces sharing `""` —
+and `Plan.targets[""]` becomes that ordered list instead of a singular entry. The fallback
+cannot be combined with per-key entries; either the schema has groups or it doesn't.
 
 ## Next
 
