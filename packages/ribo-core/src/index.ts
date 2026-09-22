@@ -667,8 +667,26 @@ export {
 // which are unsupported — nothing on-device — and core owns the phase vocabulary. The
 // on-device package keeps the preset; a host composes the phases from here, the way
 // `public-composition.test.ts` does.
-export { extractGroups, presencePhase, presenceNoteKey } from "./phases/presence-phase.js";
-export type { Group, JsonSchema, Leaf, PresencePhaseOptions } from "./phases/presence-phase.js";
+// `nullEnvelope`/`wrapGroupEntry`/`writableGroupEntry` and `PresenceMaps` are public because a
+// presence phase implemented OUTSIDE core must seed every group with the full null envelope
+// exactly as this module's `merge` does — without the seed, an all-false group goes missing from
+// the result fields and the closing trust-boundary parse rejects it — so it needs these same
+// helpers rather than a second copy of them.
+export {
+  extractGroups,
+  nullEnvelope,
+  presencePhase,
+  presenceNoteKey,
+  wrapGroupEntry,
+  writableGroupEntry,
+} from "./phases/presence-phase.js";
+export type {
+  Group,
+  JsonSchema,
+  Leaf,
+  PresenceMaps,
+  PresencePhaseOptions,
+} from "./phases/presence-phase.js";
 export { spanPhase, spansNoteKey } from "./phases/span-phase.js";
 export type { SpanPhaseOptions } from "./phases/span-phase.js";
 export {
