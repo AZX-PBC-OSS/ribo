@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { DEFAULT_MODEL_ID } from "@azx/ribo-transcriber-ondevice";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const REPO = join(HERE, "..", "..");
+const REPO = join(HERE, "..", "..", "..");
 const RAW_DIR = join(HERE, "results", "real", "_raw");
 
 // Default to the same model the on-device package ships, not an arbitrary

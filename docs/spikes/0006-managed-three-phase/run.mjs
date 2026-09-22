@@ -48,7 +48,7 @@ import { fileURLToPath } from "node:url";
 import { loadEnvLocal } from "./probe.mjs";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const ROOT = join(HERE, "..", "..");
+const ROOT = join(HERE, "..", "..", "..");
 const CORPUS = join(ROOT, "spikes", "extraction-snuggpro");
 const dist = (pkg) => join(ROOT, "packages", pkg, "dist", "index.js");
 

@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 import { wer } from "./wer.mjs";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const REPO = join(HERE, "..", "..");
+const REPO = join(HERE, "..", "..", "..");
 
 const modelId = process.argv[2] ?? "Xenova/whisper-base.en";
 const unhintedSlugs = process.argv[3] ?? "";
