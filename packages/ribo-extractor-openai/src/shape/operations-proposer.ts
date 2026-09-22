@@ -14,6 +14,17 @@
  * decision: start there, argue otherwise if and when a build says so. ADR
  * 0016 records the choice with its cost.
  *
+ * **Two distinct retry layers, one budget.** The chat-call step wraps
+ * `completeOrClassify` in `retryAsync` so a 429 / 5xx / dropped connection
+ * is retried silently with backoff, with its own budget (`maxNetworkRetries`,
+ * default 2). The repair loop is separate (ADR 0016's "one repair attempt")
+ * and counts only model verdicts — refusal, unsupported, `length`, content
+ * filter — folded to `failure: "transport"`. A transport blip does not
+ * consume a repair attempt: the chat-call wrapper retries it first, and on
+ * exhaustion the proposal returns `[]` directly. The amendment is a
+ * scoping, not a change to the repair budget or its exhaustion default;
+ * see ADR 0016 for the original decision.
+ *
  * **Caps never reach the model.** Packing is `schemaExtractor`'s job, after
  * the proposal lands. Disclosing the provider cap in the prompt got a spike
  * a fragmented partition for it, and the cap is the route's, not the model's,
@@ -51,7 +62,9 @@ import {
   completeOrClassify,
   parseJsonContent,
   parseWithSchema,
+  retryAsync,
   SchemaParseError,
+  TerminalError,
 } from "@azx/ribo-core";
 import type {
   ChatClient,
@@ -116,6 +129,28 @@ export interface ProposeOptions {
    * would rather see an exception can wrap and check the operations array.
    */
   readonly maxRepairAttempts?: number;
+  /**
+   * Retries after a transport blip (a 429, a 5xx, a dropped connection) on
+   * the chat call, so the total attempts is `maxNetworkRetries + 1`. A
+   * transient blip on this layer does **not** consume the repair budget —
+   * the chat-call step has its own retry, distinct from the repair loop,
+   * and a model verdict (refusal / unsupported / length) still goes to the
+   * repair loop unaltered. Defaults to `2`, matching `retryAsync`'s default
+   * and `retryExtractor`'s default — three attempts total is what the
+   * proven retry pattern assumes.
+   *
+   * The repair loop's chat call goes through the same wrapper, so a 429 on
+   * a repair attempt is retried silently with the same budget.
+   */
+  readonly maxNetworkRetries?: number;
+  /**
+   * Injectable sleep used between network retries, so tests do not wait
+   * real seconds. Takes the **already-computed** backoff result in
+   * milliseconds, exactly as `RetryExtractorOptions.delay` does — a caller
+   * that wants no backoff passes a function that ignores its argument and
+   * resolves immediately. Defaults to a `setTimeout`-backed sleep.
+   */
+  readonly networkRetryDelay?: (ms: number) => Promise<void>;
   /**
    * Forwarded verbatim into each chat call. The deletion here would strand
    * a caller's deadline silently — see `extract.ts`'s delegation discipline
@@ -277,11 +312,19 @@ type ProposeAttemptResult =
  * one word "transport" failure path that consumes the budget without
  * reattempting because the transport verdict is final):
  *
- *   - **Transport verdict** (refusal, unsupported, truncation, content
- *     filter) — folded into "failure: transport" so the repair loop tries at
- *     most once more, then returns `[]`. Re-prompting would re-trigger the
- *     same verdict on the same input; we spend at most one repair attempt
- *     to confirm the verdict persists.
+ *   - **Transient transport rejection** (5xx, 429, dropped connection) —
+ *     retried by `retryAsync` over the chat-call layer. On exhaustion the
+ *     error is rethrown so `proposeShapeOperations` returns `[]` **without**
+ *     burning a repair attempt — a transport blip does not consume the repair
+ *     budget, by the same reasoning `retryExtractor` and `validateExtractor`
+ *     apply (ADR 0016, with the amendment that scopes the repair chance to
+ *     model verdicts).
+ *   - **Transport verdict** (refusal, unsupported, `length`, content filter)
+ *     — `completeOrClassify` translates refusal / unsupported into
+ *     `TerminalError`; `assertStopFinishReason` (below) does the same for
+ *     `length` / content filter. Both are model verdicts: re-prompting on the
+ *     same input reproduces them. Folded into "failure: transport" so the
+ *     repair loop gets one shot, then returns `[]`.
  *   - **JSON parse** (plain `Error` from `parseJsonContent`) — REPAIRABLE.
  *   - **Schema parse** (`SchemaParseError` from `parseWithSchema`) —
  *     REPAIRABLE.
@@ -295,33 +338,50 @@ const runAttempt = async (
   context: string,
   schema: z.ZodObject,
   options: ExtractOptions | undefined,
+  networkRetry: { maxRetries: number; delay?: (ms: number) => Promise<void> },
 ): Promise<ProposeAttemptResult> => {
   let completion: ChatCompletion;
   try {
-    completion = await completeOrClassify(
-      chat,
-      request,
-      context,
+    completion = await retryAsync(
       // `ExtractOptions` is a structural superset of `ChatCallOptions` (it
       // adds `deadline`); the call site accepts it without a cast because
       // TS treats a wider object as assignable when its only extra member is
       // unconstrained by the target. The deadline rides through into the
       // chat object's options bag, where a transport that knows how to act
       // on it will find it.
-      options,
+      () => completeOrClassify(chat, request, context, options),
+      {
+        maxRetries: networkRetry.maxRetries,
+        delay: networkRetry.delay,
+        // The caller's signal consulted on every iteration's pre-attempt
+        // check; cancellation aborts the retry loop untouched.
+        signal: options?.signal,
+      },
     );
   } catch (cause) {
-    // Reclassification by `completeOrClassify` would have thrown a
-    // `TerminalError`; the rest of this catch handles transport-level
-    // rejections. Either way the verdict is final for this input — return it
-    // as a refusal and let the repair loop spend at most one further attempt
-    // confirming the verdict persists.
-    return {
-      ok: false,
-      failure: "transport",
-      refusal: cause instanceof Error ? cause.message : String(cause),
-      priorOutput: "",
-    };
+    // Two distinct exits from the chat-call retry wrapper.
+    //
+    //   1. TerminalError — `completeOrClassify` translated a refusal /
+    //      unsupported `ChatError` into one (re-sending the same request
+    //      reproduces the same verdict). The model verdict is final for
+    //      this input; the repair loop spends one attempt confirming the
+    //      verdict persists.
+    //   2. Anything else — a transient (5xx, 429, dropped connection,
+    //      malformed-response) that exhausted `retryAsync`'s retries. The
+    //      chat-call step has its own retry budget, distinct from the
+    //      repair loop, so rethrow and let `proposeShapeOperations` return
+    //      `[]` directly. A repair attempt on a transient blip, with no
+    //      change to the input, would only burn another paid model call to
+    //      the same verdict.
+    if (cause instanceof TerminalError) {
+      return {
+        ok: false,
+        failure: "transport",
+        refusal: cause.message,
+        priorOutput: "",
+      };
+    }
+    throw cause;
   }
 
   // `assertStopFinishReason` reclassifies a non-`"stop"` finish reason
@@ -472,14 +532,36 @@ export async function proposeShapeOperations(
     { role: "user", content: inventoryText },
   ];
 
+  const networkRetry = {
+    maxRetries: options.maxNetworkRetries ?? 2,
+    delay: options.networkRetryDelay,
+  };
   let messages: ChatMessage[] = baseMessages;
-  let result = await runAttempt(
-    options.chat,
-    buildProposeRequest(options.model, messages, options.maxTokens),
-    context,
-    schema,
-    options.options,
-  );
+  let result: ProposeAttemptResult;
+  try {
+    result = await runAttempt(
+      options.chat,
+      buildProposeRequest(options.model, messages, options.maxTokens),
+      context,
+      schema,
+      options.options,
+      networkRetry,
+    );
+  } catch (cause) {
+    // Transient retries on the chat-call step exhausted. Distinct from the
+    // repair loop's exhaustion: the model was never reached (or never given
+    // a chance to confirm a verdict). Returning `[]` matches the argued
+    // default for the newcomer — the derivation still runs, just unshaped.
+    // ADR 0016's amendment scopes the "one repair chance" to model verdicts;
+    // a transport blip does not consume that chance, but its exhaustion
+    // still yields `[]`. The `cause` is dropped — the chat-call retry layer's
+    // caller policy is "exhausted transient → `[]`", not "exhausted
+    // transient → thrown", so a fresh `[]` return is the right outcome;
+    // rethrowing would push the transient up to the host's error handler
+    // and lose the derivation entirely.
+    void cause;
+    return [];
+  }
   if (result.ok) return result.operations;
 
   const maxRepairAttempts = options.maxRepairAttempts ?? 1;
@@ -497,13 +579,24 @@ export async function proposeShapeOperations(
     // The transcript never carries this — the only conversation turns are
     // the system prompt, the leaf inventory (once), and the repair pair.
     messages = [...baseMessages, ...repairTurns];
-    result = await runAttempt(
-      options.chat,
-      buildProposeRequest(options.model, messages, options.maxTokens),
-      context,
-      schema,
-      options.options,
-    );
+    try {
+      result = await runAttempt(
+        options.chat,
+        buildProposeRequest(options.model, messages, options.maxTokens),
+        context,
+        schema,
+        options.options,
+        networkRetry,
+      );
+    } catch (cause) {
+      // Same handling as the initial attempt: a transport blip that
+      // exhausted its retries returns `[]` without consuming further repair
+      // attempts. The repair budget is allocated per turn; transient
+      // exhaustion on a repair attempt is just as recoverable on the next
+      // call's window as transient exhaustion on the initial attempt.
+      void cause;
+      return [];
+    }
     if (result.ok) return result.operations;
   }
 
