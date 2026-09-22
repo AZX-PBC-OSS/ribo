@@ -501,7 +501,7 @@ test("end to end through a nest: the model answers the grouped schema, review se
   const inner = schemaExtractor({
     // The same inference-vs-assignability assertion the row-group test above
     // makes: the runtime path uses the schema as-is.
-    extractionSchema: nestedShape.extractionSchema as PassthroughSchema, // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion -- inference, not assignability; see above
+    extractionSchema: nestedShape.extractionSchema as PassthroughSchema,
     name: "flat-nest",
     instructions: "Extract the home fields.",
     chat,

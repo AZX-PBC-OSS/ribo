@@ -9,7 +9,11 @@ and moves top-level leaves into it:
 ```ts
 const shape = deriveExtractionShape(flatSchema, {
   operations: [
-    { op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt", squareMeters: "area.squareMeters" } },
+    {
+      op: "nest",
+      group: "construction",
+      moves: { yearBuilt: "yearBuilt", squareMeters: "area.squareMeters" },
+    },
   ],
 });
 ```

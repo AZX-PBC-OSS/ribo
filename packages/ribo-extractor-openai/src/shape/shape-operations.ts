@@ -521,6 +521,7 @@ function applyNest(
     throw new Error(
       `deriveExtractionShape(): nest names group "${group}", which is not a usable ` +
         `top-level object key — ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
     );
   }
   if (shapedTree.children.has(group)) {
@@ -570,7 +571,7 @@ function applyNest(
       throw new Error(
         `deriveExtractionShape(): nest on "${group}" moves "${source.from}", which is a ` +
           `${node.kind === "array" ? "collection" : "group"}, not a top-level leaf — a nest ` +
-          "moves leaves; nesting a whole group is a different operation (its \"row\" span " +
+          'moves leaves; nesting a whole group is a different operation (its "row" span ' +
           "would have nowhere to land under the new top-level key).",
       );
     }

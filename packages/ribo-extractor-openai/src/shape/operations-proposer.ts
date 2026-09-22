@@ -451,8 +451,7 @@ const runAttempt = async (
     const operations: ShapeOperation[] = parsed.operations.map((op) => {
       if (op.op === "regroup")
         return { op: "regroup", group: op.group, moves: movesToRecord(op.moves) };
-      if (op.op === "nest")
-        return { op: "nest", group: op.group, moves: movesToRecord(op.moves) };
+      if (op.op === "nest") return { op: "nest", group: op.group, moves: movesToRecord(op.moves) };
       return op;
     });
     deriveExtractionShape(schema, { operations });
