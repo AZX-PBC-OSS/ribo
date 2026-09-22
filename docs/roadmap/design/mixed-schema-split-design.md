@@ -1,7 +1,9 @@
 # Splitting a mixed schema: one entry per group, plus the loose leaves
 
 **Date:** 2026-09-22
-**Status:** Draft — for review. No implementation plan written yet.
+**Status:** Implemented — ADR 0023. The consumer inventory held: rows 8, 9 and 11–17 needed no
+change, and the two pins that broke (`shape-operations.test.ts`'s conditional-payoff pair) were
+the ones ADR 0022 had pinned against this work.
 **Question answered:** `splitExtractionSchema` groups only when every top-level key is a group; a
 schema that is 14 groups plus a few loose leaves collapses to the flat fallback. How does the
 split — and every consumer of its `""` marker — handle groups and loose leaves in one schema?

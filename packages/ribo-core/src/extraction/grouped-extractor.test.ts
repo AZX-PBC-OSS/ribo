@@ -720,7 +720,11 @@ describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
 
     // The named entry merges under its key; the "" entry assigns its loose
     // leaves flat — one merged whole, validated by the closing parse.
-    expect(result.fields).toEqual({ hvac: hvacLeaf("Boiler"), note: noteLeaf, yearBuilt: yearLeaf });
+    expect(result.fields).toEqual({
+      hvac: hvacLeaf("Boiler"),
+      note: noteLeaf,
+      yearBuilt: yearLeaf,
+    });
     expect(result.usage).toEqual({ calls: 2 });
   });
 
@@ -742,7 +746,7 @@ describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
     expect(() => groupedExtractor({ target, groups: redundant })).toThrowError(/redundant/);
   });
 
-  test("a named key the schema lacks still throws beside a \"\" entry — the extra-keys check is unchanged", () => {
+  test('a named key the schema lacks still throws beside a "" entry — the extra-keys check is unchanged', () => {
     // The cast is the JS-caller path — `ghost` is not a key of the values type.
     const groups = {
       hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }),
@@ -768,7 +772,7 @@ describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
     await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(SchemaParseError);
   });
 
-  test("named keys without a \"\" entry are still exhaustive at the type level — a missing group stays a compile error", () => {
+  test('named keys without a "" entry are still exhaustive at the type level — a missing group stays a compile error', () => {
     const hvac = pieceEntry({ hvac: hvacLeaf("Boiler") });
     // The widening must admit "" beside named keys WITHOUT losing the guard the
     // named-only arm always had: named entries, no "", and a key missing.
@@ -791,7 +795,11 @@ describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
 
     const result = await extractor.extract(transcript);
 
-    expect(result.fields).toEqual({ hvac: hvacLeaf("Boiler"), note: noteLeaf, yearBuilt: yearLeaf });
+    expect(result.fields).toEqual({
+      hvac: hvacLeaf("Boiler"),
+      note: noteLeaf,
+      yearBuilt: yearLeaf,
+    });
     // The schedule runs named entries in schema declaration order with the ""
     // pieces last (design §5.2). Pieces start concurrently, but every start
     // fires before its first await, so the start order IS the schedule order.

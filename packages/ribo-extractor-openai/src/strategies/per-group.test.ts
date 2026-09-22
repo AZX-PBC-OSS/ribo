@@ -799,7 +799,7 @@ describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () 
     ]);
   });
 
-  test("with groupInstructions, the named group gets its own and the loose piece keeps the target's — groupInstructions is never called with \"\"", async () => {
+  test('with groupInstructions, the named group gets its own and the loose piece keeps the target\'s — groupInstructions is never called with ""', async () => {
     const seen: string[] = [];
     const groupInstructions = (key: string): string => {
       seen.push(key);
@@ -809,7 +809,12 @@ describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () 
       "demo-mixed-hvac": JSON.stringify(mixedHvacResponse),
       "demo-mixed": JSON.stringify(mixedLooseResponse),
     });
-    const extractor = perGroupExtractor({ target: mixedTarget, chat, model: "m", groupInstructions });
+    const extractor = perGroupExtractor({
+      target: mixedTarget,
+      chat,
+      model: "m",
+      groupInstructions,
+    });
 
     await extractor.extract({ text: "the transcript", annotations: {} });
 

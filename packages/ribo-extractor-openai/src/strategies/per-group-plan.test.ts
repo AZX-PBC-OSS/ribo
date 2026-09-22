@@ -327,7 +327,7 @@ describe("perGroupPlan — the mixed plan", () => {
     examples: [],
   };
 
-  test("a mixed schema yields the named groups beside a \"\" entry, loose last", () => {
+  test('a mixed schema yields the named groups beside a "" entry, loose last', () => {
     const plan = perGroupPlan({ target: mixedTarget, chat: fakeChat({}).chat, model: "m" });
     const groups = planGroups(plan);
 
@@ -361,9 +361,7 @@ describe("perGroupPlan — the mixed plan", () => {
     expect(loose.instructions).toBe(withExample.instructions);
     expect(loose.examples).toBe(withExample.examples);
     // Its schema is the loose piece's strict object — exactly the loose leaf.
-    expect(Object.keys((loose.extractionSchema as unknown as z.ZodObject).shape)).toEqual([
-      "note",
-    ]);
+    expect(Object.keys((loose.extractionSchema as unknown as z.ZodObject).shape)).toEqual(["note"]);
   });
 
   test("an override against a named group of a mixed plan applies as today, per piece", () => {
@@ -381,7 +379,7 @@ describe("perGroupPlan — the mixed plan", () => {
     expect(groups.hvac).not.toBe(defaults.hvac);
   });
 
-  test("an override against a loose leaf names the \"\" entry and points at hand composition — not \"not an object of groups\"", () => {
+  test('an override against a loose leaf names the "" entry and points at hand composition — not "not an object of groups"', () => {
     const plan = perGroupPlan({ target: mixedTarget, chat: fakeChat({}).chat, model: "m" });
 
     // `note` IS a key of the values type, so this typechecks — the runtime

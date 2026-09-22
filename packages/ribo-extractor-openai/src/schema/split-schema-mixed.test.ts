@@ -56,9 +56,7 @@ const mixedPatch = z
       })
       .strict()
       .optional(),
-    rooms: z
-      .array(z.object({ roomType: leaf().nullable().optional() }).strict())
-      .optional(),
+    rooms: z.array(z.object({ roomType: leaf().nullable().optional() }).strict()).optional(),
     note: leaf().nullable().optional(),
     yearBuilt: z.number().nullable().optional(),
   })
@@ -100,7 +98,7 @@ function enumerateLeaves(schema: z.ZodType, prefix = ""): string[] {
 // --- Tests -------------------------------------------------------------------
 
 describe("splitExtractionSchema — mixed schema, no caps", () => {
-  test("one entry per group plus one trailing loose piece keyed \"\", in declaration order", () => {
+  test('one entry per group plus one trailing loose piece keyed "", in declaration order', () => {
     const groups = splitExtractionSchema(mixedExtraction);
 
     // Groups in schema declaration order, the loose piece LAST — the order the
@@ -163,7 +161,7 @@ describe("splitExtractionSchema — mixed schema, no caps", () => {
     expect(new Set(pieceLeaves).size).toBe(pieceLeaves.length);
   });
 
-  test("a mixed schema whose group fits the caps no longer packs atomically under \"\"", () => {
+  test('a mixed schema whose group fits the caps no longer packs atomically under ""', () => {
     // The evidence-§5 shape: today this schema is ONE "" entry carrying
     // everything (accepted); the mixed branch emits the group and the loose
     // remainder separately — which the widened GroupMap accepts.
@@ -302,7 +300,9 @@ describe("splitExtractionSchema — mixed schema, byte cap", () => {
     expect(summarize(mixed, { maxSerializedCharsPerGroup: 900 })).toEqual(
       summarize(allGroup, { maxSerializedCharsPerGroup: 900 }),
     );
-    expect(summarize(mixed, { maxNullableUnionsPerGroup: 3, maxSerializedCharsPerGroup: 4_000 })).toEqual(
+    expect(
+      summarize(mixed, { maxNullableUnionsPerGroup: 3, maxSerializedCharsPerGroup: 4_000 }),
+    ).toEqual(
       summarize(allGroup, { maxNullableUnionsPerGroup: 3, maxSerializedCharsPerGroup: 4_000 }),
     );
   });
@@ -351,7 +351,7 @@ describe("splitExtractionSchema — mixed schema edge cases", () => {
     expect(Object.keys((groups[1]!.schema as z.ZodObject).shape)).toEqual(["tags"]);
   });
 
-  test("a single loose leaf beside groups yields exactly one \"\" piece", () => {
+  test('a single loose leaf beside groups yields exactly one "" piece', () => {
     const schema = enveloped(
       z
         .object({

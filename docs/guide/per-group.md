@@ -31,8 +31,8 @@ const preset = groupedExtractor({ target, groups: plan.groups });
 Both maps are plain values: a host can read them, log them, assert on them in a test, and spread
 them. A grouped schema yields the per-key arm of the map, and a test can enumerate it directly —
 `Object.keys(plan.groups)` names the groups the preset will run, including each partitioned piece's
-shared key. (The map type is a union whose other arm, keyed `""`, is the non-grouped fallback
-described below; narrowing on `""` discards it for a grouped schema.)
+shared key. (The map type is a union whose other arms, keyed `""`, carry the unwrapped portion
+described below; narrowing on `""` discards them for a grouped schema.)
 
 `perGroupExtractor` is nothing more than `groupedExtractor` over `plan.groups` — the preset exists
 so the common case stays one call, not because the plan is hidden. Exporting it is the whole
@@ -148,12 +148,18 @@ shapes `perGroupPlan` builds — and a projected target can be handed to _any_ s
 a replacement from inside an override without touching the other nineteen groups.
 
 Two edges of the map are worth knowing. A group entry can be an **ordered list** of extractors —
-that is what a partitioned group is — and a map whose only key is `""` declares the
-**non-grouped fallback**: one entry covering the whole schema, the shape the preset yields when the
-target isn't an object of groups and the byte cap (when supplied) doesn't partition it.
-With a supplied byte cap the flat fallback itself can partition — N pieces sharing `""` —
-and `Plan.targets[""]` becomes that ordered list instead of a singular entry. The fallback
-cannot be combined with per-key entries; either the schema has groups or it doesn't.
+that is what a partitioned group is — and a `""` key declares the **unwrapped portion**: pieces
+whose schema is not nested under a group key, merged into the result by shallow assign. When no
+top-level key is a group, the unwrapped portion is the whole schema — the **non-grouped
+fallback**, the shape the preset yields for a flat target: one entry, or — with a supplied byte
+cap that partitions it — N pieces sharing `""`, and `Plan.targets[""]` becomes that ordered list
+instead of a singular entry. When SOME top-level keys are groups and the rest are loose leaves —
+a mixed schema — the split emits one entry per group plus the loose leaves as `""` piece(s)
+trailing last, so the map combines named keys with `""` and the loose calls go out with the
+target's own instructions. One combination is still refused: a `""` entry beside named entries
+that already cover every top-level key is redundant — a second coverage declaration for the same
+keys — and throws at construction. `overrideGroups` has no slot for the `""` entry; compose the
+map by hand for custom loose handling.
 
 ## Next
 

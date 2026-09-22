@@ -206,7 +206,6 @@ describe("scopedInstanceExtractor", () => {
     expect(Object.keys(result.statedEmptyGroups ?? {})).not.toContain("");
   });
 
-
   test("fills one instance per current candidate and assembles arrays in roster order", async () => {
     const roster = makeRoster({
       widgets: [

@@ -180,7 +180,7 @@ describe("prepareGroups — a mixed split", () => {
     examples: [],
   };
 
-  test("the loose piece is prepared by the existing \"\" arm, after the groups", () => {
+  test('the loose piece is prepared by the existing "" arm, after the groups', () => {
     const pieces = splitExtractionSchema(
       mixedTarget.extractionSchema,
       MAX_NULLABLE_UNIONS_PER_CALL,

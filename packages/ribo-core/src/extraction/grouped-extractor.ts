@@ -322,9 +322,7 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
         `second-parse failure after every call had been paid for.`,
     );
   }
-  const extra = Object.keys(groupRecord).filter(
-    (key) => key !== "" && !schemaKeys.includes(key),
-  );
+  const extra = Object.keys(groupRecord).filter((key) => key !== "" && !schemaKeys.includes(key));
   if (extra.length > 0) {
     throw new Error(
       `groupedExtractor: groups names top-level key(s) ` +

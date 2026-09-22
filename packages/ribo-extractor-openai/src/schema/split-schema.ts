@@ -677,10 +677,9 @@ export function splitExtractionSchema(
   const looseKeys: string[] = [];
   for (const key of keys) {
     const candidate = groupCandidate(fieldAt(shape, key));
-    (candidate instanceof z.ZodObject && isGroupObject(candidate)
-      ? groupKeys
-      : looseKeys
-    ).push(key);
+    (candidate instanceof z.ZodObject && isGroupObject(candidate) ? groupKeys : looseKeys).push(
+      key,
+    );
   }
 
   if (groupKeys.length === 0) {
