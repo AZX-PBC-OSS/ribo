@@ -7,3 +7,9 @@ export type {
   CorroborationCensusOptions,
   CorroborationVerdict,
 } from "./corroboration-census.js";
+export {
+  corroborateExtractor,
+  CorroborationRejectedError,
+  rejectUncorroboratedCommitments,
+} from "./corroborate-extractor.js";
+export type { CorroborateExtractorOptions, CorroborationPolicy } from "./corroborate-extractor.js";
