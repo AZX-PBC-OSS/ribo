@@ -192,6 +192,36 @@ mappings land on both sides of the threshold. That is variance, not a threshold 
 The conflation persists in the new schema (`hvacSystemEquipmentType` carries `arguable` in the
 re-annotated ground truth), but the flagged population on new-schema extractions is unmeasured.
 
+## Probe 10 — presence at leaf granularity
+
+Probe 2 measured whether a transcript touches a GROUP. That is not what core's `presencePhase`
+produces: it emits per-group maps of per-LEAF booleans. This asks the per-leaf question for all
+159 leaves of the five covered groups, in **one request per transcript (~570ms)** rather than
+`presencePhase`'s one call per group. 2226 transcript x leaf cells, 135 discussed (6.1%).
+
+| threshold | precision | recall | wasted items/transcript |
+| --------- | --------- | ------ | ----------------------- |
+| 0.20      | 0.326     | 1.000  | 19.9                    |
+| 0.30      | 0.421     | 1.000  | 13.3                    |
+| 0.40      | 0.487     | 0.978  | 9.9                     |
+| 0.50      | 0.551     | 0.956  | 7.5                     |
+
+**Probe 2's threshold does not transfer.** At 0.50 — the group-level operating point — six leaves
+are silently dropped, including `hvac.hvacSystemEquipmentType` at 0.32. A false negative here is
+silent data loss: the leaf is seeded null and no later phase ever plans an item for it.
+
+**And recall 1.000 is one leaf wide.** The populations overlap — discussed leaves score as low as
+0.30 (median 0.93, p5 0.51) while undiscussed ones reach 0.98. The lowest true positive _is_ 0.30,
+so a new transcript could easily land a discussed leaf below it. 0.20 is the defensible setting:
+recall 1.000 with headroom.
+
+Precision is the wrong lens. The alternative to a presence phase is planning an item for all 159
+leaves; at 0.20 it plans ~33. The phase's job is shrinking 159 to a few dozen without losing
+anything, and it does that.
+
+Not measured: head-to-head against core's chat-based `presencePhase`, which needs extraction calls
+and hits the same wall as probe 8.
+
 ## Read
 
 Router and cascade-style verification both land. The naive enum extractor does not, and its
