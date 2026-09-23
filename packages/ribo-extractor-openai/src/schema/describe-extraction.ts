@@ -61,7 +61,7 @@ export interface SchemaMeasures {
   readonly nullableUnions: number;
   /** Serialized JSON Schema characters — the byte cap's unit. */
   readonly serializedChars: number;
-  /** Nesting depth of the serialized rendering, one level per `properties` descent. */
+  /** Nesting depth of the serialized rendering, as raw JSON nesting — see `serializedNestingDepth`. */
   readonly depth: number;
 }
 

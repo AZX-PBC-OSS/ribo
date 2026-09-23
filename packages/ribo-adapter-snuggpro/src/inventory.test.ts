@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
+import { serializedNestingDepth } from "@azx/ribo-extractor-openai";
+
 import { TRANSCRIPT_SECTION } from "./instructions.js";
 import {
   rosterCandidateSchema,
@@ -8,17 +10,28 @@ import {
   rosterSchema,
   snuggInventoryInstructions,
 } from "./inventory.js";
+import { SCHEMA_NESTING_DEPTH_CAP } from "./schema.js";
 
 /**
  * Must-fail tests for the inventory roster schema and instructions (Task 9).
  * All assertions are schema-level or string-level; no model, no network.
  */
 
+describe("rosterSchema on the structured-output route", () => {
+  test("nests within the route's depth cap", () => {
+    // Sent whole on every inventory pass. Over the cap, the route answers 400, the
+    // arbiter treats it as terminal and drops to the next tier — inventory is silently
+    // absent rather than failing. Descriptions cannot deepen a schema, so measuring
+    // before a host strips them is the same number.
+    expect(serializedNestingDepth(rosterSchema)).toBeLessThanOrEqual(SCHEMA_NESTING_DEPTH_CAP);
+  });
+});
+
 describe("rosterCandidateSchema", () => {
   test("rejects a candidate without mentionSpan", () => {
     const candidate = {
       discriminator: "the boiler",
-      distinguishedBy: null,
+      distinguishedBy: "",
       eligibility: "current" as const,
       eligibilitySpan: null,
     };
@@ -32,7 +45,7 @@ describe("rosterCandidateSchema", () => {
     const candidate = {
       mentionSpan: "the old boiler",
       discriminator: "the old boiler",
-      distinguishedBy: null,
+      distinguishedBy: "",
       eligibility: "decommissioned" as const,
       eligibilitySpan: null,
     };
@@ -44,7 +57,7 @@ describe("rosterCandidateSchema", () => {
     const candidate = {
       mentionSpan: "the boiler",
       discriminator: "the boiler",
-      distinguishedBy: null,
+      distinguishedBy: "",
       eligibility: "current" as const,
       eligibilitySpan: null,
     };
@@ -55,7 +68,7 @@ describe("rosterCandidateSchema", () => {
     const candidate = {
       mentionSpan: "the old boiler",
       discriminator: "the old boiler",
-      distinguishedBy: null,
+      distinguishedBy: "",
       eligibility: "decommissioned" as const,
       eligibilitySpan: "the old boiler is decommissioned",
     };
@@ -70,7 +83,7 @@ describe("rosterSchema", () => {
         z.object({
           mentionSpan: z.string(),
           discriminator: z.string(),
-          distinguishedBy: z.string().nullable(),
+          distinguishedBy: z.string(),
           eligibility: z.string(),
           eligibilitySpan: z.string().nullable(),
         }),
@@ -81,14 +94,14 @@ describe("rosterSchema", () => {
     const first = {
       mentionSpan: "the furnace in the basement",
       discriminator: "the basement furnace",
-      distinguishedBy: null,
+      distinguishedBy: "",
       eligibility: "current" as const,
       eligibilitySpan: null,
     };
     const second = {
       mentionSpan: "the other one in the attic",
       discriminator: "the attic unit",
-      distinguishedBy: null,
+      distinguishedBy: "",
       eligibility: "current" as const,
       eligibilitySpan: null,
     };
@@ -113,13 +126,13 @@ describe("rosterSchema", () => {
     expect(parsed.error?.issues[0]?.message).toContain("distinguishedBy");
   });
 
-  test("accepts the first candidate with distinguishedBy null", () => {
+  test('accepts the first candidate with distinguishedBy ""', () => {
     const roster = {
       hvac: [
         {
           mentionSpan: "the furnace in the basement",
           discriminator: "the basement furnace",
-          distinguishedBy: null,
+          distinguishedBy: "",
           eligibility: "current" as const,
           eligibilitySpan: null,
         },
@@ -141,13 +154,13 @@ describe("rosterSchema", () => {
     expect(rosterSchema.safeParse(roster).success).toBe(true);
   });
 
-  test("accepts a second candidate when distinguishedBy is non-null", () => {
+  test("accepts a second candidate when distinguishedBy is non-empty", () => {
     const roster = {
       hvac: [
         {
           mentionSpan: "the furnace in the basement",
           discriminator: "the basement furnace",
-          distinguishedBy: null,
+          distinguishedBy: "",
           eligibility: "current" as const,
           eligibilitySpan: null,
         },

@@ -152,6 +152,11 @@ synthetic; a second half of the same test lives beside the adapter's cap suite
 
 ## 6. Depth: measured, never capped
 
+> **Correction (2026-09-22, ADR 0025).** The counting method below is wrong for the route this
+> repo sends to. The route counts raw JSON nesting — `anyOf` arms, array indices and scalars
+> included — and `serializedNestingDepth` was changed to match. The rest of this section, including
+> why depth is reported rather than capped, stands.
+
 The report carries depth — per piece and for the whole schema — but takes no depth option.
 
 **What is measured.** The depth of the piece's serialized JSON Schema rendering — the same

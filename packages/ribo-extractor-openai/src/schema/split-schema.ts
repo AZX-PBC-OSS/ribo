@@ -238,31 +238,30 @@ export function serializedCharCount(schema: z.ZodType): number {
 
 /**
  * The nesting depth of a schema's serialized JSON Schema rendering — the same
- * rendering {@link serializedCharCount} measures — counting one level per
- * `properties` descent. Measured, never packed against: the split partitions
- * on unions and bytes, while the provider's depth cap is named in the same
- * route error and deliberately NOT packed against (see the file header), so
- * this number exists for a caller to compare against their own route's cap —
- * the adapter's `SCHEMA_NESTING_DEPTH_CAP` suite is the worked example.
- * Exported so library and adapter share ONE walk over what a "level" is
- * rather than two that can drift.
+ * rendering {@link serializedCharCount} measures — as the structured-output
+ * route counts it: raw JSON nesting, a scalar counting 1 and every object or
+ * array adding 1. `anyOf` arms and array indices are levels, so every
+ * `.nullable()` costs two. Probed against the live route on 2026-09-22: 12
+ * passes, 13 is rejected, and a one-property schema was rejected for a nested
+ * array inside an `enum` value. Counting only `properties` descents, as this
+ * once did, ranked a rejected schema shallower than accepted ones.
+ *
+ * Measured, never packed against: the split partitions on unions and bytes,
+ * while the depth cap is named in the same route error and deliberately NOT
+ * packed against (see the file header), so this number exists for a caller to
+ * compare against their own route's cap — the adapter's
+ * `SCHEMA_NESTING_DEPTH_CAP` suite is the worked example. Descriptions are
+ * scalars beside `type`, so stripping them never changes it.
  */
 export function serializedNestingDepth(schema: z.ZodType): number {
-  return jsonNestingDepth(z.toJSONSchema(schema, { target: "draft-2020-12" }), 0);
+  return jsonNestingDepth(z.toJSONSchema(schema, { target: "draft-2020-12" }));
 }
 
-/** Walk a rendered JSON Schema node: deepest level, +1 per `properties` descent. */
-function jsonNestingDepth(node: unknown, depth: number): number {
-  let deepest = depth;
-  if (Array.isArray(node)) {
-    for (const child of node) deepest = Math.max(deepest, jsonNestingDepth(child, depth));
-    return deepest;
-  }
-  if (node === null || typeof node !== "object") return deepest;
-  for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
-    deepest = Math.max(deepest, jsonNestingDepth(child, key === "properties" ? depth + 1 : depth));
-  }
-  return deepest;
+function jsonNestingDepth(node: unknown): number {
+  if (node === null || typeof node !== "object") return 1;
+  let deepest = 0;
+  for (const child of Object.values(node)) deepest = Math.max(deepest, jsonNestingDepth(child));
+  return 1 + deepest;
 }
 
 /**
