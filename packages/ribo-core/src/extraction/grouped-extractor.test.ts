@@ -795,6 +795,20 @@ describe("groupedExtractor — the mixed arm: `unwrapped` beside named keys", ()
     ).toThrowError(/may not carry/);
   });
 
+  test('a stale `""` map with no `unwrapped` is refused too — the likeliest way to meet this guard', () => {
+    // The refusal above pins `""` BESIDE `unwrapped`. This is the spelling a
+    // caller carried over unchanged from before the rename: the old fallback
+    // arm, `{ groups: { "": entry } }`, with no `unwrapped` at all. A review
+    // found it unpinned, and it is the more likely real-world hit — a JS caller
+    // upgrading, rather than one composing both spellings at once. The guard is
+    // unconditional and fires before the fold, so it catches this; the test is
+    // here so a later "only refuse when it collides" optimisation cannot pass.
+    const groups = {
+      "": pieceEntry({ note: noteLeaf }),
+    } as unknown as GroupMap<MixedValues>;
+    expect(() => groupedExtractor({ target: mixedTarget, groups })).toThrowError(/may not carry/);
+  });
+
   test("an `unwrapped` entry that does not deliver the unnamed remainder is accepted at construction and caught by the closing parse", async () => {
     // The coverage waiver's guarantee: with `unwrapped` present the
     // missing-keys check is waived — the entry IS the declaration — so a lying

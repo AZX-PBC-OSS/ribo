@@ -97,8 +97,12 @@ caller supplies it — but no emitted piece exceeds a cap it was given. The narr
 **strict widening**: every composition accepted
 before is accepted with identical behaviour, and the only compositions whose behaviour changed
 are the ones that threw. (The later re-spelling — the `unwrapped` option in place of the `""`
-map key — is behaviour-preserving in the same sense: the fold makes the accepted set and the
-merge semantics identical, and only the spelling moved.)
+map key — is behaviour-preserving in a narrower sense, and the distinction is worth stating:
+every composition accepted before is accepted **re-spelled**, with identical behaviour, because
+the fold reproduces the same internal record. But the old `""` spelling itself is _refused_ —
+by the type for a TS caller, by a construction throw for a JS one — including the fallback arm
+this ADR originally documented. That is why the change carries a major bump rather than a
+minor one.)
 
 The cost, stated plainly. A construction-time guard got narrower: a hand composer who declared
 the unwrapped portion beside named keys by mistake used to get a throw, and now only the
