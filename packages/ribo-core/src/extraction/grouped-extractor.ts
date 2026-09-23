@@ -137,8 +137,7 @@ export type GroupMap<V extends Record<string, unknown>, P = NoProvenance> = Name
  * pool arrival order.
  */
 export type UnwrappedEntry<V extends Record<string, unknown>, P = NoProvenance> =
-  | Extractor<Enveloped<V, P>>
-  | readonly Extractor<Enveloped<V, P>>[];
+  Extractor<Enveloped<V, P>> | readonly Extractor<Enveloped<V, P>>[];
 
 /**
  * The groups half of {@link GroupedExtractorOptions}: three coverage shapes,
@@ -176,8 +175,10 @@ export type GroupedEntries<V extends Record<string, unknown>, P = NoProvenance> 
     };
 
 /** Options for {@link groupedExtractor}: the timing knobs plus {@link GroupedEntries}. */
-export type GroupedExtractorOptions<V extends Record<string, unknown>, P = NoProvenance> =
-  GroupedExtractorOptionsBase<V, P> & GroupedEntries<V, P>;
+export type GroupedExtractorOptions<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+> = GroupedExtractorOptionsBase<V, P> & GroupedEntries<V, P>;
 
 /** The {@link GroupedExtractorOptions} that are not the coverage declaration. */
 interface GroupedExtractorOptionsBase<V extends Record<string, unknown>, P>
@@ -327,7 +328,9 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
   // refused rather than folded: beside `unwrapped` one of the two would drop
   // silently whichever way the fold merged, and the extra-keys check below
   // filters "" out, so no other check would catch it.
-  const groupRecord: Record<string, unknown> = { ...(groups as Record<string, unknown> | undefined) };
+  const groupRecord: Record<string, unknown> = {
+    ...(groups as Record<string, unknown> | undefined),
+  };
   if (UNWRAPPED_KEY in groupRecord) {
     throw new Error(
       `groupedExtractor: groups may not carry a "" key — the unwrapped portion ` +

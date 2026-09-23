@@ -18,10 +18,11 @@
  * mean reconstructing twenty entries by hand, and nobody would; hosts would keep
  * calling the preset and the per-group capability would go unused. So the preset
  * is two steps, and the first is public: {@link perGroupPlan} returns the
- * exhaustive per-key map of default entries and the projected targets they were
- * built from, as plain values a host can read, log, assert on and spread, and
- * {@link perGroupExtractor} is `groupedExtractor({ target, groups:
- * perGroupPlan(options).groups, …timing })` and nothing more.
+ * per-key map of default entries (plus the unwrapped portion's, when the schema
+ * has one) and the projected targets they were built from, as plain values a
+ * host can read, log, assert on and spread, and {@link perGroupExtractor} is
+ * `groupedExtractor({ target, ...planEntries, …timing })` over
+ * `perGroupPlan(options)` and nothing more.
  *
  * **Requests are byte-identical to the pre-combinator implementation** —
  * `response_format.json_schema.name`, the schema, the message list, the order —
@@ -72,13 +73,14 @@
  *
  * **The non-grouped fallback.** A target whose schema is not an object of
  * groups yields one entry covering the whole schema ({@link splitExtractionSchema}'s
- * fallback, keyed `""`), so this extractor makes one call — exactly as today.
- * The second trust-boundary parse is a no-op in that case (the piece schema IS
- * the full schema), but harmless. A MIXED schema — groups beside loose
- * top-level leaves — yields one entry per group plus the loose leaves keyed
- * `""` (the unwrapped portion): the loose pieces flow this plan's existing
- * `""` branch, so no plan code distinguishes them from the flat fallback's
- * pieces (mixed-schema-split design §3, rows 8–9; ADR 0023).
+ * fallback, keyed `""` internally), so this extractor makes one call — exactly
+ * as today. The second trust-boundary parse is a no-op in that case (the piece
+ * schema IS the full schema), but harmless. A MIXED schema — groups beside
+ * loose top-level leaves — yields one entry per group plus the loose leaves as
+ * the unwrapped portion: the plan carries it in its `unwrapped` slot and the
+ * combinator folds it back onto the internal `""` key, so no plan code
+ * distinguishes the loose pieces from the flat fallback's (mixed-schema-split
+ * design §3, rows 8–9; ADR 0023).
  */
 
 import { z } from "zod";
@@ -91,10 +93,12 @@ import type {
   ExtractionObserver,
   ExtractionTarget,
   Extractor,
+  GroupedEntries,
   GroupMap,
   GroupUnit,
   NoProvenance,
   RetryBudgetObserver,
+  UnwrappedEntry,
 } from "@azx/ribo-core";
 
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
@@ -252,34 +256,57 @@ type NamedGroupTargets<V extends Record<string, unknown>, P> = {
 };
 
 /**
- * The `""` arm's target (or ordered piece list): a flat schema whose top-level
- * properties are leaf envelopes yields one entry (the whole target), or — when
- * a byte cap partitions it — an ordered list, index-aligned with `parts`. The
- * singular option is the historical non-grouped fallback; the array form is
- * what `splitExtractionSchema` emits under a byte cap. Beside named keys — the
- * mixed shape — the `""` slot carries the loose portion's piece target(s): the
+ * The unwrapped portion's target (or ordered piece list) — the target half of
+ * core's {@link UnwrappedEntry}. A flat schema whose top-level properties are
+ * leaf envelopes yields one target (the whole target), or — when a byte cap
+ * partitions it — an ordered list, index-aligned with `parts`. The singular
+ * option is the historical non-grouped fallback; the array form is what
+ * `splitExtractionSchema` emits under a byte cap. Beside named keys — the
+ * mixed shape — the slot carries the loose portion's piece target(s): the
  * piece's own strict-object schema, the target's name and instructions, and
- * the full (or, when partitioned, leaf-narrowed) examples. The widening
- * matches `combinator`/`merge`/`override` behaviour and is what a host
- * overriding the flat fallback sees — the same shape a per-group override
- * sees for a partitioned grouped key.
+ * the full (or, when partitioned, leaf-narrowed) examples.
  */
-type UnwrappedGroupTargets<V extends Record<string, unknown>, P> = {
-  readonly "": ExtractionTarget<V, P> | readonly ExtractionTarget<V, P>[];
-};
+type UnwrappedTarget<V extends Record<string, unknown>, P> =
+  ExtractionTarget<V, P> | readonly ExtractionTarget<V, P>[];
 
-export type GroupTargets<V extends Record<string, unknown>, P = NoProvenance> =
-  | NamedGroupTargets<V, P>
-  | UnwrappedGroupTargets<V, P>
-  | (Partial<NamedGroupTargets<V, P>> & UnwrappedGroupTargets<V, P>);
+/**
+ * The projected targets behind a {@link PerGroupPlan}'s NAMED groups —
+ * {@link GroupMap} key for key and index for index. The unwrapped portion's
+ * target is not a key here; it rides the plan's `unwrappedTarget` slot.
+ */
+export type GroupTargets<V extends Record<string, unknown>, P = NoProvenance> = NamedGroupTargets<
+  V,
+  P
+>;
 
-/** What {@link perGroupPlan} returns — see {@link GroupMap} and {@link GroupTargets}. */
-export interface PerGroupPlan<V extends Record<string, unknown>, P = NoProvenance> {
-  /** The exhaustive per-key map of default entries — a `singleShotExtractor` per piece. */
-  readonly groups: GroupMap<V, P>;
-  /** The projected targets those entries were built from, index-aligned with `groups`. */
-  readonly targets: GroupTargets<V, P>;
-}
+/**
+ * What {@link perGroupPlan} returns. Two shapes, mirroring
+ * {@link GroupedEntries}' arms: an all-grouped plan carries the exhaustive
+ * named maps and no unwrapped portion; a mixed or flat plan carries the named
+ * maps (partial — the unwrapped portion owns the rest, or the whole schema)
+ * beside the `unwrapped` entry and its `unwrappedTarget`. Hand both halves of
+ * either shape straight to `groupedExtractor`: `groupedExtractor({ target,
+ * groups: plan.groups, unwrapped: plan.unwrapped })` — narrowing on
+ * `plan.unwrapped === undefined` first picks the arm.
+ */
+export type PerGroupPlan<V extends Record<string, unknown>, P = NoProvenance> =
+  | {
+      /** Every top-level key is a group: the exhaustive per-key map of default entries. */
+      readonly groups: GroupMap<V, P>;
+      /** The projected targets those entries were built from, index-aligned with `groups`. */
+      readonly targets: GroupTargets<V, P>;
+      readonly unwrapped?: undefined;
+      readonly unwrappedTarget?: undefined;
+    }
+  | {
+      /** A mixed or flat plan: the named groups beside an unwrapped portion. */
+      readonly groups: Partial<GroupMap<V, P>>;
+      readonly targets: Partial<GroupTargets<V, P>>;
+      /** The unwrapped portion's default entry (or ordered piece list). */
+      readonly unwrapped: UnwrappedEntry<V, P>;
+      /** The projected target(s) the unwrapped entry was built from, index-aligned. */
+      readonly unwrappedTarget: UnwrappedTarget<V, P>;
+    };
 
 /**
  * The plan's default entry for one piece: a {@link singleShotExtractor} over the
@@ -373,15 +400,17 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
   });
 
   // The non-grouped fallback: the schema is not an object of groups, so there
-  // are no pieces to compose — one entry covering the whole schema, keyed "",
-  // built over the target itself (its own name, instructions and unprojected
-  // examples). The combinator merges such an entry by assigning its fields
-  // flat, exactly as the old merge did.
+  // are no pieces to compose — one entry covering the whole schema, built over
+  // the target itself (its own name, instructions and unprojected examples),
+  // carried in the plan's `unwrapped` slot. The combinator merges such an
+  // entry by assigning its fields flat, exactly as the old merge did.
   const first = pieces[0];
   if (pieces.length === 1 && first !== undefined && first.key === "") {
     return {
-      groups: { "": defaultPieceEntry({ pieceTarget: target, chat, model, maxTokens }) },
-      targets: { "": target },
+      groups: {},
+      targets: {},
+      unwrapped: defaultPieceEntry({ pieceTarget: target, chat, model, maxTokens }),
+      unwrappedTarget: target,
     };
   }
 
@@ -397,9 +426,14 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
   // The maps are built as plain records because the loop's key arrives as a
   // runtime string; the cast at the return names the invariant that makes it
   // sound — these keys ARE the schema shape's keys, and the schema is
-  // `Enveloped<V, P>`, so they are exactly `keyof V & string`.
+  // `Enveloped<V, P>`, so they are exactly `keyof V & string`. The split's
+  // loose pieces share `key === ""`: they are the unwrapped portion, assembled
+  // into the plan's `unwrapped`/`unwrappedTarget` slots rather than a map key
+  // — the "" marker they carry into the combinator is internal (ADR 0023).
   const groups: Record<string, unknown> = {};
   const targets: Record<string, unknown> = {};
+  let unwrapped: unknown;
+  let unwrappedTarget: unknown;
 
   for (const [groupKey, keyPieces] of byKey) {
     const key = groupKey as keyof V & string;
@@ -509,12 +543,27 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
 
     // One entry for an unpartitioned key; the ordered piece list for a
     // partitioned one. The shape is the combinator's own
-    // `Extractor | readonly Extractor[]` per key.
-    groups[key] = pieceEntries.length === 1 ? pieceEntries[0] : pieceEntries;
-    targets[key] = pieceTargets.length === 1 ? pieceTargets[0] : pieceTargets;
+    // `Extractor | readonly Extractor[]` per key. The loose pieces (key "")
+    // assemble into the unwrapped slots instead of the named maps.
+    const entry = pieceEntries.length === 1 ? pieceEntries[0] : pieceEntries;
+    const pieceTarget = pieceTargets.length === 1 ? pieceTargets[0] : pieceTargets;
+    if (groupKey === "") {
+      unwrapped = entry;
+      unwrappedTarget = pieceTarget;
+    } else {
+      groups[key] = entry;
+      targets[key] = pieceTarget;
+    }
   }
 
-  return { groups: groups as GroupMap<V, P>, targets: targets as GroupTargets<V, P> };
+  return unwrapped === undefined
+    ? { groups: groups as GroupMap<V, P>, targets: targets as GroupTargets<V, P> }
+    : {
+        groups: groups as Partial<GroupMap<V, P>>,
+        targets: targets as Partial<GroupTargets<V, P>>,
+        unwrapped: unwrapped as UnwrappedEntry<V, P>,
+        unwrappedTarget: unwrappedTarget as UnwrappedTarget<V, P>,
+      };
 }
 
 /**
@@ -545,22 +594,25 @@ export type GroupOverride<
  * Apply per-group overrides to a {@link perGroupPlan} result: the defaults
  * everywhere, except the groups named in `overrides`.
  *
- * Returns the FULL map — untouched keys are reference-equal to `plan.groups`'s,
- * so a host spreads the result into `groupedExtractor`'s `groups` (or hands it
- * straight over) and a test or status panel can still enumerate the running map
- * and name the overridden keys. An override key the plan does not carry is a
- * compile error for a TypeScript caller (the overrides object is keyed by the
- * schema's own top-level keys) and a construction-time throw naming the key for
- * a JS caller — including any override against a non-grouped fallback plan,
- * which has no per-group entries to override.
+ * Returns the FULL composition — untouched keys are reference-equal to
+ * `plan.groups`'s and the plan's `unwrapped` entry threads through untouched,
+ * so a host spreads the result straight into `groupedExtractor` (`groupedExtractor({
+ * target, ...overrideGroups(plan, { … }) })`) and a test or status panel can
+ * still enumerate the running map and name the overridden keys. An override
+ * key the plan does not carry is a compile error for a TypeScript caller (the
+ * overrides object is keyed by the schema's own top-level keys) and a
+ * construction-time throw naming the key for a JS caller — including any
+ * override against a non-grouped fallback plan, which has no per-group entries
+ * to override.
  */
 export function overrideGroups<V extends Record<string, unknown>, P = NoProvenance>(
   plan: PerGroupPlan<V, P>,
   overrides: { readonly [K in keyof V & string]?: GroupOverride<V, P, K> },
-): GroupMap<V, P> {
+): GroupedEntries<V, P> {
   // The same read/write-through-a-record cast the plan's builder and the
   // combinator's coverage check use: the map's keys are the schema's own
-  // top-level keys, checked at construction.
+  // top-level keys, checked at construction. The unwrapped portion is not a
+  // key in the map — it rides the plan's `unwrapped` slot.
   const groupRecord = plan.groups as Readonly<Record<string, unknown>>;
   const targetRecord = plan.targets as Readonly<Record<string, unknown>>;
   const overrideRecord = overrides as Readonly<
@@ -574,23 +626,24 @@ export function overrideGroups<V extends Record<string, unknown>, P = NoProvenan
     const override = overrideRecord[key];
     if (override === undefined) continue;
     if (!(key in groupRecord)) {
-      const namedKeys = Object.keys(groupRecord).filter((existing) => existing !== "");
-      if ("" in groupRecord && namedKeys.length === 0) {
+      const namedKeys = Object.keys(groupRecord);
+      if (plan.unwrapped !== undefined && namedKeys.length === 0) {
         throw new Error(
           `overrideGroups: the plan's schema is not an object of groups, so there are ` +
             `no per-group entries to override (asked to override "${key}").`,
         );
       }
-      if ("" in groupRecord) {
+      if (plan.unwrapped !== undefined) {
         // A MIXED plan: there ARE per-group entries, and the loose leaves ride
-        // the "" entry — which takes no override: the overrides object is
-        // keyed by `V`'s top-level keys and "" is not one (mixed-schema-split
-        // design, open question 4). Hand composition is the escape hatch.
+        // the unwrapped portion — which takes no override: the overrides
+        // object is keyed by `V`'s top-level keys and the unwrapped portion is
+        // not one (mixed-schema-split design, open question 4; ADR 0023).
+        // Passing `unwrapped` to groupedExtractor yourself is the escape hatch.
         throw new Error(
           `overrideGroups: the plan has no group "${key}" — its groups are ` +
             `${namedKeys.map((existing) => `"${existing}"`).join(", ")}, and its loose ` +
-            `leaves ride the "" entry, which takes no override. Compose the map by hand ` +
-            `to change loose handling.`,
+            `leaves ride the unwrapped portion, which takes no override. Pass \`unwrapped\` ` +
+            `to groupedExtractor yourself to change loose handling.`,
         );
       }
       throw new Error(
@@ -610,7 +663,11 @@ export function overrideGroups<V extends Record<string, unknown>, P = NoProvenan
       : call(entry, pieceTargets, 0);
   }
 
-  return result as GroupMap<V, P>;
+  return (
+    plan.unwrapped === undefined
+      ? { groups: result }
+      : { groups: result, unwrapped: plan.unwrapped }
+  ) as GroupedEntries<V, P>;
 }
 
 /**
@@ -642,9 +699,18 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
     onRetryBudget,
     requireRetryBudget,
   } = options;
+  const plan = perGroupPlan(options);
+  // The plan's two shapes map onto the combinator's options arms: no unwrapped
+  // portion is the exhaustive named map alone; an unwrapped portion rides
+  // beside the (partial) named map. Narrowing on `unwrapped` picks the arm —
+  // a bare spread of the union would not match any single arm.
+  const entries: GroupedEntries<V, P> =
+    plan.unwrapped === undefined
+      ? { groups: plan.groups }
+      : { groups: plan.groups, unwrapped: plan.unwrapped };
   return groupedExtractor({
     target,
-    groups: perGroupPlan(options).groups,
+    ...entries,
     normalize,
     concurrency,
     maxRetries,

@@ -174,13 +174,23 @@ const targetFor = (name: string, schema: z.ZodType): ExtractionTarget<Record<str
   }) as ExtractionTarget<Record<string, unknown>>;
 
 /** Per-key piece counts out of a constructed plan: an array entry is a partitioned key. */
-const planPieceCounts = (plan: { groups: Record<string, unknown> }): Record<string, number> =>
-  Object.fromEntries(
+const planPieceCounts = (plan: {
+  groups: Record<string, unknown>;
+  unwrapped?: unknown;
+}): Record<string, number> => {
+  const counts = Object.fromEntries(
     Object.entries(plan.groups).map(([key, entry]) => [
       key,
       Array.isArray(entry) ? entry.length : 1,
     ]),
   );
+  // The plan's unwrapped slot is the report's `""` piece(s): fold it in under
+  // the internal marker so both sides speak the split's per-key vocabulary.
+  if (plan.unwrapped !== undefined) {
+    counts[""] = Array.isArray(plan.unwrapped) ? plan.unwrapped.length : 1;
+  }
+  return counts;
+};
 
 /** Per-key piece counts out of the report's piece rows. */
 const reportPieceCounts = (
@@ -325,7 +335,7 @@ describe("describeExtraction agrees with construction over the corpus × caps ma
         // report's pieces ARE the split's entries — key, part and parts in
         // sequence — and the plan's per-key piece counts.
         expect(report.pieces).toBeDefined();
-        const plan = buildPlan() as { groups: Record<string, unknown> };
+        const plan = buildPlan() as { groups: Record<string, unknown>; unwrapped?: unknown };
         if (report.callShape === "per-group") {
           const split = splitExtractionSchema(schema, effectiveCaps(caps));
           expect(report.pieces?.map((p) => [p.key, p.part, p.parts])).toEqual(

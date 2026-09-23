@@ -886,7 +886,9 @@ describe("groupedExtractor — the mixed arm: `unwrapped` beside named keys", ()
 
     const rejection = await extractor.extract(transcript).catch((cause: unknown) => cause);
     expect(rejection).toBeInstanceOf(Error);
-    expect((rejection as Error).message).toMatch(/the unwrapped entry states the named group "hvac"/);
+    expect((rejection as Error).message).toMatch(
+      /the unwrapped entry states the named group "hvac"/,
+    );
 
     // No false positive: a named entry stating its OWN group empty beside an
     // unwrapped entry unions exactly as the named-only arm always did.

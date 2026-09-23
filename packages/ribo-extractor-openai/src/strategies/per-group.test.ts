@@ -851,7 +851,6 @@ describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () 
       })
       .strict();
     type CappedValues = z.infer<typeof cappedPatch>;
-    type CappedFields = Enveloped<CappedValues>;
     const env = <const V>(v: V) => ({ value: v, confidence: 0.9, sourceSpan: String(v) });
     const cappedTarget: ExtractionTarget<CappedValues> = {
       name: "demo-mixed-cap",
@@ -882,7 +881,8 @@ describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () 
     // The group fits the cap — one piece, its example carries the group.
     expect(hvacTargets.name).toBe("demo-mixed-cap-hvac");
 
-    const looseTargets = targets[""] as readonly ExtractionTarget<CappedFields>[];
+    if (plan.unwrappedTarget === undefined) throw new Error("expected a partitioned loose portion");
+    const looseTargets = plan.unwrappedTarget as readonly ExtractionTarget<CappedValues>[];
     // Precondition: the cap really did partition the loose portion.
     expect(looseTargets.length).toBeGreaterThan(1);
     expect(looseTargets.map((t) => t.name)).toEqual(
@@ -970,32 +970,26 @@ describe("perGroupExtractor — flat partitioning under the byte cap", () => {
   };
   const byteCap = 1_500;
 
-  test("the per-group plan keys a partitioned flat schema's pieces on \"\" and stores them as an array; each piece's wire name carries the part suffix and no group-key infix", () => {
+  test("the per-group plan carries a partitioned flat schema's pieces in its unwrapped slots as arrays; each piece's wire name carries the part suffix and no group-key infix", () => {
     const plan = perGroupPlan({
       target: bigFlatTarget,
       chat: fakeGroupChat({}).chat,
       model: "m",
       maxSerializedCharsPerGroup: byteCap,
     });
-    const recordKeys = Object.keys(plan.groups);
-    expect(recordKeys).toEqual([""]);
+    // No named groups at all — the pieces ride the unwrapped slots.
+    expect(Object.keys(plan.groups)).toEqual([]);
 
-    const flatEntriesRecord = plan.groups as Readonly<
-      Record<string, readonly { extract: unknown }[]>
-    >;
-    const flatEntries = flatEntriesRecord[""]!;
-    expect(Array.isArray(flatEntries)).toBe(true);
-    expect(flatEntries.length).toBeGreaterThan(1);
-    const pieces = flatEntries;
+    if (plan.unwrapped === undefined) throw new Error("expected an unwrapped portion");
+    const pieces = plan.unwrapped as readonly { extract: unknown }[];
+    expect(Array.isArray(pieces)).toBe(true);
+    expect(pieces.length).toBeGreaterThan(1);
 
-    // The union's "" arm widens to ExtractionTarget<V, P> | readonly ExtractionTarget<V, P>[] —
-    // runtime keying needs a single cast that names the recorded shape. The
-    // previous readback cast through Record<string, unknown> lied about both keys
-    // and values; this one names the field type each entry actually carries.
-    const flatTargetsRecord = plan.targets as Readonly<
-      Record<string, readonly ExtractionTarget<BigFlatValues>[]>
-    >;
-    const flatTargets = flatTargetsRecord[""]!;
+    // The target slot widens to ExtractionTarget<V, P> | readonly
+    // ExtractionTarget<V, P>[] exactly as the entry slot does — one array,
+    // index-aligned with the pieces.
+    const flatTargets = plan.unwrappedTarget as readonly ExtractionTarget<BigFlatValues>[];
+    expect(Array.isArray(flatTargets)).toBe(true);
     expect(flatTargets.length).toBe(pieces.length);
     // Wire names: `${target.name}-<part>`, with NO `-${key}` infix because flat
     // pieces have no group key. Each name is distinct so the request side can
@@ -1158,10 +1152,10 @@ describe("perGroupExtractor — flat partitioning under the byte cap", () => {
       model: "m",
       maxSerializedCharsPerGroup: byteCap,
     });
-    const flatTargetsRecord = plan.targets as Readonly<
-      Record<string, readonly ExtractionTarget<BigFlatValues>[]>
-    >;
-    const flatTargets = flatTargetsRecord[""]!;
+    if (plan.unwrappedTarget === undefined) {
+      throw new Error("expected partitioned unwrapped piece targets");
+    }
+    const flatTargets = plan.unwrappedTarget as readonly ExtractionTarget<BigFlatValues>[];
     expect(flatTargets.length).toBeGreaterThan(1);
     for (const piece of flatTargets) {
       const assistantFields = piece.examples?.[0]?.fields as Record<string, unknown> | undefined;

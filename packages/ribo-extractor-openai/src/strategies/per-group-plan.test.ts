@@ -1,11 +1,5 @@
 import { enveloped, groupedExtractor } from "@azx/ribo-core";
-import type {
-  ChatClient,
-  ChatRequest,
-  Enveloped,
-  ExtractionTarget,
-  GroupMap,
-} from "@azx/ribo-core";
+import type { ChatClient, ChatRequest, Enveloped, ExtractionTarget } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
@@ -224,7 +218,7 @@ describe("overrideGroups — the defaults everywhere except…", () => {
         singleShotExtractor({ target: pieceTarget, chat: cheap.chat, model: "cheap" }),
     });
 
-    const groups = planGroups({ groups: overridden, targets: plan.targets });
+    const groups = overridden.groups as Record<string, unknown>;
     const defaults = planGroups(plan);
     expect(groups.attic).toBe(defaults.attic);
     expect(groups.health).toBe(defaults.health);
@@ -277,7 +271,7 @@ describe("overrideGroups — the defaults everywhere except…", () => {
     // The directive stays attached on purpose: hoisted so Prettier cannot wrap
     // the call and detach it (composition plan, Global Constraints).
     // @ts-expect-error — the overrides object is keyed by the schema's top-level keys.
-    const withGhost = (): GroupMap<Values> => overrideGroups(plan, { ghost: (e: never) => e });
+    const withGhost = () => overrideGroups(plan, { ghost: (e: never) => e });
     expect(withGhost).toThrowError(/ghost/);
   });
 
@@ -291,8 +285,10 @@ describe("overrideGroups — the defaults everywhere except…", () => {
     };
     const plan = perGroupPlan({ target: flatTarget, chat: fakeChat({}).chat, model: "m" });
 
-    // The fallback plan: one whole-schema entry, keyed "".
-    expect(Object.keys(planGroups(plan))).toEqual([""]);
+    // The fallback plan: no named groups, one whole-schema entry in the
+    // `unwrapped` slot.
+    expect(Object.keys(planGroups(plan))).toEqual([]);
+    expect(plan.unwrapped).toBeDefined();
 
     // `rValue` IS a key of the values type, so this typechecks — and the runtime
     // refusal is the only guard: a silent no-op would read as "overridden".
@@ -302,15 +298,17 @@ describe("overrideGroups — the defaults everywhere except…", () => {
   });
 });
 
-// --- The mixed plan: "" beside named keys ---------------------------------------
+// --- The mixed plan: `unwrapped` beside named keys --------------------------------
 
 describe("perGroupPlan — the mixed plan", () => {
   /**
    * One group and one loose leaf. The split's mixed branch emits the group
    * entry and a trailing "" piece; the plan flows the "" piece through the
    * same branch the byte-cap flat path always used (per-group.ts's
-   * `group.key === ""` arm) — no plan code changed for the mixed case
-   * (mixed-schema-split design §3, rows 8–9).
+   * `group.key === ""` arm) — no plan code distinguishes them from the flat
+   * fallback's pieces (mixed-schema-split design §3, rows 8–9). The plan
+   * carries that portion in its `unwrapped`/`unwrappedTarget` slots; the ""
+   * marker it folds into at the combinator's boundary is internal (ADR 0023).
    */
   const mixedPatch = z
     .object({
@@ -327,15 +325,22 @@ describe("perGroupPlan — the mixed plan", () => {
     examples: [],
   };
 
-  test('a mixed schema yields the named groups beside a "" entry, loose last', () => {
+  test("a mixed schema yields the named groups beside the unwrapped entry, loose last", () => {
     const plan = perGroupPlan({ target: mixedTarget, chat: fakeChat({}).chat, model: "m" });
     const groups = planGroups(plan);
 
-    // Insertion order is the split's: groups in declaration order, loose last.
-    expect(Object.keys(groups)).toEqual(["hvac", "attic", ""]);
-    // And the widened GroupMap accepts the plan's own output — the evidence-§5
-    // failure was exactly this map refused by groupedExtractor.
-    const extractor = groupedExtractor({ target: mixedTarget, groups: plan.groups });
+    // The named groups in the split's declaration order; the loose piece rides
+    // the `unwrapped` slot, which the combinator folds in after them.
+    expect(Object.keys(groups)).toEqual(["hvac", "attic"]);
+    expect(plan.unwrapped).toBeDefined();
+    // And the options union accepts the plan's own output — the evidence-§5
+    // failure was exactly this composition refused by groupedExtractor.
+    if (plan.unwrapped === undefined) throw new Error("expected a mixed plan");
+    const extractor = groupedExtractor({
+      target: mixedTarget,
+      groups: plan.groups,
+      unwrapped: plan.unwrapped,
+    });
     expect(typeof extractor.extract).toBe("function");
   });
 
@@ -351,12 +356,12 @@ describe("perGroupPlan — the mixed plan", () => {
     const withExample: ExtractionTarget<MixedValues> = { ...mixedTarget, examples: [example] };
 
     const plan = perGroupPlan({ target: withExample, chat: fakeChat({}).chat, model: "m" });
-    const targets = planTargets(plan);
 
     // The loose piece is unpartitioned, so its target is the flat fallback's:
     // the target's own name (no infix, no part suffix), instructions and the
     // FULL unprojected examples — reference-equal (design §6).
-    const loose = targets[""] as ExtractionTarget<MixedValues>;
+    if (plan.unwrappedTarget === undefined) throw new Error("expected a mixed plan");
+    const loose = plan.unwrappedTarget as ExtractionTarget<MixedValues>;
     expect(loose.name).toBe("demo-mixed");
     expect(loose.instructions).toBe(withExample.instructions);
     expect(loose.examples).toBe(withExample.examples);
@@ -364,7 +369,7 @@ describe("perGroupPlan — the mixed plan", () => {
     expect(Object.keys((loose.extractionSchema as unknown as z.ZodObject).shape)).toEqual(["note"]);
   });
 
-  test("an override against a named group of a mixed plan applies as today, per piece", () => {
+  test("an override against a named group of a mixed plan applies as today, per piece — and the unwrapped entry threads through untouched", () => {
     const plan = perGroupPlan({ target: mixedTarget, chat: fakeChat({}).chat, model: "m" });
     const cheap = fakeChat({});
     const overridden = overrideGroups(plan, {
@@ -372,24 +377,26 @@ describe("perGroupPlan — the mixed plan", () => {
         singleShotExtractor({ target: pieceTarget, chat: cheap.chat, model: "cheap" }),
     });
 
-    const groups = planGroups({ groups: overridden, targets: plan.targets });
+    const groups = overridden.groups as Record<string, unknown>;
     const defaults = planGroups(plan);
     expect(groups.attic).toBe(defaults.attic);
-    expect(groups[""]).toBe(defaults[""]);
+    expect(overridden.unwrapped).toBe(plan.unwrapped);
     expect(groups.hvac).not.toBe(defaults.hvac);
   });
 
-  test('an override against a loose leaf names the "" entry and points at hand composition — not "not an object of groups"', () => {
+  test('an override against a loose leaf names the unwrapped portion and points at passing `unwrapped` yourself — not "not an object of groups"', () => {
     const plan = perGroupPlan({ target: mixedTarget, chat: fakeChat({}).chat, model: "m" });
 
     // `note` IS a key of the values type, so this typechecks — the runtime
-    // refusal is the only guard. The message must not claim the plan is
-    // ""-only: there ARE per-group entries; the loose leaves ride the ""
-    // entry, which takes no override (design §7 row 12, open question 4).
+    // refusal is the only guard. The message must not claim the plan carries
+    // no groups: there ARE per-group entries; the loose leaves ride the
+    // unwrapped portion, which takes no override (design §7 row 12, open
+    // question 4). The escape hatch it points at is the new spelling: pass
+    // `unwrapped` to groupedExtractor yourself.
     expect(() => overrideGroups(plan, { note: (entry) => entry })).toThrowError(/no group "note"/);
-    expect(() => overrideGroups(plan, { note: (entry) => entry })).toThrowError(/"" entry/);
+    expect(() => overrideGroups(plan, { note: (entry) => entry })).toThrowError(/unwrapped/);
     expect(() => overrideGroups(plan, { note: (entry) => entry })).toThrowError(
-      /compose the map by hand/i,
+      /pass `unwrapped`/i,
     );
     expect(() => overrideGroups(plan, { note: (entry) => entry })).not.toThrowError(
       /not an object of groups/,
@@ -417,7 +424,7 @@ describe("overrideGroups — the running example", () => {
     const plan = perGroupPlan({ target, chat: planChat.chat, model: "m" });
     const extractor = groupedExtractor({
       target,
-      groups: overrideGroups(plan, {
+      ...overrideGroups(plan, {
         health: (entry, pieceTarget) =>
           gapFillExtractor({ base: entry, target: pieceTarget, chat: gapChat.chat, model: "m" }),
         componentLoads: (_entry, pieceTarget) =>
@@ -477,7 +484,7 @@ describe("overrideGroups — the running example", () => {
     const plan = perGroupPlan({ target, chat: planChat.chat, model: "m" });
     const extractor = groupedExtractor({
       target,
-      groups: overrideGroups(plan, {
+      ...overrideGroups(plan, {
         health: (entry, pieceTarget) =>
           gapFillExtractor({ base: entry, target: pieceTarget, chat: gapChat.chat, model: "m" }),
       }),
