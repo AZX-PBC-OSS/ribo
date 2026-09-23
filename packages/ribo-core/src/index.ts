@@ -488,8 +488,13 @@ export type {
 // usage and `statedEmptyGroups`. A third combinator over the same `Extractor`
 // seam, so per-group heterogeneity is composition rather than options
 // (per-group-composition-design.md §4.2).
-export { groupedExtractor } from "./extraction/grouped-extractor.js";
-export type { GroupedExtractorOptions, GroupMap } from "./extraction/grouped-extractor.js";
+export { groupedExtractor, UNWRAPPED_KEY } from "./extraction/grouped-extractor.js";
+export type {
+  GroupedEntries,
+  GroupedExtractorOptions,
+  GroupMap,
+  UnwrappedEntry,
+} from "./extraction/grouped-extractor.js";
 
 // The primitives `groupedExtractor` composes, exported because the extractor
 // strategies in `ribo-extractor-openai` share them: `mapWithPool` was two
