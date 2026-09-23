@@ -497,11 +497,42 @@ const runAttempt = async (
     ok: false,
     failure: "shape",
     refusal: refusals
-      .map((refusal) => `- ${formatOperation(refusal.operation)}: ${refusal.reason}`)
+      .map(
+        (refusal) =>
+          `- ${formatOperation(refusal.operation)}: ${refusal.reason}${formatCause(refusal)}`,
+      )
       .join("\n"),
     priorOutput: JSON.stringify(raw),
     survivors: operations.filter((_, index) => !refusedIndexes.has(index)),
   };
+};
+
+/**
+ * The culprit clause a repair turn needs, appended to the refusal's own text.
+ *
+ * The reason alone can point the model at the wrong operation. A drop refused
+ * because a `provenance` entry names its path is reported with the applier's
+ * message — "provenance names group X, which is not a top-level property of the
+ * shaped schema … the group may have been dropped" — which is the text the
+ * THROWING surface has always produced and which existing tests pin byte for
+ * byte. But under partial application that drop is *refused*, not applied, so
+ * "may have been dropped" describes a world the applier did not choose. A model
+ * reading prose alone would retract the declaration when the applier is telling
+ * it the pair is in conflict.
+ *
+ * `cause` carries the truth structurally, so it is rendered rather than the
+ * message reworded: the pinned text is preserved for the throwing surface and
+ * the repair turn stops having to infer the culprit from prose. This is the
+ * same defect the consequential class exists to fix, one layer out.
+ */
+const formatCause = (refusal: ShapeRefusal): string => {
+  const cause = refusal.cause;
+  if (cause === undefined) return "";
+  if (cause.kind === "operation") {
+    return ` (caused by the applied ${formatOperation(cause.operation)} at index ${String(cause.index)} — retract that one to make this applicable)`;
+  }
+  const where = cause.leaf === undefined ? `"${cause.group}"` : `"${cause.group}.${cause.leaf}"`;
+  return ` (caused by the ${cause.declaration} declaration on ${where}, which this operation would strand — retract the operation or the declaration; the declaration was kept)`;
 };
 
 /** The one-line label a repair turn prefixes a refusal with — the operation it names. */

@@ -438,6 +438,19 @@ describe("partial application — the two changes", () => {
       expect(thrown).toBeInstanceOf(Error);
       expect((thrown as Error).message).toBe(refusals[0]!.reason);
     }
+
+    // The assertion above is TRUE BY CONSTRUCTION once the wrapper throws
+    // `first.reason` — it pins that the wrapper does what it says, and nothing
+    // about whether that text is what the pre-partial applier threw. A review
+    // caught it passing for the wrong reason. So pin one case against the
+    // literal text, copied from the throwing applier before this change: a
+    // regression that altered the message would satisfy the loop above and fail
+    // here. The broad byte-equivalence guarantee is carried by the ~38
+    // `.toThrow(/…/)` assertions in `shape-operations.test.ts`, which all pass
+    // untouched; this is the one that cannot drift with the implementation.
+    expect(() =>
+      deriveExtractionShape(flatSchema, { operations: [{ op: "drop", path: "ghost" }] }),
+    ).toThrow('deriveExtractionShape(): drop names "ghost", which is not a path of the schema.');
   });
 
   test("every partial artifact passes assertShapeMapping — no refusal path skips the post-condition", () => {
