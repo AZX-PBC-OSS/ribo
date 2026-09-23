@@ -101,17 +101,32 @@ describe("topLevelKeyKinds", () => {
 });
 
 describe("serializedNestingDepth", () => {
+  test("agrees with the structured-output route's verdicts", () => {
+    // Shapes probed against the live route on 2026-09-22, which accepted depth 12 and
+    // rejected 13. The enum case is the one a schema-structure count gets wrong: one
+    // property, rejected for the nesting inside its data.
+    const nestObjects = (k: number): z.ZodType =>
+      k === 0 ? z.string() : z.strictObject({ a: nestObjects(k - 1) });
+    const nestArrays = (k: number): unknown => (k === 0 ? "x" : [nestArrays(k - 1)]);
+    const nestedEnumValue = z.strictObject({
+      a: z.any().meta({ enum: [nestArrays(8)] }),
+    });
+
+    expect(serializedNestingDepth(nestObjects(5))).toBe(12); // accepted
+    expect(serializedNestingDepth(nestObjects(6))).toBe(14); // rejected
+    expect(serializedNestingDepth(nestedEnumValue)).toBe(13); // rejected
+  });
+
   /**
    * A deep-but-legal schema: `outer` nests an object three objects deep above
-   * its leaves, `plain` is one ordinary group. Hand walk of the
-   * `z.toJSONSchema(..., { target: "draft-2020-12" })` rendering, counting one
-   * level per `properties` descent:
+   * its leaves, `plain` is one ordinary group. In raw JSON nesting each object
+   * level costs two (the object, then its `properties`), and each nullable
+   * envelope value ends in `anyOf` → arm → scalar:
    *
-   *   whole / piece "outer": root properties(1) → outer's properties(2) →
-   *     mid's properties(3) → inner's properties(4) → the envelopes'
-   *     properties(5) — depth 5.
-   *   piece "plain": root properties(1) → plain's properties(2) → the
-   *     envelope's properties(3) — depth 3.
+   *   whole / piece "outer": 14 — two deeper per object than "plain" at
+   *     `mid` and `inner`.
+   *   piece "plain": root, properties, plain, properties, x, properties,
+   *     value, anyOf, arm, "string" — 10.
    */
   const deepExtraction = enveloped(
     z
@@ -128,14 +143,15 @@ describe("serializedNestingDepth", () => {
   );
 
   test("the whole schema and each piece measure their own depth", () => {
-    expect(serializedNestingDepth(deepExtraction)).toBe(5);
+    expect(serializedNestingDepth(deepExtraction)).toBe(14);
     const pieces = splitExtractionSchema(deepExtraction);
     expect(pieces.map((p) => p.key)).toEqual(["outer", "plain"]);
-    expect(pieces.map((p) => serializedNestingDepth(p.schema))).toEqual([5, 3]);
+    expect(pieces.map((p) => serializedNestingDepth(p.schema))).toEqual([14, 10]);
   });
 
-  test("a flat piece of one enveloped leaf is two levels: the leaf key, then the envelope's", () => {
+  test("a flat piece of one enveloped leaf is eight levels, the nullable value's anyOf deepest", () => {
+    // root, properties, note, properties, value, anyOf, arm, "string".
     const flat = z.strictObject({ note: mixedExtraction.shape.note });
-    expect(serializedNestingDepth(flat)).toBe(2);
+    expect(serializedNestingDepth(flat)).toBe(8);
   });
 });

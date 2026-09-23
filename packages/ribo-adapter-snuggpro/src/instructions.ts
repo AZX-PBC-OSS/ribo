@@ -657,7 +657,7 @@ function renderExcluded(excluded: FillScope["excluded"]): string {
  */
 function buildScopeBlock(scope: FillScope): string {
   const distinguished =
-    scope.positive.distinguishedBy === null
+    scope.positive.distinguishedBy === ""
       ? `This is the first ${scope.groupKey} instance in the roster.`
       : `Distinguished from earlier instances by: "${scope.positive.distinguishedBy}"`;
 

@@ -200,9 +200,8 @@ describe("describeExtraction — the call shape and its measurements", () => {
   });
 
   test("a deep-but-legal schema reports depth per piece and for the whole schema, with no refusal", () => {
-    // Hand walk of the rendering, one level per `properties` descent: whole
-    // and piece "outer" 5 (root → outer → mid → inner → the envelopes),
-    // piece "plain" 3. The byte cap sits between the whole schema and its
+    // Raw JSON nesting, as the route counts it: whole and piece "outer" 14,
+    // piece "plain" 10 (split-schema-classification.test.ts walks both). The byte cap sits between the whole schema and its
     // largest group so the per-group path runs without partitioning.
     const deep = enveloped(
       z
@@ -225,10 +224,10 @@ describe("describeExtraction — the call shape and its measurements", () => {
 
     expect(report.refusal).toBeUndefined();
     expect(report.callShape).toBe("per-group");
-    expect(report.whole?.depth).toBe(5);
+    expect(report.whole?.depth).toBe(14);
     expect(report.pieces?.map((p) => [p.key, p.depth])).toEqual([
-      ["outer", 5],
-      ["plain", 3],
+      ["outer", 14],
+      ["plain", 10],
     ]);
   });
 });

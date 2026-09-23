@@ -31,13 +31,21 @@ export const RosterEligibility = z.enum([
   "outside-scope",
 ]);
 
-/** A single candidate instance in the inventory roster. */
+/**
+ * A single candidate instance in the inventory roster.
+ *
+ * `distinguishedBy` is `""`, not `null`, on a group's first candidate. A
+ * nullable renders as a two-level `anyOf` in JSON Schema, and here it sat
+ * under the group and candidate unions, taking the roster past the
+ * structured-output route's depth cap — a 400 that dropped every inventory
+ * pass to the next tier without an error. ADR 0025.
+ */
 export const rosterCandidateSchema = z.union([
   // A current (recordable) candidate: no exclusion span needed.
   z.strictObject({
     mentionSpan: z.string(),
     discriminator: z.string(),
-    distinguishedBy: z.string().nullable(),
+    distinguishedBy: z.string(),
     eligibility: z.literal("current"),
     eligibilitySpan: z.null(),
   }),
@@ -45,7 +53,7 @@ export const rosterCandidateSchema = z.union([
   z.strictObject({
     mentionSpan: z.string(),
     discriminator: z.string(),
-    distinguishedBy: z.string().nullable(),
+    distinguishedBy: z.string(),
     eligibility: RosterEligibility.exclude(["current"]),
     eligibilitySpan: z.string(),
   }),
@@ -55,7 +63,7 @@ export type RosterCandidate = z.infer<typeof rosterCandidateSchema>;
 
 /**
  * One group of candidates, ordered by first mention. The first candidate may
- * carry `distinguishedBy: null`; every later candidate must carry a non-null
+ * carry `distinguishedBy: ""`; every later candidate must carry a non-empty
  * span that separates it from the ones before it.
  *
  * The union also admits a `{ stated: "none", span }` value — the absence
@@ -69,9 +77,9 @@ export const rosterGroupSchema = z.union([
     .array(rosterCandidateSchema)
     .refine(
       (candidates) =>
-        candidates.every((candidate, index) => index === 0 || candidate.distinguishedBy !== null),
+        candidates.every((candidate, index) => index === 0 || candidate.distinguishedBy !== ""),
       {
-        message: "every candidate after the first must have a non-null distinguishedBy span",
+        message: "every candidate after the first must have a non-empty distinguishedBy span",
       },
     ),
   z.strictObject({ stated: z.literal("none"), span: z.string().min(1) }),
@@ -117,8 +125,8 @@ For each candidate instance emit exactly these five fields:
 - \`discriminator\` — a short auditor-language handle, e.g. "the propane Carrier in the closet".
   This is only to help later passes identify the instance; it has no write target.
 - \`distinguishedBy\` — the verbatim substring that separates this candidate from earlier ones in
-  the same group. \`null\` for the first candidate in a group; required for every later one.
-  This grounds the split.
+  the same group. An empty string \`""\` for the first candidate in a group; a non-empty span for
+  every later one. This grounds the split.
 - \`eligibility\` — \`current\` if the component should be recorded, otherwise one of the named
   exclusion reasons: \`decommissioned\`, \`proposed\`, \`off-property\`, \`outside-scope\`.
 - \`eligibilitySpan\` — the verbatim quote for any non-\`current\` verdict. \`null\` for
@@ -145,8 +153,8 @@ sequential revision — not a new instance.
 
 **3. A second candidate must be distinguished.**
 
-For every group, the first candidate may carry \`distinguishedBy: null\`. Every later candidate must
-carry a non-null \`distinguishedBy\` span. Without that span, the two candidates collapse into one.
+For every group, the first candidate may carry \`distinguishedBy: ""\`. Every later candidate must
+carry a non-empty \`distinguishedBy\` span. Without that span, the two candidates collapse into one.
 
 **4. Exclusion needs a span.**
 

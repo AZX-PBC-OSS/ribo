@@ -218,7 +218,7 @@ describe("snuggGroupFillInstructions", () => {
     positive: {
       mentionSpan: "the basement furnace",
       discriminator: "the basement furnace",
-      distinguishedBy: positiveIndex === 0 ? null : "the basement furnace",
+      distinguishedBy: positiveIndex === 0 ? "" : "the basement furnace",
       eligibility: "current",
       eligibilitySpan: null,
     },
@@ -236,7 +236,7 @@ describe("snuggGroupFillInstructions", () => {
       {
         mentionSpan: "the old boiler",
         discriminator: "the old boiler",
-        distinguishedBy: null,
+        distinguishedBy: "",
         eligibility: "decommissioned",
         eligibilitySpan: "the old boiler is decommissioned and capped off",
       },
@@ -271,7 +271,14 @@ describe("snuggGroupFillInstructions", () => {
     expect(prompt).toContain("`hvac`");
   });
 
-  test("a second instance distinguishes itself with a non-null span", () => {
+  test("a first instance's empty distinguishedBy reads as first, not as a span", () => {
+    const prompt = snuggGroupFillInstructions("hvac", fillScope(0));
+
+    expect(prompt).toContain("This is the first hvac instance in the roster.");
+    expect(prompt).not.toContain("Distinguished from earlier instances by:");
+  });
+
+  test("a second instance distinguishes itself with a non-empty span", () => {
     const prompt = snuggGroupFillInstructions("hvac", fillScope(1));
 
     expect(prompt).toContain('Distinguished from earlier instances by: "the basement furnace"');
