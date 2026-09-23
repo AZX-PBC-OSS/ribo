@@ -134,7 +134,8 @@ interface GapFillItem {
  * Pins `maxRetries: 0` — today's follow-up has no retry loop, and the engine's
  * default of 2 would silently add one. `describeItem` returns `{ key: "" }` —
  * one call over the whole document, which is the `""` convention's meaning
- * (`groupedExtractor`'s GroupMap). No observer: the engine owns the unit stream.
+ * (`groupedExtractor`'s internal group record; `UNWRAPPED_KEY` in core). No
+ * observer: the engine owns the unit stream.
  */
 export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: GapFillPhaseOptions<V, P>,

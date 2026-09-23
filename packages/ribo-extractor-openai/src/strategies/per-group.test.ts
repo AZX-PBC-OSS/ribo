@@ -695,8 +695,9 @@ describe("perGroupExtractor — non-grouped fallback", () => {
 
 /**
  * A mixed schema end to end: `splitExtractionSchema`'s mixed branch emits one
- * entry per group plus the loose leaves as the unwrapped portion (`""`), and
- * the widened `GroupMap` accepts that map. These are the pins for
+ * entry per group plus the loose leaves as the unwrapped portion (`""`
+ * internally), and the plan hands them to `groupedExtractor` as `groups` beside
+ * `unwrapped`. These are the pins for
  * mixed-schema-split design §6: the loose piece's request is the flat
  * fallback's request — the target's own instructions, its full unprojected
  * example, no group-key infix in the name — and `groupInstructions` is never

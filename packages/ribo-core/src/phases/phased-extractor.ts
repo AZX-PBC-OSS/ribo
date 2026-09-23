@@ -290,8 +290,8 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
               const id = nextUnitId();
               // key and leaf come from the phase's describeItem — the scheduler has
               // no other way to learn what an opaque item belongs to. Defaulting to
-              // key "" matches groupedExtractor's GroupMap convention for a
-              // whole-schema entry.
+              // key "" matches groupedExtractor's internal-record convention for a
+              // whole-schema entry (UNWRAPPED_KEY).
               const described = def.describeItem?.(item) ?? { key: "" };
               // Every member after `key` is spread in only when the phase reported it —
               // an event carries `leaf`/`instance`/`instances`/`part`/`parts` as absent,
