@@ -8,11 +8,12 @@
  * (`per-group-composition-design.md` §4.2):
  *
  *   - **Coverage, checked at construction.** Every top-level key of
- *     `target.extractionSchema` must be named in `groups` or owned by a `""`
- *     entry (the unwrapped remainder — see {@link GroupMap}), and no named key
- *     outside it may be — thrown with the key named, in the style of
- *     `enveloped()`'s `validateProvenance`. Silent partial coverage would
- *     surface as a second-parse failure after every call had been paid for.
+ *     `target.extractionSchema` must be named in `groups` or owned by the
+ *     `unwrapped` entry (the unwrapped remainder — see {@link UnwrappedEntry}),
+ *     and no named key outside it may be — thrown with the key named, in the
+ *     style of `enveloped()`'s `validateProvenance`. Silent partial coverage
+ *     would surface as a second-parse failure after every call had been paid
+ *     for.
  *   - **Scheduling.** A bounded pool over the flattened list of group entries;
  *     the retry budget is derived from that count exactly as the per-group
  *     extractor derives it (`batches = ceil(entries / concurrency)`).
@@ -32,10 +33,11 @@
  *     caller passed a signal.
  *   - **Merge, second parse, normalize once, usage sum, `statedEmptyGroups`
  *     union.** As the per-group extractor does them today — plus one guard the
- *     widening made necessary: a `""` entry's fields (or `statedEmptyGroups`)
- *     carrying a NAMED entry's key throws at the merge, naming the key, since
- *     a `""` entry covers only the unwrapped remainder and the shape-valid
- *     closing parse cannot see that class (see {@link GroupMap}).
+ *     widening made necessary: an unwrapped entry's fields (or
+ *     `statedEmptyGroups`) carrying a NAMED entry's key throws at the merge,
+ *     naming the key, since the unwrapped entry covers only the unwrapped
+ *     remainder and the shape-valid closing parse cannot see that class (see
+ *     {@link UnwrappedEntry}).
  *
  * What it does NOT own: how a group asks the model. Each entry is an opaque
  * `Extractor` — typically a `singleShotExtractor` over a projected target
@@ -69,78 +71,124 @@ import { mapWithPool } from "../async/map-with-pool.js";
 import { mergeGroupPieces } from "./merge-group-pieces.js";
 import { parseWithSchema } from "./parse-with-schema.js";
 
-/** The named-key arm's entry map: one entry (or ordered piece list) per top-level key. */
+/**
+ * The internal group key of the unwrapped portion — pieces whose schema is not
+ * nested under a group key. `""` can never collide with a schema property: the
+ * review leaf-path grammar refuses an empty key (`field-path.ts`), so no named
+ * group can carry it. The WRITING surface never spells it — a caller passes
+ * `unwrapped:` (see {@link GroupedExtractorOptions}), which `groupedExtractor`
+ * folds into its internal `""`-keyed record at entry. The READING surface
+ * carries it — `ExtractionGroup.key`, `GroupUnit.key`, `PhaseUnit`'s default —
+ * so a consumer comparing a key compares against this name (ADR 0023).
+ */
+export const UNWRAPPED_KEY = "";
+
+/** The named arm's entry map: one entry (or ordered piece list) per top-level key. */
 type NamedGroupEntries<V extends Record<string, unknown>, P> = {
   readonly [K in keyof V & string]:
     Extractor<Pick<Enveloped<V, P>, K>> | readonly Extractor<Pick<Enveloped<V, P>, K>>[];
 };
 
-/** The `""` arm's entry (or ordered piece list) — the whole-shape claim; see {@link GroupMap}. */
-type UnwrappedGroupEntries<V extends Record<string, unknown>, P> = {
-  readonly "": Extractor<Enveloped<V, P>> | readonly Extractor<Enveloped<V, P>>[];
-};
+/**
+ * The per-key map of NAMED group extractors: one top-level key to either one
+ * `Extractor` or an ordered list of them — the pieces of a partitioned group,
+ * recombined with `mergeGroupPieces`. Exhaustive over `V`'s keys in
+ * {@link GroupedExtractorOptions}' named-only arm, so a missing group is a
+ * compile error; the mixed arm relaxes the map to `Partial` beside
+ * `unwrapped`. The unwrapped portion is NOT a key in this map — it is the
+ * separate `unwrapped` option; the `""` marker it folds into,
+ * {@link UNWRAPPED_KEY}, is internal.
+ */
+export type GroupMap<V extends Record<string, unknown>, P = NoProvenance> = NamedGroupEntries<V, P>;
 
 /**
- * The per-key map of group extractors: one top-level key to either one
- * `Extractor` or an ordered list of them — the pieces of a partitioned group,
- * recombined with `mergeGroupPieces`. Three shapes:
+ * The unwrapped portion's entry (or ordered piece list): pieces whose schema
+ * is not nested under a group key, whose parsed responses merge by shallow
+ * assign. For an all-flat schema that portion is the whole schema — the
+ * non-grouped fallback: one entry covering everything (or, for a
+ * byte-cap-partitioned flat schema, an ordered piece list), `GroupUnit` events
+ * keyed {@link UNWRAPPED_KEY}, and no coverage check — the entry IS the whole
+ * coverage declaration, and the second trust-boundary parse validates what it
+ * returns. Beside named groups it is the loose remainder: the entry declares
+ * every top-level key `groups` does not name — the missing-keys check is
+ * waived on that declaration, and a lying declaration surfaces at the closing
+ * parse, the same guarantee the fallback arm states. An unwrapped entry beside
+ * named groups that DO cover every schema key is refused as redundant — the
+ * double declaration the original blanket refusal existed to prevent
+ * (mixed-schema-split design §4.2).
+ *
+ * **The option may carry several entries** — a partitioned flat extraction
+ * schema's pieces (`splitExtractionSchema`'s byte-cap-flat path) arrive as
+ * `Extractor[]`. Each piece's fields are a disjoint subset of the schema's
+ * leaves; `Object.assign` in piece order is the merge, and `part`/`parts`
+ * carry the same vocabulary as every other partitioned group.
+ *
+ * The entry's type keeps the whole-shape claim (`Extractor<Enveloped<V, P>>`)
+ * even though a loose piece's runtime fields carry only its leaf subset — the
+ * same over-claim the per-group plan's flat pieces make, and the second
+ * trust-boundary parse validates the merge. The type STEERS a hand composer
+ * toward reusing the flat fallback's natural construction (one extractor over
+ * the whole target), whose whole-schema answer carries the named keys — so
+ * what the type cannot see, the merge guards instead: an unwrapped entry whose
+ * runtime fields carry a key a named entry covers throws at the merge, naming
+ * the key, because assigned last its value would silently overwrite the named
+ * entry's, and the closing parse validates shape only. The same guard covers
+ * `statedEmptyGroups`, which the unwrapped entries would otherwise clobber in
+ * pool arrival order.
+ */
+export type UnwrappedEntry<V extends Record<string, unknown>, P = NoProvenance> =
+  Extractor<Enveloped<V, P>> | readonly Extractor<Enveloped<V, P>>[];
+
+/**
+ * The groups half of {@link GroupedExtractorOptions}: three coverage shapes,
+ * as a union because the conditional required-ness — "named keys, or the
+ * unwrapped entry, or both" — is one record cannot express (TypeScript checks
+ * each constituent independently and accepts iff some arm accepts). Every arm
+ * declares both properties (optional where absent) so the destructuring
+ * signature and the union's excess-property checking behave.
  *
  *   - **Named keys, exhaustive** — the grouped path. The map type is
  *     exhaustive over `V`'s keys, so a missing group is a compile error; the
  *     construction-time coverage check catches a JS caller.
- *   - **`""` only** — the non-grouped fallback for a schema that is not an
- *     object of groups: the entry (or ordered piece list, for a
- *     byte-cap-partitioned flat schema) covers the whole schema, `GroupUnit`
- *     events keyed `""`. Coverage is not checked for this arm — the entry IS
- *     the whole coverage declaration, and the second trust-boundary parse
- *     validates what it returns.
- *   - **Named keys plus `""`** — the mixed shape. `""` means THE UNWRAPPED
- *     PORTION: pieces whose schema is not nested under a group key, whose
- *     parsed responses merge by shallow assign. For an all-flat schema that
- *     portion is the whole schema (the fallback above); for a mixed schema it
- *     is the loose remainder. The `""` entry declares every top-level key the
- *     named entries do not name — the missing-keys check is waived on that
- *     declaration, and a lying declaration surfaces at the closing parse, the
- *     same guarantee the fallback arm states. A `""` entry beside named keys
- *     that DO cover every schema key is refused as redundant — the double
- *     declaration the original blanket refusal existed to prevent
- *     (mixed-schema-split design §4.2).
- *
- * **The `""` arm may carry several entries** — a partitioned flat extraction
- * schema's pieces (`splitExtractionSchema`'s byte-cap-flat path) share
- * `key === ""` and arrive as `Extractor[]`. Each piece's fields are a disjoint
- * subset of the schema's leaves; `Object.assign` in piece order is the merge,
- * and `part`/`parts` carry the same vocabulary as every other partitioned group.
- *
- * The `""` entry's type keeps the whole-shape claim
- * (`Extractor<Enveloped<V, P>>`) even though a loose piece's runtime fields
- * carry only its leaf subset — the same over-claim the per-group plan's flat
- * pieces make, and the second trust-boundary parse validates the merge. The
- * type STEERS a hand composer toward reusing the flat fallback's natural
- * construction (one extractor over the whole target), whose whole-schema
- * answer carries the named keys — so what the type cannot see, the merge
- * guards instead: a `""` entry whose runtime fields carry a key a named entry
- * covers throws at the merge, naming the key, because assigned last its value
- * would silently overwrite the named entry's, and the closing parse validates
- * shape only. The same guard covers `statedEmptyGroups`, which the `""`
- * entries would otherwise clobber in pool arrival order.
+ *   - **Named keys plus `unwrapped`** — the mixed shape. The map relaxes to
+ *     `Partial`: the unwrapped entry declares every top-level key the named
+ *     entries do not name (see {@link UnwrappedEntry}).
+ *   - **`unwrapped` alone** — the non-grouped fallback for a schema that is
+ *     not an object of groups: the entry (or ordered piece list) covers the
+ *     whole schema.
  */
-export type GroupMap<V extends Record<string, unknown>, P = NoProvenance> =
-  | NamedGroupEntries<V, P>
-  | UnwrappedGroupEntries<V, P>
-  | (Partial<NamedGroupEntries<V, P>> & UnwrappedGroupEntries<V, P>);
+export type GroupedEntries<V extends Record<string, unknown>, P = NoProvenance> =
+  | {
+      /** Every top-level key is a group: the exhaustive named map. */
+      readonly groups: GroupMap<V, P>;
+      readonly unwrapped?: never;
+    }
+  | {
+      /** Groups beside loose leaves: the named map plus the unwrapped portion. */
+      readonly groups: Partial<GroupMap<V, P>>;
+      readonly unwrapped: UnwrappedEntry<V, P>;
+    }
+  | {
+      /** No groups at all: the unwrapped portion is the whole schema. */
+      readonly groups?: undefined;
+      readonly unwrapped: UnwrappedEntry<V, P>;
+    };
 
-/** Options for {@link groupedExtractor}. */
-export interface GroupedExtractorOptions<V extends Record<string, unknown>, P = NoProvenance>
+/** Options for {@link groupedExtractor}: the timing knobs plus {@link GroupedEntries}. */
+export type GroupedExtractorOptions<
+  V extends Record<string, unknown>,
+  P = NoProvenance,
+> = GroupedExtractorOptionsBase<V, P> & GroupedEntries<V, P>;
+
+/** The {@link GroupedExtractorOptions} that are not the coverage declaration. */
+interface GroupedExtractorOptionsBase<V extends Record<string, unknown>, P>
   extends BackoffOptions, ExtractionObserver<GroupUnit>, RetryBudgetObserver {
   /**
    * The field knowledge the whole extraction is pinned to: the merged result is
    * parsed against `extractionSchema` (the second trust-boundary parse), and its
-   * top-level keys are what `groups` must cover.
+   * top-level keys are what `groups` (plus `unwrapped`) must cover.
    */
   readonly target: ExtractionTarget<V, P>;
-  /** The per-key map of group extractors — see {@link GroupMap}. */
-  readonly groups: GroupMap<V, P>;
   /**
    * Max concurrent group entries. Defaults to 4 — the same bound the per-group
    * extractor applies, so the worst case (all entries plus their retries plus
@@ -254,6 +302,7 @@ interface GroupEntry {
 export function groupedExtractor<V extends Record<string, unknown>, P = NoProvenance>({
   target,
   groups,
+  unwrapped,
   normalize = (fields) => fields,
   concurrency = 4,
   maxRetries = 2,
@@ -267,13 +316,37 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
   onRetryBudget,
   requireRetryBudget = false,
 }: GroupedExtractorOptions<V, P>): Extractor<Enveloped<V, P>> {
+  // The public spelling keeps the unwrapped portion OUT of the groups map — an
+  // `unwrapped` option, not a "" key (ADR 0023, as amended). The fold below
+  // restores the internal ""-keyed record that everything downstream reads —
+  // coverage, the flatten, the merge — so those are unchanged. The fold is not
+  // merely convenient: the merge-ownership guard reads `namedKeySet`, built
+  // from this POST-FOLD record, so the caller-facing `unwrapped` and the
+  // internal marker pass through exactly one code path — threading `unwrapped`
+  // separately into the schedule or the merge instead would require re-deriving
+  // that set and could bypass the guard. A literal "" inside `groups` is
+  // refused rather than folded: beside `unwrapped` one of the two would drop
+  // silently whichever way the fold merged, and the extra-keys check below
+  // filters "" out, so no other check would catch it.
+  const groupRecord: Record<string, unknown> = {
+    ...(groups as Record<string, unknown> | undefined),
+  };
+  if (UNWRAPPED_KEY in groupRecord) {
+    throw new Error(
+      `groupedExtractor: groups may not carry a "" key — the unwrapped portion ` +
+        `is declared with the \`unwrapped\` option.`,
+    );
+  }
+  if (unwrapped !== undefined) {
+    groupRecord[UNWRAPPED_KEY] = unwrapped;
+  }
+
   // Coverage is checked at construction: the top-level keys of the extraction
   // schema are what `groups` must cover, no more, no fewer. The schema is
   // `ZodType<Enveloped<V, P>>` at the type level, and `Enveloped` is a mapped
   // type over `keyof V`, so the runtime keys of its shape are exactly `V`'s
   // string keys — the cast only names what the type already guarantees.
-  const groupRecord = groups as Readonly<Record<string, unknown>>;
-
+  //
   // The "" entry declares THE UNWRAPPED PORTION of the schema — pieces whose
   // schema is not nested under a group key. For a map whose only key is "" that
   // portion is the whole schema (the non-grouped fallback, unchanged); beside
@@ -317,9 +390,9 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
   // over an empty-object schema out of the vacuous `every`.
   if (hasUnwrapped && namedKeys.length > 0 && schemaKeys.every((key) => key in groupRecord)) {
     throw new Error(
-      `groupedExtractor: the "" entry declares the unwrapped remainder, but the named ` +
-        `entries already cover every top-level key of "${target.name}"'s extraction schema ` +
-        `(${schemaKeys.map((key) => `"${String(key)}"`).join(", ")}) — the "" entry is ` +
+      `groupedExtractor: \`unwrapped\` declares the unwrapped remainder, but \`groups\` ` +
+        `already covers every top-level key of "${target.name}"'s extraction schema ` +
+        `(${schemaKeys.map((key) => `"${String(key)}"`).join(", ")}) — the unwrapped entry is ` +
         `redundant. Drop it, or drop the named coverage it duplicates.`,
     );
   }
@@ -598,11 +671,11 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
           for (const key of Object.keys(fields)) {
             if (namedKeySet.has(key)) {
               throw new Error(
-                `groupedExtractor: the "" entry's result carries "${key}", which a named ` +
-                  `entry covers — the "" entry covers only the unwrapped remainder (the ` +
+                `groupedExtractor: the unwrapped entry's result carries "${key}", which a named ` +
+                  `entry covers — the unwrapped entry covers only the unwrapped remainder (the ` +
                   `top-level keys the named entries do not name). Assigned last, its value ` +
                   `would silently overwrite the named entry's merged value for ` +
-                  `"${target.name}"; narrow the "" entry to its own leaves.`,
+                  `"${target.name}"; narrow the unwrapped entry to its own leaves.`,
               );
             }
           }
@@ -622,8 +695,8 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
             for (const key of Object.keys(result.statedEmptyGroups)) {
               if (namedKeySet.has(key)) {
                 throw new Error(
-                  `groupedExtractor: the "" entry states the named group "${key}" empty — ` +
-                    `the "" entry covers only the unwrapped remainder and cannot speak for ` +
+                  `groupedExtractor: the unwrapped entry states the named group "${key}" empty — ` +
+                    `the unwrapped entry covers only the unwrapped remainder and cannot speak for ` +
                     `a named group. Its statement would clobber the named entry's own for ` +
                     `"${target.name}"; drop it.`,
                 );

@@ -21,21 +21,29 @@ import { groupedExtractor } from "@azx/ribo-core";
 import { perGroupPlan } from "@azx/ribo-extractor-openai";
 
 const plan = perGroupPlan({ target, chat, model });
-// plan.groups  — the exhaustive per-key map of default entries
-// plan.targets — the projected targets those entries were built from, key for key
+// plan.groups          — the per-key map of default entries
+// plan.targets         — the projected targets those entries were built from, key for key
+// plan.unwrapped       — the unwrapped portion's entry, when the schema has loose leaves
+// plan.unwrappedTarget — its projected target
 
-// The preset itself is this line and nothing more:
-const preset = groupedExtractor({ target, groups: plan.groups });
+// The preset itself is this and nothing more:
+const preset = groupedExtractor({
+  target,
+  ...(plan.unwrapped === undefined
+    ? { groups: plan.groups }
+    : { groups: plan.groups, unwrapped: plan.unwrapped }),
+});
 ```
 
-Both maps are plain values: a host can read them, log them, assert on them in a test, and spread
-them. A grouped schema yields the per-key arm of the map, and a test can enumerate it directly —
-`Object.keys(plan.groups)` names the groups the preset will run, including each partitioned piece's
-shared key. (The map type is a union whose other arms, keyed `""`, carry the unwrapped portion
-described below; narrowing on `""` discards them for a grouped schema.)
+The plan's values are plain: a host can read them, log them, assert on them in a test, and spread
+them. A grouped schema yields the exhaustive per-key arm of the plan, and a test can enumerate it
+directly — `Object.keys(plan.groups)` names the groups the preset will run, including each
+partitioned piece's shared key. The unwrapped portion is never a key in that map — it rides the
+plan's `unwrapped`/`unwrappedTarget` slots (described below), and `plan.unwrapped === undefined`
+tells the two plan shapes apart.
 
-`perGroupExtractor` is nothing more than `groupedExtractor` over `plan.groups` — the preset exists
-so the common case stays one call, not because the plan is hidden. Exporting it is the whole
+`perGroupExtractor` is nothing more than `groupedExtractor` over the plan's entries — the preset
+exists so the common case stays one call, not because the plan is hidden. Exporting it is the whole
 mechanism: if building the map were internal, "the defaults everywhere except one group" would mean
 reconstructing the other nineteen entries by hand; nobody would, and per-group capability would go
 unused.
@@ -43,8 +51,8 @@ unused.
 ## One group, different treatment: `overrideGroups`
 
 `overrideGroups(plan, overrides)` applies the defaults everywhere except the keys you name, and
-returns the **full** map — untouched keys are reference-equal to the plan's, so the result goes
-straight into `groupedExtractor`'s `groups`:
+returns the **full** composition — untouched keys are reference-equal to the plan's and the plan's
+unwrapped portion threads through — so the result spreads straight into `groupedExtractor`:
 
 ```ts
 import { groupedExtractor } from "@azx/ribo-core";
@@ -54,7 +62,7 @@ const plan = perGroupPlan({ target, chat, model });
 
 const extractor = groupedExtractor({
   target,
-  groups: overrideGroups(plan, {
+  ...overrideGroups(plan, {
     // The health-and-safety group misses its schema often enough that a blind
     // re-roll wastes a whole entry; telling the model WHAT failed fixes it cheaply.
     health: (entry, groupTarget) =>
@@ -147,22 +155,30 @@ shapes `perGroupPlan` builds — and a projected target can be handed to _any_ s
 `gapFillExtractor`, a `schemaRetryExtractor`, or one you wrote. It is also the tool you use to build
 a replacement from inside an override without touching the other nineteen groups.
 
-Two edges of the map are worth knowing. A group entry can be an **ordered list** of extractors —
-that is what a partitioned group is — and a `""` key declares the **unwrapped portion**: pieces
-whose schema is not nested under a group key, merged into the result by shallow assign. When no
-top-level key is a group, the unwrapped portion is the whole schema — the **non-grouped
-fallback**, the shape the preset yields for a flat target: one entry, or — with a supplied byte
-cap that partitions it — N pieces sharing `""`, and `Plan.targets[""]` becomes that ordered list
-instead of a singular entry. When SOME top-level keys are groups and the rest are loose leaves —
-a mixed schema — the split emits one entry per group plus the loose leaves as `""` piece(s)
-trailing last, so the map combines named keys with `""` and the loose calls go out with the
-target's own instructions. One combination is still refused: a `""` entry beside named entries
-that already cover every top-level key is redundant — a second coverage declaration for the same
-keys — and throws at construction. The remainder contract is enforced at runtime too: a `""`
-entry whose result fields (or `statedEmptyGroups`) carry a key a named entry covers throws at
-the merge, naming the key, because the `""` entry covers only the unwrapped remainder and the
-shape-valid closing parse cannot see a shape-valid but wrong value. `overrideGroups` has no slot
-for the `""` entry; compose the map by hand for custom loose handling.
+Two edges of the composition are worth knowing. A group entry can be an **ordered list** of
+extractors — that is what a partitioned group is — and the **unwrapped portion** (pieces whose
+schema is not nested under a group key, merged into the result by shallow assign) is declared with
+the separate `unwrapped` option, never a map key: `groupedExtractor({ target, groups, unwrapped })`.
+When no top-level key is a group, the unwrapped portion is the whole schema — the **non-grouped
+fallback**, the shape the preset yields for a flat target: `plan.groups` is empty and
+`plan.unwrapped` carries the one entry, or — with a supplied byte cap that partitions it — the N
+pieces, and `plan.unwrappedTarget` becomes that ordered list instead of a singular target. When
+SOME top-level keys are groups and the rest are loose leaves — a mixed schema — the split emits
+one entry per group plus the loose leaves as the unwrapped piece(s) trailing last, so the
+composition passes `groups` beside `unwrapped` and the loose calls go out with the target's own
+instructions. One combination is still refused: an `unwrapped` entry beside named groups that
+already cover every top-level key is redundant — a second coverage declaration for the same
+keys — and throws at construction. The remainder contract is enforced at runtime too: an
+`unwrapped` entry whose result fields (or `statedEmptyGroups`) carry a key a named entry covers
+throws at the merge, naming the key, because the `unwrapped` entry covers only the unwrapped
+remainder and the shape-valid closing parse cannot see a shape-valid but wrong value.
+`overrideGroups` has no slot for the unwrapped portion; pass `unwrapped` to `groupedExtractor`
+yourself for custom loose handling.
+
+(The unwrapped portion's events and the split's `ExtractionGroup` output still carry the internal
+marker key `""` — exported from `@azx/ribo-core` as `UNWRAPPED_KEY` — which can never collide with
+a schema property, because the review leaf-path grammar refuses an empty key. Only the _writing_
+surface lost it; the _reading_ surface keeps it.)
 
 ## Next
 

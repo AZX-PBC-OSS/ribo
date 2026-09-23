@@ -145,11 +145,12 @@ export interface PhaseDef<
    * from position and metadata, `usage` from `PhaseOutput`, `attempt` from the retry
    * loop); `key` and `leaf` are not.
    *
-   * **Why optional, and why the default is `key: ""`.** `groupedExtractor`'s `GroupMap`
-   * already uses the `""` arm to mean "one entry covering the whole schema", and a phase
-   * whose single item IS the whole document — `extractorPhase`, the inventory pass — has
-   * no meaningful group key. The default and the convention agree. Supplying none is
-   * valid; applying the default is the combinator's job (Wave 3b), not the builder's.
+   * **Why optional, and why the default is `key: ""`.** `groupedExtractor`'s internal
+   * group record already keys the unwrapped portion `""` ({@link UNWRAPPED_KEY}) to mean
+   * "one entry covering the whole schema", and a phase whose single item IS the whole
+   * document — `extractorPhase`, the inventory pass — has no meaningful group key. The
+   * default and the convention agree. Supplying none is valid; applying the default is
+   * the combinator's job (Wave 3b), not the builder's.
    *
    * **The piece coordinates** (`instance`/`instances`/`part`/`parts`) are the same
    * optional quartet `PhaseUnit` carries — a scoped-instance fill item reports them so a

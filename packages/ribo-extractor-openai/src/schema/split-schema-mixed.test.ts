@@ -168,7 +168,8 @@ describe("splitExtractionSchema — mixed schema, no caps", () => {
   test('a mixed schema whose group fits the caps no longer packs atomically under ""', () => {
     // The evidence-§5 shape: today this schema is ONE "" entry carrying
     // everything (accepted); the mixed branch emits the group and the loose
-    // remainder separately — which the widened GroupMap accepts.
+    // remainder separately — which groupedExtractor's options union accepts
+    // (`groups` beside `unwrapped`).
     const small = enveloped(
       z
         .object({

@@ -601,42 +601,43 @@ describe("groupedExtractor — the non-grouped fallback arm", () => {
 
   const whole = { hvac: hvacLeaf("Boiler"), attic: atticLeaf("10-12") };
 
-  test('a map whose only key is "" schedules one whole-schema entry: events keyed "", fields merged flat', async () => {
+  test('`unwrapped` alone schedules one whole-schema entry: events keyed "", fields merged flat', async () => {
     const events: GroupUnit[] = [];
     const onUnit: ExtractionObserver<GroupUnit>["onUnit"] = (event) => events.push(event);
     const entry = wholeEntry(whole);
-    const extractor = groupedExtractor({
-      target,
-      groups: { "": entry } as GroupMap<Values>,
-      onUnit,
-    });
+    const extractor = groupedExtractor({ target, unwrapped: entry, onUnit });
 
     const result = await extractor.extract(transcript);
 
     expect(result.fields).toEqual(whole);
     expect(result.usage).toEqual({ calls: 1 });
-    // One entry, so the events carry the fallback vocabulary: key "", part 1 of 1.
+    // One entry, so the events carry the fallback vocabulary: key "", part 1 of
+    // 1. The READING surface keeps the marker — only the writing surface lost
+    // it — so the ["", 1, 1] sequence staying green is the no-behaviour-change
+    // pin.
     expect(events.map((event) => [event.phase, event.key, event.part, event.parts])).toEqual([
       ["start", "", 1, 1],
       ["done", "", 1, 1],
     ]);
   });
 
-  test('the "" key combined with per-key entries is no longer refused outright — see the mixed arm below', () => {
+  test("`unwrapped` beside named keys is no longer refused outright — see the mixed arm below", () => {
     // The old blanket refusal ("either the schema has groups or it does not")
     // narrowed to the redundancy rule (mixed-schema-split design §4.2): this
-    // map names hvac and leaves attic to the "" entry, which is the accepted
-    // mixed shape. The refusal's surviving half is pinned in the mixed arm.
+    // composition names hvac and leaves attic to the unwrapped entry, which is
+    // the accepted mixed shape. No cast — arm B of the options union admits it.
+    // The refusal's surviving half is pinned in the mixed arm.
     const entry = wholeEntry(whole);
-    const groups = { "": entry, hvac: entry } as unknown as GroupMap<Values>;
-    expect(() => groupedExtractor({ target, groups })).not.toThrow();
+    expect(() =>
+      groupedExtractor({ target, groups: { hvac: entry }, unwrapped: entry }),
+    ).not.toThrow();
   });
 
   test("the fallback entry's retry budget derives from one entry — one batch", () => {
     const budgets: RetryBudget[] = [];
     groupedExtractor({
       target,
-      groups: { "": wholeEntry(whole) } as GroupMap<Values>,
+      unwrapped: wholeEntry(whole),
       concurrency: 4,
       maxRetries: 3,
       stepTimeoutMs: 700_000,
@@ -648,17 +649,19 @@ describe("groupedExtractor — the non-grouped fallback arm", () => {
   });
 });
 
-// --- The mixed arm: "" beside named keys ---------------------------------------
+// --- The mixed arm: `unwrapped` beside named keys ------------------------------
 
-describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
+describe("groupedExtractor — the mixed arm: `unwrapped` beside named keys", () => {
   /**
    * A schema with one group and loose top-level leaves — the shape
    * `splitExtractionSchema` now emits for a mixed schema: one entry per group,
-   * plus the loose leaves carried as piece(s) keyed `""` (mixed-schema-split
+   * plus the loose leaves carried as the unwrapped portion (mixed-schema-split
    * design §4). The loose entries' runtime fields carry only their piece's leaf
    * subset under the whole-shape entry type — the same over-claim the per-group
    * plan's flat pieces already make; the second trust-boundary parse validates
-   * the merge (design §4.1, open question 2).
+   * the merge (design §4.1, open question 2). The WRITING surface spells the
+   * portion as the `unwrapped` option; the `""` marker it folds into is
+   * internal (ADR 0023).
    */
   const mixedPatch = z
     .object({
@@ -685,10 +688,10 @@ describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
   const yearLeaf = { value: 1978, confidence: 0.8, sourceSpan: "built in 1978" };
 
   /**
-   * One piece of a mixed map: its runtime fields carry exactly the piece's leaf
-   * subset, cast to the whole-shape entry type — the over-claim named above.
-   * Covariance lets the same fake serve a named slot
-   * (`Extractor<Pick<MixedFields, "hvac">>`) and the `""` slot
+   * One piece of a mixed composition: its runtime fields carry exactly the
+   * piece's leaf subset, cast to the whole-shape entry type — the over-claim
+   * named above. Covariance lets the same fake serve a named slot
+   * (`Extractor<Pick<MixedFields, "hvac">>`) and the `unwrapped` slot
    * (`Extractor<MixedFields>`).
    */
   function pieceEntry(
@@ -713,20 +716,20 @@ describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
     };
   }
 
-  test('a "" entry beside named keys that do not cover the schema is accepted, and "" owns the unnamed remainder', async () => {
+  test("named keys plus `unwrapped` extract correctly: the unwrapped entry owns the unnamed remainder", async () => {
     // The inversion of the old blanket refusal: named keys cover hvac only, so
-    // the "" entry declares the rest of the schema (note, yearBuilt) covered.
-    // No cast — arm 3 of the widened GroupMap admits the mix at the type level.
-    const groups: GroupMap<MixedValues> = {
-      hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }),
-      "": pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }),
-    };
-    const extractor = groupedExtractor({ target: mixedTarget, groups });
+    // the unwrapped entry declares the rest of the schema (note, yearBuilt)
+    // covered. No cast — arm B of the options union admits the mix.
+    const extractor = groupedExtractor({
+      target: mixedTarget,
+      groups: { hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }) },
+      unwrapped: pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }),
+    });
 
     const result = await extractor.extract(transcript);
 
-    // The named entry merges under its key; the "" entry assigns its loose
-    // leaves flat — one merged whole, validated by the closing parse.
+    // The named entry merges under its key; the unwrapped entry assigns its
+    // loose leaves flat — one merged whole, validated by the closing parse.
     expect(result.fields).toEqual({
       hvac: hvacLeaf("Boiler"),
       note: noteLeaf,
@@ -735,70 +738,115 @@ describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
     expect(result.usage).toEqual({ calls: 2 });
   });
 
-  test('a "" entry beside named keys that already cover every schema key is refused as redundant', () => {
+  test("`unwrapped` beside named keys that already cover every schema key is refused as redundant", () => {
     // The narrowed refusal's surviving half: the named entries cover hvac AND
-    // attic — every top-level key — so the "" entry would declare coverage the
-    // named entries already declare.
-    const redundant: GroupMap<Values> = {
-      hvac: groupEntry("hvac", hvacLeaf("Boiler")),
-      attic: groupEntry("attic", atticLeaf("10-12")),
-      "": {
-        extract: () =>
-          Promise.resolve({
-            fields: { hvac: hvacLeaf("Boiler"), attic: atticLeaf("10-12") },
-            usage: { calls: 1 },
-          }),
-      },
-    };
-    expect(() => groupedExtractor({ target, groups: redundant })).toThrowError(/redundant/);
+    // attic — every top-level key — so the unwrapped entry would declare
+    // coverage the named entries already declare. The redundant combination
+    // still COMPILES (an exhaustive `groups` is assignable to arm B's
+    // `Partial`) and throws at runtime — exact parity with the map spelling.
+    expect(() =>
+      groupedExtractor({
+        target,
+        groups: {
+          hvac: groupEntry("hvac", hvacLeaf("Boiler")),
+          attic: groupEntry("attic", atticLeaf("10-12")),
+        },
+        unwrapped: {
+          extract: () =>
+            Promise.resolve({
+              fields: { hvac: hvacLeaf("Boiler"), attic: atticLeaf("10-12") },
+              usage: { calls: 1 },
+            }),
+        },
+      }),
+    ).toThrowError(/redundant/);
   });
 
-  test('a named key the schema lacks still throws beside a "" entry — the extra-keys check is unchanged', () => {
+  test("a named key the schema lacks still throws beside `unwrapped` — the extra-keys check is unchanged", () => {
     // The cast is the JS-caller path — `ghost` is not a key of the values type.
     const groups = {
       hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }),
       ghost: pieceEntry({}),
-      "": pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }),
     } as unknown as GroupMap<MixedValues>;
-    expect(() => groupedExtractor({ target: mixedTarget, groups })).toThrowError(
-      /"ghost".*does not have/,
-    );
+    expect(() =>
+      groupedExtractor({
+        target: mixedTarget,
+        groups,
+        unwrapped: pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }),
+      }),
+    ).toThrowError(/"ghost".*does not have/);
   });
 
-  test('a "" entry that does not deliver the unnamed remainder is accepted at construction and caught by the closing parse', async () => {
-    // The coverage waiver's guarantee: with "" present the missing-keys check
-    // is waived — the "" entry IS the declaration — so a lying declaration
-    // surfaces exactly where the fallback arm's always did: the second
-    // trust-boundary parse (design §4.2).
+  test('a literal "" key inside `groups` throws at construction — the unwrapped portion is spelled `unwrapped`', () => {
+    // A caller passing both `unwrapped` and a literal "" key would lose one
+    // silently whichever way the fold merged, and nothing else would catch it
+    // (the extra-keys check filters "" out). The fold refuses instead. The cast
+    // is the JS-caller path — "" is not a key of the values type.
+    const groups = {
+      hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }),
+      "": pieceEntry({ note: noteLeaf }),
+    } as unknown as GroupMap<MixedValues>;
+    expect(() =>
+      groupedExtractor({
+        target: mixedTarget,
+        groups,
+        unwrapped: pieceEntry({ yearBuilt: yearLeaf }),
+      }),
+    ).toThrowError(/may not carry/);
+  });
+
+  test('a stale `""` map with no `unwrapped` is refused too — the likeliest way to meet this guard', () => {
+    // The refusal above pins `""` BESIDE `unwrapped`. This is the spelling a
+    // caller carried over unchanged from before the rename: the old fallback
+    // arm, `{ groups: { "": entry } }`, with no `unwrapped` at all. A review
+    // found it unpinned, and it is the more likely real-world hit — a JS caller
+    // upgrading, rather than one composing both spellings at once. The guard is
+    // unconditional and fires before the fold, so it catches this; the test is
+    // here so a later "only refuse when it collides" optimisation cannot pass.
+    const groups = {
+      "": pieceEntry({ note: noteLeaf }),
+    } as unknown as GroupMap<MixedValues>;
+    expect(() => groupedExtractor({ target: mixedTarget, groups })).toThrowError(/may not carry/);
+  });
+
+  test("an `unwrapped` entry that does not deliver the unnamed remainder is accepted at construction and caught by the closing parse", async () => {
+    // The coverage waiver's guarantee: with `unwrapped` present the
+    // missing-keys check is waived — the entry IS the declaration — so a lying
+    // declaration surfaces exactly where the fallback arm's always did: the
+    // second trust-boundary parse (design §4.2).
     const lying = pieceEntry({ note: noteLeaf }); // yearBuilt never arrives
     const extractor = groupedExtractor({
       target: mixedTarget,
-      groups: { hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }), "": lying },
+      groups: { hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }) },
+      unwrapped: lying,
     });
 
     await expect(extractor.extract(transcript)).rejects.toBeInstanceOf(SchemaParseError);
   });
 
-  test('named keys without a "" entry are still exhaustive at the type level — a missing group stays a compile error', () => {
+  test("named keys without an `unwrapped` entry are still exhaustive at the type level — a missing group stays a compile error", () => {
     const hvac = pieceEntry({ hvac: hvacLeaf("Boiler") });
-    // The widening must admit "" beside named keys WITHOUT losing the guard the
-    // named-only arm always had: named entries, no "", and a key missing.
-    // @ts-expect-error — `note`/`yearBuilt` uncovered and no "" entry to own them.
-    const missing: GroupMap<MixedValues> = { hvac };
-    // And the runtime check behind it is untouched (pinned above the fallback arm).
-    expect(() => groupedExtractor({ target: mixedTarget, groups: missing })).toThrowError(
+    // The widening must admit `unwrapped` beside named keys WITHOUT losing the
+    // guard the named-only arm always had: named entries, no unwrapped, and a
+    // key missing. The directive sits on the CALL now — the guard moved from
+    // the map type to the options union — and tsc errors on an unused
+    // directive, so `pnpm typecheck` is the proof the guard still fires. The
+    // runtime check behind it is untouched (pinned above the fallback arm).
+    // @ts-expect-error — `note`/`yearBuilt` uncovered and no `unwrapped` entry to own them.
+    expect(() => groupedExtractor({ target: mixedTarget, groups: { hvac } })).toThrowError(
       /missing top-level key/,
     );
   });
 
-  test('a partitioned "" entry schedules its pieces after the named entries, sharing key "" with part/parts', async () => {
+  test('a partitioned `unwrapped` entry schedules its pieces after the named entries, sharing key "" with part/parts', async () => {
     const events: GroupUnit[] = [];
     const onUnit: ExtractionObserver<GroupUnit>["onUnit"] = (event) => events.push(event);
-    const groups: GroupMap<MixedValues> = {
-      hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }),
-      "": [pieceEntry({ note: noteLeaf }), pieceEntry({ yearBuilt: yearLeaf })],
-    };
-    const extractor = groupedExtractor({ target: mixedTarget, groups, onUnit });
+    const extractor = groupedExtractor({
+      target: mixedTarget,
+      groups: { hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }) },
+      unwrapped: [pieceEntry({ note: noteLeaf }), pieceEntry({ yearBuilt: yearLeaf })],
+      onUnit,
+    });
 
     const result = await extractor.extract(transcript);
 
@@ -818,49 +866,50 @@ describe('groupedExtractor — the mixed arm: "" beside named keys', () => {
     ]);
   });
 
-  test('a "" entry whose runtime fields carry a NAMED key throws at the merge, naming the key', async () => {
-    // The hand-composition hazard the widened arm opened: the "" slot's type is
-    // the whole-shape claim (`Extractor<MixedFields>`), so reusing the flat
+  test("an `unwrapped` entry whose runtime fields carry a NAMED key throws at the merge, naming the key", async () => {
+    // The hand-composition hazard the option opened: the unwrapped slot's type
+    // is the whole-shape claim (`Extractor<MixedFields>`), so reusing the flat
     // fallback's natural construction — one single-shot extractor over the
-    // whole target — builds a "" entry whose whole-schema answer carries hvac.
-    // The schedule assigns "" last, so that answer silently overwrote the
-    // named entry's already-merged value, and the closing parse validates
-    // shape only: a shape-valid wrong value passed. The merge refuses the
-    // class outright (ADR 0023's corrected cost paragraph).
-    const groups: GroupMap<MixedValues> = {
-      hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }),
-      "": pieceEntry({ hvac: hvacLeaf("Furnace"), note: noteLeaf, yearBuilt: yearLeaf }),
-    };
-    const extractor = groupedExtractor({ target: mixedTarget, groups });
-
-    const rejection = await extractor.extract(transcript).catch((cause: unknown) => cause);
-    expect(rejection).toBeInstanceOf(Error);
-    expect((rejection as Error).message).toMatch(/the "" entry's result carries "hvac"/);
-    expect((rejection as Error).message).toMatch(/unwrapped remainder/);
-  });
-
-  test('a "" entry that states a NAMED group empty throws the same guard — the union assigned in arrival order', async () => {
-    // The same root in the statedEmptyGroups union: it assigned in arrival
-    // order, so a "" entry stating a named group empty clobbered the named
-    // entry's own statement nondeterministically. Same guard shape.
-    const lying = pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }, { hvac: "no units" });
+    // whole target — builds an unwrapped entry whose whole-schema answer
+    // carries hvac. The schedule assigns it last, so that answer silently
+    // overwrote the named entry's already-merged value, and the closing parse
+    // validates shape only: a shape-valid wrong value passed. The merge refuses
+    // the class outright (ADR 0023's corrected cost paragraph).
     const extractor = groupedExtractor({
       target: mixedTarget,
-      groups: { hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }), "": lying },
+      groups: { hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }) },
+      unwrapped: pieceEntry({ hvac: hvacLeaf("Furnace"), note: noteLeaf, yearBuilt: yearLeaf }),
     });
 
     const rejection = await extractor.extract(transcript).catch((cause: unknown) => cause);
     expect(rejection).toBeInstanceOf(Error);
-    expect((rejection as Error).message).toMatch(/the "" entry states the named group "hvac"/);
+    expect((rejection as Error).message).toMatch(/the unwrapped entry's result carries "hvac"/);
+    expect((rejection as Error).message).toMatch(/unwrapped remainder/);
+  });
 
-    // No false positive: a named entry stating its OWN group empty beside a ""
-    // entry unions exactly as the named-only arm always did.
+  test("an `unwrapped` entry that states a NAMED group empty throws the same guard — the union assigned in arrival order", async () => {
+    // The same root in the statedEmptyGroups union: it assigned in arrival
+    // order, so an unwrapped entry stating a named group empty clobbered the
+    // named entry's own statement nondeterministically. Same guard shape.
+    const lying = pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }, { hvac: "no units" });
+    const extractor = groupedExtractor({
+      target: mixedTarget,
+      groups: { hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }) },
+      unwrapped: lying,
+    });
+
+    const rejection = await extractor.extract(transcript).catch((cause: unknown) => cause);
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toMatch(
+      /the unwrapped entry states the named group "hvac"/,
+    );
+
+    // No false positive: a named entry stating its OWN group empty beside an
+    // unwrapped entry unions exactly as the named-only arm always did.
     const honest = groupedExtractor({
       target: mixedTarget,
-      groups: {
-        hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }, { hvac: "none said" }),
-        "": pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }),
-      },
+      groups: { hvac: pieceEntry({ hvac: hvacLeaf("Boiler") }, { hvac: "none said" }) },
+      unwrapped: pieceEntry({ note: noteLeaf, yearBuilt: yearLeaf }),
     });
     const result = await honest.extract(transcript);
     expect(result.statedEmptyGroups).toEqual({ hvac: "none said" });

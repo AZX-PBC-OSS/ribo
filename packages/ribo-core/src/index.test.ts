@@ -67,6 +67,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "TerminalError",
     "TranscriberUnavailableError",
     "UNSUPPORTED_ITEM_REASONS",
+    "UNWRAPPED_KEY",
     "UnsupportedItemError",
     "ValidationRejectedError",
     "acceptAnySuccess",
