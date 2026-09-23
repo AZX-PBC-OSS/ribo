@@ -85,6 +85,50 @@ route, so the caller whose chat client chose the route supplies the number.
 [From a Schema](/guide/from-a-schema) shows the entry point that takes it, and a newcomer's whole
 path from a plain zod schema to a parsed extraction.
 
+### Ask before you build: `describeExtraction`
+
+Everything above is knowable before you construct anything. `describeExtraction` is the split's
+dry run — synchronous, no chat client, no model — answering the questions that otherwise cost a
+probe script each: which top-level keys are groups and which are loose, which split path applies
+(and, when flat, why — no group keys to split by), whether the whole schema fits in one call, how
+many pieces the caps produce and what each measures, and whether construction would succeed:
+
+```ts
+import { describeExtraction } from "@azx/ribo-extractor-openai";
+
+const report = describeExtraction({
+  extractionSchema: target.extractionSchema, // or `schema` plus shape `operations`
+  maxSerializedCharsPerGroup: 32_768, // your route's number; omitted means off
+});
+
+if (report.refusal !== undefined) {
+  report.refusal; // { stage: "derive" | "name" | "split", message } — the real error, verbatim
+} else {
+  report.callShape; // "single-shot" | "per-group"
+  report.pieces; // one row per call: key, part/parts, nullableUnions, serializedChars, depth
+  report.whole; // the same three measures for the unsplit schema
+}
+```
+
+Two readings are worth calling out. `path: "flat"` with `flatReason` naming loose keys now means
+exactly one thing: no top-level key is a group, so there is nothing to split by — the named keys
+are the whole schema. A loose leaf _beside_ groups no longer forces this: the mixed split (ADR 0023) reports `path: "grouped"`, splits each group as its own piece(s), and carries the loose
+leaves as the trailing `""` piece — visible in `keys` and `pieces`, never silent. (Before the
+mixed split, one loose top-level leaf collapsed every group you nested into a single flat call —
+and, under a byte cap, a group the flat packer had to treat as one atomic property became a
+construction refusal, so a partially nested schema could fail to split at all.) And `depth` is
+**reported, never capped**: the split packs against unions and bytes only, so compare each piece's
+`depth` against your own route's nesting limit yourself — no call shape fixes a too-deep schema.
+
+The report cannot drift from what construction does, by construction: it derives with the real
+`deriveExtractionShape`, classifies with the split's own `topLevelKeyKinds`, splits with
+`splitExtractionSchema` under the presets' defaulting, and measures with the functions the packers
+pack against — and a differential test suite asserts the report against what `perGroupPlan` and
+`schemaExtractor` actually build, over a corpus covering every branch, plus the real Snugg Pro
+schema. On the raw input shape the report also carries `shape`, the derived artifact itself, so a
+describe-then-build caller pays the derivation once and wires it straight into `schemaExtractor`'s
+`extractionSchema` passthrough.
+
 `perGroupExtractor` turns that split into calls: one chat request per group (or per partition), run
 concurrently against a bounded pool, each response parsed against its own group schema before the
 whole is reassembled and parsed again against the full `extractionSchema` — a second trust-boundary

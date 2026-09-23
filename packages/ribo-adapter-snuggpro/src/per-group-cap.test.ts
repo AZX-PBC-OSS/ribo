@@ -1,7 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
-import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "@azx/ribo-extractor-openai";
+import {
+  MAX_NULLABLE_UNIONS_PER_CALL,
+  serializedNestingDepth,
+  splitExtractionSchema,
+} from "@azx/ribo-extractor-openai";
 import type { ExtractionGroup } from "@azx/ribo-extractor-openai";
 
 import {
@@ -38,24 +42,6 @@ const shapeOf = (schema: z.ZodType): z.ZodObject["shape"] => (schema as z.ZodObj
 /** `shape[key]` for a key that came from the shape's own keys — a `ZodType` by construction. */
 const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
 
-/**
- * Walk a JSON Schema node and return the maximum nesting depth, counting one level per
- * `properties` descent — the same counting method `extraction-shape.test.ts` uses, so
- * the two tests agree on what a "level" is.
- */
-function maxNestingDepth(node: unknown, depth: number): number {
-  let deepest = depth;
-  if (Array.isArray(node)) {
-    for (const child of node) deepest = Math.max(deepest, maxNestingDepth(child, depth));
-    return deepest;
-  }
-  if (node === null || typeof node !== "object") return deepest;
-  for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
-    deepest = Math.max(deepest, maxNestingDepth(child, key === "properties" ? depth + 1 : depth));
-  }
-  return deepest;
-}
-
 test("every per-call schema serializes under the character cap", () => {
   // Partitioned, because that is the shape of a real call: `perGroupExtractor` always
   // splits at MAX_NULLABLE_UNIONS_PER_CALL, and an unpartitioned `basedata` is a
@@ -80,8 +66,9 @@ test("every per-call schema nests within the depth cap", () => {
   expect(groups.length).toBeGreaterThan(1);
 
   for (const group of groups) {
-    const jsonSchema = z.toJSONSchema(group.schema, { target: "draft-2020-12" });
-    const depth = maxNestingDepth(jsonSchema, 0);
+    // The library's own measure: one walk, shared with `describeExtraction`,
+    // so the cap suite and the diagnostic can never drift on what a level is.
+    const depth = serializedNestingDepth(group.schema);
     expect(depth, `group "${group.key}" nests ${depth} levels`).toBeLessThanOrEqual(
       SCHEMA_NESTING_DEPTH_CAP,
     );
@@ -147,8 +134,7 @@ test("the real derived schema splits collection groups as arrays", () => {
       expect(inner, `group "${group.key}" must remain a ZodObject`).toBeInstanceOf(z.ZodObject);
     }
 
-    const jsonSchema = z.toJSONSchema(group.schema, { target: "draft-2020-12" });
-    const depth = maxNestingDepth(jsonSchema, 0);
+    const depth = serializedNestingDepth(group.schema);
     expect(depth, `group "${group.key}" nests ${depth} levels`).toBeLessThanOrEqual(
       SCHEMA_NESTING_DEPTH_CAP,
     );
@@ -355,7 +341,7 @@ describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union 
       const jsonSchema = z.toJSONSchema(group.schema, { target: "draft-2020-12" });
       const serialized = JSON.stringify(jsonSchema);
       expect(serialized.length).toBeLessThan(SCHEMA_SERIALIZED_CHAR_CAP);
-      expect(maxNestingDepth(jsonSchema, 0)).toBeLessThanOrEqual(SCHEMA_NESTING_DEPTH_CAP);
+      expect(serializedNestingDepth(group.schema)).toBeLessThanOrEqual(SCHEMA_NESTING_DEPTH_CAP);
     }
   });
 });

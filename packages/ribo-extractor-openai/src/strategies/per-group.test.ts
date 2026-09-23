@@ -694,6 +694,242 @@ describe("perGroupExtractor — non-grouped fallback", () => {
 });
 
 /**
+ * A mixed schema end to end: `splitExtractionSchema`'s mixed branch emits one
+ * entry per group plus the loose leaves as the unwrapped portion (`""`), and
+ * the widened `GroupMap` accepts that map. These are the pins for
+ * mixed-schema-split design §6: the loose piece's request is the flat
+ * fallback's request — the target's own instructions, its full unprojected
+ * example, no group-key infix in the name — and `groupInstructions` is never
+ * invoked with `""`.
+ */
+describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () => {
+  const mixedPatch = z
+    .object({
+      hvac: z
+        .object({
+          equipmentType: z.string().nullable().optional(),
+          fuel: z.string().nullable().optional(),
+        })
+        .strict()
+        .optional(),
+      note: z.string().nullable().optional(),
+      yearBuilt: z.number().nullable().optional(),
+    })
+    .strict();
+  const mixedExtraction = enveloped(mixedPatch);
+  type MixedValues = z.infer<typeof mixedPatch>;
+  type MixedFields = Enveloped<MixedValues>;
+
+  const mixedExample: ToolAdapterExample<MixedFields> = {
+    transcript: "A boiler, natural gas, built in 1978, with a note.",
+    fields: {
+      hvac: {
+        equipmentType: { value: "Boiler", confidence: 0.9, sourceSpan: "a boiler" },
+        fuel: { value: "Natural Gas", confidence: 0.8, sourceSpan: "natural gas" },
+      },
+      note: { value: "a note", confidence: 0.9, sourceSpan: "with a note" },
+      yearBuilt: { value: 1978, confidence: 0.8, sourceSpan: "1978" },
+    },
+  };
+
+  const mixedTarget: ExtractionTarget<MixedValues> = {
+    name: "demo-mixed",
+    extractionSchema: mixedExtraction,
+    instructions: "Extract the hvac group and the loose leaves.",
+    examples: [mixedExample],
+  };
+
+  const mixedHvacResponse = {
+    hvac: {
+      equipmentType: { value: "Boiler", confidence: 0.9, sourceSpan: "it's a boiler" },
+      fuel: { value: "Natural Gas", confidence: 0.8, sourceSpan: "natural gas" },
+    },
+  };
+  const mixedLooseResponse = {
+    note: { value: "a note", confidence: 0.9, sourceSpan: "the note" },
+    yearBuilt: { value: 1978, confidence: 0.8, sourceSpan: "built in 1978" },
+  };
+
+  test("one request per group plus the loose piece; the loose request is the flat fallback's request", async () => {
+    const { chat, requests } = fakeGroupChat({
+      "demo-mixed-hvac": JSON.stringify(mixedHvacResponse),
+      "demo-mixed": JSON.stringify(mixedLooseResponse),
+    });
+    const events: GroupUnit[] = [];
+    const extractor = perGroupExtractor({
+      target: mixedTarget,
+      chat,
+      model: "m",
+      onUnit: (e) => events.push(e),
+    });
+
+    const result = await extractor.extract({ text: "the transcript", annotations: {} });
+
+    // One call per piece: the group with its infix, the loose piece without.
+    expect(requests.map((r) => r.response_format.json_schema.name).sort()).toEqual([
+      "demo-mixed",
+      "demo-mixed-hvac",
+    ]);
+
+    // The loose piece's request is byte-identical to what the flat fallback
+    // sends for this target: the target's own instructions, and the FULL
+    // unprojected example — no projection exists for leaves that belong to no
+    // group, and none is invented (design §6).
+    const looseReq = requests.find((r) => r.response_format.json_schema.name === "demo-mixed")!;
+    const looseSchema = looseReq.response_format.json_schema.schema as {
+      properties: Record<string, unknown>;
+    };
+    expect(Object.keys(looseSchema.properties)).toEqual(["note", "yearBuilt"]);
+    expect(looseReq.messages[0]).toEqual({ role: "system", content: mixedTarget.instructions });
+    const looseAssistant = looseReq.messages[2]!;
+    expect(looseAssistant.role).toBe("assistant");
+    expect(JSON.parse(looseAssistant.content)).toEqual(mixedExample.fields);
+
+    // The merged result carries the group under its key and the loose leaves
+    // flat — the sweep workaround's result minus the invented group.
+    expect(result.fields).toEqual({ ...mixedHvacResponse, ...mixedLooseResponse });
+    expect(result.usage.calls).toBe(2);
+
+    // The GroupUnit stream carries "" beside the named key, which
+    // observability consumers already tolerate from the flat fallback.
+    const starts = events.filter((e) => e.phase === "start");
+    expect(starts.map((e) => [e.key, e.part, e.parts])).toEqual([
+      ["hvac", 1, 1],
+      ["", 1, 1],
+    ]);
+  });
+
+  test('with groupInstructions, the named group gets its own and the loose piece keeps the target\'s — groupInstructions is never called with ""', async () => {
+    const seen: string[] = [];
+    const groupInstructions = (key: string): string => {
+      seen.push(key);
+      return `Rules for ${key}.`;
+    };
+    const { chat, requests } = fakeGroupChat({
+      "demo-mixed-hvac": JSON.stringify(mixedHvacResponse),
+      "demo-mixed": JSON.stringify(mixedLooseResponse),
+    });
+    const extractor = perGroupExtractor({
+      target: mixedTarget,
+      chat,
+      model: "m",
+      groupInstructions,
+    });
+
+    await extractor.extract({ text: "the transcript", annotations: {} });
+
+    // The group gets its own instructions and a projected example; the loose
+    // piece keeps the target's instructions and full example (design §6).
+    expect(seen).toEqual(["hvac"]);
+    const hvacReq = requests.find((r) => r.response_format.json_schema.name === "demo-mixed-hvac")!;
+    expect(hvacReq.messages[0]).toEqual({ role: "system", content: "Rules for hvac." });
+    const hvacFields = JSON.parse(hvacReq.messages[2]!.content) as Record<string, unknown>;
+    expect(Object.keys(hvacFields)).toEqual(["hvac"]);
+    const looseReq = requests.find((r) => r.response_format.json_schema.name === "demo-mixed")!;
+    expect(looseReq.messages[0]).toEqual({ role: "system", content: mixedTarget.instructions });
+    expect(JSON.parse(looseReq.messages[2]!.content)).toEqual(mixedExample.fields);
+  });
+
+  test("a partitioned loose piece narrows its example to the piece's own leaves", async () => {
+    // The byte-cap-half of the prompt contract (design §6): an UNPARTITIONED
+    // loose piece keeps the full example (above); a partitioned one narrows
+    // through the same `partitionedLeafKeys` → `narrowToLeaves` path the flat
+    // fallback's pieces use.
+    const enumLeaf = (seed: string) =>
+      z.enum([
+        `option-alpha-${seed}-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
+        `option-bravo-${seed}-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`,
+        `option-charlie-${seed}-cccccccccccccccccccccccccccccc`,
+      ]);
+    const cappedPatch = z
+      .object({
+        hvac: z.object({ fuel: z.string().nullable().optional() }).strict().optional(),
+        looseA: enumLeaf("a"),
+        looseB: enumLeaf("b"),
+        looseC: enumLeaf("c"),
+        looseD: enumLeaf("d"),
+      })
+      .strict();
+    type CappedValues = z.infer<typeof cappedPatch>;
+    type CappedFields = Enveloped<CappedValues>;
+    const env = <const V>(v: V) => ({ value: v, confidence: 0.9, sourceSpan: String(v) });
+    const cappedTarget: ExtractionTarget<CappedValues> = {
+      name: "demo-mixed-cap",
+      extractionSchema: enveloped(cappedPatch),
+      instructions: "Extract.",
+      examples: [
+        {
+          transcript: "t",
+          fields: {
+            hvac: { fuel: env("gas") },
+            looseA: env("option-alpha-a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            looseB: env("option-alpha-b-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            looseC: env("option-alpha-c-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            looseD: env("option-alpha-d-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+          },
+        },
+      ],
+    };
+
+    const plan = perGroupPlan({
+      target: cappedTarget,
+      chat: fakeGroupChat({}).chat,
+      model: "m",
+      maxSerializedCharsPerGroup: 900,
+    });
+    const targets = plan.targets as Readonly<Record<string, unknown>>;
+    const hvacTargets = targets.hvac as ExtractionTarget<Pick<CappedValues, "hvac">>;
+    // The group fits the cap — one piece, its example carries the group.
+    expect(hvacTargets.name).toBe("demo-mixed-cap-hvac");
+
+    const looseTargets = targets[""] as readonly ExtractionTarget<CappedFields>[];
+    // Precondition: the cap really did partition the loose portion.
+    expect(looseTargets.length).toBeGreaterThan(1);
+    expect(looseTargets.map((t) => t.name)).toEqual(
+      looseTargets.map((_, i) => `demo-mixed-cap-${i}`),
+    );
+    for (const piece of looseTargets) {
+      const assistantFields = piece.examples?.[0]?.fields as Record<string, unknown> | undefined;
+      // Each piece's example carries exactly its own leaf subset — never the
+      // full example, which the response_format's strict mode would reject.
+      const expected = Object.keys((piece.extractionSchema as unknown as z.ZodObject).shape).sort();
+      expect(Object.keys(assistantFields ?? {}).sort()).toEqual(expected);
+    }
+  });
+
+  test("a loose response carrying a NAMED key is rejected at the piece's own parse — the preset never reaches the merge with it", async () => {
+    // The preset half of the overwrite-hazard pin (ADR 0023; the hand-composed
+    // half is in ribo-core's grouped-extractor suite): the split builds the
+    // loose piece from exactly the keys no group claimed, so the piece's
+    // z.strictObject refuses a named key at the ENTRY's first parse — before
+    // groupedExtractor's merge (and its "" guard) ever sees the value.
+    // maxRetries: 0 because a SchemaParseError stays transient to the
+    // combinator and would otherwise be retried pointlessly here.
+    const { chat, requests } = fakeGroupChat({
+      "demo-mixed-hvac": JSON.stringify(mixedHvacResponse),
+      // The loose piece's answer carrying the whole-schema shape — the
+      // hazardous construction's signature.
+      "demo-mixed": JSON.stringify({ ...mixedLooseResponse, hvac: mixedHvacResponse.hvac }),
+    });
+    const extractor = perGroupExtractor({ target: mixedTarget, chat, model: "m", maxRetries: 0 });
+
+    const rejection = await extractor
+      .extract({ text: "the transcript", annotations: {} })
+      .catch((cause: unknown) => cause);
+
+    expect(rejection).toBeInstanceOf(SchemaParseError);
+    // The ENTRY's own parse, not the combinator's closing parse: the context
+    // names the loose piece's own request ("demo-mixed", no group infix), and
+    // nothing about the merge.
+    expect((rejection as Error).message).toContain(
+      'singleShotExtractor: model response for "demo-mixed"',
+    );
+    expect((rejection as Error).message).not.toContain("merged response");
+    expect(requests.map((r) => r.response_format.json_schema.name)).toContain("demo-mixed");
+  });
+});
+
+/**
  * @file The flat schema's byte-cap path goes end-to-end through
  * `perGroupExtractor` and `groupedExtractor` — pieces share `key === ""`,
  * their chat names carry the part suffix and no group-key infix, the merge

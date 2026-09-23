@@ -16,9 +16,40 @@ export type { SingleShotOptions } from "./strategies/single-shot.js";
 // entry covering the whole schema). The per-group extractor consumes this. The
 // split packs against two caps — nullable unions and, when the caller supplies
 // it, serialized size — both as options (`SplitOptions`); the library carries no
-// provider's byte cap.
-export { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "./schema/split-schema.js";
-export type { ExtractionGroup, SplitOptions } from "./schema/split-schema.js";
+// provider's byte cap. The split's top-level classifier and its nesting-depth
+// measure are exported beside it: `describeExtraction` reports with them, and a
+// host comparing a piece against its route's depth cap reads the same walk.
+export {
+  MAX_NULLABLE_UNIONS_PER_CALL,
+  serializedNestingDepth,
+  splitExtractionSchema,
+  topLevelKeyKinds,
+} from "./schema/split-schema.js";
+export type {
+  ExtractionGroup,
+  SplitOptions,
+  TopLevelKey,
+  TopLevelKeyKind,
+  TopLevelKeyKinds,
+} from "./schema/split-schema.js";
+
+// The dry run of the split: what a schema will become — keys, path, call
+// shape, per-piece measurements, and the refusal construction would raise —
+// reported synchronously, before an extractor is constructed and without a
+// model. Reads everything off the split's own code, so it cannot drift from
+// what construction actually does.
+export { describeExtraction } from "./schema/describe-extraction.js";
+export type {
+  DescribeDerivedSchemaOptions,
+  DescribeExtractionOptions,
+  DescribeRawSchemaOptions,
+  ExtractionDescription,
+  ExtractionFlatReason,
+  ExtractionPieceDescription,
+  ExtractionRefusal,
+  ExtractionRefusalStage,
+  SchemaMeasures,
+} from "./schema/describe-extraction.js";
 
 // The entry point that takes a RAW zod schema: the `enveloped()` derivation and
 // the single-shot-vs-per-group selection run inside, so a newcomer hands over
@@ -35,13 +66,25 @@ export type {
 // over the extraction shape into one over the derived patch.
 //
 // Two derivation surfaces. `deriveExtractionShape` is the model-free applier:
-// the caller hands in explicit operations and the artifact comes out. The
+// the caller hands in explicit operations and the artifact comes out, or it
+// throws the first refusal. Its sibling `deriveExtractionShapePartially` is
+// the same applier collecting instead: every refusal it can find in one pass,
+// classified (local / consequential / set, with the consequential culprit
+// named), plus the artifact derived from the operations that survived — a
+// host applying a model's proposal gets the middle option between "throw the
+// set away" and "catch, parse the message by hand, strip one op, retry". The
 // model-driven counterpart is `proposeShapeOperations` — the model emits the
 // operations, the same applier applies them. `proposeExtractionShape` is the
 // one-call convenience that composes the two for a host that wants the
 // artifact directly.
-export { deriveExtractionShape } from "./shape/shape-operations.js";
+export { deriveExtractionShape, deriveExtractionShapePartially } from "./shape/shape-operations.js";
 export type { DeriveExtractionShapeOptions } from "./shape/shape-operations.js";
+export type {
+  PartiallyDerivedShape,
+  ShapeRefusal,
+  ShapeRefusalCause,
+  ShapeRefusalClass,
+} from "./shape/shape-refusal.js";
 export type { ShapeOperation } from "./shape/shape-operation.js";
 export type { DerivedExtractionShape } from "./shape/derived-shape.js";
 export { assertShapeMapping, retypeToPatchValue } from "./shape/shape-mapping.js";

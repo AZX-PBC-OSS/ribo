@@ -65,3 +65,5 @@ receives.
 | [0020](./0020-a-packages-second-segment-names-an-implementation.md)            | A package's second segment names an implementation, never a vendor                           | Accepted |
 | [0021](./0021-corroboration-is-a-judging-combinator-not-a-review-flag.md)      | Corroboration is a judging combinator, not a review flag                                     | Accepted |
 | [0022](./0022-the-shape-vocabulary-gains-nest.md)                              | The shape vocabulary gains `nest`, an operation that creates the group                       | Accepted |
+| [0023](./0023-the-empty-group-key-means-unwrapped-not-whole.md)                | The empty group key means unwrapped, not whole                                               | Accepted |
+| [0024](./0024-the-shape-applier-collects-refusals-and-applies-partially.md)    | The shape applier collects every refusal and applies the surviving operations                | Accepted |

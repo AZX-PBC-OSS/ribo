@@ -123,6 +123,89 @@ function houseResponse(name: string): Record<string, unknown> {
 // --- Tests -------------------------------------------------------------------
 
 describe("scopedInstanceExtractor", () => {
+  test("a mixed schema: the roster pass skips the loose piece, fills run one call per piece, and the merged result parses clean", async () => {
+    // The scoped-instance preset over a MIXED schema (collection + singleton +
+    // loose leaf) — verify-only for the mixed-schema split (design §10's
+    // scoped-instance must-fail, §8 step 4): the loose piece flows the
+    // existing "" branches of prepareGroups, the inventory phase and the fill
+    // phase, none of which changed.
+    const mixedValuesSchema = z
+      .object({
+        widgets: z.array(widgetValues).optional(),
+        house: houseValues.optional(),
+        note: z.string().nullable().optional(),
+      })
+      .strict();
+    type MixedValues = z.infer<typeof mixedValuesSchema>;
+    const mixedTarget: ExtractionTarget<MixedValues> = {
+      name: "demo-mixed",
+      extractionSchema: enveloped(mixedValuesSchema),
+      instructions: "Demo extraction instructions.",
+      examples: [],
+    };
+
+    const roster: Roster = {
+      widgets: [
+        {
+          mentionSpan: "the red widget",
+          discriminator: "the red widget",
+          distinguishedBy: null,
+          eligibility: "current",
+          eligibilitySpan: null,
+        },
+      ],
+    };
+
+    const { chat, requests } = fakeChat((request) => {
+      const name = request.response_format.json_schema.name;
+      if (name === "demo-mixed-widgets-fill-0") {
+        return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
+      }
+      if (name === "demo-mixed-house-fill") {
+        return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
+      }
+      if (name === "demo-mixed-fill") {
+        // The loose piece's fill: the response is the loose leaves directly —
+        // no wrapping key — exactly the flat fallback's answer shape.
+        return {
+          content: JSON.stringify({
+            note: { value: "a note", sourceSpan: "the note", confidence: 1 },
+          }),
+          finishReason: "stop",
+        };
+      }
+      throw new Error(`Unexpected request: ${name}`);
+    });
+
+    const extractor = scopedInstanceExtractor({
+      target: mixedTarget,
+      chat,
+      model: "demo-model",
+      inventory: async () => roster,
+      buildFillInstructions,
+    });
+
+    const result = await extractor.extract({ text: "the full transcript", annotations: {} });
+
+    // The merged whole parses clean against the mixed schema: the collection
+    // by instance index, the singleton under its key, the loose leaf flat.
+    expect(result.fields.widgets).toHaveLength(1);
+    expect(result.fields.widgets?.[0]?.color.value).toBe("red");
+    expect(result.fields.house?.name.value).toBe("main");
+    expect(result.fields.note?.value).toBe("a note");
+    // Inventory + one fill per piece. The loose piece is one call, named
+    // without the group infix — the flat fallback's fill name.
+    expect(result.usage.calls).toBe(4);
+    expect(requests.map((r) => r.response_format.json_schema.name).sort()).toEqual([
+      "demo-mixed-fill",
+      "demo-mixed-house-fill",
+      "demo-mixed-widgets-fill-0",
+    ]);
+    // The roster pass never touched the loose piece: no "" key anywhere.
+    // (Object.keys, not toHaveProperty: the matcher cannot take a "" key path.)
+    expect(Object.keys(result.statedEmptyGroups ?? {})).not.toContain("");
+  });
+
   test("fills one instance per current candidate and assembles arrays in roster order", async () => {
     const roster = makeRoster({
       widgets: [

@@ -103,6 +103,12 @@ them the way it helps bytes and unions: the structured-output **property-count**
 **nesting-depth** cap named in the same error text. If your schema trips one of those, narrow
 it — no call shape fixes it.
 
+To know which side of every cap your schema lands on before building anything,
+`describeExtraction` dry-runs all of it — the split, the call-shape selection, the per-piece
+measurements, and the refusal construction would raise — synchronously and without a model.
+[Schema at Scale](/guide/schema-at-scale#ask-before-you-build-describeextraction) has the
+walkthrough.
+
 ## The name is on the wire
 
 A structured-output schema name is constrained to `[A-Za-z0-9_-]` by at least one platform route —
@@ -232,26 +238,37 @@ is the model's call; the schema packing is `schemaExtractor`'s downstream concer
 (0016) records the cap-policy argument.
 
 A `nest` buys extraction-side structure only: the extraction schema carries the new group as a
-subject rather than as loose fields. It also becomes its own `splitExtractionSchema` entry — its
-own call and prompt assembly — but only if the nests cover **every** top-level key; one unmoved
-top-level leaf collapses the whole schema to the flat fallback, nest groups included. The derived
-patch is unchanged by a nest, so review still renders the moved leaves at their flat paths, and
-`requiredOnCreate`, `identifyingFields` and provenance cannot be declared on the new group. ADR
-0022 records the decision and its limits.
+subject rather than as loose fields, and it becomes its own `splitExtractionSchema` entry — its
+own call and prompt assembly. Top-level leaves no nest moved are not stranded by that: they ride
+one or more pieces of the unwrapped portion, keyed `""` (ADR 0023), beside the named groups. The
+derived patch is unchanged by a nest, so review still renders the moved leaves at their flat
+paths, and `requiredOnCreate`, `identifyingFields` and provenance cannot be declared on the new
+group. ADR 0022 records the decision and its limits.
 
 How it lands on a working extraction at every failure mode:
 
 - **A successful proposal returns the operations**; the applier's `assertShapeMapping` post-condition
   fires on the same path the hand-written call takes, so the proposed shape and a hand-written shape
   are interchangeable from the rest of the pipeline's perspective.
-- **A proposal the applier refuses is repaired on the next turn** — the applier's own precise
-  refusal text becomes the user-turn feedback, the model's previous (rejected) answer becomes the
-  assistant turn, and the schema's pre-`strict` JSON path travels unchanged.
-- **At exhaustion (no repair budget, transport verdict repeats) the function returns `[]`** — a
-  valid operation set, just unshaped. The applier accepts it as pure normalization, and the
-  extraction runs end-to-end without dropping on a model verdict the host cannot inspect mid-talk.
-  The argument for `[]` over a thrown error is a newcomer: handing them a working extraction either
-  way is the goal the wave locked.
+- **A proposal the applier refuses is repaired on the next turn** — EVERY refusal the applier found
+  becomes the user-turn feedback (one line each, the applier's own message prefixed with the
+  operation it names), the model's previous (rejected) answer becomes the assistant turn, and the
+  schema's pre-`strict` JSON path travels unchanged. Two bad operations — or eighteen — cost one
+  repair turn, not N.
+- **At exhaustion (no repair budget, transport verdict repeats) the function returns the final
+  proposal's surviving operations** — `[]` when nothing survived, a valid operation set either way.
+  The applier accepts the survivors as a partial derivation, and the extraction runs end-to-end
+  without dropping on a model verdict the host cannot inspect mid-talk. The argument for salvaging
+  over a thrown error is a newcomer: handing them a working extraction either way is the goal the
+  wave locked. (ADR 0016 pinned `[]`-always; ADR 0024 amends it — the surviving subset is the same
+  "keep the pipeline open" property, held more often.)
+
+A host applying a model's proposal itself — or diffing, caching, or auditing one — has the same two
+surfaces at the applier level: `deriveExtractionShape` throws the first refusal, while its sibling
+`deriveExtractionShapePartially` returns `{ shape, refusals }`, the artifact from the surviving
+operations plus every refusal, classified `local` / `consequential` / `set` with the consequential
+culprit named. The two are the same code path; an empty refusal list is exactly the throwing
+surface's success.
 
 Two entry points are exposed for hosts that want different lifecycles:
 

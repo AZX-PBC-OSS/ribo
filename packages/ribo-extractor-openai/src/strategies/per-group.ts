@@ -74,7 +74,11 @@
  * groups yields one entry covering the whole schema ({@link splitExtractionSchema}'s
  * fallback, keyed `""`), so this extractor makes one call — exactly as today.
  * The second trust-boundary parse is a no-op in that case (the piece schema IS
- * the full schema), but harmless.
+ * the full schema), but harmless. A MIXED schema — groups beside loose
+ * top-level leaves — yields one entry per group plus the loose leaves keyed
+ * `""` (the unwrapped portion): the loose pieces flow this plan's existing
+ * `""` branch, so no plan code distinguishes them from the flat fallback's
+ * pieces (mixed-schema-split design §3, rows 8–9; ADR 0023).
  */
 
 import { z } from "zod";
@@ -192,7 +196,9 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
    * Counted in unions rather than enveloped leaves so the number means the same
    * thing whatever provenance granularity a group declared: an enveloped leaf
    * costs two, a plain `"row"`/`"none"` leaf costs one, and a row's `sourceSpan`
-   * costs one. A leaf count would split a 15-leaf row group for no gain.
+   * costs one. A leaf count would split a 15-leaf row group for no gain. For a
+   * MIXED schema the loose portion (the `""` pieces) packs against this cap
+   * too — no emitted piece exceeds a cap the caller supplied.
    */
   readonly maxNullableUnionsPerGroup?: number;
   /**
@@ -239,22 +245,33 @@ export function partitionedLeafKeys(group: ExtractionGroup): readonly string[] {
  * {@link projectTarget} for the group it is replacing, let alone the nineteen it
  * is not.
  */
+/** The named-key arm's target map: one target (or ordered piece list) per top-level key. */
+type NamedGroupTargets<V extends Record<string, unknown>, P> = {
+  readonly [K in keyof V & string]:
+    ExtractionTarget<Pick<V, K>, P> | readonly ExtractionTarget<Pick<V, K>, P>[];
+};
+
+/**
+ * The `""` arm's target (or ordered piece list): a flat schema whose top-level
+ * properties are leaf envelopes yields one entry (the whole target), or — when
+ * a byte cap partitions it — an ordered list, index-aligned with `parts`. The
+ * singular option is the historical non-grouped fallback; the array form is
+ * what `splitExtractionSchema` emits under a byte cap. Beside named keys — the
+ * mixed shape — the `""` slot carries the loose portion's piece target(s): the
+ * piece's own strict-object schema, the target's name and instructions, and
+ * the full (or, when partitioned, leaf-narrowed) examples. The widening
+ * matches `combinator`/`merge`/`override` behaviour and is what a host
+ * overriding the flat fallback sees — the same shape a per-group override
+ * sees for a partitioned grouped key.
+ */
+type UnwrappedGroupTargets<V extends Record<string, unknown>, P> = {
+  readonly "": ExtractionTarget<V, P> | readonly ExtractionTarget<V, P>[];
+};
+
 export type GroupTargets<V extends Record<string, unknown>, P = NoProvenance> =
-  | {
-      readonly [K in keyof V & string]:
-        ExtractionTarget<Pick<V, K>, P> | readonly ExtractionTarget<Pick<V, K>, P>[];
-    }
-  // The "" arm mirrors `GroupMap`'s: a flat schema whose top-level properties
-  // are leaf envelopes yields one entry (the whole target), or — when a byte
-  // cap partitions it — an ordered list, index-aligned with `parts`. The
-  // singular option is the historical non-grouped fallback; the array form is
-  // what `splitExtractionSchema` now emits under a byte cap. The widening
-  // matches `combinator`/`merge`/`override` behaviour and is what a host
-  // overriding the flat fallback sees — the same shape a per-group override
-  // sees for a partitioned grouped key.
-  | {
-      readonly "": ExtractionTarget<V, P> | readonly ExtractionTarget<V, P>[];
-    };
+  | NamedGroupTargets<V, P>
+  | UnwrappedGroupTargets<V, P>
+  | (Partial<NamedGroupTargets<V, P>> & UnwrappedGroupTargets<V, P>);
 
 /** What {@link perGroupPlan} returns — see {@link GroupMap} and {@link GroupTargets}. */
 export interface PerGroupPlan<V extends Record<string, unknown>, P = NoProvenance> {
@@ -557,10 +574,23 @@ export function overrideGroups<V extends Record<string, unknown>, P = NoProvenan
     const override = overrideRecord[key];
     if (override === undefined) continue;
     if (!(key in groupRecord)) {
-      if ("" in groupRecord) {
+      const namedKeys = Object.keys(groupRecord).filter((existing) => existing !== "");
+      if ("" in groupRecord && namedKeys.length === 0) {
         throw new Error(
           `overrideGroups: the plan's schema is not an object of groups, so there are ` +
             `no per-group entries to override (asked to override "${key}").`,
+        );
+      }
+      if ("" in groupRecord) {
+        // A MIXED plan: there ARE per-group entries, and the loose leaves ride
+        // the "" entry — which takes no override: the overrides object is
+        // keyed by `V`'s top-level keys and "" is not one (mixed-schema-split
+        // design, open question 4). Hand composition is the escape hatch.
+        throw new Error(
+          `overrideGroups: the plan has no group "${key}" — its groups are ` +
+            `${namedKeys.map((existing) => `"${existing}"`).join(", ")}, and its loose ` +
+            `leaves ride the "" entry, which takes no override. Compose the map by hand ` +
+            `to change loose handling.`,
         );
       }
       throw new Error(
