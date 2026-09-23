@@ -118,15 +118,24 @@ export interface ProposeOptions {
    */
   readonly maxTokens?: number;
   /**
-   * Number of repair attempts after the first proposal fails. Defaults to
-   * `1`, the smallest count that lets the proven retry pattern run: first
-   * turn, repair turn, accept. A repair is one full chat round-trip, which
-   * is one real, paid model call; the budget is what gates "we stop trying
-   * and accept whatever we got."
+   * Number of repair attempts after the first proposal fails. A repair is one
+   * full chat round-trip, which is one real, paid model call; the budget is
+   * what gates "we stop trying and accept whatever we got."
    *
    * At exhaustion the proposal returns `[]` — a valid operation set, just
    * an unshaped one. See ADR 0016 for the argued default; a caller who
    * would rather see an exception can wrap and check the operations array.
+   *
+   * **Default 3, raised from 1 on measured evidence.** ADR 0016 argued one
+   * repair against an eleven-leaf fixture. A live run against a 294-property
+   * vendor schema drew 91 operations, of which exactly ONE was invalid (a
+   * `retype` naming a leaf the same proposal dropped) — and because the
+   * applier is all-or-nothing, that one op cost all 91, including fourteen
+   * good nests. The repair turn did not find it, so the run exhausted to `[]`
+   * and produced nothing. A large proposal has as many chances to contain one
+   * bad operation as it has operations; one repair is a budget sized for the
+   * small case. Raising it does not change the all-or-nothing application,
+   * which is the deeper issue and a separate decision.
    */
   readonly maxRepairAttempts?: number;
   /**
@@ -186,6 +195,11 @@ const proposedOperationsSchema = z.object({
         group: z.string(),
         moves: z.array(z.object({ from: z.string(), to: z.string() })).min(1),
       }),
+      z.object({
+        op: z.literal("nest"),
+        group: z.string(),
+        moves: z.array(z.object({ from: z.string(), to: z.string() })).min(1),
+      }),
     ]),
   ),
 });
@@ -235,11 +249,12 @@ The supported operations, and their closed composition rule:
 - drop { path }: remove the leaf or whole subtree at this dotted object path. Use for fields a speaker virtually never states — audit/capture scoping, NOT to hide hard cases. The path is a dotted object path; instance-key brackets are not allowed.
 - retype { path, to: "number" }: model the leaf as a number instead of its declared kind. ONLY for leaves whose declared kind in the schema is "string" — the closed retype set is exactly string→number. Use for fields the vendor typed as form-input strings but mean a number (the model's \`Number(quote)\` is the only legal forward).
 - regroup { group, moves: { from: to } }: re-nest leaves within ONE top-level group (deepen, flatten, rename). The moves' sources and destinations are below the group, never at it. NEVER across a top-level boundary, NEVER passing through or landing on an array — one extraction value would have to fill every element.
+- nest { group, moves: { from: to } }: CREATE a new top-level group and move top-level fields into it — this is how you give a flat schema structure. Every source is a top-level field (never an existing group, never a collection, never a nested path); destinations are paths below the new group. The group name may be one of the top-level fields you are moving — naming a group after the field that anchors it (group "pool" holding "pool", "poolSize", "poolPumpType") is fine and encouraged. It may NOT be the name of a top-level key you leave in place, or of one you dropped.
 
 The operations are a SET, not a sequence. Composition rules the applier enforces and will refuse with the offending path named:
-- a duplicate drop / retype on the same path / regroup on the same group is refused, not silently overwritten;
-- retype and regroup compose on the same leaf (retype the kind, move the position — orthogonal);
-- one regroup's move destinations are pairwise distinct, no two destinations prefix one another, and no destination lies under a dropped path;
+- a duplicate drop / retype on the same path / regroup or nest on the same group is refused, not silently overwritten, and a top-level field may be moved by at most one nest;
+- retype and a move (regroup or nest) compose on the same leaf (retype the kind, move the position — orthogonal);
+- one regroup's or nest's move destinations are pairwise distinct, no two destinations prefix one another, and no regroup destination lies under a dropped path;
 - a retype names a patch LEAF whose declared kind is "string";
 - a move's source and destination are inside the group's element for a collection group, never passing through or landing on the array;
 - a drop that empties the parent object is refused — drop the parent instead.
@@ -445,6 +460,7 @@ const runAttempt = async (
     const operations: ShapeOperation[] = parsed.operations.map((op) => {
       if (op.op === "regroup")
         return { op: "regroup", group: op.group, moves: movesToRecord(op.moves) };
+      if (op.op === "nest") return { op: "nest", group: op.group, moves: movesToRecord(op.moves) };
       return op;
     });
     deriveExtractionShape(schema, { operations });
@@ -484,7 +500,7 @@ const repairFeedback = (
     return (
       `Your previous response did not match the response schema: ${refusal}. Return ` +
       "a JSON object with one `operations` array of valid operation objects whose discriminators " +
-      'are "drop", "retype", or "regroup". No prose outside the object.'
+      'are "drop", "retype", "regroup", or "nest". No prose outside the object.'
     );
   }
   // `failure === "shape"` — the response parsed, but the operations would
@@ -564,7 +580,7 @@ export async function proposeShapeOperations(
   }
   if (result.ok) return result.operations;
 
-  const maxRepairAttempts = options.maxRepairAttempts ?? 1;
+  const maxRepairAttempts = options.maxRepairAttempts ?? 3;
   for (let attempt = 0; attempt < maxRepairAttempts; attempt++) {
     // Show the model its previous assistant turn and the validation outcome,
     // when there is a previous output worth showing. A transport verdict

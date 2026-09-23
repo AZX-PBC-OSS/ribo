@@ -45,7 +45,9 @@ export interface DerivedExtractionShape {
   /**
    * The per-top-level-key provenance granularity the derivation chose — the
    * same map `buildReviewRequest` takes in its options, keyed by the top-level
-   * keys both spaces share.
+   * keys both spaces share. A nest group, which exists only in the extraction
+   * schema, is never one of them: the derivation refuses a granularity naming
+   * one.
    */
   readonly provenance: Readonly<Record<string, ProvenanceGranularity>>;
   /**

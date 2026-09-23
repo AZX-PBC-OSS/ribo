@@ -7,18 +7,34 @@
  * hand, made minimal and explicit: **drop** (the pilot's scoping — fields no
  * dictation ever fills), **retype** (the pilot's KNOWN DIVERGENCES — numeric
  * fields the vendor types as form-input strings, modelled as what they mean),
- * and **regroup within a top-level key** (re-nesting leaves for extraction).
- * Beside the three value-space operations, the artifact carries the four
- * declarations review and write need — required-on-create, identifying fields,
- * provenance granularity and the leaves' own descriptions — validated against
- * the derived patch rather than trusted.
+ * **regroup within a top-level key** (re-nesting leaves for extraction), and
+ * **nest** (create a NEW top-level group and move top-level leaves into it —
+ * the move a flat schema needs; spike 0009's model reached for exactly this
+ * operation and the vocabulary could not express it). Beside the four
+ * value-space operations, the artifact carries the four declarations review
+ * and write need — required-on-create, identifying fields, provenance
+ * granularity and the leaves' own descriptions — validated against the
+ * derived patch rather than trusted.
  *
- * **`group()` may not cross a top-level boundary.** A row-provenance derived
- * group has one span with no data-determined place to land across two original
- * groups; `validateProvenance` and `statedEmptyGroups` are both keyed by the
- * top-level group. Regrouping *within* a top-level key is the supported move,
- * and the mapping's construction-time check refuses an entry whose source
- * names a different top-level key.
+ * **Regrouping may not cross a top-level boundary; `nest` is the one way a
+ * leaf reaches a different one.** A row-provenance derived group has one span
+ * with no data-determined place to land across two original groups;
+ * `validateProvenance` and `statedEmptyGroups` are both keyed by the top-level
+ * group — so `regroup` stays within its top-level key. A nest move is legal
+ * across the boundary precisely because the leaf it moves has no group and no
+ * span on the patch side: a top-level leaf is never `"row"`-provenanced
+ * (`validateProvenance` refuses that outright — a leaf has no object to hang
+ * the row's sourceSpan on), so nothing is stranded. The mapping's
+ * construction-time check refuses any cross-top pairing that is not exactly
+ * this case.
+ *
+ * A nest source is a top-level LEAF — never a group, never a collection,
+ * never a nested leaf. Nesting a whole group is a different operation with a
+ * real provenance problem behind it (its `"row"` span would have no place to
+ * land under the new top-level key), not an incidental restriction. A leaf is
+ * never a `ZodArray`, so a nest group is always a plain object of plain
+ * leaves — and only a collection group can ever be stated-empty, so the
+ * `statedEmptyGroups` passthrough in `reshaped-extractor.ts` stays sound.
  *
  * **No `markCollection`.** Collection-ness is structural — a `ZodArray` of
  * objects is a collection to `enveloped()`, to the split and to review, none of
@@ -32,13 +48,27 @@
  *
  *   - `drop` composes with nothing — a dropped path is gone, and a `retype` or
  *     a move naming it is refused as not-found;
- *   - at most one `retype` per path and at most one `regroup` per group — a
- *     duplicate is refused, not silently overwritten;
+ *   - at most one `retype` per path, one `regroup` per group, and one `nest`
+ *     per group — a duplicate is refused, not silently overwritten — and a
+ *     given source is moved by at most one `nest`;
  *   - `retype` and a move compose on the same leaf (retype the kind, move the
  *     position — orthogonal dimensions);
- *   - the destinations of one regroup's moves are pairwise distinct, no two
- *     destinations may prefix one another, and no destination may lie under a
- *     dropped path — so insert order cannot change the result.
+ *   - the destinations of one regroup's or nest's moves are pairwise distinct
+ *     and no two destinations may prefix one another — so insert order cannot
+ *     change the result — and a regroup destination may not lie under a
+ *     dropped path. The dropped-path rule has no nest analogue: nest
+ *     destinations live under a brand-new synthetic group, so nothing dropped
+ *     can be under them;
+ *   - a nest `group` may not shadow a top-level key that SURVIVES to the
+ *     extraction schema — that would be two things at one path — nor reuse a
+ *     DROPPED one, since a name the caller deliberately removed reappearing as
+ *     a synthetic group is confusing at review, the same ground regroup's
+ *     no-resurrection rule stands on. It MAY take a name some nest move frees,
+ *     including one of its own: a group named after the leaf that anchors it
+ *     (`pool` holding `pool`, `poolSize`, …) is the naming a model reaches for,
+ *     and regroup already allows a destination to take a name its own source
+ *     frees. The applier detaches every nest source before creating any nest
+ *     group, so this stays order-independent and the set stays a set.
  *
  *     The "pairwise distinct" rule is its own check, not the prefix rule: equal
  *     destinations are reported as a same-destination collision, not as "one
@@ -83,5 +113,17 @@ export type ShapeOperation =
       /** The top-level group key the moves live under. */
       readonly group: string;
       /** Group-relative source path → group-relative destination path. */
+      readonly moves: Readonly<Record<string, string>>;
+    } /** Create a NEW top-level group and move top-level leaves into it —
+   * `regroup`'s counterpart for a flat schema. The patch is untouched: the
+   * group exists only in the extraction schema, where it gives the split and
+   * the prompt assembly a semantic unit. Each key of `moves` is a top-level
+   * patch LEAF key (never a group, a collection, or a nested path), moved to
+   * the destination it names — a path relative to the new group. */
+  | {
+      readonly op: "nest";
+      /** The name of the new top-level key the operation creates. */
+      readonly group: string;
+      /** Top-level patch leaf key → destination path relative to the new group. */
       readonly moves: Readonly<Record<string, string>>;
     };

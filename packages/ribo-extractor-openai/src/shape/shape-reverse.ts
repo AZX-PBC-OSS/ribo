@@ -55,9 +55,9 @@ const readRowSpan = (node: unknown): string | null => {
 
 /** One mapping entry, pre-split into the segments reversal walks. */
 interface IndexedLeaf {
-  /** Extraction-path segments below the top-level key; empty for a top-level leaf. */
+  /** Extraction-path segments below the EXTRACTION top-level key; empty for a top-level leaf. */
   readonly rest: readonly string[];
-  /** Patch-path segments below the top-level key — where the value is written. */
+  /** Patch-path segments below the PATCH top-level key — where the value is written. */
   readonly sourceRest: readonly string[];
   readonly retype?: Retype;
 }
@@ -116,10 +116,12 @@ interface PatchWrite {
  * arrays distributing per element — and record its reversed value at the patch
  * path the same walk builds.
  *
- * `patchPrefix` carries the absolute patch path built so far; crossing an array
- * appends the array's patch key AND the element index, and — under `"row"`
- * provenance — records the element's citation, plus an empty-array seed so a
- * collection the model emptied still exists in the output.
+ * `patchPrefix` carries the absolute patch path built so far, rooted at the
+ * SOURCE's top-level key (which a nest can place under a different top-level
+ * key than the extraction path's); crossing an array appends the array's patch
+ * key AND the element index, and — under `"row"` provenance — records the
+ * element's citation, plus an empty-array seed so a collection the model
+ * emptied still exists in the output.
  */
 const collectWrites = (
   node: unknown,
@@ -290,7 +292,13 @@ export const reverseShapedFields = (
   const writes: PatchWrite[] = [];
   for (const [path, entry] of Object.entries(mapping.leaves)) {
     const segments = path.split(".");
+    // The two tops can differ — a nest entry's extraction path lives under a
+    // synthetic group while its source is a top-level patch leaf. The
+    // granularity lookup stays on the EXTRACTION top (provenance describes the
+    // shape of the model's output, which is what reversal reads); every
+    // patch-side write roots at the SOURCE's top-level key.
     const top = segments[0]!;
+    const sourceTop = entry.source.split(".")[0]!;
     const rest = segments.slice(1);
     const granularity = mapping.provenance[top] ?? "leaf";
     const indexed: IndexedLeaf = {
@@ -310,11 +318,11 @@ export const reverseShapedFields = (
     if (Array.isArray(groupData)) {
       // A collection group: the seed first, then each element is a row of its
       // own — its citation travels — and the entries walk per element.
-      writes.push({ segments: [top], value: [] });
+      writes.push({ segments: [sourceTop], value: [] });
       groupData.forEach((element, index) => {
         if (granularity === "row") {
           writes.push({
-            segments: [top, index, ROW_SOURCE_SPAN_KEY],
+            segments: [sourceTop, index, ROW_SOURCE_SPAN_KEY],
             value: readRowSpan(element),
           });
         }
@@ -324,7 +332,7 @@ export const reverseShapedFields = (
           indexed.sourceRest,
           indexed,
           granularity,
-          [top, index],
+          [sourceTop, index],
           writes,
           `${top}[${index}]`,
         );
@@ -334,11 +342,20 @@ export const reverseShapedFields = (
     if (granularity === "row") {
       // The singleton group object is itself a row — its citation travels.
       writes.push({
-        segments: [top, ROW_SOURCE_SPAN_KEY],
+        segments: [sourceTop, ROW_SOURCE_SPAN_KEY],
         value: readRowSpan(groupData),
       });
     }
-    collectWrites(groupData, rest, indexed.sourceRest, indexed, granularity, [top], writes, top);
+    collectWrites(
+      groupData,
+      rest,
+      indexed.sourceRest,
+      indexed,
+      granularity,
+      [sourceTop],
+      writes,
+      top,
+    );
   }
 
   const out: Record<string, unknown> = {};

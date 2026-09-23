@@ -8,7 +8,9 @@ import { reshapedExtractor } from "./reshaped-extractor.js";
 import type { EnvelopedSchemaExtractorOptions } from "../strategies/schema-extractor.js";
 import { assertShapeMapping } from "./shape-mapping.js";
 import type { ShapeMapping } from "./shape-mapping.js";
+import { reverseShapedFields } from "./shape-reverse.js";
 import type { DerivedExtractionShape } from "./derived-shape.js";
+import { deriveExtractionShape } from "./shape-operations.js";
 import { buildReviewRequest } from "@azx/ribo-core";
 
 /**
@@ -311,6 +313,103 @@ test("a mapping that crosses a top-level boundary is refused", () => {
   ).toThrow(/may not cross a top-level boundary/);
 });
 
+test("a cross-top entry is allowed in the nest case: a top-level leaf under a new synthetic group", () => {
+  // The exact shape the derivation emits for a `nest` operation, written by
+  // hand so the relaxation is pinned at the mapping layer itself: a top-level
+  // patch leaf moved under a NEW top-level group in the extraction schema.
+  // Both tops are "leaf"-granular and the extraction top names no patch key.
+  const leaf = z.string().nullable().optional();
+  const patchSchema = z.object({ yearBuilt: leaf });
+  const extractionSchema = enveloped(z.object({ construction: z.object({ yearBuilt: leaf }) }));
+  const nested: ShapeMapping = {
+    leaves: { "construction.yearBuilt": { source: "yearBuilt" } },
+    provenance: {},
+  };
+  expect(() => assertShapeMapping(nested, extractionSchema, patchSchema)).not.toThrow();
+});
+
+test("a cross-top entry under a row-provenanced extraction group is refused", () => {
+  // Clause 2, extraction side: the extraction top is not "leaf"-granular, so
+  // reversal would write this leaf's bare value where the patch expects an
+  // envelope. The extraction schema is a REAL row group here — plain leaves,
+  // row span — so nothing but the boundary check can fire.
+  const leaf = z.string().nullable().optional();
+  const patchSchema = z.object({ yearBuilt: leaf });
+  const extractionSchema = enveloped(z.object({ construction: z.object({ yearBuilt: leaf }) }), {
+    provenance: { construction: "row" },
+  });
+  const crossed: ShapeMapping = {
+    leaves: { "construction.yearBuilt": { source: "yearBuilt" } },
+    provenance: { construction: "row" },
+  };
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
+    /may not cross a top-level boundary/,
+  );
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
+    /"construction" is "row"-provenanced/,
+  );
+});
+
+test("a cross-top entry whose source's own top-level key is none-provenanced is refused", () => {
+  // Clause 2, source side — the hole a hand-written mapping opens:
+  // `validateProvenance` refuses only "row" on a leaf, never "none", so this
+  // is legal input. Reversal reads the granularity from the EXTRACTION top
+  // ("leaf"), writes an envelope at `yearBuilt`, and the combinator's output
+  // schema — `enveloped(patch, { yearBuilt: "none" })` — wants a plain
+  // nullable: every extract would throw a retryable SchemaParseError.
+  const leaf = z.string().nullable().optional();
+  const patchSchema = z.object({ yearBuilt: leaf });
+  const extractionSchema = enveloped(z.object({ construction: z.object({ yearBuilt: leaf }) }));
+  const crossed: ShapeMapping = {
+    leaves: { "construction.yearBuilt": { source: "yearBuilt" } },
+    provenance: { yearBuilt: "none" },
+  };
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
+    /may not cross a top-level boundary/,
+  );
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).toThrow(
+    /"yearBuilt" is "none"-provenanced/,
+  );
+});
+
+test("a cross-top entry whose extraction top is ALSO a patch key is accepted — a group named after its anchor leaf", () => {
+  // The retired third conjunct. An earlier draft required the extraction top
+  // to be absent from the patch, so that "this is the nest case" would be
+  // literally true. A live proposer run retired it: the model names a group
+  // after the leaf that anchors it — `pool` holding `pool`, `poolSize`,
+  // `poolPumpType` — so `pool` is a group of the extraction schema AND a leaf
+  // of the patch at the same time, and that is the natural shape, not an
+  // error. Both remaining conjuncts hold and the entry reverses correctly.
+  const leaf = z.string().nullable().optional();
+  const patchSchema = z.object({ pool: leaf, poolSize: leaf });
+  const extractionSchema = enveloped(z.object({ pool: z.object({ present: leaf, size: leaf }) }));
+  const crossed: ShapeMapping = {
+    leaves: {
+      // Same-top: the anchor leaf under the group that took its name.
+      "pool.present": { source: "pool" },
+      // Cross-top: extraction top `pool` IS a patch key. Legal now.
+      "pool.size": { source: "poolSize" },
+    },
+    provenance: {},
+  };
+  expect(() => assertShapeMapping(crossed, extractionSchema, patchSchema)).not.toThrow();
+
+  // And it reverses to the flat patch paths, envelopes intact.
+  const reversed = reverseShapedFields(
+    {
+      pool: {
+        present: { value: "yes", confidence: 0.9, sourceSpan: "there's a pool" },
+        size: { value: "20000", confidence: 0.8, sourceSpan: "twenty thousand gallons" },
+      },
+    },
+    crossed,
+  );
+  expect(reversed).toEqual({
+    pool: { value: "yes", confidence: 0.9, sourceSpan: "there's a pool" },
+    poolSize: { value: "20000", confidence: 0.8, sourceSpan: "twenty thousand gallons" },
+  });
+});
+
 test("a row-granularity group reverses through the combinator: plain leaves, the row's citation", async () => {
   // A row-granularity derived shape. The passthrough is TYPED for leaf
   // granularity — `EnvelopedSchemaExtractorOptions` fixes `Enveloped<V,
@@ -389,4 +488,68 @@ test("a row-granularity group reverses through the combinator: plain leaves, the
   );
   expect(request.fields["rooms[k1].name"]!.extracted.sourceSpan).toBe("L1.Bathrm | 47 | 1521");
   expect(request.fields["rooms[k1].heatingLoad"]!.isGrounded).toBe(true);
+});
+
+test("end to end through a nest: the model answers the grouped schema, review sees the flat patch", async () => {
+  // The payoff, both halves of it. Extraction side: the derived schema carries
+  // the new group, so the split and the prompt assembly see `construction` as
+  // a subject. Patch side: review walks the derived patch, which a nest leaves
+  // byte-identical — the moved leaf renders at its FLAT patch path, and no
+  // attic card exists.
+  const flatSchema = z.object({
+    yearBuilt: z.string().describe("Year the home was constructed.").nullable().optional(),
+    heatingType: z.enum(["gas", "oil", "electric"]).nullable().optional(),
+  });
+  const nestedShape = deriveExtractionShape(flatSchema, {
+    operations: [{ op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } }],
+  });
+
+  const nestedResponse = (): Record<string, unknown> => ({
+    construction: {
+      yearBuilt: { value: "1972", confidence: 0.9, sourceSpan: "built in seventy-two" },
+    },
+    heatingType: { value: "gas", confidence: 0.95, sourceSpan: "gas heat" },
+  });
+  const { chat, requests } = fakeChat(nestedResponse);
+  type PassthroughSchema = EnvelopedSchemaExtractorOptions<
+    Record<string, unknown>
+  >["extractionSchema"];
+  const inner = schemaExtractor({
+    // The same inference-vs-assignability assertion the row-group test above
+    // makes: the runtime path uses the schema as-is.
+    extractionSchema: nestedShape.extractionSchema as PassthroughSchema,
+    name: "flat-nest",
+    instructions: "Extract the home fields.",
+    chat,
+    model: "m",
+  });
+  const extractor = reshapedExtractor(inner, nestedShape);
+  const text = "The home was built in seventy-two, with gas heat.";
+  const { fields } = await extractor.extract({ text, annotations: {} });
+
+  // The wire carried the GROUPED schema — the nest group is what the model was
+  // asked about.
+  const wireSchema = requests[0]!.response_format.json_schema.schema as {
+    properties: Record<string, unknown>;
+  };
+  expect(Object.keys(wireSchema.properties).sort()).toEqual(["construction", "heatingType"]);
+
+  // Reversal landed the moved leaf at its original top-level patch path, with
+  // the whole envelope intact.
+  expect(fields.yearBuilt).toEqual({
+    value: "1972",
+    confidence: 0.9,
+    sourceSpan: "built in seventy-two",
+  });
+  expect(fields).not.toHaveProperty("construction");
+
+  // Review renders the moved leaf at its FLAT patch path — a nest buys nothing
+  // review-side, and this pins that honestly.
+  const request = buildReviewRequest(
+    fields,
+    { recordingId: "rec-1", text, engine: "fake" },
+    nestedShape.patchSchema,
+  );
+  expect(Object.keys(request.fields).sort()).toEqual(["heatingType", "yearBuilt"]);
+  expect(request.fields.yearBuilt!.isGrounded).toBe(true);
 });

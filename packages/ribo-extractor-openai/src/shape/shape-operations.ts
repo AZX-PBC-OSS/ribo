@@ -13,7 +13,7 @@
 
 import { z } from "zod";
 
-import { enveloped, parseFieldPath, stripOptionalNullable } from "@azx/ribo-core";
+import { enveloped, childPath, parseFieldPath, stripOptionalNullable } from "@azx/ribo-core";
 import type { ProvenanceGranularity } from "@azx/ribo-core";
 
 import type { DerivedExtractionShape } from "./derived-shape.js";
@@ -114,6 +114,10 @@ export function deriveExtractionShape(
   const drops = new Map<string, string[]>();
   const retypes = new Map<string, "number">();
   const regroups = new Map<string, Map<string, string>>();
+  const nests = new Map<string, Map<string, string>>();
+  // Inverted index of every nest's moves, for the mapping derivation — and
+  // for refusing a source two nests both claim.
+  const nestBySource = new Map<string, { group: string; destination: string }>();
   for (const operation of operations) {
     if (operation.op === "drop") {
       if (drops.has(operation.path)) {
@@ -133,6 +137,35 @@ export function deriveExtractionShape(
         );
       }
       retypes.set(operation.path, operation.to);
+    } else if (operation.op === "nest") {
+      if (nests.has(operation.group)) {
+        throw new Error(
+          `deriveExtractionShape(): nest names group "${operation.group}" twice — ` +
+            "merge the moves into one operation.",
+        );
+      }
+      const moves = new Map(Object.entries(operation.moves));
+      if (moves.size === 0) {
+        // A regroup with no moves is a no-op; a nest cannot be — it CREATES
+        // its group, so an empty move set would leave the refusal to
+        // `refuseEmptyObjects`, which names the wrong thing.
+        throw new Error(
+          `deriveExtractionShape(): nest names group "${operation.group}" with an empty ` +
+            "moves record — a nest creates its target, so name at least one top-level " +
+            "leaf to move into it.",
+        );
+      }
+      nests.set(operation.group, moves);
+      for (const [from, destination] of moves) {
+        const claimed = nestBySource.get(from);
+        if (claimed !== undefined) {
+          throw new Error(
+            `deriveExtractionShape(): nests "${claimed.group}" and "${operation.group}" both ` +
+              `move "${from}" — a source may be moved by at most one nest.`,
+          );
+        }
+        nestBySource.set(from, { group: operation.group, destination });
+      }
     } else {
       if (regroups.has(operation.group)) {
         throw new Error(
@@ -168,7 +201,8 @@ export function deriveExtractionShape(
     if (resolved === undefined || node === undefined || node.kind !== "leaf") {
       throw new Error(
         `deriveExtractionShape(): retype names "${path}", which is not a leaf of the schema ` +
-          "(it may name a dropped path, a group, or nothing at all).",
+          "(it may name a dropped path, a group, a leaf a nest will create — retype names " +
+          "PATCH paths, which a nest never renames — or nothing at all).",
       );
     }
     const inner = stripOptionalNullable(node.leaf);
@@ -189,6 +223,10 @@ export function deriveExtractionShape(
   for (const [group, moves] of regroups) {
     applyRegroup(shapedTree, drops, group, moves);
   }
+  // Nests apply after the regroups. A nest source is a top-level leaf, which
+  // no regroup can produce or consume, so the two operations' domains are
+  // disjoint and the order is immaterial.
+  applyNests(shapedTree, drops, nests, nestBySource);
 
   // 5 — Refuse any object either tree emptied.
   refuseEmptyObjects(patchTree, "");
@@ -199,28 +237,50 @@ export function deriveExtractionShape(
   const patchSchema = treeToZod(patchTree);
   const shapedSchema = treeToZod(shapedTree);
 
-  // The provenance names top-level groups of the SHAPED schema — the same keys
-  // the patch has, since nothing crosses a top-level boundary. `enveloped()`
-  // re-validates with its own message; this one names the derivation.
+  // The provenance names top-level groups of the SHAPED schema — and every key
+  // must ALSO be a top-level key of the patch, because `mapping.provenance` is
+  // applied to both schemas (here, and at the combinator's construction over
+  // the patch). A nest group exists in the extraction schema only, so a
+  // granularity naming one is refused: without this, "row"/"none" would fail
+  // late and mis-blamed at the post-condition (a boundary message that never
+  // mentions the nest), and an explicit "leaf" would fail a layer away from
+  // the author, inside `enveloped(patchSchema, …)` at the combinator's
+  // construction. The refusal buys an earlier failure with the right blame.
   const shapeKeys = Object.keys(shapedSchema.shape);
   for (const key of Object.keys(provenance)) {
+    if (nests.has(key)) {
+      throw new Error(
+        `deriveExtractionShape(): provenance names group "${key}", which a nest creates — ` +
+          "the group exists in the extraction schema only, while `mapping.provenance` is " +
+          'applied to both schemas. A nest group is "leaf"-granular, always.',
+      );
+    }
     if (!shapeKeys.includes(key)) {
       throw new Error(
         `deriveExtractionShape(): provenance names group "${key}", which is not a top-level ` +
           `property of the shaped schema (its groups are: ${shapeKeys.join(", ")}) — the ` +
-          "group may have been dropped.",
+          "group may have been dropped, or moved into a nest group.",
       );
     }
   }
   const extractionSchema = enveloped(shapedSchema, { provenance });
 
   // 7 — Derive the mapping: every surviving patch leaf, moved through its
-  // group's regroup and carrying its retype, keyed by where it lands in the
-  // extraction space.
+  // group's regroup or the nest that claims it and carrying its retype, keyed
+  // by where it lands in the extraction space. A nested leaf — a top-level
+  // patch leaf by construction — keys its entry at `<nest group>.<destination>`.
   const patchLeaves: string[] = [];
   collectLeafPaths(patchTree, "", patchLeaves);
   const leaves: Record<string, { source: string; retype?: Retype }> = {};
   for (const patchPath of patchLeaves) {
+    const nested = nestBySource.get(patchPath);
+    if (nested !== undefined) {
+      leaves[`${nested.group}.${nested.destination}`] = {
+        source: patchPath,
+        ...(retypes.has(patchPath) ? { retype: { extraction: "number", patch: "string" } } : {}),
+      };
+      continue;
+    }
     const segments = patchPath.split(".");
     const top = segments[0]!;
     const moves = regroups.get(top);
@@ -311,7 +371,8 @@ function applyRegroup(
   if (groupNode === undefined) {
     throw new Error(
       `deriveExtractionShape(): regroup names group "${group}", which is not a top-level ` +
-        "property of the schema (it may name a dropped group).",
+        "property of the schema — it may name a dropped group, or a group a nest creates " +
+        "(regroups apply before nests, so a nest group does not exist yet).",
     );
   }
   if (groupNode.kind === "leaf") {
@@ -432,6 +493,174 @@ function applyRegroup(
     }
     insertAt(element, destination.segments, moved);
   }
+}
+
+/**
+ * Apply EVERY nest, in three passes over the whole set: validate, then detach
+ * every source from the root, then create every group and insert.
+ *
+ * One pass per nest would make the result depend on iteration order, because a
+ * nest group may take a name that a nest move frees: whether that name is still
+ * occupied when a given nest runs would decide between success and a collision.
+ * The operations are a SET, so the applier owns the ordering and no caller can
+ * observe it.
+ *
+ * A group may take a freed name because `regroup` already works that way — its
+ * destinations are validated after its sources are removed, "so a destination
+ * that frees a name by the removal is legal". A live proposer run made the case
+ * concrete: asked to shape a flat vendor schema, the model named each group
+ * after the leaf that anchors it (`pool`, holding `pool`, `poolSize`,
+ * `poolPumpType` …). That is the natural naming, and it was the only one of
+ * fourteen proposed nests the applier refused.
+ *
+ * The moved nodes are detached from the shaped tree's ROOT and re-hung under a
+ * brand-new object; the patch tree is never touched — a nest exists only in the
+ * extraction space.
+ */
+function applyNests(
+  shapedTree: ObjectNode,
+  drops: ReadonlyMap<string, string[]>,
+  nests: ReadonlyMap<string, ReadonlyMap<string, string>>,
+  nestBySource: ReadonlyMap<string, { group: string; destination: string }>,
+): void {
+  const plans: { group: string; from: string; segments: string[] }[] = [];
+  for (const [group, moves] of nests) {
+    plans.push(...planOneNest(shapedTree, drops, nestBySource, group, moves));
+  }
+  // Every source is detached before any group is created, so a group named
+  // after a leaf some nest moves away finds its name free whatever the order.
+  const removed = new Map<string, ShapeNode>();
+  for (const plan of plans) {
+    removed.set(plan.from, removeSubtree(shapedTree, [plan.from]));
+  }
+  for (const plan of plans) {
+    const moved = removed.get(plan.from);
+    if (moved === undefined) {
+      throw new Error(
+        "deriveExtractionShape(): internal — a validated move source was not detached.",
+      );
+    }
+    insertAt(shapedTree, [plan.group, ...plan.segments], moved);
+  }
+}
+
+/** Validate one nest and return its moves as insert plans. Writes nothing. */
+function planOneNest(
+  shapedTree: ObjectNode,
+  drops: ReadonlyMap<string, string[]>,
+  nestBySource: ReadonlyMap<string, { group: string; destination: string }>,
+  group: string,
+  moves: ReadonlyMap<string, string>,
+): { group: string; from: string; segments: string[] }[] {
+  // The group name becomes a top-level object key, under the same rules
+  // `childPath` enforces on every path the review layer addresses. Checked
+  // here, attributed to the nest: left to `enveloped()`, the same bad name
+  // would throw from inside the envelope walk with the operation invisible.
+  try {
+    childPath("", group);
+  } catch (cause) {
+    throw new Error(
+      `deriveExtractionShape(): nest names group "${group}", which is not a usable ` +
+        `top-level object key — ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+  }
+  // A nest group may take a top-level name that SOME nest moves away — its own
+  // (`pool` holding `pool`, `poolSize`, …) or another's. What it may not do is
+  // shadow a key that survives to the extraction schema, which would be two
+  // things at one path. Asked of `nestBySource` rather than of the tree, so the
+  // answer does not depend on how many nests have run yet.
+  if (shapedTree.children.has(group) && !nestBySource.has(group)) {
+    throw new Error(
+      `deriveExtractionShape(): nest names group "${group}", which is already a top-level ` +
+        "key of the schema and stays one — a nest may reuse a name only when some nest " +
+        "moves that leaf away, freeing it.",
+    );
+  }
+  for (const [droppedPath, droppedSegments] of drops) {
+    if (droppedSegments.length === 1 && droppedPath === group) {
+      throw new Error(
+        `deriveExtractionShape(): nest names group "${group}", which a drop removed — a ` +
+          "name the caller deliberately removed reappearing as a synthetic group is " +
+          "confusing at review. Pick a new name.",
+      );
+    }
+  }
+
+  const sources = [...moves.keys()].map((from) => ({
+    from,
+    segments: opSegments(from, "nest source"),
+  }));
+  const destinations = [...moves.entries()].map(([from, to]) => ({
+    from,
+    to,
+    // The empty destination gets its own refusal below, naming the nest —
+    // `opSegments("")` would blame brackets, which is not what is wrong.
+    segments: to === "" ? [] : opSegments(to, "nest destination"),
+  }));
+
+  for (const source of sources) {
+    if (source.segments.length !== 1) {
+      throw new Error(
+        `deriveExtractionShape(): nest on "${group}" moves "${source.from}" — a nest source ` +
+          "is one segment naming a top-level leaf of the schema; a nested path is regroup's " +
+          "domain, not nest's.",
+      );
+    }
+    const node = shapedTree.children.get(source.from);
+    if (node === undefined) {
+      throw new Error(
+        `deriveExtractionShape(): nest on "${group}" moves "${source.from}", which is not a ` +
+          "top-level leaf of the schema (it may name a dropped path, or nothing at all).",
+      );
+    }
+    if (node.kind !== "leaf") {
+      throw new Error(
+        `deriveExtractionShape(): nest on "${group}" moves "${source.from}", which is a ` +
+          `${node.kind === "array" ? "collection" : "group"}, not a top-level leaf — a nest ` +
+          'moves leaves; nesting a whole group is a different operation (its "row" span ' +
+          "would have nowhere to land under the new top-level key).",
+      );
+    }
+  }
+
+  for (const destination of destinations) {
+    if (destination.to === "") {
+      throw new Error(
+        `deriveExtractionShape(): nest on "${group}" moves "${destination.from}" to an empty ` +
+          "destination — the destination is the leaf's path below the new group.",
+      );
+    }
+  }
+  for (const a of destinations) {
+    for (const b of destinations) {
+      if (a.from === b.from) continue;
+      if (
+        a.segments.length === b.segments.length &&
+        a.segments.every((segment, i) => segment === b.segments[i])
+      ) {
+        throw new Error(
+          `deriveExtractionShape(): nest on "${group}" moves "${a.from}" and "${b.from}" ` +
+            "to the same destination — one move's source would overwrite the other's, " +
+            "and there is no insert order that keeps both.",
+        );
+      }
+      if (isPrefixOf(a.segments, b.segments)) {
+        throw new Error(
+          `deriveExtractionShape(): nest on "${group}" moves "${a.from}" and "${b.from}" ` +
+            "to destinations, one under the other — the insert order would decide the shape.",
+        );
+      }
+    }
+  }
+
+  // Nothing here can collide: the group's interior starts empty and the
+  // destinations were just pairwise validated. The caller detaches and inserts.
+  return destinations.map((destination) => ({
+    group,
+    from: destination.from,
+    segments: destination.segments,
+  }));
 }
 
 /** Remove and return the subtree at `segments` from its container. */

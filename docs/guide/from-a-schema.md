@@ -225,10 +225,19 @@ const extractor = schemaExtractor({
 
 The model sees the schema's leaves and kinds — paths, the closed set of leaf kinds (string, number,
 boolean, enum, literal), each leaf's `.describe` text verbatim — and proposes a list of `drop`,
-`retype string→number`, or `regroup` operations within one top-level group. The cap is **not** in
-the prompt — proposing as many or as few operations as warranted is the model's call; the schema
-packing is `schemaExtractor`'s downstream concern. The wave's ADR (0016) records the cap-policy
-argument.
+`retype string→number`, `regroup` (re-nest leaves within one top-level group), or `nest` (create a
+new top-level group and move top-level leaves into it — how a flat schema gains structure)
+operations. The cap is **not** in the prompt — proposing as many or as few operations as warranted
+is the model's call; the schema packing is `schemaExtractor`'s downstream concern. The wave's ADR
+(0016) records the cap-policy argument.
+
+A `nest` buys extraction-side structure only: the extraction schema carries the new group as a
+subject rather than as loose fields. It also becomes its own `splitExtractionSchema` entry — its
+own call and prompt assembly — but only if the nests cover **every** top-level key; one unmoved
+top-level leaf collapses the whole schema to the flat fallback, nest groups included. The derived
+patch is unchanged by a nest, so review still renders the moved leaves at their flat paths, and
+`requiredOnCreate`, `identifyingFields` and provenance cannot be declared on the new group. ADR
+0022 records the decision and its limits.
 
 How it lands on a working extraction at every failure mode:
 

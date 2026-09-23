@@ -18,6 +18,8 @@ import type { ProvenanceGranularity } from "@azx/ribo-core";
  * provenance granularities: two drops (one crossing a collection), two retypes
  * (one inside a `"row"` group), a regroup that deepens, renames and re-hangs,
  * and a nested array inside a row group, whose elements are rows of their own.
+ * A second, FLAT fixture carries the nest: top-level leaves are the only thing
+ * a nest may move, and the survey has none.
  *
  * The two properties, and the division of labour between them:
  *
@@ -100,6 +102,42 @@ const outputSchema = enveloped(shape.patchSchema, {
   provenance: shape.mapping.provenance,
 });
 
+/**
+ * The second fixture: a FLAT schema — top-level leaves, the only thing a nest
+ * may move. Separate from `surveySchema` (whose three top-level keys are an
+ * object, an array and an object — no top-level leaf, so nothing a nest can
+ * legally move) rather than an edit to it: every existing assertion in this
+ * file walks that fixture, and perturbing it would churn the pinned property
+ * for no reason.
+ */
+const flatSchema = z.object({
+  yearBuilt: z.string().describe("Year the home was constructed.").nullable().optional(),
+  squareMeters: z.number().nullable().optional(),
+  heatingType: z.enum(["gas", "oil", "electric"]).nullable().optional(),
+  hasGarage: z.boolean().nullable().optional(),
+});
+
+const flatShape = deriveExtractionShape(flatSchema, {
+  operations: [
+    // A retype ON a nested leaf — kind and position are orthogonal.
+    { op: "retype", path: "yearBuilt", to: "number" },
+    {
+      op: "nest",
+      group: "construction",
+      moves: { yearBuilt: "yearBuilt", squareMeters: "area.squareMeters" },
+    },
+    { op: "drop", path: "hasGarage" },
+  ],
+  // A "none" top-level leaf beside the nest — the one non-default granularity
+  // a top-level leaf may legally carry.
+  provenance: { heatingType: "none" },
+});
+
+/** The flat codomain's boundary schema, as above. */
+const flatOutputSchema = enveloped(flatShape.patchSchema, {
+  provenance: flatShape.mapping.provenance,
+});
+
 const readChild = (node: unknown, key: string): unknown =>
   typeof node === "object" && node !== null ? (node as Record<string, unknown>)[key] : undefined;
 
@@ -152,7 +190,11 @@ const expectFaithfulReverse = (
     const atGenerated: Map<string, unknown> = new Map();
     collectLeafInstances(generated[top], extractionPath.split(".").slice(1), [], atGenerated);
     const atReversed: Map<string, unknown> = new Map();
-    collectLeafInstances(reversed[top], entry.source.split(".").slice(1), [], atReversed);
+    // The patch side roots at the SOURCE's top-level key, not the extraction
+    // path's: a nest entry's two tops differ, and a correct reversal writes
+    // nothing under the synthetic group.
+    const sourceTop = entry.source.split(".")[0]!;
+    collectLeafInstances(reversed[sourceTop], entry.source.split(".").slice(1), [], atReversed);
     for (const [indices, gValue] of atGenerated) {
       const where =
         `the entry "${extractionPath}" <- "${entry.source}"` +
@@ -247,6 +289,34 @@ test("the value property: everything the extraction space admits reverses into t
     const hull = inspections.hull as Record<string, unknown>;
     expect(hull).not.toHaveProperty("yard");
     expect(JSON.stringify(inspections)).not.toContain("sourceSpan");
+  }
+});
+
+test("the value property holds over a nest: every moved leaf reverses to its flat patch path", () => {
+  for (const n of [0, 12.5]) {
+    const generated = generateShapedValue(flatShape.extractionSchema, { number: n }) as Record<
+      string,
+      unknown
+    >;
+    const reversed = reverseShapedFields(generated, flatShape.mapping);
+
+    // The derived patch parses — the dropped leaf is absent because the patch
+    // does not declare it.
+    const parsed = flatOutputSchema.safeParse(reversed);
+    expect(
+      parsed.success,
+      `pool member ${n}: ${JSON.stringify(parsed.success ? null : parsed.error.issues)}`,
+    ).toBe(true);
+    expect(reversed).not.toHaveProperty("hasGarage");
+    // The synthetic group exists only in the extraction space.
+    expect(reversed).not.toHaveProperty("construction");
+
+    // The same exhaustive pairing assertion as the main property — one check
+    // per mapping entry, including the nested leaves.
+    expectFaithfulReverse(generated, reversed, flatShape.mapping);
+
+    // And the "none" leaf carried a plain value with no span anywhere.
+    expect(JSON.stringify(reversed.heatingType)).not.toContain("sourceSpan");
   }
 });
 
