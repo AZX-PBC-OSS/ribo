@@ -87,9 +87,12 @@ job is "do not skip these", and at 13 leaves honouring it is free.
 The obvious way to rescue a false negative is to ask again and take the union. It does not work
 here, and the vendor's own cookbooks are why.
 
-Both self-consistency cookbooks resample the **identical** question 15 times with a throwaway
-`uid`. Jev's mean per-question probability standard deviation is **0.0102** (nouls) and **0.0098**
-(choices), against 0.0245–0.0543 for the LLM conditions. Their headline is that "the LLM answers
+Both self-consistency cookbooks —
+[nouls](https://docs.typesafe.ai/cookbooks/consistency_noul_cookbook.md) and
+[choices](https://docs.typesafe.ai/cookbooks/consistency_choice_cookbook.md) — resample the
+**identical** question 15 times with a throwaway `uid`. Jev's mean per-question probability
+standard deviation is **0.0102** (nouls) and **0.0098** (choices), against 0.0245–0.0543 for the
+LLM conditions. Their headline is that "the LLM answers
 move from run to run, at temperature `0` too, and on the judgment calls the models disagree with
 _themselves_" — and Jev does not. A second identical call returns the same number.
 
@@ -142,3 +145,19 @@ Pure arithmetic over `../0008-typesafe-jev/results/`. No credential, no network,
 node docs/spikes/0011-presence-narrowing/analyze-groups.mjs
 node docs/spikes/0011-presence-narrowing/analyze-leaves.mjs
 ```
+
+## Sources
+
+Vendor documentation read for this spike. Fetched 2026-09-24; Mintlify serves the Markdown of any
+page by appending `.md`, which is what these links do.
+
+- [Self-consistency: nouls](https://docs.typesafe.ai/cookbooks/consistency_noul_cookbook.md) and
+  [self-consistency: choices](https://docs.typesafe.ai/cookbooks/consistency_choice_cookbook.md) —
+  the resampling design and the ~0.010 stability figure the "no re-ask" decision rests on, plus the
+  three-band shape (below 0.30 no / 0.30–0.70 uncertain / above 0.70 yes).
+- [Known issues in Jev 1.13](https://docs.typesafe.ai/model-jaggedness/jev-1.13.md) — "accuracy
+  falls as the state grows with content unrelated to the decision. Filter and retrieve in code
+  first", which is the vendor's own argument for narrowing what each call sees.
+- [State](https://docs.typesafe.ai/concepts/state.md) — "all questions see the same state and are
+  evaluated independently", i.e. one request carries every presence question at once.
+- [Documentation index](https://docs.typesafe.ai/llms.txt) — the page list these were found from.

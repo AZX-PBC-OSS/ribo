@@ -356,3 +356,19 @@ repo's gitignored `.cache/`, and probe 5 another ~335 MB into the browser's own 
 probe is ~4 minutes at 0.6b and ~15–35 minutes at 4b; WebGPU was 4–5× faster than CPU on the small
 model, so these timings bound iteration, not deployment. Nothing here writes to a live system and
 nothing needs a credential.
+
+## Sources
+
+Fetched 2026-09-22/23. The ONNX repos carry the wire format and the loading snippet; the **source**
+repos carry the calibration temperatures, which the exports omit.
+
+|                         |                                                                                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ONNX exports            | [kev-0.6b-ONNX](https://huggingface.co/onnx-community/kev-0.6b-ONNX), [kev-4b-ONNX](https://huggingface.co/onnx-community/kev-4b-ONNX)           |
+| source checkpoints      | [kev-0.6b](https://huggingface.co/jaredpalmer/kev-0.6b), [kev-4b](https://huggingface.co/jaredpalmer/kev-4b) — `result.json` holds `temperature` |
+| code and research log   | [github.com/jaredpalmer/kev](https://github.com/jaredpalmer/kev) — `kev/api.py` is where `choice_confidence` comes from                          |
+| the contract kev serves | [TypeSafe HTTP API](https://docs.typesafe.ai/api.md), [primitives](https://docs.typesafe.ai/primitives.md)                                       |
+
+Both defects this spike reports are in the ONNX repos' own card and graph, not in the source
+checkpoints: the card's snippet mis-derives the delimiters, and both graphs carry a raw `0.0625`
+scale with no temperature. Read the source repo's `result.json` for the value, never the export.

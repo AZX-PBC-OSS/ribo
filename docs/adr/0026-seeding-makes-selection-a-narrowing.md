@@ -71,8 +71,10 @@ and 95.6% of discussed leaves are already above it, so **band leaves ride along 
 extraction call**. The band is a residue, not a second pipeline, and it buys no extra call.
 
 **A recovery pass may not be a re-ask.** Jev's per-question probability standard deviation across
-identical repeats is ~0.010, an order below the LLM conditions the same cookbooks measure. Asking
-twice returns the same number. Any recovery step must change the question — after extraction, over
+identical repeats is ~0.010, an order below the LLM conditions the same cookbooks measure
+([nouls](https://docs.typesafe.ai/cookbooks/consistency_noul_cookbook.md),
+[choices](https://docs.typesafe.ai/cookbooks/consistency_choice_cookbook.md)). Asking twice
+returns the same number. Any recovery step must change the question — after extraction, over
 leaves that came back null, with the extraction result as context — or it is not a second opinion.
 
 ## Consequences
