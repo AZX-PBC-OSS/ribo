@@ -1432,4 +1432,51 @@ describe("fillPhase — onItemFailure", () => {
     expect(widgets[0]!.size).toEqual(spannedNull);
     expect(widgets[1]).toEqual(committedLeaves("blue", "2"));
   });
+
+  test("a failed flat piece resolves with its leaves abstained at the top level", async () => {
+    const { chat } = chatFailing(
+      () => true,
+      () => undefined,
+    );
+    const result = await extractWith(
+      flatTarget,
+      fallbackPrepared,
+      {},
+      fillPass(flatTarget, fallbackPrepared, chat, { onItemFailure: "skip" }),
+    );
+
+    expect(result.fields).toEqual({ color: abstainedLeaf(), size: abstainedLeaf() });
+  });
+
+  test("a failed flat re-ask under narrowToAbstained keeps the draft's present leaves", async () => {
+    // The flat arm's own under-fill pin: its writes land on the draft's top
+    // level, so a naive assign would blank the committed color and the span.
+    const spannedNull = { value: null, confidence: 0.4, sourceSpan: "no size stated" };
+    const first = chatFailing(
+      () => false,
+      () => ({ color: { value: "red", sourceSpan: "span", confidence: 1 }, size: spannedNull }),
+    );
+    const second = chatFailing(
+      () => true,
+      () => undefined,
+    );
+
+    const result = await extractWith(
+      flatTarget,
+      fallbackPrepared,
+      {},
+      fillPass(flatTarget, fallbackPrepared, first.chat),
+      fillPass(flatTarget, fallbackPrepared, second.chat, {
+        id: "fill-second-pass",
+        narrowToAbstained: true,
+        onItemFailure: "skip",
+      }),
+    );
+
+    expect(second.requests.length).toBeGreaterThan(0);
+    expect(result.fields).toEqual({
+      color: { value: "red", sourceSpan: "span", confidence: 1 },
+      size: spannedNull,
+    });
+  });
 });
