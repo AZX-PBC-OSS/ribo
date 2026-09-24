@@ -28,3 +28,8 @@ test("re-exports the extraction-common trust-boundary helpers from the barrel", 
 test("re-exports the prepared-groups builder — the one PreparedGroup construction site", () => {
   expect(typeof api.prepareGroups).toBe("function");
 });
+
+test("re-exports the presence-narrowed fill phase and its preset", () => {
+  expect(typeof api.presenceFillPhase).toBe("function");
+  expect(typeof api.presenceNarrowedExtractor).toBe("function");
+});

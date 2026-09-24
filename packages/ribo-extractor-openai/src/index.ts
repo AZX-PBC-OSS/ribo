@@ -125,6 +125,17 @@ export type {
   PerGroupPlan,
 } from "./strategies/per-group.js";
 
+// The presence-narrowed fill phase and its preset — the managed path's ADR
+// 0026 narrowing. A presence phase seeds every group key into the draft; this
+// phase then makes one value-extraction call per group with at least one
+// present leaf, over a `projectTarget`-narrowed target carrying exactly the
+// active leaves. The preset takes the presence phase as a PARAMETER (core's
+// chat-backed `presencePhase`, or the System One one) rather than importing
+// one, and ships opt-in — no existing default changed. A host wanting engine
+// knobs hand-assembles the same list through core's `phasedExtractor`.
+export { presenceFillPhase, presenceNarrowedExtractor } from "./strategies/presence-fill-phase.js";
+export type { PresenceFillPhaseOptions } from "./strategies/presence-fill-phase.js";
+
 // Task 16 — the R1.6 instance-modeling strategy ladder: three tiers composed
 // through `fallbackExtractor` so that the strongest strategy can fall back to
 // weaker ones, with the accepted tier stamped on `usage.strategy`.
