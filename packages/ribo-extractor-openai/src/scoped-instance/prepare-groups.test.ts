@@ -6,7 +6,7 @@ import { describe, expect, test } from "vitest";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
 import { prepareGroups } from "./instance-fill.js";
 import { perGroupPlan } from "../strategies/per-group.js";
-import { singleShotExtractor } from "../strategies/single-shot.js";
+import { singleShotExtractor } from "@azx/ribo-core";
 
 /**
  * @file `prepareGroups` — the exported prepared-groups builder — and the

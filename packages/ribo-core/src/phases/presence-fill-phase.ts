@@ -40,30 +40,19 @@
  * reason, and a preset is a wiring choice.
  */
 
-import {
-  demandNote,
-  nullEnvelope,
-  phaseBuilder,
-  phasedExtractor,
-  presenceNoteKey,
-  writableGroupEntry,
-} from "@azx/ribo-core";
-import type {
-  ChatClient,
-  DeepPartial,
-  Enveloped,
-  ExtractionTarget,
-  Extractor,
-  Group,
-  Leaf,
-  NoProvenance,
-  Phase,
-  PhaseDef,
-} from "@azx/ribo-core";
+import { demandNote } from "./phase-notes.js";
+import { nullEnvelope, presenceNoteKey, writableGroupEntry } from "./presence-phase.js";
+import type { Group, Leaf } from "./presence-phase.js";
+import { phaseBuilder } from "./phase.js";
+import type { Phase, PhaseDef } from "./phase.js";
+import type { ChatClient } from "./chat-client.js";
+import type { DeepPartial } from "./phase-draft.js";
+import type { Enveloped, NoProvenance } from "../provenance/enveloped.js";
+import type { ExtractionTarget } from "../extraction/extractor.js";
 
-import { assertWireSafeSchemaName } from "../prompt/extraction-common.js";
-import { projectTarget } from "../prompt/project-target.js";
-import { singleShotExtractor } from "./single-shot.js";
+import { assertWireSafeSchemaName } from "../extraction/extraction-common.js";
+import { projectTarget } from "../extraction/project-target.js";
+import { singleShotExtractor } from "../extraction/single-shot.js";
 
 /**
  * The leaf-envelope map one fill call returns — the single instance's leaves.
@@ -81,7 +70,7 @@ export interface PresenceFillPhaseOptions<V extends Record<string, unknown>, P =
    * handed, so the fill asks about exactly the groups presence mapped.
    */
   readonly groups: readonly Group[];
-  /** The injected chat transport. A fake in tests; {@link openAiChat} in production. */
+  /** The injected chat transport. A fake in tests; `openAiChat` in production. */
   readonly chat: ChatClient;
   /** The model id passed through to the endpoint (e.g. the Helix-routed model). */
   readonly model: string;
@@ -238,31 +227,4 @@ export function presenceFillPhase<V extends Record<string, unknown>, P = NoProve
     },
   };
   return phaseBuilder<V, P>()(def);
-}
-
-/**
- * The presence-narrowed preset: a caller-supplied presence phase, then this
- * package's fill phase over the same walked groups. The presence phase seeds
- * every group key; the fill narrows to what presence found — the composition
- * ADR 0026 licenses for the managed path.
- *
- * The presence phase is a PARAMETER, not an import: core's chat-backed
- * `presencePhase` and the System One one are interchangeable here, and this
- * package takes no dependency on either beyond core's `Phase` contract.
- *
- * Construction validates the list, so a renamed presence phase must be named
- * through the fill's REPLACING `requires` option or the preset throws naming
- * the id. The list is exactly the two phases; a host wanting engine knobs
- * (`concurrency`, `maxRetries`, `onUnit`, …) hand-assembles the same list
- * through core's `phasedExtractor`, the way every phase preset in this package
- * documents.
- */
-export function presenceNarrowedExtractor<V extends Record<string, unknown>, P = NoProvenance>(
-  presence: Phase<V, P>,
-  options: PresenceFillPhaseOptions<V, P>,
-): Extractor<Enveloped<V, P>> {
-  return phasedExtractor<V, P>({
-    target: options.target,
-    phases: [presence, presenceFillPhase<V, P>(options)],
-  });
 }

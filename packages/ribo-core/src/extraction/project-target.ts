@@ -2,7 +2,7 @@
  * @file Project an {@link ExtractionTarget} onto one top-level group key.
  *
  * This is the pure, model-free half of per-group extraction beside
- * {@link splitExtractionSchema}: given a target and a key, return a new target
+ * `splitExtractionSchema`: given a target and a key, return a new target
  * whose `extractionSchema` is the one-key strict object R3 already sends
  * (`{ [key]: groupSchema }`), whose examples are projected to that key, and
  * whose instructions can be replaced by per-group text.
@@ -14,13 +14,15 @@
 
 import { z } from "zod";
 
-import type { Enveloped, ExtractionTarget, NoProvenance, ToolAdapterExample } from "@azx/ribo-core";
+import type { Enveloped, NoProvenance } from "../provenance/enveloped.js";
+import type { ExtractionTarget } from "./extractor.js";
+import type { ToolAdapterExample } from "../write/adapter.js";
 
 import { narrowToLeaves, projectExample, projectSingletonExample } from "./extraction-common.js";
 
 /**
  * Narrow a group value (a group object or a `z.array` of them) to a subset of
- * leaf keys, mirroring {@link splitExtractionSchema}'s partition step and
+ * leaf keys, mirroring `splitExtractionSchema`'s partition step and
  * `narrowToLeaves`'s value step.
  *
  * The returned value keeps the same array/non-array shape as the input, but
@@ -66,7 +68,7 @@ export interface ProjectTargetOptions {
   /**
    * When supplied, the projected schema and examples are narrowed to exactly
    * these leaves of the group, matching a partitioned piece from
-   * {@link splitExtractionSchema}.
+   * `splitExtractionSchema`.
    */
   readonly leafKeys?: readonly string[];
   /**

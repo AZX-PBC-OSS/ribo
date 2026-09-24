@@ -60,7 +60,7 @@ import type {
   NoProvenance,
 } from "@azx/ribo-core";
 
-import { parseWithSchema } from "../prompt/extraction-common.js";
+import { parseWithSchema } from "@azx/ribo-core";
 import { assertShapeMapping } from "./shape-mapping.js";
 import { reverseShapedFields } from "./shape-reverse.js";
 import { reverseSkippedItems } from "./shape-skipped.js";

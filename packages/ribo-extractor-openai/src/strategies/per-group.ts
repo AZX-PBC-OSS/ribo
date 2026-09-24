@@ -56,7 +56,8 @@
  * **Everything here speaks `Enveloped<V, P>`, not `V`** — the four things the
  * plan does with fields (constrain the model, parse each response, imitate the
  * example assistant turns, normalize) are all the provenance-enveloped shape
- * the model emits. See `single-shot.ts`'s header for the full rationale.
+ * the model emits. See `single-shot.ts`'s header in `@azx/ribo-core` for the
+ * full rationale.
  *
  * **The trust boundary still runs twice.** Each entry parses its response
  * against its own piece schema at the point of receipt; the combinator then
@@ -103,9 +104,9 @@ import type {
 
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
 import type { ExtractionGroup } from "../schema/split-schema.js";
-import { assertWireSafeSchemaName, narrowToLeaves } from "../prompt/extraction-common.js";
-import { projectTarget } from "../prompt/project-target.js";
-import { singleShotExtractor } from "./single-shot.js";
+import { assertWireSafeSchemaName, narrowToLeaves } from "@azx/ribo-core";
+import { projectTarget } from "@azx/ribo-core";
+import { singleShotExtractor } from "@azx/ribo-core";
 import type { ToolAdapterExample } from "@azx/ribo-core";
 
 /** Options for {@link perGroupExtractor} and {@link perGroupPlan}. */

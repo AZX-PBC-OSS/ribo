@@ -6,7 +6,7 @@ import { describe, expect, test } from "vitest";
 import { gapFillExtractor } from "../gap-fill/gap-fill.js";
 import { overrideGroups, perGroupPlan } from "./per-group.js";
 import type { PerGroupPlan } from "./per-group.js";
-import { singleShotExtractor } from "./single-shot.js";
+import { singleShotExtractor } from "@azx/ribo-core";
 
 /**
  * Key-free tests for the composition plan's Task 12 — `perGroupPlan` and

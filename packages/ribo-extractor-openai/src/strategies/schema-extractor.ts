@@ -58,14 +58,14 @@ import type {
   WholeUnit,
 } from "@azx/ribo-core";
 
-import { assertWireSafeSchemaName } from "../prompt/extraction-common.js";
+import { assertWireSafeSchemaName } from "@azx/ribo-core";
 import {
   MAX_NULLABLE_UNIONS_PER_CALL,
   nullableUnionCount,
   serializedCharCount,
 } from "../schema/split-schema.js";
 import { perGroupExtractor } from "./per-group.js";
-import { singleShotExtractor } from "./single-shot.js";
+import { singleShotExtractor } from "@azx/ribo-core";
 
 /**
  * The shared members both option shapes carry. The per-group timing knobs ride

@@ -1,16 +1,20 @@
-import { ChatError, enveloped, isTransientFailure, SchemaParseError } from "@azx/ribo-core";
+import { z } from "zod";
+import { describe, expect, test } from "vitest";
+
+import { ChatError } from "../phases/chat-client.js";
 import type {
   ChatClient,
   ChatFinishReason,
   ChatRequest,
   ChatUsage,
-  Enveloped,
-  ExtractionTarget,
-  ToolAdapterExample,
-  WholeUnit,
-} from "@azx/ribo-core";
-import { z } from "zod";
-import { describe, expect, test } from "vitest";
+} from "../phases/chat-client.js";
+import { enveloped } from "../provenance/enveloped.js";
+import type { Enveloped } from "../provenance/enveloped.js";
+import type { ExtractionTarget } from "./extractor.js";
+import { isTransientFailure } from "../storage/backoff.js";
+import { SchemaParseError } from "./schema-parse-error.js";
+import type { ToolAdapterExample } from "../write/adapter.js";
+import type { WholeUnit } from "./extraction-observer.js";
 
 import { singleShotExtractor } from "./single-shot.js";
 

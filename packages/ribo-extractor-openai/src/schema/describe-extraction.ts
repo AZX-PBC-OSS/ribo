@@ -36,7 +36,7 @@ import type { z } from "zod";
 
 import type { ProvenanceGranularity } from "@azx/ribo-core";
 
-import { assertWireSafeSchemaName } from "../prompt/extraction-common.js";
+import { assertWireSafeSchemaName } from "@azx/ribo-core";
 import type { DerivedExtractionShape } from "../shape/derived-shape.js";
 import type { ShapeOperation } from "../shape/shape-operation.js";
 import { deriveExtractionShape } from "../shape/shape-operations.js";

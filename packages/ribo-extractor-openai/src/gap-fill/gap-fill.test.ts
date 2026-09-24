@@ -26,11 +26,11 @@ import {
   mergeGapFilledLeaves,
 } from "./gap-fill.js";
 import { gapFillPhase } from "./gap-fill-phase.js";
-import { singleShotExtractor } from "../strategies/single-shot.js";
+import { singleShotExtractor } from "@azx/ribo-core";
 
 /**
  * Key-free CI tests for the gap-fill combinator, against a small self-contained
- * target derived with `enveloped()` — the same fixture discipline as
+ * target derived with `enveloped()` — the same fixture discipline as core's
  * `single-shot.test.ts`. The base extraction is a `FakeExtractor` returning a
  * fixed enveloped result, so each test controls exactly which leaves abstain
  * with evidence; a fake {@link ChatClient} captures the follow-up request and

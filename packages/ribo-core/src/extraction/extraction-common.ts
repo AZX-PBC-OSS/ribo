@@ -30,20 +30,26 @@
  * second parse is the same function as this first parse.
  */
 
-import type { ChatMessage, ChatUsage, ExtractionTarget, NoProvenance } from "@azx/ribo-core";
+import type { ChatMessage, ChatUsage } from "../phases/chat-client.js";
+import type { ExtractionTarget } from "./extractor.js";
+import type { NoProvenance } from "../provenance/enveloped.js";
 
-// The call-and-parse chain moved to core beside the chat seam, so `askPhase`
-// there composes the same chain this module once owned (and so the terminal/
-// transient classification cannot drift between packages). Re-exported to keep
-// this module's public surface and every internal import unchanged — the same
-// move `parseWithSchema` below already made.
-export { assertStopFinishReason, completeOrClassify, parseJsonContent } from "@azx/ribo-core";
+// The call-and-parse chain lives beside the chat seam in `phases/chat-parse.ts`,
+// so `askPhase` composes the same chain this module once owned (and so the
+// terminal/transient classification cannot drift between packages). Re-exported
+// to keep this module's public surface and every internal import unchanged —
+// the same move `parseWithSchema` below already made.
+export {
+  assertStopFinishReason,
+  completeOrClassify,
+  parseJsonContent,
+} from "../phases/chat-parse.js";
 
-// The trust-boundary parse lives in core beside `SchemaParseError` — the one
-// function every extractor (and `groupedExtractor`'s second parse) crosses, so
-// the two parses cannot drift. Re-exported to keep this module's public surface
-// and every internal import unchanged.
-export { parseWithSchema } from "@azx/ribo-core";
+// The trust-boundary parse lives beside `SchemaParseError` — the one function
+// every extractor (and `groupedExtractor`'s second parse) crosses, so the two
+// parses cannot drift. Re-exported to keep this module's public surface and
+// every internal import unchanged.
+export { parseWithSchema } from "./parse-with-schema.js";
 
 import { projectTarget } from "./project-target.js";
 
@@ -148,7 +154,7 @@ export function projectSingletonExample<F extends Record<string, unknown>>(
 
 /**
  * Narrow a projected example's group value down to a subset of leaf keys —
- * the per-group counterpart of {@link splitExtractionSchema}'s leaf-count
+ * the per-group counterpart of `splitExtractionSchema`'s leaf-count
  * partitioning (`ExtractionGroup.part`). A collection group's value is an array
  * of instance objects; each instance is narrowed the same way so the projection
  * still spans every instance, just with fewer fields per instance. A singleton

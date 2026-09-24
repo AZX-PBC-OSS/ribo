@@ -396,7 +396,9 @@ export type { ToInstanceWriteStepOptions } from "./write/instance-write-step.js"
 
 // Extraction: the pluggable seam a transcript becomes structured fields through,
 // the function that collapses any extractor onto the relay's injected step, and
-// the fake that drives the pipeline with no model. Strategies live in adapters.
+// the fake that drives the pipeline with no model. Model-calling strategies live
+// in the extractor packages — the transport-agnostic single-shot lives here,
+// beside the chat seam it speaks (below).
 export { FakeExtractor, toSessionExtractStep } from "./extraction/extractor.js";
 export type {
   Extractor,
@@ -665,7 +667,7 @@ export type {
   ChatUnavailableReason,
   ChatUsage,
 } from "./phases/chat-client.js";
-// The managed-completion call-and-parse chain, moved from the same package's
+// The managed-completion call-and-parse chain, moved from the extractor package's
 // `extraction-common` (which re-exports it) so `askPhase` composes the chain its managed
 // cousins do — one copy of the terminal/transient classification semantics, beside the
 // seam.
@@ -674,6 +676,33 @@ export {
   completeOrClassify,
   parseJsonContent,
 } from "./phases/chat-parse.js";
+
+// The managed-prompt cluster that moved from `@azx/ribo-extractor-openai` beside
+// the seam it speaks (ADR 0020 records the split the package name owes): the
+// pure projection of a target onto one group key, and the shared prompt
+// assembly, usage accounting and wire-name guard every managed strategy
+// reuses. Nothing in them names OpenAI — the transports (`openAiChat`,
+// `helixChat`) stay in the extractor package, which re-exports this cluster so
+// no consumer breaks.
+export { projectTarget } from "./extraction/project-target.js";
+export type { ProjectTargetOptions } from "./extraction/project-target.js";
+export {
+  addUsage,
+  assertWireSafeSchemaName,
+  buildGroupMessages,
+  buildMessages,
+  narrowToLeaves,
+  projectExample,
+  projectSingletonExample,
+} from "./extraction/extraction-common.js";
+export type { UsageTotals } from "./extraction/extraction-common.js";
+
+// The single-shot strategy over any `ChatClient` — one structured-output call,
+// the pre-parse `finishReason` gate, the trust-boundary parse, the deterministic
+// normalize pass. Transport-agnostic (it depends only on the injected seam),
+// hence core; the presets that compose it stayed in the extractor packages.
+export { singleShotExtractor } from "./extraction/single-shot.js";
+export type { SingleShotOptions } from "./extraction/single-shot.js";
 
 // The three-phase walk, moved here from `@azx/ribo-extractor-ondevice` (SP4a wave 5):
 // the phases ask a `ChatClient` which leaves are present, what spans support them, and
@@ -708,6 +737,15 @@ export {
   unsupportedNoteKey,
 } from "./phases/classify-phase.js";
 export type { ClassifyPhaseOptions } from "./phases/classify-phase.js";
+
+// The presence-narrowed fill phase, moved from `@azx/ribo-extractor-openai`
+// beside the phases it follows: one value-extraction call per group the
+// presence map marked with at least one present leaf, over a
+// `projectTarget`-narrowed target (ADR 0026). A phase, not a preset — the
+// composition with a presence phase stayed in the extractor package, on the
+// line ADR 0010 drew for `threePhaseExtractor`.
+export { presenceFillPhase } from "./phases/presence-fill-phase.js";
+export type { PresenceFillPhaseOptions } from "./phases/presence-fill-phase.js";
 
 // The phased-extraction engine (wave 3b): run a list of phases in order, fanning each
 // phase's items out through a bounded pool, threading the draft through each `merge`,

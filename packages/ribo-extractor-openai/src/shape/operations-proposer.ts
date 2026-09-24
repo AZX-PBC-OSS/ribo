@@ -291,7 +291,8 @@ const buildProposeRequest = (
       // The cast widens `toJSONSchema`'s `unknown` return into the
       // `Record<string, unknown>` the `json_schema.schema` slot expects.
       // The runtime value is a JSON Schema object either way; suppression
-      // matches the same move `single-shot.ts` and `schema-retry.ts` make.
+      // matches the same move `single-shot.ts` (in `@azx/ribo-core`) and
+      // `schema-retry.ts` make.
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- widening unknown to Record<string, unknown>; see comment above
       schema: z.toJSONSchema(proposedOperationsSchema, { target: "draft-2020-12" }) as Record<
         string,

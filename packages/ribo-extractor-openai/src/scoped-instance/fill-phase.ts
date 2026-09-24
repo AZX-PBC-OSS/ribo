@@ -53,7 +53,7 @@ import type {
   RosterCandidate,
 } from "@azx/ribo-core";
 
-import type { UsageTotals } from "../prompt/extraction-common.js";
+import type { UsageTotals } from "@azx/ribo-core";
 import {
   addUsage,
   assertStopFinishReason,
@@ -61,7 +61,7 @@ import {
   completeOrClassify,
   parseJsonContent,
   parseWithSchema,
-} from "../prompt/extraction-common.js";
+} from "@azx/ribo-core";
 import type { PreparedGroup } from "./instance-fill.js";
 import { buildFillMessages, buildFillScope, singletonFillScope } from "./instance-fill.js";
 import { rosterNoteKey } from "./inventory-phase.js";

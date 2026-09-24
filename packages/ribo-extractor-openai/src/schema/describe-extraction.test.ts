@@ -2,7 +2,7 @@ import { enveloped } from "@azx/ribo-core";
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { assertWireSafeSchemaName } from "../prompt/extraction-common.js";
+import { assertWireSafeSchemaName } from "@azx/ribo-core";
 import { deriveExtractionShape } from "../shape/shape-operations.js";
 import { describeExtraction } from "./describe-extraction.js";
 import { splitExtractionSchema } from "./split-schema.js";

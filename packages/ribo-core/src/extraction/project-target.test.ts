@@ -1,7 +1,10 @@
-import { enveloped } from "@azx/ribo-core";
-import type { Enveloped, ExtractionTarget, ToolAdapterExample } from "@azx/ribo-core";
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
+
+import { enveloped } from "../provenance/enveloped.js";
+import type { Enveloped } from "../provenance/enveloped.js";
+import type { ExtractionTarget } from "./extractor.js";
+import type { ToolAdapterExample } from "../write/adapter.js";
 
 import { buildGroupMessages, buildMessages } from "./extraction-common.js";
 import { projectTarget } from "./project-target.js";

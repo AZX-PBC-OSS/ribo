@@ -1,15 +1,21 @@
 /**
  * @file The public surface of `@azx/ribo-extractor-openai`.
  *
- * A tool-agnostic extractor plasmid: the single-shot managed-LLM strategy and its
- * OpenAI-compatible chat transport. It works against any `ExtractionTarget<F>` from
- * `@azx/ribo-core`, so it lives outside every tool adapter — a SnuggPro adapter, a
- * future adapter, or a test target all wire the same extractor. Re-exports only.
+ * A tool-agnostic extractor plasmid: the chat transports and the strategies
+ * above them. The transport-agnostic single-shot cluster (the strategy, the
+ * projection it consumes and the shared prompt/trust-boundary helpers) lives
+ * in `@azx/ribo-core` and is re-exported from here, so existing consumers keep
+ * working — the same compatibility move the chat seam itself already made. It
+ * works against any `ExtractionTarget<F>` from `@azx/ribo-core`, so it lives
+ * outside every tool adapter — a SnuggPro adapter, a future adapter, or a test
+ * target all wire the same extractor. Re-exports only.
  */
 
-// The single-shot managed-LLM extractor (the built default) and its options.
-export { singleShotExtractor } from "./strategies/single-shot.js";
-export type { SingleShotOptions } from "./strategies/single-shot.js";
+// The single-shot managed-LLM extractor (the built default) and its options —
+// moved into `@azx/ribo-core` beside the chat seam it speaks, and re-exported
+// here so no consumer breaks.
+export { singleShotExtractor } from "@azx/ribo-core";
+export type { SingleShotOptions } from "@azx/ribo-core";
 
 // The per-group schema split — the pure, model-free half of R3. Takes a target's
 // `extractionSchema` and returns one entry per top-level group (or one fallback
@@ -99,9 +105,10 @@ export { renderLeafInventory, walkLeafInventory } from "./shape/leaf-inventory.j
 export type { LeafInventoryEntry } from "./shape/leaf-inventory.js";
 
 // Projection of an extraction target onto one top-level group key — the pure
-// narrow half of per-group prompt assembly, reusable by any strategy.
-export { projectTarget } from "./prompt/project-target.js";
-export type { ProjectTargetOptions } from "./prompt/project-target.js";
+// narrow half of per-group prompt assembly, reusable by any strategy. Moved to
+// `@azx/ribo-core` with the single-shot cluster; re-exported for compatibility.
+export { projectTarget } from "@azx/ribo-core";
+export type { ProjectTargetOptions } from "@azx/ribo-core";
 
 // The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level
 // group, concurrently with a bounded pool, assembled into one result. The
@@ -126,15 +133,18 @@ export type {
 } from "./strategies/per-group.js";
 
 // The presence-narrowed fill phase and its preset — the managed path's ADR
-// 0026 narrowing. A presence phase seeds every group key into the draft; this
-// phase then makes one value-extraction call per group with at least one
-// present leaf, over a `projectTarget`-narrowed target carrying exactly the
-// active leaves. The preset takes the presence phase as a PARAMETER (core's
-// chat-backed `presencePhase`, or the System One one) rather than importing
-// one, and ships opt-in — no existing default changed. A host wanting engine
-// knobs hand-assembles the same list through core's `phasedExtractor`.
-export { presenceFillPhase, presenceNarrowedExtractor } from "./strategies/presence-fill-phase.js";
-export type { PresenceFillPhaseOptions } from "./strategies/presence-fill-phase.js";
+// 0026 narrowing. A presence phase seeds every group key into the draft; the
+// fill phase (moved to `@azx/ribo-core` beside the phases it follows, and
+// re-exported from there) then makes one value-extraction call per group with
+// at least one present leaf, over a `projectTarget`-narrowed target carrying
+// exactly the active leaves. The preset stays here and takes the presence
+// phase as a PARAMETER (core's chat-backed `presencePhase`, or the System One
+// one) rather than importing one, and ships opt-in — no existing default
+// changed. A host wanting engine knobs hand-assembles the same list through
+// core's `phasedExtractor`.
+export { presenceFillPhase } from "@azx/ribo-core";
+export type { PresenceFillPhaseOptions } from "@azx/ribo-core";
+export { presenceNarrowedExtractor } from "./strategies/presence-narrowed.js";
 
 // Task 16 — the R1.6 instance-modeling strategy ladder: three tiers composed
 // through `fallbackExtractor` so that the strongest strategy can fall back to
@@ -186,6 +196,8 @@ export type { SchemaRetryOptions } from "./strategies/schema-retry.js";
 // Per-group prompt assembly: `buildGroupMessages` builds per-group chat messages
 // (instructions + projected examples + transcript), and `projectExample` narrows
 // a few-shot example to a single group's key. Exported for testing (R3 Task 4).
+// The helpers moved to `@azx/ribo-core` with the single-shot cluster; re-exported
+// for compatibility.
 export {
   assertStopFinishReason,
   assertWireSafeSchemaName,
@@ -195,7 +207,7 @@ export {
   parseJsonContent,
   parseWithSchema,
   projectExample,
-} from "./prompt/extraction-common.js";
+} from "@azx/ribo-core";
 
 // The Task 9 inventory-pass extraction phase: one house-wide call that returns a
 // roster of candidate instances per collection group, parsed through a supplied

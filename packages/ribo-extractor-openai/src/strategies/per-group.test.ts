@@ -26,7 +26,8 @@ import { splitExtractionSchema } from "../schema/split-schema.js";
 
 /**
  * Key-free CI tests for the per-group extractor, exercised against a small,
- * SELF-CONTAINED generic target — the same approach as `single-shot.test.ts`.
+ * SELF-CONTAINED generic target — the same approach as core's
+ * `single-shot.test.ts`.
  * This package is tool-agnostic and must not depend on any adapter, so the
  * fixtures are synthetic field sets rather than a real adapter's. A FAKE
  * {@link ChatClient} captures every request and returns a canned response per

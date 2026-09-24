@@ -53,7 +53,7 @@ import type {
   RosterCandidate,
 } from "@azx/ribo-core";
 
-import { assertWireSafeSchemaName, narrowToLeaves } from "../prompt/extraction-common.js";
+import { assertWireSafeSchemaName, narrowToLeaves } from "@azx/ribo-core";
 import { fillPhase } from "./fill-phase.js";
 import { inventoryPhase } from "./inventory-phase.js";
 import { partitionedLeafKeys } from "../strategies/per-group.js";

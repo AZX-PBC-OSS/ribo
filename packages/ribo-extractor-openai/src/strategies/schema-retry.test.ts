@@ -17,7 +17,7 @@ import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
 import { schemaRetryExtractor } from "./schema-retry.js";
-import { singleShotExtractor } from "./single-shot.js";
+import { singleShotExtractor } from "@azx/ribo-core";
 
 /**
  * Key-free CI tests for the schema-retry combinator, against a small

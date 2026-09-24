@@ -18,7 +18,7 @@ import {
   completeOrClassify,
   parseJsonContent,
   parseWithSchema,
-} from "../prompt/extraction-common.js";
+} from "@azx/ribo-core";
 
 /** Options for {@link extractInventory}. */
 export interface InventoryOptions<R> {

@@ -26,8 +26,8 @@
  * candidate leaves move, and usage reports the base run plus one call.
  *
  * The finish-reason gate, terminal-transport classification and parse helpers
- * are the shared ones from `extraction-common.ts`, used by the follow-up phase
- * in `gap-fill-phase.ts`. The leaf walk and merge below share the codebase's
+ * are the shared ones from `@azx/ribo-core`'s `extraction-common.ts`, used by the
+ * follow-up phase in `gap-fill-phase.ts`. The leaf walk and merge below share the codebase's
  * one generic RUNTIME walker over `Enveloped<V>` data, moved into `@azx/ribo-core`
  * (`extracted-leaves.ts`) so the judging combinators can reach it — the walker in
  * `enveloped()` is schema-time and serves a different purpose.

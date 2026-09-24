@@ -16,9 +16,9 @@
  * (design `r1.5-field-shape-contracts-design.md` §1.1).
  *
  * It is generic over `V` and depends only on the injected {@link ChatClient} and
- * the target's field knowledge, so `ribo-core` and this adapter never import a
- * provider SDK. The two alternative strategies (plan-then-execute, a managed
- * endpoint) share this same {@link Extractor} seam; see Task 5.
+ * the target's field knowledge, so `ribo-core` never imports a provider SDK. The
+ * two alternative strategies (plan-then-execute, a managed endpoint) share this
+ * same {@link Extractor} seam; see Task 5.
  *
  * The prompt assembly, the pre-parse `finishReason` check, the terminal-transport
  * classification, and the two parse helpers live in `extraction-common.ts`
@@ -28,21 +28,14 @@
 
 import { z } from "zod";
 
-import { nextUnitId } from "@azx/ribo-core";
-import type {
-  AnnotatedTranscript,
-  ChatClient,
-  Enveloped,
-  ExtractionObserver,
-  Extractor,
-  ExtractionResult,
-  ExtractionTarget,
-  ExtractOptions,
-  NoProvenance,
-  WholeUnit,
-} from "@azx/ribo-core";
+import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
+import type { ChatClient } from "../phases/chat-client.js";
+import type { Enveloped, NoProvenance } from "../provenance/enveloped.js";
+import { nextUnitId } from "./extraction-observer.js";
+import type { ExtractionObserver, WholeUnit } from "./extraction-observer.js";
+import type { ExtractionResult, ExtractionTarget, Extractor, ExtractOptions } from "./extractor.js";
 
-import type { UsageTotals } from "../prompt/extraction-common.js";
+import type { UsageTotals } from "./extraction-common.js";
 import {
   addUsage,
   assertStopFinishReason,
@@ -51,7 +44,7 @@ import {
   completeOrClassify,
   parseJsonContent,
   parseWithSchema,
-} from "../prompt/extraction-common.js";
+} from "./extraction-common.js";
 
 /**
  * Options for {@link singleShotExtractor}.
@@ -67,7 +60,7 @@ export interface SingleShotOptions<
 > extends ExtractionObserver<WholeUnit> {
   /** The field knowledge: `name`, `extractionSchema`, `instructions`, and few-shot `examples`. */
   readonly target: ExtractionTarget<V, P>;
-  /** The injected chat transport. A fake in tests; {@link openAiChat} in production. */
+  /** The injected chat transport. A fake in tests; `openAiChat` in production. */
   readonly chat: ChatClient;
   /** The model id passed through to the endpoint (e.g. the Helix-routed model). */
   readonly model: string;

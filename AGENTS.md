@@ -50,8 +50,9 @@ Fast Transcription behind the same `Transcriber` seam, with **no capacity to aut
 an endpoint and an injected `fetch`, so the credential lives in the host's transport and never in the
 package. `ribo-core` composes the two with `firstCapable` (sequential) or `hedged` (an opt-in race on
 a latency budget). `@azx/ribo-adapter-snuggpro` is the real Snugg Pro `ToolAdapter`; `@azx/ribo-extractor-openai` is
-the tool-agnostic single-shot managed-LLM extractor (its OpenAI-compatible transport and the
-single-shot strategy); `@azx/ribo-extractor-ondevice` is the on-device extractor (three-phase extraction
+the managed-chat extractor package (the `openAiChat` and `helixChat` transports, the per-group/instance/shape
+strategies, and re-exports of the transport-agnostic single-shot cluster, which moved into `ribo-core`);
+`@azx/ribo-extractor-ondevice` is the on-device extractor (three-phase extraction
 over the platform's on-device Language Model). `@azx/ribo-systemone-managed` is the System One
 client — TypeSafe's own SDK behind the host's transport, with no capacity to authenticate, serving
 hosted Jev, a self-hosted kev server or a fine-tune without knowing which; `@azx/ribo-extractor-systemone`
@@ -149,7 +150,7 @@ these; nothing depends on the field app.
 | `@azx/ribo-core`                     | `packages/ribo-core`                     | Headless engine: capture state machine, transcription, extraction, leaf-path review, queue/write. No React, no DOM rendering.                                                                                      |
 | `@azx/ribo-ui-react`                 | `packages/ribo-ui-react`                 | Headless React hook layer over the core engine — `RiboProvider` plus recorder, storage, review, sessions, connectivity, work-safety and storage-persistence hooks. No components beyond `RiboProvider`, no markup. |
 | `@azx/ribo-adapter-snuggpro`         | `packages/ribo-adapter-snuggpro`         | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                                                                                                                                        |
-| `@azx/ribo-extractor-openai`         | `packages/ribo-extractor-openai`         | Tool-agnostic extractor plasmid: single-shot managed-LLM extraction over an OpenAI-compatible transport.                                                                                                           |
+| `@azx/ribo-extractor-openai`         | `packages/ribo-extractor-openai`         | Tool-agnostic extractor plasmid: the OpenAI-compatible and Helix chat transports, the strategies above them, and re-exports of core's transport-agnostic single-shot cluster.                                      |
 | `@azx/ribo-extractor-ondevice`       | `packages/ribo-extractor-ondevice`       | On-device extractor plasmid: three-phase managed-LLM extraction over the platform's on-device Language Model.                                                                                                      |
 | `@azx/ribo-transcriber-ondevice`     | `packages/ribo-transcriber-ondevice`     | On-device WASM Whisper transcription; measures device RTF at `prime()` time so `capability()` can report `too-slow`.                                                                                               |
 | `@azx/ribo-transcriber-managed`      | `packages/ribo-transcriber-managed`      | Managed Azure AI Speech Fast Transcription behind the `Transcriber` seam; no capacity to authenticate.                                                                                                             |
@@ -572,8 +573,9 @@ Checklist:
   is right. That still needs `dependencies` (not `devDependencies`): a consumer's TypeScript must
   resolve core's `.d.ts`, and devDependencies are never installed for consumers.
   `ribo-adapter-snuggpro`, `ribo-extractor-openai` and `ribo-transcriber-ondevice` are all
-  plain-`dependencies`, but not all for the same reason: `ribo-extractor-openai` and
-  `ribo-transcriber-ondevice` really do import core type-only; `ribo-adapter-snuggpro` also calls
+  plain-`dependencies`, but not all for the same reason: `ribo-transcriber-ondevice` imports core
+  type-only; `ribo-extractor-openai` imports core values too (the single-shot cluster moved there);
+  `ribo-adapter-snuggpro` also calls
   the runtime `enveloped()` helper (`schema.ts`) to derive its extraction schema. None of the three
   holds onto a core `Recorder`/`Storage`/`Connectivity` instance with identity that must stay shared
   with a consumer, which — not "type-only" — is the actual criterion. Use `workspace:^` for the
