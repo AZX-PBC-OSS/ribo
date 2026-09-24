@@ -1,6 +1,6 @@
-// The on-device System One harness: `onnx-community/kev-0.6b-ONNX` behind the same `ask()` the
+// The self-hosted System One harness: the published kev ONNX exports behind the same `ask()` the
 // hosted probes in ../0008-typesafe-jev/env.mjs use, so the re-runs there are copies and the
-// comparison is honest.
+// comparison is honest. Pick a size with `loadKev({ size })`; see MODELS below.
 //
 // Three things this file does that the model card's snippet does not, each of which silently
 // corrupts every probability if skipped:
@@ -10,12 +10,12 @@
 //    looking them up, so all five tokenize as ordinary text and collapse to the id of `<`. The
 //    packing still runs and every question returns exactly uniform.
 //
-// 2. **The calibration temperature is applied here, because it is NOT in the graph.** kev stores a
+// 2. **The calibration temperature is applied here, because it is in NEITHER graph.** kev stores a
 //    per-checkpoint temperature fitted on its in-distribution dev set and the pointer head applies
-//    it at load; the ONNX export's final scale is exactly 1/sqrt(head_dim) = 0.0625, i.e. T=1. So
-//    the export emits raw logits and a bare softmax over them is overconfident. kev-0.6b's fitted
-//    T is in `result.json` on the original repo. With it, published ECE is 0.032 in-distribution
-//    and 0.073 on transfer; without it those numbers describe a different file.
+//    it at load; both exports' final scale is exactly 1/sqrt(head_dim) = 0.0625, i.e. T=1. So they
+//    emit raw logits and a bare softmax over them is overconfident. The fitted values live in
+//    `result.json` on each original repo and are transcribed into MODELS below — neither export's
+//    own config carries one, so it cannot be read at runtime.
 //
 // 3. **`confidence` is kev's own chance-corrected formula**, `(max(p) - 1/K) / (1 - 1/K)`, from
 //    `kev/api.py:choice_confidence` — not max(p). A confidence gate copied from a hosted probe
@@ -23,13 +23,27 @@
 //
 // Temperature is monotone, so it moves no argmax and changes no ranking: accuracy and the
 // precision/recall CURVES are identical with or without it, and only the numeric thresholds and
-// the calibration move. That is why `temperature` is settable — a probe can report both.
+// the calibration move. That is why the probes report AUCs — those are comparable across models
+// without agreeing on a scale, and a threshold quoted without its scale is not reusable.
 import { AutoTokenizer, PreTrainedModel, Tensor } from "@huggingface/transformers";
 
-export const REPO = "onnx-community/kev-0.6b-ONNX";
+/**
+ * The ONNX exports that exist, with the calibration temperature each one's graph omits.
+ *
+ * Temperatures are the `temperature` field of `result.json` on the SOURCE repo
+ * (`jaredpalmer/kev-<size>`), fitted on that checkpoint's own in-distribution dev set. They are
+ * per-checkpoint — using one model's temperature on another is silently wrong — and neither export
+ * carries its own, so neither can be looked up at runtime.
+ *
+ * `transfer` is the checkpoint's own out-of-domain accuracy, the regime our corpus is in. Jev is
+ * 0.857 for reference.
+ */
+export const MODELS = {
+  "0.6b": { repo: "onnx-community/kev-0.6b-ONNX", temperature: 1.9318726578496908, transfer: 0.62 },
+  "4b": { repo: "onnx-community/kev-4b-ONNX", temperature: 2.3784142300054416, transfer: 0.797 },
+};
 
-/** Fitted on kev-0.6b's in-distribution dev set; `result.json` `temperature` in the source repo. */
-export const KEV_06B_TEMPERATURE = 1.9318726578496908;
+export const DEFAULT_MODEL = "0.6b";
 
 const softmax = (xs) => {
   const m = Math.max(...xs);
@@ -42,13 +56,13 @@ const softmax = (xs) => {
 const choiceConfidence = (p) =>
   p.length === 1 ? 1 : (Math.max(...p) - 1 / p.length) / (1 - 1 / p.length);
 
-export async function loadKev({
-  dtype = "q4",
-  device = "cpu",
-  temperature = KEV_06B_TEMPERATURE,
-} = {}) {
-  const tokenizer = await AutoTokenizer.from_pretrained(REPO);
-  const model = await PreTrainedModel.from_pretrained(REPO, { dtype, device });
+export async function loadKev({ size = DEFAULT_MODEL, dtype = "q4", device = "cpu" } = {}) {
+  const spec = MODELS[size];
+  if (!spec) throw new Error(`unknown size ${size}; have ${Object.keys(MODELS).join(", ")}`);
+  const { repo, temperature } = spec;
+
+  const tokenizer = await AutoTokenizer.from_pretrained(repo);
+  const model = await PreTrainedModel.from_pretrained(repo, { dtype, device });
 
   const kev = model.config.kev;
   const D = kev.delimiter_ids;
@@ -142,6 +156,9 @@ export async function loadKev({
 
   return {
     limits: kev,
+    size,
+    repo,
+    temperature,
     /**
      * Same shape as ../0008-typesafe-jev/env.mjs `ask`, so a hosted probe becomes an on-device one
      * by swapping the import. `chunk` splits into several forward passes; the answers are

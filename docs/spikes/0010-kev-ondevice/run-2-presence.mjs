@@ -18,7 +18,8 @@ import { corpus } from "../0008-typesafe-jev/corpus.mjs";
 import { COVERED_GROUPS } from "../0008-typesafe-jev/leaves.mjs";
 import { loadKev } from "./kev.mjs";
 
-const CHUNK = Number(process.argv[2] ?? 40);
+const SIZE = process.argv[2] ?? "0.6b";
+const CHUNK = Number(process.argv[3] ?? 40);
 const TARGET = LEAVES.filter((l) => COVERED_GROUPS.includes(l.path.split(".")[0]));
 const qid = (path) => path.replace(/\./g, "__");
 
@@ -40,8 +41,10 @@ const describe = (leaf) => {
 };
 
 const t0 = Date.now();
-const kev = await loadKev();
-console.log(`model loaded in ${((Date.now() - t0) / 1000).toFixed(1)}s, chunk=${CHUNK}\n`);
+const kev = await loadKev({ size: SIZE });
+console.log(
+  `kev-${kev.size} (${kev.repo}) loaded in ${((Date.now() - t0) / 1000).toFixed(1)}s, T=${kev.temperature.toFixed(4)}, chunk=${CHUNK}\n`,
+);
 
 const questions = Object.fromEntries(
   TARGET.map((l) => [
@@ -77,7 +80,7 @@ for (const entry of corpus()) {
 }
 
 writeFileSync(
-  new URL("./results/presence-leaf.json", import.meta.url),
+  new URL(`./results/presence-leaf-${SIZE}.json`, import.meta.url),
   JSON.stringify(rows, null, 2),
 );
 

@@ -15,7 +15,8 @@ import { LEAF_BY_PATH } from "../0001-extraction-snuggpro/schema-leaves.mjs";
 import { corpus } from "../0008-typesafe-jev/corpus.mjs";
 import { loadKev } from "./kev.mjs";
 
-const CHUNK = Number(process.argv[2] ?? 40);
+const SIZE = process.argv[2] ?? "0.6b";
+const CHUNK = Number(process.argv[3] ?? 40);
 const cells = JSON.parse(
   readFileSync(new URL("../0008-typesafe-jev/results/triage.json", import.meta.url), "utf8"),
 );
@@ -30,8 +31,10 @@ for (const c of cells) {
 const EXPECTED = { supported: "supports", corrupted: "contradicts", invented: "says_nothing" };
 
 const t0 = Date.now();
-const kev = await loadKev();
-console.log(`model loaded in ${((Date.now() - t0) / 1000).toFixed(1)}s, chunk=${CHUNK}\n`);
+const kev = await loadKev({ size: SIZE });
+console.log(
+  `kev-${kev.size} (${kev.repo}) loaded in ${((Date.now() - t0) / 1000).toFixed(1)}s, T=${kev.temperature.toFixed(4)}, chunk=${CHUNK}\n`,
+);
 
 const out = [];
 for (const [name, list] of byName) {
@@ -74,7 +77,10 @@ for (const [name, list] of byName) {
   );
 }
 
-writeFileSync(new URL("./results/three-way.json", import.meta.url), JSON.stringify(out, null, 2));
+writeFileSync(
+  new URL(`./results/three-way-${SIZE}.json`, import.meta.url),
+  JSON.stringify(out, null, 2),
+);
 
 const by = (k) => out.filter((r) => r.kind === k);
 const pc = (n, d) => `${((100 * n) / (d || 1)).toFixed(1)}%`;
