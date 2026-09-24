@@ -31,6 +31,13 @@
  *   the group's leaves — the seed's floor, restated so the merge stays total —
  *   and `onItemFailure: "skip"` makes that a per-group outcome, never a failed
  *   run.
+ *
+ * **Transport-agnostic, hence core** (ADR 0010): every import here is the chat
+ * seam (`ChatClient`, never `openAiChat`), so this belongs beside
+ * `presencePhase`, `spanPhase` and `classifyPhase` rather than in a
+ * vendor-named package. The preset that composes it with a presence phase is
+ * NOT here — ADR 0010 left `threePhaseExtractor` out of core for the same
+ * reason, and a preset is a wiring choice.
  */
 
 import {

@@ -121,3 +121,24 @@ ship without that run.
 **It adds a hard dependency on a System One provider to the managed path** if the presence phase is
 the System One one. Core's own `presencePhase` is chat-backed and costs one call per group, which
 buys back less. That trade is a wiring choice for the preset, not a property of this decision.
+
+**It pulled the transport-agnostic extraction cluster into core, which ADR 0010 had already half
+done.** `presenceFillPhase` is transport-agnostic — its imports are the chat seam — so by ADR
+0010's rule it belongs beside `presencePhase`, `spanPhase` and `classifyPhase`. Writing it first
+into `ribo-extractor-openai` reproduced exactly the mistake ADR 0010 corrected: those three sat in
+`ribo-extractor-ondevice` because `threePhaseExtractor`, the on-device _preset_, was there, and
+"nothing in them is on-device". This phase sat in `ribo-extractor-openai` because
+`perGroupExtractor`, the managed preset, is there, and nothing in it is OpenAI.
+
+Moving the phase alone was not possible: it needs `projectTarget`, `singleShotExtractor` and the
+`extraction-common` helpers, which form a closed cluster — they import each other, `zod` and core,
+and nothing else. So the cluster moved with it. ADR 0010's reasoning extends to
+`singleShotExtractor` cleanly: that ADR kept `threePhaseExtractor` out of core because it is
+"genuinely device-specific — device-tuned per-call ceilings, zero retry delay", and single-shot has
+no such specificity.
+
+`ribo-extractor-openai` re-exports all of it, ADR 0010's own compatibility approach ("re-exports
+the whole seam so no consumer breaks"), so this is additive rather than breaking. The re-exports
+are transitional; removing them belongs to ADR 0020's scheduled `ribo-extractor-chat` split, which
+this shrinks but does not do. The presets — `perGroupExtractor`, `presenceNarrowedExtractor` — stay
+out of core, because a preset is a wiring choice and ADR 0010 drew that line first.
