@@ -54,6 +54,7 @@ two copies of the same probe.
 | 0008 | [`0008-typesafe-jev`](./0008-typesafe-jev/)                           | Where does a System One model (TypeSafe's Jev) fit ribo's pipeline?           | Answered | 2026-09-21 |
 | 0009 | [`0009-basedata-proposer`](./0009-basedata-proposer/)                 | Can a model shape a real API POST body into an extraction target?             | Answered | 2026-09-21 |
 | 0010 | [`0010-kev-ondevice`](./0010-kev-ondevice/)                           | Can a self-hosted kev stand in for hosted Jev, on-device or otherwise?        | Answered | 2026-09-22 |
+| 0011 | [`0011-presence-narrowing`](./0011-presence-narrowing/)               | How much extraction work survives a presence pass, and does anything die?     | Answered | 2026-09-24 |
 
 Numbers are assigned by first-commit date. The three sharing 2026-07-24 arrived in one squashed
 initial release and are ordered by the doc that reports each (01, 14, 16).
