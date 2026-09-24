@@ -338,3 +338,26 @@ test("[inventory] alone runs green over an all-stated-empty roster", async () =>
   });
   expect(result.usage.calls).toBe(1); // the inventory pass itself
 });
+
+test("the inventory phase refuses onItemFailure at the type level — the deliberate refusal", () => {
+  // `fillPhase` and `gapFillPhase` take `onItemFailure`; the inventory phase
+  // deliberately does not. On an error its merge returns the draft unchanged —
+  // there is no roster to interpret — so a skip here would not absorb the
+  // failure but defer it one phase, surfacing as fill's `demandNote` throw
+  // about the missing roster note. Refusing the option keeps the consequence
+  // at the wiring, where it names the mis-wiring instead of the failure.
+  //
+  // The @ts-expect-error IS the pin: it is satisfied while the option does not
+  // exist (the literal's excess property errors), and if someone ever adds the
+  // option the directive turns unused and tsc fails this gate — either state
+  // of the world makes the refusal loud.
+  const phase = inventoryPhase<DemoValues>({
+    inventory: async () => ({}),
+    prepared,
+    instanceCap: 10,
+    // @ts-expect-error — the option is refused; see the options interface.
+    onItemFailure: "skip",
+  });
+  // The literal still builds at runtime — the refusal is type-level only.
+  expect(phase.id).toBe("inventory");
+});

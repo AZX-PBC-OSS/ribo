@@ -2,8 +2,10 @@ import {
   emptyDraft,
   emptyNotes,
   enveloped,
+  nullEnvelope,
   phaseBuilder,
   phasedExtractor,
+  SchemaParseError,
   validatePhases,
 } from "@azx/ribo-core";
 import type {
@@ -12,6 +14,7 @@ import type {
   DeepPartial,
   Enveloped,
   ExtractionTarget,
+  NoProvenance,
   Phase,
   PhaseContext,
   PhaseDraft,
@@ -22,6 +25,7 @@ import { describe, expect, test } from "vitest";
 
 import { inventoryPhase, rosterNoteKey } from "./inventory-phase.js";
 import { fillPhase } from "./fill-phase.js";
+import type { FillPhaseOptions } from "./fill-phase.js";
 import { prepareGroups } from "./instance-fill.js";
 import type { PreparedGroup } from "./instance-fill.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
@@ -1188,5 +1192,291 @@ describe("fillPhase — id", () => {
       id: "fill-second-pass",
     });
     expect(renamed.id).toBe("fill-second-pass");
+  });
+});
+
+describe("fillPhase — onItemFailure", () => {
+  /** The abstained leaf every failed fill writes — the provenance floor. */
+  const abstainedLeaf = () => nullEnvelope();
+
+  /** Both leaves committed — "committed" is the value-non-null sense. */
+  const committedLeaves = (colorValue: string, sizeValue: string): Record<string, unknown> => ({
+    color: { value: colorValue, sourceSpan: "span", confidence: 1 },
+    size: { value: sizeValue, sourceSpan: "span", confidence: 1 },
+  });
+
+  /**
+   * A ChatClient answering every request except the ones `fails` names, which
+   * it throws for — deterministically, on every attempt, so the engine's retry
+   * budget cannot rescue the item and the failure is the item's, not a flake.
+   */
+  function chatFailing(
+    fails: (requestName: string) => boolean,
+    respond: (requestName: string) => unknown,
+  ): { chat: ChatClient; requests: ChatRequest[] } {
+    const requests: ChatRequest[] = [];
+    return {
+      requests,
+      chat: {
+        complete: async (request) => {
+          const name = request.response_format.json_schema.name;
+          requests.push(request);
+          if (fails(name)) throw new Error(`transport failure for ${name}`);
+          return { content: JSON.stringify(respond(name)), finishReason: "stop" as const };
+        },
+      },
+    };
+  }
+
+  /** Drive [inventory, ...fills] through the engine — `delay` injected so retries sleep zero. */
+  async function extractWith<V extends Record<string, unknown>, P = NoProvenance>(
+    valuesTarget: ExtractionTarget<V, P>,
+    prepared_: readonly PreparedGroup[],
+    roster: Roster,
+    ...fills: readonly Phase<V, P>[]
+  ) {
+    const inventory = inventoryPhase<V, P>({
+      inventory: async () => roster,
+      prepared: prepared_,
+      instanceCap: 10,
+    });
+    const extractor = phasedExtractor<V, P>({
+      target: valuesTarget,
+      phases: [inventory, ...fills],
+      delay: async () => {},
+    });
+    return extractor.extract({ text: "the full transcript", annotations: {} });
+  }
+
+  /** One fill pass over a target's prepared groups, with per-pass overrides. */
+  const fillPass = <V extends Record<string, unknown>, P = NoProvenance>(
+    valuesTarget: ExtractionTarget<V, P>,
+    prepared_: readonly PreparedGroup[],
+    chat: ChatClient,
+    overrides: Partial<FillPhaseOptions<V, P>> = {},
+  ): Phase<V, P> =>
+    fillPhase<V, P>({
+      target: valuesTarget,
+      chat,
+      model: "demo-model",
+      prepared: prepared_,
+      buildFillInstructions,
+      ...overrides,
+    });
+
+  const standardRespond = (name: string): unknown =>
+    name.startsWith("demo-house-fill")
+      ? houseResponse()
+      : widgetResponse(name.endsWith("1") ? "blue" : "red");
+
+  test("a failed singleton piece resolves with an all-abstained entry; sibling groups keep their values", async () => {
+    const { chat } = chatFailing((name) => name === "demo-house-fill", standardRespond);
+    const result = await extractWith(
+      target,
+      prepared,
+      twoWidgets(),
+      fillPass(target, prepared, chat, { onItemFailure: "skip" }),
+    );
+
+    const fields = result.fields as Record<string, unknown>;
+    expect(fields.house).toEqual({ color: abstainedLeaf(), size: abstainedLeaf() });
+    expect(fields.widgets).toEqual([leafEnvelope("red"), leafEnvelope("blue")]);
+  });
+
+  test("a failed collection instance resolves with the abstained element at that index; siblings keep theirs", async () => {
+    const { chat } = chatFailing((name) => name === "demo-widgets-fill-1", standardRespond);
+    const result = await extractWith(
+      target,
+      prepared,
+      twoWidgets(),
+      fillPass(target, prepared, chat, { onItemFailure: "skip" }),
+    );
+
+    const fields = result.fields as Record<string, unknown>;
+    expect(fields.widgets).toHaveLength(2);
+    expect((fields.widgets as unknown[])[0]).toEqual(leafEnvelope("red"));
+    expect((fields.widgets as unknown[])[1]).toEqual({
+      color: abstainedLeaf(),
+      size: abstainedLeaf(),
+    });
+    expect(fields.house).toEqual(leafEnvelope("main"));
+  });
+
+  test("a failed piece of a partitioned group abstains only its leaves; the succeeding sibling's survive the recombine", async () => {
+    const roster: Roster = { systems: [currentCandidate("a"), currentCandidate("b")] };
+    const { chat } = chatFailing(
+      (name) => name === "demo-systems-fill-1-1",
+      (name) => {
+        const [, part, instance] = /-(\d+)-(\d+)$/.exec(name)!;
+        const leaf = part === "0" ? "color" : "size";
+        return {
+          systems: { [leaf]: { value: `${instance}-${leaf}`, sourceSpan: "span", confidence: 1 } },
+        };
+      },
+    );
+    const result = await extractWith(
+      systemsTarget,
+      partitionedSystems,
+      roster,
+      fillPass(systemsTarget, partitionedSystems, chat, { onItemFailure: "skip" }),
+    );
+
+    const systems = (result.fields as Record<string, unknown>).systems as {
+      color: { value: string | null };
+      size: { value: string | null };
+    }[];
+    expect(systems[0]).toEqual({
+      color: { value: "0-color", sourceSpan: "span", confidence: 1 },
+      size: { value: "0-size", sourceSpan: "span", confidence: 1 },
+    });
+    expect(systems[1]!.color).toEqual({ value: "1-color", sourceSpan: "span", confidence: 1 });
+    expect(systems[1]!.size).toEqual(abstainedLeaf());
+  });
+
+  test("a collection whose every job failed yields a full array of abstained elements — no holes", async () => {
+    const roster: Roster = { systems: [currentCandidate("a"), currentCandidate("b")] };
+    const { chat } = chatFailing(
+      () => true,
+      () => {
+        throw new Error("every systems fill fails");
+      },
+    );
+    const result = await extractWith(
+      systemsTarget,
+      partitionedSystems,
+      roster,
+      fillPass(systemsTarget, partitionedSystems, chat, { onItemFailure: "skip" }),
+    );
+
+    const systems = (result.fields as Record<string, unknown>).systems as unknown[];
+    expect(systems).toHaveLength(2);
+    expect(systems[0]).toEqual({ color: abstainedLeaf(), size: abstainedLeaf() });
+    expect(systems[1]).toEqual({ color: abstainedLeaf(), size: abstainedLeaf() });
+  });
+
+  test("the option absent: the same failure rejects with the original transport error, not a SchemaParseError", async () => {
+    // The same failing fixture as the skip tests — the only difference is the
+    // option. Abort stays today's (and the default's) behaviour: the transport
+    // error rejects the run, it does not become an abstention.
+    const { chat } = chatFailing((name) => name === "demo-house-fill", standardRespond);
+    const rejection: unknown = await extractWith(
+      target,
+      prepared,
+      twoWidgets(),
+      fillPass(target, prepared, chat),
+    ).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toBe("transport failure for demo-house-fill");
+    expect(rejection).not.toBeInstanceOf(SchemaParseError);
+  });
+
+  test("a failed re-ask under narrowToAbstained keeps the slot's present envelopes — even a null value carrying a span", async () => {
+    // THE under-fill pin: the first fill commits widget 0's color and leaves
+    // its size an abstained leaf WITH a citation span; the narrowed second fill
+    // re-asks exactly that slot and its call fails. The error arm must fill
+    // only ABSENT keys — a present envelope stays untouched whatever its value,
+    // because its sourceSpan is evidence a later pass relies on.
+    const spannedNull = {
+      value: null,
+      confidence: 0.4,
+      sourceSpan: "no size stated for the red widget",
+    };
+    const first = chatFailing(
+      () => false,
+      (name) => {
+        if (name === "demo-widgets-fill-0")
+          return {
+            widgets: {
+              color: { value: "red", sourceSpan: "span", confidence: 1 },
+              size: spannedNull,
+            },
+          };
+        // Everything except widget 0's size fully committed, so the narrowed
+        // second pass re-issues exactly one job.
+        if (name === "demo-widgets-fill-1") return { widgets: committedLeaves("blue", "2") };
+        return { house: committedLeaves("main", "1950") };
+      },
+    );
+    const second = chatFailing(
+      () => true,
+      () => {
+        throw new Error("the re-ask must fail");
+      },
+    );
+
+    const result = await extractWith(
+      target,
+      prepared,
+      twoWidgets(),
+      fillPass(target, prepared, first.chat),
+      fillPass(target, prepared, second.chat, {
+        id: "fill-second-pass",
+        narrowToAbstained: true,
+        onItemFailure: "skip",
+      }),
+    );
+
+    // The narrowed pass re-issued exactly the one uncommitted slot (each
+    // attempt of its retry loop appears; the name set is the pin).
+    const reasked = new Set(second.requests.map((r) => r.response_format.json_schema.name));
+    expect([...reasked]).toEqual(["demo-widgets-fill-0"]);
+
+    const widgets = (result.fields as Record<string, unknown>).widgets as {
+      color: { value: unknown };
+      size: unknown;
+    }[];
+    expect(widgets[0]!.color.value).toBe("red");
+    expect(widgets[0]!.size).toEqual(spannedNull);
+    expect(widgets[1]).toEqual(committedLeaves("blue", "2"));
+  });
+
+  test("a failed flat piece resolves with its leaves abstained at the top level", async () => {
+    const { chat } = chatFailing(
+      () => true,
+      () => undefined,
+    );
+    const result = await extractWith(
+      flatTarget,
+      fallbackPrepared,
+      {},
+      fillPass(flatTarget, fallbackPrepared, chat, { onItemFailure: "skip" }),
+    );
+
+    expect(result.fields).toEqual({ color: abstainedLeaf(), size: abstainedLeaf() });
+  });
+
+  test("a failed flat re-ask under narrowToAbstained keeps the draft's present leaves", async () => {
+    // The flat arm's own under-fill pin: its writes land on the draft's top
+    // level, so a naive assign would blank the committed color and the span.
+    const spannedNull = { value: null, confidence: 0.4, sourceSpan: "no size stated" };
+    const first = chatFailing(
+      () => false,
+      () => ({ color: { value: "red", sourceSpan: "span", confidence: 1 }, size: spannedNull }),
+    );
+    const second = chatFailing(
+      () => true,
+      () => undefined,
+    );
+
+    const result = await extractWith(
+      flatTarget,
+      fallbackPrepared,
+      {},
+      fillPass(flatTarget, fallbackPrepared, first.chat),
+      fillPass(flatTarget, fallbackPrepared, second.chat, {
+        id: "fill-second-pass",
+        narrowToAbstained: true,
+        onItemFailure: "skip",
+      }),
+    );
+
+    expect(second.requests.length).toBeGreaterThan(0);
+    expect(result.fields).toEqual({
+      color: { value: "red", sourceSpan: "span", confidence: 1 },
+      size: spannedNull,
+    });
   });
 });

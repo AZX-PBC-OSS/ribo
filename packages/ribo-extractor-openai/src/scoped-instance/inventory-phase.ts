@@ -64,7 +64,18 @@ import type { PreparedGroup } from "./instance-fill.js";
  */
 export const rosterNoteKey: NoteKey<Roster> = noteKey("scoped-instance-roster");
 
-/** Options for {@link inventoryPhase} — the scoped-instance port's first half. */
+/**
+ * Options for {@link inventoryPhase} — the scoped-instance port's first half.
+ *
+ * Deliberately NO `onItemFailure` option, unlike `fillPhase` and
+ * `gapFillPhase`: on an error this merge returns the draft unchanged — there is
+ * no roster to interpret and no abstained value to invent, since the roster is
+ * control knowledge, not extracted fields. A skip here would not absorb the
+ * failure, only defer it one phase: the fill phase's `plan` would throw
+ * `demandNote`'s error about the missing roster note — naming the mis-wiring
+ * instead of quietly extracting nothing. Refusing the option at the type level
+ * keeps that consequence at the wiring, where it is diagnosable.
+ */
 export interface InventoryPhaseOptions {
   /**
    * The house-wide inventory pass, called once with the transcript text. Must
