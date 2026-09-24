@@ -66,12 +66,21 @@ Seven findings that change design, not just vocabulary. Each is developed in §4
    question set_, not a job's answers), the **direct-install header** (line items are writable, the
    container that owns them is not creatable), and **`job.auditStarted` / `job.auditEnded`**.
 
-6. **`customFields` is malformed in the spec on 35 write endpoints** — the parameter has no `in`
+6. **`customFields` is malformed in the spec on 32 write endpoints** — the parameter has no `in`
    key at all, so a strict Swagger validator rejects it and a code generator will drop it silently.
    It is simultaneously the most widely available extension point in the API and the least
    reliably described. Doc 17 §4 argued custom fields are a real reason to generate schema per
    account at runtime; this strengthens that, and adds that a `snugg:refresh` generator must
-   special-case these 35 parameters or lose them.
+   special-case these 32 parameters or lose them.
+
+   > **Corrected 2026-09-24, from 35.** Re-counted against the live spec while investigating a
+   > probe failure. This section's other two figures are exact: **37** parameters carry no `in`
+   > key, and the five non-`customFields` ones are the `templateUuid`/`name`/`category` set §3
+   > lists. 37 − 5 = **32**, so the original 35 was an arithmetic slip here rather than drift in
+   > the vendor's document — the spec agrees with every other number in this finding. The
+   > parameter is also underspecified a second way §3 does not name: `type: "array"` with no
+   > `items`, which Swagger 2.0 requires for a non-body array. Its real shape is stated only in
+   > the English `description`.
 
 7. **The per-group call decomposition R3 already uses scales to this whole surface, with exactly
    two exceptions.** Every one of the 23 write endpoints beyond `basedata` fits under the
@@ -112,7 +121,8 @@ anywhere; every field on every write endpoint `required: false` except the 18 li
 **One doc-17 claim is refuted.** Doc 17 §1 says "every write operation's parameters are declared
 `in: formData`". Three exceptions:
 
-- **37 parameters carry no `in` key at all** — 35 of them the `customFields` parameter (see §1.6),
+- **37 parameters carry no `in` key at all** — 32 of them the `customFields` parameter (see §1.6,
+  where the count is corrected from 35),
   plus `templateUuid`/`name`/`category` on `POST /jobs/direct-installs/{directInstallUuid}/line-item`
   and `templateUuid`/`name` on `POST /jobs/recommendations/{recommendationUuid}/line-item`.
 - **5 write operations take a JSON `body`**, not form fields: the three
@@ -2270,7 +2280,7 @@ Parameter `in` distribution across the whole spec:
 | `delete` | `body`              | 2      |
 | `get`    | `query`             | 4      |
 
-**(a) 37 parameters have no `in` key at all.** This is a spec bug, not a design choice. 35 of them are the `customFields` parameter, which is attached to nearly every write endpoint (`basedata`, `attic`, `clothesDryer`, `concern`, `dhw`, `door`, `freezer`, `hvac`, `pv`, `range`, `recommendation`, `refrigerator`, `vault`, `wall`, `window`, `health`, `report`, `utilities`, and all the `/{uuid}` update twins) with the description _"It accepts array of objects with key and value as strings, e.g. `[ { "key": "custom_field_key", "value": "12.4" } ]"*. The other 2+3 are `templateUuid`, `name`, `category`on`POST /jobs/direct-installs/{directInstallUuid}/line-item`and`templateUuid`, `name`on`POST /jobs/recommendations/{recommendationUuid}/line-item`. A strict Swagger 2.0 validator rejects all 37 (`in` is required); a generator will most likely drop them silently. **`customFields` is therefore the single most widely-available escape hatch in the API and the least reliably described._*
+**(a) 37 parameters have no `in` key at all.** This is a spec bug, not a design choice. 32 of them are the `customFields` parameter (corrected from 35; see §1.6), which is attached to nearly every write endpoint (`basedata`, `attic`, `clothesDryer`, `concern`, `dhw`, `door`, `freezer`, `hvac`, `pv`, `range`, `recommendation`, `refrigerator`, `vault`, `wall`, `window`, `health`, `report`, `utilities`, and all the `/{uuid}` update twins) with the description _"It accepts array of objects with key and value as strings, e.g. `[ { "key": "custom_field_key", "value": "12.4" } ]"*. The other 2+3 are `templateUuid`, `name`, `category`on`POST /jobs/direct-installs/{directInstallUuid}/line-item`and`templateUuid`, `name`on`POST /jobs/recommendations/{recommendationUuid}/line-item`. A strict Swagger 2.0 validator rejects all 37 (`in` is required); a generator will most likely drop them silently. **`customFields` is therefore the single most widely-available escape hatch in the API and the least reliably described._*
 
 **(b) 5 write operations use a JSON `body` parameter instead of `formData`:**
 

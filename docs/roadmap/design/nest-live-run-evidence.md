@@ -125,14 +125,52 @@ blowerDoorReading = 1250          basementCavityInsulation = 19
 This is the "maps back to submit" claim spike 0009 set out to test, and the first time it has been
 demonstrated on a real API body.
 
-## 7. One failure none of the three designs covers
+## 7. One failure the naive schema caused, and the real adapter already avoids
 
-`customFields` is a vendor-extension collection. The model filled it with **49 entries missing a
-required key**, and the extraction failed parsing them — on the nest-derived shape and on the flat
-baseline alike. It had to be dropped by hand for §6 to run.
+`customFields` is Snugg Pro's per-account extension point. The model filled it with **49 entries
+missing a required key**, and the extraction failed parsing them — on the nest-derived shape and
+on the flat baseline alike. It had to be dropped by hand for §6 to run.
 
-It is unrelated to nesting, to the split and to partial application. Recorded here because it is a
-real obstacle on the path this work exists to open, and it belongs to none of the three designs.
+**This was first recorded here as "a real obstacle belonging to none of the three designs". That
+was wrong, and the correction is the useful part.** The hand-built adapter already excludes the
+field, deliberately and on the record: `schema.ts` carries no `customFields` leaf, and two
+comments say why — "every `formData` parameter of the endpoint but the malformed `customFields`"
+and "`customFields` is response-only". What hit the field was **this probe's naive schema
+builder**, which maps the Swagger definition straight to zod with none of that scoping. That is
+the builder working as intended — the probe exists to ask what a model does with an unscoped
+generated schema — so neither the adapter nor `naive-zod.mjs` needs a fix.
+
+**Why the vendor's declaration defeats a generator.** The parameter is underspecified twice over
+(Swagger 2.0, verified against the live spec):
+
+```json
+{
+  "name": "customFields",
+  "type": "array",
+  "description": "It accepts array of objects with key and value as strings, e.g. [ { \"key\": …, \"value\": … } ]"
+}
+```
+
+No `in`, which every Parameter Object requires and which says where the value goes; and
+`type: "array"` with no `items`, which a non-body array parameter requires. The real contract
+lives only in the English `description`, which no generator reads. A strict validator rejects the
+object; a generator that tolerates it emits an array of anything and hands the model a field with
+no constraints.
+
+**What is worth keeping from this.** Both halves of the problem are deterministic, which is easy
+to assume they are not:
+
+- The malformed parameter is detectable structurally — a parameter with no `in` cannot be placed,
+  so a generator can refuse or drop it without asking a model anything.
+- An account's real custom fields are generatable mechanically: the `customField` definition
+  carries `key`, `valueType` ("string, integer, decimal or datetime"), `min`, `max` and `options`
+  per field, which maps to zod by table.
+
+What needs a model is the part that already has one — deciding which of 294 fields a speaker
+actually dictates, which is the human's 163-of-294 scoping and what `proposeShapeOperations`'
+`drop` approximates. Doc 17 §4 ("Custom fields — confirmed present, and they matter") argues
+custom fields are a capability rather than noise, so a blanket permanent drop would trade one
+away to solve a problem the adapter had already solved.
 
 ## 8. What the diagnostic would have saved
 
