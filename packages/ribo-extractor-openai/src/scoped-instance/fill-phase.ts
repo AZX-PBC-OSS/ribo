@@ -32,7 +32,13 @@
 
 import { z } from "zod";
 
-import { demandNote, isExtractedLeaf, mergeGroupPieces, phaseBuilder } from "@azx/ribo-core";
+import {
+  abstainedValue,
+  demandNote,
+  isExtractedLeaf,
+  mergeGroupPieces,
+  phaseBuilder,
+} from "@azx/ribo-core";
 import type {
   ChatClient,
   ChatMessage,
@@ -90,6 +96,14 @@ export interface FillPhaseOptions<V extends Record<string, unknown>, P = NoProve
    * means what it means everywhere else: a non-null leaf value.
    */
   readonly narrowToAbstained?: boolean;
+  /**
+   * What happens when one fill call fails: `"abort"` (the default) fails the
+   * run and stops the siblings; `"skip"` hands the failed outcome to `merge`,
+   * which writes the piece's abstained value — derived from the piece's own
+   * schema, every leaf at the abstention floor — into the slot's ABSENT keys
+   * only, and the run resolves. See `abstainedValue` in `@azx/ribo-core`.
+   */
+  readonly onItemFailure?: "abort" | "skip";
   /**
    * Overrides the phase's id — `"fill"` by default. See `PhaseMeta.id` in
    * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
@@ -185,6 +199,41 @@ const jobFullyCommitted = <V extends Record<string, unknown>, P = NoProvenance>(
 };
 
 /**
+ * The abstained value for a FAILED job's piece — what its response WOULD have
+ * parsed to, every leaf at the abstention floor. Derived from the piece's own
+ * schema, so it parses the same way the success arm reads: the whole record for
+ * a `""` piece, the group's sub-object otherwise.
+ */
+const abstainedPieceFor = (job: FillJob): unknown => {
+  const whole = abstainedValue(job.group.schema) as Record<string, unknown>;
+  return job.group.key === "" ? whole : whole[job.group.key];
+};
+
+/**
+ * The error arm's write — `mergeGroupPieces` restricted to keys the slot does
+ * NOT have. A failed piece's abstained value must never blank what the slot
+ * already holds: an envelope with a null value can carry a non-null
+ * `sourceSpan` a later pass relies on, and a committed value must survive a
+ * failed re-ask (`narrowToAbstained`'s whole point). Later-wins is safe for the
+ * success arm only because partitioned pieces hold disjoint leaf sets; an
+ * abstained piece covers the piece's FULL leaf set, so it needs under-fill.
+ */
+const fillAbsentKeys = (slot: unknown, abstained: unknown): unknown => {
+  // An absent slot takes the abstained value whole — the common case, and what
+  // lets a group whose every job failed still assemble a full array.
+  if (slot === undefined || slot === null) return abstained;
+  // A slot that is not a leaf map is not under-fillable; leave it for the
+  // closing parse to judge rather than destroying whatever it holds.
+  if (typeof slot !== "object" || Array.isArray(slot)) return slot;
+  const abstainedRecord = abstained as Record<string, unknown>;
+  const merged: Record<string, unknown> = { ...(slot as Record<string, unknown>) };
+  for (const [key, leafValue] of Object.entries(abstainedRecord)) {
+    if (!Object.hasOwn(merged, key)) merged[key] = leafValue;
+  }
+  return merged;
+};
+
+/**
  * The fill phase: derive one job per `(group, piece, instance)` from the
  * inventory's settled roster, make each job's one chat call, and recombine the
  * outcomes into the draft. See the file header for the shape of each member.
@@ -198,6 +247,9 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
     // REPLACING, not additive: the option is the complete list, and the default
     // names the shipped provider of the note this plan reads — see the option.
     requires: options.requires ?? ["inventory"],
+    // Spread in only when given — an absent option leaves the def's
+    // `onItemFailure` undefined exactly as before the option existed.
+    ...(options.onItemFailure === undefined ? {} : { onItemFailure: options.onItemFailure }),
     describeItem: (item) => ({
       key: item.group.key,
       instance: item.instanceIndex + 1,
@@ -330,18 +382,20 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
       const collectionArrays: Record<string, unknown[]> = {};
 
       for (const outcome of outcomes) {
-        // An error outcome carries no contribution: under abort semantics its
-        // failures reject out of `run` before `merge`, so this arm is
-        // unreachable through the engine.
-        if (outcome.outcome !== "result") continue;
         const job = outcome.item;
-        // A FLAT piece's parsed response is the WHOLE narrowed subset of
-        // schema leaves — there is no wrapping key to read under — so the
-        // value is the parsed response itself, not a sub-object of it. A
-        // grouped piece's parsed response carries the group under its key, so
-        // we read that sub-object.
+        // A result outcome contributes its parsed piece — the WHOLE narrowed
+        // subset for a FLAT piece (no wrapping key to read under), the group's
+        // sub-object for a keyed one. An error outcome — reachable only under
+        // `onItemFailure: "skip"`, which hands the failed item here instead of
+        // failing the run — contributes the ABSTAINED piece derived from the
+        // same schema, read exactly the same way.
+        const abstainedPiece = outcome.outcome === "result" ? undefined : abstainedPieceFor(job);
         const value =
-          job.group.key === "" ? outcome.output.value : outcome.output.value[job.group.key];
+          outcome.outcome === "result"
+            ? job.group.key === ""
+              ? outcome.output.value
+              : outcome.output.value[job.group.key]
+            : abstainedPiece;
 
         if (job.group.isCollection) {
           // The array is built here, in the merge that fills it — the
@@ -350,7 +404,9 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
           // candidate, indexed by the job's instanceIndex, never by arrival
           // order. The base is the DRAFT's entry for the key when it holds
           // one — a narrowed fill's skipped jobs are exactly the slots a fresh
-          // array would blank.
+          // array would blank. A skipped failure participates in the same
+          // allocation, so a group whose every job failed still assembles a
+          // full array of abstained elements — no holes.
           const draftArray = groupResult[job.group.key];
           const arr =
             collectionArrays[job.group.key] ??
@@ -361,20 +417,40 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
           // partitioned group already contributed its leaf subset for this
           // instance — recombine via mergeGroupPieces rather than letting the
           // last piece overwrite the rest. Jobs for one key are issued in piece
-          // order and `mapWithPool` preserves it.
+          // order and `mapWithPool` preserves it. A skipped failure writes by
+          // under-fill instead — see `fillAbsentKeys`.
           const existing = arr[job.instanceIndex];
           arr[job.instanceIndex] =
-            existing === undefined ? value : mergeGroupPieces(existing, value);
+            outcome.outcome === "result"
+              ? existing === undefined
+                ? value
+                : mergeGroupPieces(existing, value)
+              : fillAbsentKeys(existing, value);
         } else if (job.group.key === "") {
           // FLAT piece: every leaf it carried is a top-level key of the
           // schema. Each piece's parsed subset is disjoint from its siblings',
           // so an `Object.assign` in piece order is the merge — later pieces
           // never overwrite earlier ones because their leaves differ. The
-          // closing parse then validates the whole against the schema.
-          Object.assign(groupResult, value);
+          // closing parse then validates the whole against the schema. A
+          // skipped failure covers the piece's FULL leaf set, so it assigns
+          // only the keys nothing has written yet.
+          if (outcome.outcome === "result") {
+            Object.assign(groupResult, value);
+          } else {
+            for (const [leaf, abstainedLeaf] of Object.entries(value as Record<string, unknown>)) {
+              if (!Object.hasOwn(groupResult, leaf)) groupResult[leaf] = abstainedLeaf;
+            }
+          }
         } else {
           const key = job.group.key;
-          groupResult[key] = key in groupResult ? mergeGroupPieces(groupResult[key], value) : value;
+          groupResult[key] =
+            outcome.outcome === "result"
+              ? key in groupResult
+                ? mergeGroupPieces(groupResult[key], value)
+                : value
+              : key in groupResult
+                ? fillAbsentKeys(groupResult[key], value)
+                : value;
         }
       }
       for (const [key, arr] of Object.entries(collectionArrays)) {

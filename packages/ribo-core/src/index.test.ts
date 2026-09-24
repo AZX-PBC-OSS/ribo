@@ -70,6 +70,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "UNWRAPPED_KEY",
     "UnsupportedItemError",
     "ValidationRejectedError",
+    "abstainedValue",
     "acceptAnySuccess",
     "askPhase",
     "assertLeafGranularity",

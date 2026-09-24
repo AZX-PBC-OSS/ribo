@@ -3,6 +3,7 @@ import {
   enveloped,
   extractorPhase,
   FakeExtractor,
+  phasedExtractor,
   validatePhases,
 } from "@azx/ribo-core";
 import type {
@@ -338,6 +339,47 @@ describe("gapFillPhase — metadata", () => {
     };
     const phase = gapFillPhase<GapValues>({ target: gapTarget, chat, model: "m" });
     expect(phase.requires).toBeUndefined();
+  });
+});
+
+describe("gapFillPhase — onItemFailure", () => {
+  test("a failed follow-up resolves with the base's values intact — no partial splice, no follow-up usage", async () => {
+    // End to end through the engine: the base leaves an abstained leaf with a
+    // citation (a candidate), the follow-up call fails, and the run still
+    // resolves — the base's draft stands untouched.
+    const base = new FakeExtractor<GapExtraction>(abstainingFields, {
+      usage: { calls: 1 },
+      raw: { from: "the base call" },
+    });
+    const requests: ChatRequest[] = [];
+    const chat: ChatClient = {
+      complete: async (request) => {
+        requests.push(request);
+        throw new Error("transport failure for the follow-up");
+      },
+    };
+    const gapfill = gapFillPhase<GapValues>({
+      target: gapTarget,
+      chat,
+      model: "m",
+      onItemFailure: "skip",
+    });
+    const extractor = phasedExtractor<GapValues>({
+      target: gapTarget,
+      phases: [extractorPhase("base", base), gapfill],
+      delay: async () => {},
+    });
+    const result = await extractor.extract({ text: transcriptText, annotations: {} });
+
+    // The base's values stand: the abstained roof was not partially spliced
+    // and no committed leaf moved.
+    expect(result.fields).toEqual(abstainingFields);
+    // The follow-up contributed no usage — only the base's call counts.
+    expect(result.usage.calls).toBe(1);
+    // And the skip left the draft exactly as the base's merge wrote it.
+    expect(result.raw).toEqual({ from: "the base call" });
+    // The phase pins maxRetries: 0 — one attempt, no retry loop.
+    expect(requests).toHaveLength(1);
   });
 });
 

@@ -109,6 +109,16 @@ export interface GapFillPhaseOptions<V extends Record<string, unknown>, P = NoPr
    * is a valid list (ADR 0008) — meaning the list is exactly what you pass.
    */
   readonly requires?: readonly string[];
+  /**
+   * What happens when the follow-up call fails: `"abort"` (the default) fails
+   * the run; `"skip"` hands the failed outcome to `merge`, which returns the
+   * draft unchanged — the base's leaves stand, the follow-up's usage is never
+   * reported. Read that before choosing it: this phase plans exactly ONE item
+   * and pins `maxRetries: 0`, so under skip a single transport blip loses the
+   * whole follow-up silently, with nothing skipped over to distinguish a blip
+   * from a document that had no gaps.
+   */
+  readonly onItemFailure?: "abort" | "skip";
 }
 
 /**
@@ -161,8 +171,10 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
     // optional refiner whose plan returns `[]` when it finds no candidates, so
     // `[gapfill]` alone is a valid list — the engine treats an empty plan as a
     // no-op (ADR 0008). The caller's ids are the whole `requires` (see the
-    // option).
+    // option). The same conditional spread for `onItemFailure`: an absent
+    // option leaves the def's undefined exactly as before the option existed.
     ...(options.requires === undefined ? {} : { requires: options.requires }),
+    ...(options.onItemFailure === undefined ? {} : { onItemFailure: options.onItemFailure }),
     describeItem: () => ({ key: "" }),
     plan: (draft, ctx) => {
       // THE CAST, and why it is sound: the pure helpers take `Enveloped<V, P>`;
@@ -235,10 +247,11 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
     merge: (draft, outcomes) => {
       let next = draft;
       for (const outcome of outcomes) {
-        // An error outcome carries no contribution. The phase runs under abort
-        // semantics — its failures reject out of `run` before `merge` — so this
-        // arm is unreachable through the engine, and skipped rather than
-        // invented around here.
+        // An error outcome carries no contribution. Under `onItemFailure:
+        // "skip"` a failed follow-up lands HERE — returning the draft
+        // unchanged, so the base's leaves stand and the follow-up's usage is
+        // never reported (the same passthrough shape an empty plan has). Under
+        // abort, the default, its failure rejects out of `run` before `merge`.
         if (outcome.outcome !== "result") continue;
         const accepted = acceptImprovements(
           outcome.output.value,

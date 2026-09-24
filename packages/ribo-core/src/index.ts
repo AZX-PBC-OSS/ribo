@@ -148,6 +148,13 @@ export type {
   ProvenanceMap,
 } from "./provenance/enveloped.js";
 
+// The abstained value for a built extraction schema: every leaf at the
+// abstention floor, shaped by the schema itself, so a phase merging a FAILED
+// item under `onItemFailure: "skip"` writes a value the closing parse accepts.
+// Walks the same built schemas `enveloped()` produced and mirrors its decision
+// table's allowlist throw.
+export { abstainedValue } from "./provenance/abstained-value.js";
+
 // Capture records and their transcripts.
 export { baseRecordingSchema, recordingSchema } from "./capture/recording.js";
 export type { Recording } from "./capture/recording.js";
