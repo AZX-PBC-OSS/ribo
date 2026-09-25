@@ -231,6 +231,11 @@ function normalizeOptions(options?: number | SplitOptions): SplitOptions {
  * `response_format` carries. Exported for the extraction strategies above this
  * module, which must measure the WHOLE schema against the same caps the split
  * packs its pieces against.
+ *
+ * Measured on the FULL rendering, descriptions included — the conservative
+ * upper bound of the wire size. Under `fieldDescriptions: "prompt"` the
+ * wire schema is stripped at the render sites, so it only ever lands further
+ * under a byte cap than this count reports; the split packs exactly as before.
  */
 export function serializedCharCount(schema: z.ZodType): number {
   return JSON.stringify(z.toJSONSchema(schema, { target: "draft-2020-12" })).length;

@@ -175,6 +175,32 @@ describe("per-group instructions — projected example", () => {
       expect(messages[3]).toEqual({ role: "user", content: liveTranscript });
     }
   });
+
+  test("under \"prompt\", a group's guidance block carries only that group's descriptions", () => {
+    // The scale property: the schema walked is the PROJECTED one, so a
+    // per-group call's field guidance is its own group's — 20 groups do not
+    // multiply into 20 full rosters.
+    for (const key of SNUGG_GROUP_KEYS) {
+      const others = SNUGG_GROUP_KEYS.filter((k) => k !== key);
+      const content = buildGroupMessages(
+        target,
+        key,
+        "t",
+        snuggGroupInstructions,
+        undefined,
+        undefined,
+        {
+          fieldDescriptions: "prompt",
+        },
+      )[0]!.content;
+      expect(content).toContain("### Field guidance");
+      for (const other of others) {
+        expect(content, `group "${key}" must not carry "${other}" guidance`).not.toContain(
+          `- ${other} (`,
+        );
+      }
+    }
+  });
 });
 
 // --- Test 5: no rule is lost --------------------------------------------------

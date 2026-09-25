@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 
 import type { ChatClient, ChatRequest, ExtractionTarget } from "@azx/ribo-core";
-import { singleShotExtractor } from "@azx/ribo-core";
+import { singleShotExtractor, stripJsonSchemaDescriptions } from "@azx/ribo-core";
 
 import { snuggProAdapter } from "./adapter.js";
 import type { SnuggValues } from "./schema.js";
@@ -91,12 +91,12 @@ function fakeChat(): { chat: ChatClient; requests: ChatRequest[] } {
 }
 
 /** Drive the real singleShotExtractor + real adapter wiring, capture the request sent. */
-async function captureJsonSchema(): Promise<Record<string, unknown>> {
+async function captureRequest(fieldDescriptions?: "prompt" | "schema"): Promise<ChatRequest> {
   const { chat, requests } = fakeChat();
   // The real adapter, composed exactly as a real caller would — not a hand-rolled
   // stand-in. The type argument is the VALUES type; the target exposes the enveloped one.
   const target: ExtractionTarget<SnuggValues> = snuggProAdapter;
-  const extractor = singleShotExtractor({ target, chat, model: "gpt-test" });
+  const extractor = singleShotExtractor({ target, chat, model: "gpt-test", fieldDescriptions });
 
   try {
     await extractor.extract({
@@ -108,7 +108,7 @@ async function captureJsonSchema(): Promise<Record<string, unknown>> {
   }
 
   expect(requests).toHaveLength(1);
-  return requests[0]!.response_format.json_schema.schema;
+  return requests[0]!;
 }
 
 /**
@@ -145,13 +145,29 @@ function assertStrictModeCompatible(node: unknown, path: string): void {
   }
 }
 
-test("the JSON Schema sent to the model matches the frozen fixture, byte for byte", async () => {
-  const schema = await captureJsonSchema();
-  const actual = JSON.stringify(schema); // canonical (compact) — see file-level comment
+test("the JSON Schema the derivation produces matches the frozen fixture, byte for byte", async () => {
+  // Captured in the "schema" mode — descriptions included — because the fixture
+  // pins what `enveloped()` DERIVES from the patch, and the descriptions are part
+  // of that derivation. The default ("prompt") wire rendering is pinned against
+  // this same fixture by the next test.
+  const request = await captureRequest();
+  const actual = JSON.stringify(request.response_format.json_schema.schema); // canonical (compact) — see file-level comment
 
   // A MISMATCH HERE MEANS THE DERIVATION CHANGED WHAT IS SENT TO THE MODEL. Fix the
   // derivation; do not edit the fixture to silence this test.
   expect(actual).toBe(fixtureCanonical);
+});
+
+test('the "prompt" wire schema is the fixture with field descriptions stripped', async () => {
+  // The "prompt" mode strips the descriptions from
+  // `response_format` and carries the same text in the system message instead —
+  // the guidance moves budgets, it does not disappear. The wire bytes are the
+  // frozen fixture through `stripJsonSchemaDescriptions`, so this pin cannot
+  // drift from the derivation pin above.
+  const request = await captureRequest("prompt");
+  expect(JSON.stringify(request.response_format.json_schema.schema)).toBe(
+    JSON.stringify(stripJsonSchemaDescriptions(fixtureSchema)),
+  );
 });
 
 test("the fixture itself is well-formed strict-mode JSON Schema", () => {
@@ -159,7 +175,7 @@ test("the fixture itself is well-formed strict-mode JSON Schema", () => {
 });
 
 test("the live schema is well-formed strict-mode JSON Schema (closed objects, no bare optionals)", async () => {
-  const schema = await captureJsonSchema();
+  const schema = (await captureRequest()).response_format.json_schema.schema;
   assertStrictModeCompatible(schema, "$");
 });
 
@@ -169,7 +185,7 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
   // depth). This asserts the margin rather than assuming it — the field set has grown
   // several times, and growing past a ceiling fails as an API rejection at extraction
   // time, on a real recording, in the field.
-  const schema = await captureJsonSchema();
+  const schema = (await captureRequest()).response_format.json_schema.schema;
 
   let properties = 0;
   let enumValues = 0;
@@ -232,7 +248,9 @@ function collectLeafDescriptions(schema: Record<string, unknown>): Map<string, s
 }
 
 test("every leaf reaches the model with the vendor's description and our prohibition", async () => {
-  const descs = collectLeafDescriptions(await captureJsonSchema());
+  const descs = collectLeafDescriptions(
+    (await captureRequest()).response_format.json_schema.schema,
+  );
 
   // Every leaf, not a subset: the vendor supplies authoritative text for each (or our own
   // note stands in where the vendor publishes none or junk), so none is deliberately bare.
@@ -254,4 +272,20 @@ test("every leaf reaches the model with the vendor's description and our prohibi
   // Order matters: the vendor definition orients the model before our prohibition
   // constrains it; reversed, the prohibition reads as a correction rather than a rule.
   expect(blower.indexOf("cubic feet per minute")).toBeLessThan(blower.indexOf("Never ACH50"));
+});
+
+test('under "prompt", every leaf description moves from the wire schema into the system message', async () => {
+  const request = await captureRequest("prompt");
+  const system = request.messages[0]!;
+  expect(system.role).toBe("system");
+  expect(system.content).toContain("### Field guidance");
+  const wire = collectLeafDescriptions(request.response_format.json_schema.schema);
+  expect(wire.size).toBe(441);
+  expect([...wire.values()].filter((d) => d.length > 0)).toHaveLength(0);
+
+  const descs = collectLeafDescriptions(fixtureSchema);
+  expect(descs.size).toBe(441);
+  for (const [path, description] of descs) {
+    expect(system.content.includes(description), `the guidance must carry ${path}'s`).toBe(true);
+  }
 });

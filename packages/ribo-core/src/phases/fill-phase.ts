@@ -266,7 +266,18 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
           const scope = singletonFillScope(group.key || "fields");
           const messages =
             group.key === ""
-              ? buildMessages(options.target, transcript)
+              ? // The fallback piece's schema — walked for the field-guidance
+                // block, so a mixed schema's loose piece carries only its own
+                // descriptions; for the all-flat fallback the piece schema IS
+                // the whole schema and the guidance is the full block. THE
+                // CAST: the piece schema is a narrowed subset of the target's,
+                // read here for guidance only — the piece is parsed against
+                // its own schema in `run`, never against this one.
+                buildMessages(
+                  { ...options.target, extractionSchema: group.schema } as ExtractionTarget<V, P>,
+                  transcript,
+                  { fieldDescriptions: group.fieldDescriptions },
+                )
               : buildFillMessages(
                   options.target,
                   group.key,
@@ -275,6 +286,8 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
                   transcript,
                   options.buildFillInstructions,
                   group.leafKeys,
+                  group.schema,
+                  { fieldDescriptions: group.fieldDescriptions },
                 );
           jobs.push({
             group,
@@ -313,6 +326,8 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
             transcript,
             options.buildFillInstructions,
             group.leafKeys,
+            group.schema,
+            { fieldDescriptions: group.fieldDescriptions },
           );
           jobs.push({
             group,

@@ -46,11 +46,14 @@ import type { FillScope, Roster, RosterCandidate } from "../inventory-types.js";
 import type { RetryBudgetObserver } from "../../async/retry-budget.js";
 
 import { assertWireSafeSchemaName, narrowToLeaves } from "../extraction-common.js";
+import type { FieldDescriptionsMode, FieldGuidanceOptions } from "../field-guidance.js";
+import { fieldDescriptionsMode, withFieldGuidance } from "../field-guidance.js";
 import { fillPhase } from "../../phases/fill-phase.js";
 import { inventoryPhase } from "../../phases/inventory-phase.js";
 import { partitionedLeafKeys } from "../strategies/per-group.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
 import type { ExtractionGroup } from "../schema/split-schema.js";
+import { toJsonSchemaForWire } from "../schema/wire-schema.js";
 
 // Re-export the generic inventory/fill vocabulary from `inventory-types.ts`,
 // where both the adapter and the extractor strategy can reach it without a
@@ -138,6 +141,13 @@ export interface ScopedFillOptions<V extends Record<string, unknown>, P = NoProv
    * instance count.
    */
   readonly maxSerializedCharsPerGroup?: number;
+  /**
+   * Where the schema's field descriptions travel, as in
+   * {@link SingleShotOptions.fieldDescriptions}. Applies to the fill calls; the
+   * inventory roster's synthetic schema carries no descriptions, so no mode
+   * reaches it.
+   */
+  readonly fieldDescriptions?: FieldGuidanceOptions["fieldDescriptions"];
 }
 
 /**
@@ -171,6 +181,14 @@ export interface PreparedGroup {
   readonly schema: z.ZodType;
   /** The JSON Schema sent to the model in `response_format`. */
   readonly jsonSchema: Record<string, unknown>;
+  /**
+   * Where this group's field descriptions travel — the mode `prepareGroups`
+   * rendered `jsonSchema` in. The fill phase reads it here rather than taking
+   * its own option, so the strip and the emission cannot be set apart: a
+   * stripped schema whose prompt carries no guidance is the accuracy loss the
+   * mode exists to prevent.
+   */
+  readonly fieldDescriptions: FieldDescriptionsMode;
   /** The base for `response_format.json_schema.name`. */
   readonly name: string;
   /** The descriptive prefix for error messages from this group's calls. */
@@ -239,6 +257,13 @@ export function projectFillExample<F extends Record<string, unknown>>(
  * `leafKeys` is supplied for a partitioned piece (`ExtractionGroup.part`) so the
  * example's assistant turn is narrowed to the same leaf subset the piece's
  * `response_format` accepts — mirroring {@link buildGroupMessages}' `leafKeys`.
+ *
+ * `pieceSchema` is the zod schema the call is pinned to (the prepared group's
+ * own — a collection's single-instance wrapper, a `""` piece's strict object),
+ * and `options` the `fieldDescriptions` mode. Under `"prompt"` the system message
+ * carries that piece's descriptions as the field-guidance block; the fill phase
+ * passes the mode `prepareGroups` recorded on the group, so it always matches
+ * the wire schema. Omitted, no block is appended.
  */
 export function buildFillMessages<V extends Record<string, unknown>, P = NoProvenance>(
   target: ExtractionTarget<V, P>,
@@ -248,10 +273,15 @@ export function buildFillMessages<V extends Record<string, unknown>, P = NoProve
   transcript: string,
   buildFillInstructions: (groupKey: string, scope: FillScope) => string,
   leafKeys?: readonly string[],
+  pieceSchema?: z.ZodType,
+  options?: FieldGuidanceOptions,
 ): ChatMessage[] {
-  const messages: ChatMessage[] = [
-    { role: "system", content: buildFillInstructions(groupKey, scope) },
-  ];
+  const baseInstructions = buildFillInstructions(groupKey, scope);
+  const withGuidance =
+    pieceSchema !== undefined && fieldDescriptionsMode(options) === "prompt"
+      ? withFieldGuidance(baseInstructions, pieceSchema)
+      : baseInstructions;
+  const messages: ChatMessage[] = [{ role: "system", content: withGuidance }];
   for (const example of target.examples ?? []) {
     const projected = projectFillExample(example, groupKey, instanceIndex, leafKeys);
     if (projected === null) continue;
@@ -318,11 +348,18 @@ export function singletonFillScope(groupKey: string): FillScope {
  * The name is guarded here: a colon in the target's name or a schema property's
  * key throws at construction naming the character (see
  * `assertWireSafeSchemaName`).
+ *
+ * The `fieldDescriptions` mode (default `"schema"`) is decided here and only
+ * here: under `"prompt"` the rendered `jsonSchema` is stripped, and the mode is
+ * recorded on each group so the fill phase emits the same text into the prompt.
  */
 export function prepareGroups<V extends Record<string, unknown>, P = NoProvenance>(
   target: ExtractionTarget<V, P>,
   groups: readonly ExtractionGroup[],
+  options?: FieldGuidanceOptions,
 ): readonly PreparedGroup[] {
+  const mode = fieldDescriptionsMode(options);
+  const keepDescriptions = mode === "schema";
   return groups.map((group) => {
     let schema: z.ZodType;
     let isCollection = false;
@@ -340,10 +377,7 @@ export function prepareGroups<V extends Record<string, unknown>, P = NoProvenanc
       schema = group.schema;
     }
 
-    const jsonSchema = z.toJSONSchema(schema, { target: "draft-2020-12" }) as Record<
-      string,
-      unknown
-    >;
+    const jsonSchema = toJsonSchemaForWire(schema, { keepDescriptions });
     // A partitioned piece appends `-<part>` so fill calls sharing a group key
     // still get distinct schema names — the same charset-safe suffixing
     // perGroupPlan uses, and for the same reason. The flat (non-grouped) path
@@ -375,6 +409,7 @@ export function prepareGroups<V extends Record<string, unknown>, P = NoProvenanc
       isCollection,
       schema,
       jsonSchema,
+      fieldDescriptions: mode,
       name,
       context,
       part: group.part,
@@ -435,6 +470,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
     instanceCap = DEFAULT_INSTANCE_CAP,
     maxNullableUnionsPerGroup,
     maxSerializedCharsPerGroup,
+    fieldDescriptions,
     onUnit,
     onRetryBudget,
     requireRetryBudget,
@@ -456,13 +492,20 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
     splitOptions.maxSerializedCharsPerGroup = maxSerializedCharsPerGroup;
   }
   const groups = splitExtractionSchema(target.extractionSchema, splitOptions);
-  const prepared = prepareGroups(target, groups);
+  const prepared = prepareGroups(target, groups, { fieldDescriptions });
 
   const engine = phasedExtractor<V, P>({
     target,
     phases: [
       inventoryPhase<V, P>({ inventory, prepared, instanceCap }),
-      fillPhase<V, P>({ target, chat, model, maxTokens, prepared, buildFillInstructions }),
+      fillPhase<V, P>({
+        target,
+        chat,
+        model,
+        maxTokens,
+        prepared,
+        buildFillInstructions,
+      }),
     ],
     concurrency,
     maxRetries,
