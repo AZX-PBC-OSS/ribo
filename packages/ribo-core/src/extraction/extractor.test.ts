@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 
 import { FakeExtractor, toSessionExtractStep } from "./extractor.js";
-import type { Extractor, ExtractionResult } from "./extractor.js";
+import type { Extractor, ExtractionResult, SkippedItem } from "./extractor.js";
 import type { SessionItem } from "../storage/session-schema.js";
 import type { Transcript } from "../capture/transcript.js";
 
@@ -202,6 +202,57 @@ test("toSessionExtractStep reports no statedEmptyGroups when the extractor does 
   });
 
   expect(result.statedEmptyGroups).toBeUndefined();
+});
+
+test("toSessionExtractStep carries skippedItems through unchanged", async () => {
+  const skipped: SkippedItem = { phaseId: "fill", key: "hvac", instance: 2, instances: 2 };
+  const handRolled: Extractor<AtticFields> = {
+    extract: (): Promise<ExtractionResult<AtticFields>> =>
+      Promise.resolve({
+        fields: { atticInsulation: "R-19" },
+        usage: { calls: 1 },
+        skippedItems: [skipped],
+      }),
+  };
+
+  const result = await toSessionExtractStep(handRolled)({
+    session,
+    transcript: { text: transcript.text, annotations: {} },
+    recordingIds: ["rec-1"],
+  });
+
+  expect(result.skippedItems).toEqual([skipped]);
+});
+
+test("toSessionExtractStep keeps an empty skippedItems report rather than inventing absence", async () => {
+  // `[]` means "reports, nothing skipped" and absent means "no skip path" —
+  // different answers (ADR 0026) — so the step forwards whatever shape it got.
+  const reporting: Extractor<AtticFields> = {
+    extract: (): Promise<ExtractionResult<AtticFields>> =>
+      Promise.resolve({
+        fields: { atticInsulation: "R-19" },
+        usage: { calls: 1 },
+        skippedItems: [],
+      }),
+  };
+
+  const reported = await toSessionExtractStep(reporting)({
+    session,
+    transcript: { text: transcript.text, annotations: {} },
+    recordingIds: ["rec-1"],
+  });
+  const silent = await toSessionExtractStep(
+    new FakeExtractor<AtticFields>({ atticInsulation: "R-19" }),
+  )({
+    session,
+    transcript: { text: transcript.text, annotations: {} },
+    recordingIds: ["rec-1"],
+  });
+
+  expect(reported.skippedItems).toEqual([]);
+  // Undefined, exactly as `statedEmptyGroups` reads on a silent extractor —
+  // the relay patches from the value, so absent is what reaches the session.
+  expect(silent.skippedItems).toBeUndefined();
 });
 
 test("toSessionExtractStep forwards the options bag to the extractor's second parameter", async () => {

@@ -189,7 +189,8 @@ export type ExtractionTarget<V extends Record<string, unknown>, P = NoProvenance
  * The relay owns `RelayOptions.sessionExtract` and speaks in `ExtractedFieldMap`; an `Extractor`
  * speaks in `ExtractionResult<F>`. This is the one-line adapter between them, so wiring a strategy
  * into the queue is `createRelay({ ..., sessionExtract: toSessionExtractStep(myExtractor) })` with
- * **no** relay change. `.fields`, the engine, the strategy and the usage totals reach the
+ * **no** relay change. `.fields`, the engine, the strategy, the usage totals and the two
+ * side-reports (`statedEmptyGroups`, `skippedItems`) reach the
  * session; `raw` stays with the extractor, because it is unbounded model output and the session
  * document is not a log.
  *
@@ -214,6 +215,10 @@ export function toSessionExtractStep<F extends Record<string, unknown>>(
       engine: result.usage.engine,
       usage: result.usage,
       statedEmptyGroups: result.statedEmptyGroups,
+      // Forwarded as-is: absent and `[]` mean different things (ADR 0026), so
+      // the step must not invent an empty report for an extractor that has no
+      // skip path, nor drop a report the extractor did produce.
+      skippedItems: result.skippedItems,
     };
   };
 }

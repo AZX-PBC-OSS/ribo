@@ -131,7 +131,9 @@ export interface UseReviewResult {
   readonly existingRecords: Readonly<Record<string, readonly ExistingRecord[]>> | undefined;
   /**
    * The review's leaves in the shape the schema declared them: groups, instances, leaves,
-   * each collection group carrying whether it is `absent`, `empty` or `populated`.
+   * each collection group carrying whether it is `absent`, `empty` or `populated`, and each
+   * collection, top-level object and instance node carrying whether a reported-skipped
+   * extraction item addressed it (`skipped`).
    *
    * `fields` stays the decision channel — it is what `decide` and `submit` are keyed by, and
    * its order is the contract. This is the rendering channel, and it exists so a host does
@@ -472,11 +474,13 @@ export function useReview<T extends z.ZodObject>(
       existingRecords,
       provenance,
       statedEmptyGroups: session?.statedEmptyGroups,
+      skippedItems: session?.skippedItems,
     });
   }, [
     extractedSnapshot,
     session?.extracted,
     session?.statedEmptyGroups,
+    session?.skippedItems,
     transcript,
     valuesSchema,
     requiredOnCreate,

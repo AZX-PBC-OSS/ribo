@@ -98,6 +98,13 @@ export const captureRxSchema: RxJsonSchema<CaptureDocument> = {
  * extends (adding `statedEmptyGroups`) — a reader who lands there first should
  * know this v2 schema isn't "finished" the moment this task's commit lands.
  *
+ * v2 → v3 added `skippedItems` (optional) — the per-item report of what an
+ * `onItemFailure: "skip"` policy gave up on, so review can tell an
+ * engine-written abstention from a genuine one (ADR 0026's deferred next step).
+ * The strategy is **identity**: an absent optional field is the correct state
+ * for every pre-existing session. ADR 0026's same reasoning about optionality
+ * not removing the bump applies — see it below.
+ *
  * **An optional addition still needs the bump, and the stake is the captures.**
  * RxDB validates the declared schema against the one the collection was created
  * with, so adding a property at the same version is refused at `addCollections`
@@ -143,6 +150,7 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
     writeResult: { type: "object" },
     receipts: { type: "object" },
     statedEmptyGroups: { type: "object" },
+    skippedItems: { type: "array" },
     idempotencyKey: { type: "string", maxLength: 64 },
   },
   required: [

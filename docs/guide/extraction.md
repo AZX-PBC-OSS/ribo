@@ -30,8 +30,9 @@ schema-free until a real transcriber produces real annotations, and it does not 
 
 `ExtractionResult<F>` carries the parsed `fields`; an optional `raw` payload kept for debugging; a
 `usage` block (calls made, token counts, and which `engine` and `strategy` produced the result —
-covered from the composition side in [Arbitration & Fallback](/guide/arbitration)); and an optional
-`statedEmptyGroups`, for a roster-based strategy's explicit "none of these" answers per group.
+covered from the composition side in [Arbitration & Fallback](/guide/arbitration)); an optional
+`statedEmptyGroups`, for a roster-based strategy's explicit "none of these" answers per group; and
+an optional `skippedItems`, the report of what a skip policy gave up on (below).
 
 ## Run options: cancellation is part of the contract
 
@@ -489,6 +490,16 @@ all. The report names the ask that failed, not the value. A narrowed re-ask that
 reported even though the slot keeps the earlier pass's answer. Combinators that rebuild a result
 (`groupedExtractor`, `consensusExtractor`, `reshapedExtractor`, `extractorPhase`) carry the report
 through. `cachedExtractor` does not store a result that skipped anything (ADR 0026).
+
+**The report reaches the session.** `toSessionExtractStep` forwards it beside
+`statedEmptyGroups`, and the relay persists it as its own session field (`skippedItems`,
+unconditionally — a re-extraction clears a prior run's stale report). Review consumes it:
+`buildReviewRequest` takes `skippedItems` (the `useReview` hook passes the session's) and sets a
+`skipped` flag on the tree's collection, object and instance nodes the report names — so a
+review screen can mark "we asked and could not get an answer" instead of rendering an
+engine-written abstention as a quiet field. Absent and `[]` stay distinct on the session: absent
+means the winning tier could not have skipped silently (a `groupedExtractor` tier has no skip
+path — its failures are loud), `[]` means verified-nothing-skipped (ADR 0029).
 
 ### `describeItem`
 

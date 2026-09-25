@@ -9,6 +9,7 @@ import type { ProvenanceGranularity } from "../provenance/enveloped.js";
 import { spanGroundedness } from "../provenance/provenance.js";
 import type { Extracted, SpanGroundedness } from "../provenance/provenance.js";
 import type { Transcript } from "../capture/transcript.js";
+import type { SkippedItem } from "../extraction/extractor.js";
 import type { ExistingRecord, InstanceLinkDecision, LinkTargets } from "./instance-identity.js";
 
 // `FieldPath` moved to `field-path.js` so `adapter.ts` can use it without the
@@ -225,6 +226,18 @@ export interface ReviewObjectNode {
   readonly key: string;
   readonly path: FieldPath;
   readonly children: readonly ReviewNode[];
+  /**
+   * A reported-skipped extraction item addressed this group: the ask that
+   * would have filled it (a singleton fill, a presence fill) gave up under
+   * `onItemFailure: "skip"`, so whatever value sits here may be an
+   * engine-written abstention indistinguishable from a model's. Only a
+   * top-level group can be named by a skipped item — for a nested object this
+   * is always `false`. `false` is "nothing reported skipped here", **not**
+   * "nothing could have been": an extractor without a skip path (a
+   * `groupedExtractor` tier) reports nothing at all — see
+   * `BuildReviewRequestOptions.skippedItems`.
+   */
+  readonly skipped: boolean;
 }
 
 /** One instance of a collection group, addressed by the key review already assigns it. */
@@ -234,6 +247,16 @@ export interface ReviewInstanceNode {
   /** `hvac[k1]` — the instance's own path, which is what link decisions are keyed by. */
   readonly path: FieldPath;
   readonly children: readonly ReviewNode[];
+  /**
+   * A reported-skipped fill item addressed this instance specifically — the
+   * item carried `instance: n` matching this one. An instance marked here may
+   * hold engine-written abstentions among its leaves; the flag is deliberately
+   * per-instance (ADR 0026) so one failed fill of two does not condemn the
+   * whole group. Note the report is per-ITEM, and an item covers a piece of
+   * the instance's leaves, so `true` means "some ask covering this instance
+   * failed" — a subset of its leaves may still be genuinely extracted.
+   */
+  readonly skipped: boolean;
 }
 
 /** A collection group — a house with two HVAC systems has two instances here. */
@@ -250,6 +273,17 @@ export interface ReviewCollectionNode {
   readonly emptyQuote: string | null;
   /** Empty for both `absent` and `empty`; `state` is what tells those apart. */
   readonly instances: readonly ReviewInstanceNode[];
+  /**
+   * A reported-skipped extraction item addressed this group — an item whose
+   * coordinates name the group's key. This is orthogonal to `state` and rides
+   * beside it rather than replacing it: a group with one skipped fill of two
+   * is still `"populated"`, and a group whose presence fill was skipped can
+   * still be `"empty"` — the state says how many instances exist, the flag
+   * says an answer for what exists may be missing. Not a `ReviewGroupState`
+   * for exactly that reason: the two questions are independent, and a state
+   * that folded them in would double its values for no extra information.
+   */
+  readonly skipped: boolean;
 }
 
 export type ReviewNode = ReviewLeafNode | ReviewObjectNode | ReviewCollectionNode;
@@ -454,6 +488,31 @@ const readChild = (node: unknown, key: string): unknown =>
   typeof node === "object" && node !== null ? (node as Record<string, unknown>)[key] : undefined;
 
 /**
+ * The two lookups the tree's `skipped` flags read from, built once from the
+ * report: which group keys a skipped item named, and which `(group, instance)`
+ * pairs a fill item addressed. A separator that cannot appear in a schema key
+ * keeps the pair unambiguous.
+ */
+interface SkippedLookup {
+  readonly groups: ReadonlySet<string>;
+  readonly instances: ReadonlySet<string>;
+}
+
+const SKIPPED_INSTANCE_SEPARATOR = "\u0000";
+
+const skippedLookup = (items: readonly SkippedItem[]): SkippedLookup => {
+  const groups = new Set<string>();
+  const instances = new Set<string>();
+  for (const item of items) {
+    groups.add(item.key);
+    if (typeof item.instance === "number") {
+      instances.add(`${item.key}${SKIPPED_INSTANCE_SEPARATOR}${item.instance}`);
+    }
+  }
+  return { groups, instances };
+};
+
+/**
  * Read one leaf's envelope out of the extracted data, falling back to the sentinel.
  *
  * The fallback covers both "the model omitted this leaf" and "what is at this path is
@@ -528,6 +587,7 @@ const collectFields = (
   transcript: Transcript,
   requiredOnCreate: RequiredOnCreateMap,
   statedEmptyGroups: Readonly<Record<string, string>>,
+  skipped: SkippedLookup,
   provenance: Readonly<Record<string, ProvenanceGranularity>>,
   granularity: ProvenanceGranularity,
   rowSpan: string | null,
@@ -554,6 +614,7 @@ const collectFields = (
         transcript,
         requiredOnCreate,
         statedEmptyGroups,
+        skipped,
         provenance,
         groupGranularity,
         // A singleton group IS the row, so its span is read here; a nested object deeper in
@@ -562,7 +623,15 @@ const collectFields = (
         out,
         children,
       );
-      nodes.push({ kind: "object", key, path, children });
+      nodes.push({
+        kind: "object",
+        key,
+        path,
+        children,
+        // Only a top-level group key can be named by a skipped item — see
+        // `ReviewObjectNode.skipped`.
+        skipped: atTopLevel && skipped.groups.has(key),
+      });
       continue;
     }
 
@@ -613,6 +682,7 @@ const collectFields = (
           transcript,
           requiredOnCreate,
           statedEmptyGroups,
+          skipped,
           provenance,
           groupGranularity,
           groupGranularity === "row" ? readRowSpan(elements[i]) : rowSpan,
@@ -623,9 +693,22 @@ const collectFields = (
           key: instanceKey,
           path: buildFieldPath(instanceSegments),
           children,
+          // The fill item's `instance` is 1-based over the same array order the
+          // review keys are derived from, so `instance: n` maps to `k{n}`.
+          skipped:
+            atTopLevel && skipped.instances.has(`${key}${SKIPPED_INSTANCE_SEPARATOR}${i + 1}`),
         });
       }
-      nodes.push({ kind: "collection", key, path, state, emptyQuote, instances });
+      nodes.push({
+        kind: "collection",
+        key,
+        path,
+        state,
+        emptyQuote,
+        instances,
+        // Top-level only, as for object nodes: a nested collection can share a group's key.
+        skipped: atTopLevel && skipped.groups.has(key),
+      });
       continue;
     }
 
@@ -679,6 +762,7 @@ export const buildReviewRequest = <T extends z.ZodObject>(
   const tree: ReviewNode[] = [];
   const requiredOnCreate = options.requiredOnCreate ?? {};
   const statedEmptyGroups = options.statedEmptyGroups ?? {};
+  const skipped = skippedLookup(options.skippedItems ?? []);
   collectFields(
     valuesSchema,
     [],
@@ -686,6 +770,7 @@ export const buildReviewRequest = <T extends z.ZodObject>(
     transcript,
     requiredOnCreate,
     statedEmptyGroups,
+    skipped,
     provenance,
     "leaf",
     null,
@@ -756,6 +841,25 @@ export interface BuildReviewRequestOptions<T extends z.ZodObject = z.ZodObject> 
    * carrying a malformed (non-array) value stays `"absent"` regardless.
    */
   readonly statedEmptyGroups?: Readonly<Record<string, string>>;
+  /**
+   * The extraction's skip report — the session's persisted `skippedItems`,
+   * passed through so the tree can carry it. Items address coordinates
+   * (`phaseId` + the item's group key, and for a fill `(group, piece,
+   * instance)`), and the walk sets `skipped: true` on the collection or
+   * top-level object node those coordinates name, and on each instance node a
+   * fill item addressed by number. Leaf-level attribution is deliberately NOT
+   * attempted: an item covers a *piece* of an instance's leaves, and the piece
+   * partition exists only during extraction, so the persisted report cannot
+   * name leaves without lying.
+   *
+   * Omit it when the session carries no report — every node reads `false`.
+   * That is the honest rendering for a run that could not have skipped
+   * silently: an extractor without a skip path fails loudly per item, and a
+   * `groupedExtractor` tier has no skip path at all. The absent-vs-`[]`
+   * distinction lives on the session field, not here, and a host that wants to
+   * display "we cannot tell" reads the field's presence itself.
+   */
+  readonly skippedItems?: readonly SkippedItem[];
   /**
    * The per-group provenance granularity the adapter's extraction schema was derived with —
    * the SAME map handed to `enveloped(schema, { provenance })`.
