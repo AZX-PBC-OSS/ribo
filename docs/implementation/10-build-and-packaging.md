@@ -23,7 +23,7 @@ ribo/
 ```
 
 This diagram is an excerpt, not the roster — the publishable count's home is
-`EXPECTED_PUBLISHED_COUNT` in `scripts/lib/publishable-packages.mjs` (thirteen as of ADR 0027,
+`EXPECTED_PUBLISHED_COUNT` in `scripts/lib/publishable-packages.mjs` (thirteen as of ADR 0029,
 which replaced `ribo-extractor-openai` with the two `ribo-chat-*` dialect packages), and the tree
 above has trailed the real layout since the first package landed after this doc was written.
 `build-config` and `tsconfig` are private, unpublished workspace
@@ -325,7 +325,7 @@ tool now, so neither cost exists to pay.
   three publishable packages, and this makes four.~~ **Done, and overtaken.** `ribo-transcriber-ondevice`
   shipped in Phase 3; `ribo-extractor-openai` shipped in Phase 4 alongside it, so the count settled at
   **five**, not four — and has since kept growing (`ribo-chat-openai` and `ribo-chat-helix` replaced
-  `ribo-extractor-openai` under ADR 0027; `EXPECTED_PUBLISHED_COUNT` is the current roster's home).
+  `ribo-extractor-openai` under ADR 0029; `EXPECTED_PUBLISHED_COUNT` is the current roster's home).
 - Decide whether Storybook earns its place alongside the playground, or is deferred.
 - Pin the initial tsdown/Vite/TypeScript versions and record them in the catalog.
 - ~~Translate the §2.1 baseline into a concrete shared browserslist / per-tool `target`, and add a check that the two library builds agree on it.~~ **Done.** `pnpm target:refresh` (`scripts/refresh-target.mjs`) generates `BROWSER_TARGET` in `packages/build-config/src/target.generated.ts` from the §2.1 table, and every one of the five packages' `tsdown.config.ts` gets it from the same `sharedTsdown` object rather than declaring its own — there is one tool and one target now, not two builds that could disagree.

@@ -1,4 +1,4 @@
-# 0027. Transport-agnostic extraction lives in core, not a sibling package
+# 0029. Transport-agnostic extraction lives in core, not a sibling package
 
 Status: Accepted
 Date: 2026-09-24

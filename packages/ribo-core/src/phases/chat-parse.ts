@@ -4,7 +4,7 @@
  * with the terminal/transient classification the managed extractors established.
  *
  * These moved here from `@azx/ribo-extractor-openai`'s `extraction-common` (which
- * re-exported them, keeping its surface unchanged, until ADR 0027 deleted the
+ * re-exported them, keeping its surface unchanged, until ADR 0029 deleted the
  * package): they are transport-agnostic semantics over the chat seam (ADR 0010), and
  * `askPhase` composes the same chain its managed cousins do. One copy of the semantics,
  * beside the seam — the same reason `parseWithSchema` itself moved.

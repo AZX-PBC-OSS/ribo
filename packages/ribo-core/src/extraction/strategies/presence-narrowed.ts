@@ -2,7 +2,7 @@
  * The presence-narrowed preset: a caller-supplied presence phase, then core's
  * fill phase over the same walked groups. The presence phase seeds
  * every group key; the fill narrows to what presence found — the composition
- * ADR 0026 licenses for the managed path.
+ * ADR 0028 licenses for the managed path.
  *
  * The presence phase is a PARAMETER, not an import: core's chat-backed
  * `presencePhase` and the System One one are interchangeable here, and this

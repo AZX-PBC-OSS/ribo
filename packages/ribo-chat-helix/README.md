@@ -7,7 +7,7 @@ JSON body, and the route defaults to SSE so `stream: false` is always sent).
 
 It is a dialect package (ADR 0020): everything above the transport — `singleShotExtractor`,
 `perGroupExtractor`, the schema split, the phases — lives in `@azx/ribo-core` and speaks the
-seam, so this package exists to name the dialect and nothing else (ADR 0027). It stays apart
+seam, so this package exists to name the dialect and nothing else (ADR 0029). It stays apart
 from `@azx/ribo-chat-openai` because the two are already separable and a merged package would
 have no honest second segment — "chat" is the seam, not an implementation.
 

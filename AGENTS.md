@@ -143,7 +143,7 @@ Four tiers. Dependencies always point **inward toward `ribo-core`**: `ribo-ui-re
 `ribo-transcriber-pdfjs` each depend on `ribo-core`. **No leaf package depends on a sibling leaf** —
 the one exception this repo ever carried (`ribo-extractor-ondevice` → `ribo-extractor-openai`, a
 real `workspace:^` `dependencies` entry for `perGroupExtractor` in `retry-integration.test.ts`) was
-closed by ADR 0027: the strategy had already moved into `ribo-core`, the import repointed there, and
+closed by ADR 0029: the strategy had already moved into `ribo-core`, the import repointed there, and
 the dependency went with the deleted package. The field app composes all of
 these; nothing depends on the field app.
 

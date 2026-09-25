@@ -201,7 +201,7 @@ async function run() {
     checks.adapterSchemaKeyCount = Object.keys(snuggProAdapter.schema.shape).length;
 
     // The chat transports composed with the adapter across a tarball boundary (the
-    // strategies now live in ribo-core, ADR 0027; the transports are the dialect
+    // strategies now live in ribo-core, ADR 0029; the transports are the dialect
     // packages). Constructed only, never called: openAiChat needs a baseUrl to build
     // its request URL eagerly (not lazily inside complete()), but nothing here ever
     // calls .extract(), so no network happens. helixChat's capability() without a

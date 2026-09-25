@@ -35,7 +35,7 @@ rule. The on-device path already relies on this: `span-phase`'s plan "returns on
 that has at least one present leaf. A group whose leaves are all absent yields no item and
 therefore no call."
 
-Seeding first is what converts the unsound operation into the sound one. Recorded as ADR 0026.
+Seeding first is what converts the unsound operation into the sound one. Recorded as ADR 0028.
 
 ## The two signals have very different margins, and that decides their jobs
 
