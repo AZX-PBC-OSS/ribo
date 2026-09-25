@@ -21,6 +21,11 @@
 import { z } from "zod";
 import { childPath, stripOptionalNullable } from "../../provenance/field-path.js";
 
+import type { DeriveExtractionShapeOptions } from "./shape-operations.js";
+
+/** The caller's declarations the inventory tags — the derive options minus the operations. */
+export type InventoryDeclarations = Omit<DeriveExtractionShapeOptions, "operations">;
+
 /**
  * The leaf kinds the closed retype set and the mapping both name. Re-used
  * here verbatim — the inventory walks the same vocabulary the mapping validates
@@ -108,12 +113,12 @@ const walkField = (
 /**
  * Render the inventory as text — what the model sees. One line per group
  * (a top-level object or array-of-object), followed by indented leaves with
- * their kind and description. Three intentional choices:
+ * their kind and description. Intentional choices:
  *
  *   - **Group headers repeat the top-level path and an `object`/`array`
  *     label**, so the model can `regroup` against the right scope.
- *   - **`(no description)` for undescribed leaves** keeps the line parseable
- *     for a model that joins fields on structural tokens.
+ *   - **Declarations render as bracketed tags** after the kind, so the model
+ *     sees what a drop would strand before the applier refuses it.
  *   - **No count summary or totals** — the proposal schema bounds the
  *     operation count, not the inventory. A model's reasoning lives in the
  *     leaves, not in how many there are.
@@ -129,7 +134,10 @@ const walkField = (
  * of which is true. Such leaves appear at the inventory's top level alongside
  * their kind and description.
  */
-export function renderLeafInventory(entries: readonly LeafInventoryEntry[]): string {
+export function renderLeafInventory(
+  entries: readonly LeafInventoryEntry[],
+  declarations: InventoryDeclarations = {},
+): string {
   if (entries.length === 0) return "Schema has no leaves.";
 
   // Bucket the entries: a leaf with no dot in its path is "ground" (it lives
@@ -152,17 +160,41 @@ export function renderLeafInventory(entries: readonly LeafInventoryEntry[]): str
   const lines: string[] = [];
   for (const leaf of ground) {
     const tail = leaf.description === undefined ? "" : ` — "${leaf.description}"`;
-    lines.push(`- ${leaf.path} (${leaf.kind})${tail}`);
+    const tags = [
+      ...groupTags(leaf.path, declarations),
+      ...leafTags(leaf.path, leaf.path, declarations),
+    ];
+    lines.push(`- ${leaf.path} (${leaf.kind})${renderTags(tags)}${tail}`);
   }
   for (const [group, leaves] of grouped) {
     const sample = entries.find((entry) => entry.path === leaves[0]!.path)!;
     const shape = sample.inArray ? "array" : "object";
-    lines.push(`- ${group} (${shape})`);
+    lines.push(`- ${group} (${shape})${renderTags(groupTags(group, declarations))}`);
     for (const leaf of leaves) {
       const inside = leaf.path.slice(group.length + 1);
       const tail = leaf.description === undefined ? "" : ` — "${leaf.description}"`;
-      lines.push(`    - ${inside} (${leaf.kind})${tail}`);
+      const tags = renderTags(leafTags(group, inside, declarations));
+      lines.push(`    - ${inside} (${leaf.kind})${tags}${tail}`);
     }
   }
   return lines.join("\n");
 }
+
+/** A top-level key's tags: its provenance granularity, when declared. */
+const groupTags = (key: string, declarations: InventoryDeclarations): string[] => {
+  const granularity = declarations.provenance?.[key];
+  return granularity === undefined ? [] : [`[provenance: ${granularity}]`];
+};
+
+/**
+ * A leaf's tags, looked up the way the declarations name it: by its
+ * group-relative path, or a top-level leaf by its own key.
+ */
+const leafTags = (group: string, leaf: string, declarations: InventoryDeclarations): string[] => {
+  const tags: string[] = [];
+  if (declarations.requiredOnCreate?.[group]?.includes(leaf)) tags.push("[required on create]");
+  if (declarations.identifyingFields?.[group]?.includes(leaf)) tags.push("[identifying]");
+  return tags;
+};
+
+const renderTags = (tags: readonly string[]): string => tags.map((tag) => ` ${tag}`).join("");
