@@ -1281,6 +1281,23 @@ describe("fillPhase — onItemFailure", () => {
     const fields = result.fields as Record<string, unknown>;
     expect(fields.house).toEqual({ color: abstainedLeaf(), size: abstainedLeaf() });
     expect(fields.widgets).toEqual([leafEnvelope("red"), leafEnvelope("blue")]);
+    // The abstention above is legal model output too; only the report tells them apart.
+    expect(result.skippedItems).toEqual([
+      { phaseId: "fill", key: "house", instance: 1, instances: 1, part: 1, parts: 1 },
+    ]);
+  });
+
+  test("the same fill with every call succeeding names nothing skipped", async () => {
+    // The regression guard: the option is set, nothing failed, so nothing is named.
+    const { chat } = chatFailing(() => false, standardRespond);
+    const result = await extractWith(
+      target,
+      prepared,
+      twoWidgets(),
+      fillPass(target, prepared, chat, { onItemFailure: "skip" }),
+    );
+
+    expect(result.skippedItems).toEqual([]);
   });
 
   test("a failed collection instance resolves with the abstained element at that index; siblings keep theirs", async () => {
@@ -1300,6 +1317,10 @@ describe("fillPhase — onItemFailure", () => {
       size: abstainedLeaf(),
     });
     expect(fields.house).toEqual(leafEnvelope("main"));
+    // One instance of two — the report is finer than the group.
+    expect(result.skippedItems).toEqual([
+      { phaseId: "fill", key: "widgets", instance: 2, instances: 2, part: 1, parts: 1 },
+    ]);
   });
 
   test("a failed piece of a partitioned group abstains only its leaves; the succeeding sibling's survive the recombine", async () => {
@@ -1331,6 +1352,10 @@ describe("fillPhase — onItemFailure", () => {
     });
     expect(systems[1]!.color).toEqual({ value: "1-color", sourceSpan: "span", confidence: 1 });
     expect(systems[1]!.size).toEqual(abstainedLeaf());
+    // One piece of one instance — finer still.
+    expect(result.skippedItems).toEqual([
+      { phaseId: "fill", key: "systems", instance: 2, instances: 2, part: 2, parts: 2 },
+    ]);
   });
 
   test("a collection whose every job failed yields a full array of abstained elements — no holes", async () => {
@@ -1431,6 +1456,11 @@ describe("fillPhase — onItemFailure", () => {
     expect(widgets[0]!.color.value).toBe("red");
     expect(widgets[0]!.size).toEqual(spannedNull);
     expect(widgets[1]).toEqual(committedLeaves("blue", "2"));
+    // Reported although the slot keeps the first pass's answer: a skip names
+    // the ask that failed, not a value the engine wrote.
+    expect(result.skippedItems).toEqual([
+      { phaseId: "fill-second-pass", key: "widgets", instance: 1, instances: 2, part: 1, parts: 1 },
+    ]);
   });
 
   test("a failed flat piece resolves with its leaves abstained at the top level", async () => {

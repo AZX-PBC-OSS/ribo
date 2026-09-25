@@ -8,6 +8,7 @@ import type {
   ExtractionResult,
   ExtractionTarget,
   ExtractionUsage,
+  SkippedItem,
 } from "../extraction/extractor.js";
 import type { Enveloped, NoProvenance } from "../provenance/enveloped.js";
 import { mapWithPool } from "../async/map-with-pool.js";
@@ -142,6 +143,28 @@ function addPhaseOutputUsage(acc: UsageAccumulator, usage: ExtractionUsage): voi
 }
 
 /**
+ * An item's key and coordinates, from the phase's `describeItem` — the scheduler has no
+ * other way to learn what an opaque item belongs to. Defaulting to key "" matches
+ * groupedExtractor's internal-record convention for a whole-schema entry (UNWRAPPED_KEY).
+ * Every member after `key` is spread in only when the phase reported it — absent, never
+ * an explicit undefined (the usage members' omit rule).
+ */
+function describeUnit<V extends Record<string, unknown>, P, I, C>(
+  def: PhaseDef<V, P, I, C>,
+  item: I,
+): Omit<SkippedItem, "phaseId"> {
+  const described = def.describeItem?.(item) ?? { key: "" };
+  return {
+    key: described.key,
+    ...(described.leaf !== undefined ? { leaf: described.leaf } : {}),
+    ...(described.instance !== undefined ? { instance: described.instance } : {}),
+    ...(described.instances !== undefined ? { instances: described.instances } : {}),
+    ...(described.part !== undefined ? { part: described.part } : {}),
+    ...(described.parts !== undefined ? { parts: described.parts } : {}),
+  };
+}
+
+/**
  * Build a {@link phasedExtractor} over a list of phases.
  *
  * On each `extract`:
@@ -159,7 +182,8 @@ function addPhaseOutputUsage(acc: UsageAccumulator, usage: ExtractionUsage): voi
  *      against the full `extractionSchema`, then assemble the result — usage summed
  *      from every `PhaseOutput`, `raw` from the draft when present, and
  *      `statedEmptyGroups` omitted entirely when empty, because `extractor.ts`
- *      documents its absence as meaning "this extractor ran no roster pass".
+ *      documents its absence as meaning "this extractor ran no roster pass". And
+ *      `skippedItems`, always — every item a skip policy gave up on, empty when none.
  */
 export function phasedExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   options: PhasedExtractorOptions<V, P>,
@@ -192,6 +216,8 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
     ): Promise<ExtractionResult<Enveloped<V, P>>> {
       const callerSignal = callerOptions?.signal;
       const acc: UsageAccumulator = { totalCalls: 0, totals: {} };
+      const skipped: SkippedItem[] = [];
+      let liftedSeen = 0;
       let draft = emptyDraft<V, P>();
 
       // The running deadline, recorded once: this run's own step timeout, narrowed —
@@ -288,22 +314,7 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
               // assertion while breaking correlation for exactly the runs a
               // consumer most wants to follow.
               const id = nextUnitId();
-              // key and leaf come from the phase's describeItem — the scheduler has
-              // no other way to learn what an opaque item belongs to. Defaulting to
-              // key "" matches groupedExtractor's internal-record convention for a
-              // whole-schema entry (UNWRAPPED_KEY).
-              const described = def.describeItem?.(item) ?? { key: "" };
-              // Every member after `key` is spread in only when the phase reported it —
-              // an event carries `leaf`/`instance`/`instances`/`part`/`parts` as absent,
-              // never as an explicit undefined (the usage members' omit rule).
-              const unitKey = {
-                key: described.key,
-                ...(described.leaf !== undefined ? { leaf: described.leaf } : {}),
-                ...(described.instance !== undefined ? { instance: described.instance } : {}),
-                ...(described.instances !== undefined ? { instances: described.instances } : {}),
-                ...(described.part !== undefined ? { part: described.part } : {}),
-                ...(described.parts !== undefined ? { parts: described.parts } : {}),
-              };
+              const unitKey = describeUnit(def, item);
               // The attempt that most recently BEGAN — 0 until onAttempt first
               // fires, so the done event names the attempt that actually settled,
               // and an attempt the pre-attempt abort check prevented emits
@@ -411,8 +422,18 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
             if (outcome.outcome === "result" && outcome.output.usage !== undefined) {
               addPhaseOutputUsage(acc, outcome.output.usage);
             }
+            // Recorded here, in item order, rather than in the worker, where pool
+            // arrival order would make the report nondeterministic.
+            if (outcome.outcome === "error") {
+              skipped.push({ phaseId: phase.id, ...describeUnit(def, outcome.item) });
+            }
           }
           const merged = def.merge(draft, outcomes);
+          // A lifted extractor's report lands on the draft; take what this merge added
+          // so the result lists every skip in run order.
+          const lifted = merged.skippedItems ?? [];
+          skipped.push(...lifted.slice(liftedSeen));
+          liftedSeen = lifted.length;
           return merged;
         });
       }
@@ -445,6 +466,10 @@ export function phasedExtractor<V extends Record<string, unknown>, P = NoProvena
         ...(Object.keys(draft.statedEmptyGroups).length > 0
           ? { statedEmptyGroups: draft.statedEmptyGroups }
           : {}),
+        // Always present, unlike the two above: this engine is the one that has a skip
+        // path, so `[]` is a report ("none skipped") and absence stays free to mean
+        // "this extractor does not report skips".
+        skippedItems: skipped,
       };
     },
   };

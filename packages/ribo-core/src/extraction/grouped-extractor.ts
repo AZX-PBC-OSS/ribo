@@ -65,6 +65,7 @@ import type {
   ExtractionResult,
   ExtractionTarget,
   ExtractionUsage,
+  SkippedItem,
 } from "./extractor.js";
 import type { Enveloped, NoProvenance } from "../provenance/enveloped.js";
 import { mapWithPool } from "../async/map-with-pool.js";
@@ -649,6 +650,7 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
       // order), so pieces recombine in the order they were scheduled.
       const merged: Record<string, unknown> = {};
       const statedEmpty: Record<string, string> = {};
+      let skipped: readonly SkippedItem[] | undefined;
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i]!;
         const result = results[i]!;
@@ -705,6 +707,13 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
           }
           Object.assign(statedEmpty, result.statedEmptyGroups);
         }
+        // Entries' skip reports concatenate in schedule order. An entry's keys are
+        // already top-level keys — its projected target is keyed by them — so no
+        // translation. Present when any entry reported, even `[]`; an entry that does
+        // not report has no skip path to report on.
+        if (result.skippedItems !== undefined) {
+          skipped = [...(skipped ?? []), ...result.skippedItems];
+        }
       }
 
       // Second trust-boundary parse: validate the merged whole against the full
@@ -720,6 +729,7 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
         raw: merged,
         usage: { calls: totalCalls, ...totals },
         ...(Object.keys(statedEmpty).length > 0 ? { statedEmptyGroups: statedEmpty } : {}),
+        ...(skipped === undefined ? {} : { skippedItems: skipped }),
       };
     },
   };

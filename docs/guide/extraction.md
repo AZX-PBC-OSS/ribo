@@ -475,6 +475,16 @@ cancellation) rejects the whole run, in both policies, because a skip that swall
 cancellation would resolve with all-null fields — indistinguishable from a document that said
 nothing.
 
+A skipped item is named on the result. `result.skippedItems` lists each item a skip policy gave
+up on, with its phase id and its `describeItem` coordinates. For a fill item those are the group
+key, the instance and the piece. The fields cannot tell you this: an abstention the merge wrote
+after a failure is byte-identical to a model saying nothing. A `phasedExtractor` always sets the
+member, and `[]` means nothing was skipped. When it is absent, the extractor has no skip path at
+all. The report names the ask that failed, not the value. A narrowed re-ask that fails is
+reported even though the slot keeps the earlier pass's answer. Combinators that rebuild a result
+(`groupedExtractor`, `consensusExtractor`, `reshapedExtractor`, `extractorPhase`) carry the report
+through. `cachedExtractor` does not store a result that skipped anything (ADR 0026).
+
 ### `describeItem`
 
 The engine cannot see inside your items — `run` is opaque — so it cannot know what group a unit

@@ -1,4 +1,5 @@
 import type { Enveloped, NoProvenance } from "../provenance/enveloped.js";
+import type { SkippedItem } from "../extraction/extractor.js";
 import { emptyNotes } from "./phase-notes.js";
 import type { Notes } from "./phase-notes.js";
 
@@ -79,6 +80,12 @@ export interface PhaseDraft<V, P = NoProvenance> {
    * carries it. Absent until a phase's result had one.
    */
   readonly raw?: unknown;
+  /**
+   * Skipped items reported by extractors lifted into this run (`extractorPhase`). The
+   * engine's own skips are not written here — it records those itself, so no `merge`
+   * can drop them — and appends these to its own on the result.
+   */
+  readonly skippedItems?: readonly SkippedItem[];
   /** The typed cross-phase channel — see `phase-notes.ts`. Written by `merge` only. */
   readonly notes: Notes;
 }

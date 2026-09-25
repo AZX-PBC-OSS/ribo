@@ -402,6 +402,7 @@ export type {
   Extractor,
   ExtractionResult,
   ExtractionUsage,
+  SkippedItem,
   ExtractionTarget,
   FakeExtractorOptions,
   ExtractOptions,

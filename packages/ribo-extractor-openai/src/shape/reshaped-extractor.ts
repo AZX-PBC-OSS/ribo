@@ -30,6 +30,8 @@
  * No progress units of its own: a wrapper that delegates emits none (ADR 0004).
  * `usage`, `raw` and `statedEmptyGroups` pass through untouched — the
  * top-level keys the stated-empty map is keyed by are shared by both spaces.
+ * `skippedItems` is the exception: a skipped item can name a nest group, which
+ * the patch does not have, so it is reversed too (`shape-skipped.ts`).
  *
  * The cross-file invariant that safety rests on, with a nest in the vocabulary:
  * every `mapping.provenance` key is a top-level key of BOTH schemas, by a pair
@@ -61,6 +63,7 @@ import type {
 import { parseWithSchema } from "../prompt/extraction-common.js";
 import { assertShapeMapping } from "./shape-mapping.js";
 import { reverseShapedFields } from "./shape-reverse.js";
+import { reverseSkippedItems } from "./shape-skipped.js";
 import type { DerivedExtractionShape } from "./derived-shape.js";
 
 /**
@@ -105,6 +108,9 @@ export function reshapedExtractor<
         ...(result.statedEmptyGroups === undefined
           ? {}
           : { statedEmptyGroups: result.statedEmptyGroups }),
+        ...(result.skippedItems === undefined
+          ? {}
+          : { skippedItems: reverseSkippedItems(result.skippedItems, shape.mapping) }),
       };
     },
   };

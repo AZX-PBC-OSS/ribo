@@ -1,5 +1,5 @@
 import type { Enveloped, NoProvenance } from "../provenance/enveloped.js";
-import type { Extractor } from "../extraction/extractor.js";
+import type { Extractor, SkippedItem } from "../extraction/extractor.js";
 import type { Phase, PhaseDef } from "./phase.js";
 import { phaseBuilder } from "./phase.js";
 
@@ -16,7 +16,7 @@ import { phaseBuilder } from "./phase.js";
  *
  * **The contribution carries the result's field-bearing members, not just the fields.**
  * `run` returns the result's `fields` as the contribution — with `raw` and
- * `statedEmptyGroups` riding along, because `merge` must carry them into the draft (they
+ * `statedEmptyGroups` and `skippedItems` riding along, because `merge` must carry them into the draft (they
  * are members of `ExtractionResult` and so of the draft) and a `PhaseOutput` has no room
  * for them; `usage` travels on the `PhaseOutput` instead, where the combinator
  * accumulates it.
@@ -67,6 +67,7 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
       fields: Enveloped<V, P>;
       raw?: unknown;
       statedEmptyGroups?: Readonly<Record<string, string>>;
+      skippedItems?: readonly SkippedItem[];
     }
   > = {
     id,
@@ -87,6 +88,7 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
           fields: result.fields,
           raw: result.raw,
           statedEmptyGroups: result.statedEmptyGroups,
+          skippedItems: result.skippedItems,
         },
         usage: result.usage,
       };
@@ -96,6 +98,8 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
       let statedEmptyGroups: Readonly<Record<string, string>> = {};
       let raw: unknown;
       let hasRaw = false;
+      // Appended, never replaced: the engine reads what each merge adds (see the draft).
+      let skippedItems = draft.skippedItems;
       for (const outcome of results) {
         // An error outcome carries no contribution. A lifted extractor runs under abort
         // semantics — its failures reject out of `run` before `merge` — so this arm is
@@ -111,6 +115,9 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
           raw = contribution.raw;
           hasRaw = true;
         }
+        if (contribution.skippedItems !== undefined && contribution.skippedItems.length > 0) {
+          skippedItems = [...(skippedItems ?? []), ...contribution.skippedItems];
+        }
       }
       // `raw` is optional on the draft and its ABSENCE is what "no result carried one"
       // reads as — so it is spread in only when carried, never as an explicit undefined.
@@ -119,6 +126,7 @@ export function extractorPhase<V extends Record<string, unknown>, P = NoProvenan
         fields,
         statedEmptyGroups,
         ...(hasRaw ? { raw } : {}),
+        ...(skippedItems === undefined ? {} : { skippedItems }),
       };
     },
   };

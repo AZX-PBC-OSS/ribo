@@ -4,7 +4,13 @@ import { z } from "zod";
 import { enveloped } from "../provenance/enveloped.js";
 import type { Enveloped } from "../provenance/enveloped.js";
 import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
-import type { ExtractionTarget, ExtractionUsage, ExtractOptions, Extractor } from "./extractor.js";
+import type {
+  ExtractionTarget,
+  ExtractionUsage,
+  ExtractOptions,
+  Extractor,
+  SkippedItem,
+} from "./extractor.js";
 import { FakeExtractor } from "./extractor.js";
 import type { ExtractionObserver, GroupUnit } from "./extraction-observer.js";
 import type { RetryBudget } from "../async/retry-budget.js";
@@ -94,6 +100,7 @@ interface EntryBehavior {
   readonly hangUntilAbort?: boolean;
   readonly usage?: ExtractionUsage;
   readonly statedEmptyGroups?: Readonly<Record<string, string>>;
+  readonly skippedItems?: readonly SkippedItem[];
 }
 
 function groupEntry<K extends keyof Fields>(
@@ -133,6 +140,7 @@ function groupEntry<K extends keyof Fields>(
         ...(behavior.statedEmptyGroups !== undefined
           ? { statedEmptyGroups: behavior.statedEmptyGroups }
           : {}),
+        ...(behavior.skippedItems !== undefined ? { skippedItems: behavior.skippedItems } : {}),
       });
     },
     get calls() {
@@ -199,6 +207,36 @@ describe("groupedExtractor — the fan-out and the merge", () => {
 
     expect(withBoth.statedEmptyGroups).toEqual({ hvac: "none said", attic: "no attic" });
     expect("statedEmptyGroups" in withNeither).toBe(false);
+  });
+
+  test("skippedItems is the union of what entries reported, in schedule order, absent when none did", async () => {
+    const hvacSkip: SkippedItem = { phaseId: "fill", key: "hvac", instance: 2, instances: 2 };
+    const reporting = groupedExtractor({
+      target,
+      groups: {
+        hvac: groupEntry("hvac", hvacLeaf("Boiler"), { skippedItems: [hvacSkip] }),
+        // A phased entry with nothing skipped reports `[]` — still a report.
+        attic: groupEntry("attic", atticLeaf("10-12"), { skippedItems: [] }),
+      },
+    });
+    const silent = groupedExtractor({
+      target,
+      groups: {
+        hvac: groupEntry("hvac", hvacLeaf("Boiler")),
+        attic: groupEntry("attic", atticLeaf("10-12")),
+      },
+    });
+    const cleanReport = groupedExtractor({
+      target,
+      groups: {
+        hvac: groupEntry("hvac", hvacLeaf("Boiler")),
+        attic: groupEntry("attic", atticLeaf("10-12"), { skippedItems: [] }),
+      },
+    });
+
+    expect((await reporting.extract(transcript)).skippedItems).toEqual([hvacSkip]);
+    expect("skippedItems" in (await silent.extract(transcript))).toBe(false);
+    expect((await cleanReport.extract(transcript)).skippedItems).toEqual([]);
   });
 
   test("normalize runs once, on the merged result", async () => {
