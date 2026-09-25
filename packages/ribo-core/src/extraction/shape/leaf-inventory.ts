@@ -34,12 +34,17 @@ export type InventoryDeclarations = Omit<DeriveExtractionShapeOptions, "operatio
  */
 type LeafKind = "string" | "number" | "boolean" | "enum" | "literal";
 
+/** A member of an enum or literal leaf — whatever zod lets either declare. */
+export type LeafValue = string | number | bigint | boolean | null | undefined;
+
 /** A single leaf as the model sees it: its dot-path, kind, and any description. */
 export interface LeafInventoryEntry {
   readonly path: string;
   readonly kind: LeafKind;
   /** The leaf's `.description()` text, verbatim — what review reads. */
   readonly description?: string;
+  /** An enum's or literal's members, as declared; absent for every other kind. */
+  readonly values?: readonly LeafValue[];
   /** True iff the leaf lives below one or more `ZodArray` collections. */
   readonly inArray: boolean;
 }
@@ -106,8 +111,15 @@ const walkField = (
     path,
     kind: readLeafKind(stripped),
     description: stripped.description,
+    values: readLeafValues(stripped),
     inArray,
   });
+};
+
+const readLeafValues = (schema: z.ZodType): readonly LeafValue[] | undefined => {
+  if (schema instanceof z.ZodEnum) return schema.options;
+  if (schema instanceof z.ZodLiteral) return [...schema.values];
+  return undefined;
 };
 
 /**
@@ -117,6 +129,7 @@ const walkField = (
  *
  *   - **Group headers repeat the top-level path and an `object`/`array`
  *     label**, so the model can `regroup` against the right scope.
+ *   - **An enum or literal lists its members** beside the kind.
  *   - **Declarations render as bracketed tags** after the kind, so the model
  *     sees what a drop would strand before the applier refuses it.
  *   - **No count summary or totals** — the proposal schema bounds the
@@ -164,7 +177,7 @@ export function renderLeafInventory(
       ...groupTags(leaf.path, declarations),
       ...leafTags(leaf.path, leaf.path, declarations),
     ];
-    lines.push(`- ${leaf.path} (${leaf.kind})${renderTags(tags)}${tail}`);
+    lines.push(`- ${leaf.path} (${renderKind(leaf)})${renderTags(tags)}${tail}`);
   }
   for (const [group, leaves] of grouped) {
     const sample = entries.find((entry) => entry.path === leaves[0]!.path)!;
@@ -174,11 +187,21 @@ export function renderLeafInventory(
       const inside = leaf.path.slice(group.length + 1);
       const tail = leaf.description === undefined ? "" : ` — "${leaf.description}"`;
       const tags = renderTags(leafTags(group, inside, declarations));
-      lines.push(`    - ${inside} (${leaf.kind})${tags}${tail}`);
+      lines.push(`    - ${inside} (${renderKind(leaf)})${tags}${tail}`);
     }
   }
   return lines.join("\n");
 }
+
+/**
+ * The kind, plus an enum's or literal's members: a hint or a drop decision
+ * on an enum needs its vocabulary, not just the word. Strings are quoted so
+ * `"1"` and `1` stay distinguishable.
+ */
+const renderKind = (leaf: LeafInventoryEntry): string =>
+  leaf.values === undefined
+    ? leaf.kind
+    : `${leaf.kind}: ${leaf.values.map((value) => (typeof value === "string" ? JSON.stringify(value) : String(value))).join(" | ")}`;
 
 /** A top-level key's tags: its provenance granularity, when declared. */
 const groupTags = (key: string, declarations: InventoryDeclarations): string[] => {

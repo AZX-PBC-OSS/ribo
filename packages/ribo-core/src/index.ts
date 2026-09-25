@@ -981,6 +981,7 @@ export { renderLeafInventory, walkLeafInventory } from "./extraction/shape/leaf-
 export type {
   InventoryDeclarations,
   LeafInventoryEntry,
+  LeafValue,
 } from "./extraction/shape/leaf-inventory.js";
 
 // Chunking was built here and REMOVED after measurement. `chunkedExtractor` split a
