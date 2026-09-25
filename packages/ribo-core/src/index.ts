@@ -380,7 +380,8 @@ export type {
 
 // Inventory/fill vocabulary shared between an adapter (which builds the roster and
 // fill instructions) and the scoped instance fill strategy (which consumes them).
-// Both packages already depend on core, so this is the neutral home.
+// The adapter cannot depend on the extractor package, and the strategy moved into
+// core beside them — both sides of the contract meet here.
 export type { FillScope, Roster, RosterCandidate } from "./extraction/inventory-types.js";
 
 // The composition that hands a reviewed patch to an adapter, and the only place
@@ -507,10 +508,11 @@ export type {
 } from "./extraction/grouped-extractor.js";
 
 // The primitives `groupedExtractor` composes, exported because the extractor
-// strategies in `ribo-extractor-openai` share them: `mapWithPool` was two
-// byte-identical copies there (per-group and instance-fill) before it moved
-// here; `mergeGroupPieces` recombines a partitioned group's pieces; and
-// `parseWithSchema` is THE trust-boundary parse every extractor crosses.
+// strategies that share them moved into core beside it: `mapWithPool` was two
+// byte-identical copies in `ribo-extractor-openai` (per-group and instance-fill)
+// before it moved here; `mergeGroupPieces` recombines a partitioned group's
+// pieces; and `parseWithSchema` is THE trust-boundary parse every extractor
+// crosses.
 export { mapWithPool } from "./async/map-with-pool.js";
 export { mergeGroupPieces } from "./extraction/merge-group-pieces.js";
 export { parseWithSchema } from "./extraction/parse-with-schema.js";
@@ -581,8 +583,8 @@ export { stripOptionalNullable } from "./provenance/field-path.js";
 // type level so `resolveReview` cannot silently rebuild `hvac[k3].leaf` as an
 // object whose key is the literal text `hvac[k3]`. `childPath` is exported
 // beside them because the schema-shape derivation composes further walks over
-// the same schemas — the derivation and the mapping-back in
-// `@azx/ribo-extractor-openai` — and every walk must refuse the same
+// the same schemas — the derivation and the mapping-back, now in core's
+// `extraction/shape/` — and every walk must refuse the same
 // path-breaking key shapes, not copy the validation.
 export { buildFieldPath, childPath, parseFieldPath } from "./provenance/field-path.js";
 export type { FieldPathSegment } from "./provenance/field-path.js";
@@ -700,7 +702,9 @@ export type { UsageTotals } from "./extraction/extraction-common.js";
 // The single-shot strategy over any `ChatClient` — one structured-output call,
 // the pre-parse `finishReason` gate, the trust-boundary parse, the deterministic
 // normalize pass. Transport-agnostic (it depends only on the injected seam),
-// hence core; the presets that compose it stayed in the extractor packages.
+// hence core; the managed presets that compose it moved in beside it (the
+// strategy groups below) — only the device-specific `threePhaseExtractor`
+// stayed in `@azx/ribo-extractor-ondevice`.
 export { singleShotExtractor } from "./extraction/single-shot.js";
 export type { SingleShotOptions } from "./extraction/single-shot.js";
 
@@ -742,8 +746,8 @@ export type { ClassifyPhaseOptions } from "./phases/classify-phase.js";
 // beside the phases it follows: one value-extraction call per group the
 // presence map marked with at least one present leaf, over a
 // `projectTarget`-narrowed target (ADR 0026). A phase, not a preset — the
-// composition with a presence phase stayed in the extractor package, on the
-// line ADR 0010 drew for `threePhaseExtractor`.
+// composition with a presence phase is `presenceNarrowedExtractor`, which
+// moved into core with it (in the strategy groups below).
 export { presenceFillPhase } from "./phases/presence-fill-phase.js";
 export type { PresenceFillPhaseOptions } from "./phases/presence-fill-phase.js";
 
@@ -766,6 +770,213 @@ export { askPhase } from "./phases/ask-phase.js";
 export type { AskPhaseBase, AskPhaseOptions, AskPhaseSink } from "./phases/ask-phase.js";
 export { computePhase } from "./phases/compute-phase.js";
 export type { ComputePhaseOptions } from "./phases/compute-phase.js";
+
+// The managed-extraction cluster that moved from `@azx/ribo-extractor-openai`
+// (which re-exports it, ADR 0010's compatibility approach): the strategies,
+// presets, schema split and shape derivation over the chat seam, none of which
+// names a vendor — the transports (`openAiChat`, `helixChat`) are what stayed
+// behind in that package.
+//
+// The per-group schema split — the pure, model-free half of R3. Takes a target's
+// `extractionSchema` and returns one entry per top-level group (or one fallback
+// entry covering the whole schema). The split packs against two caps — nullable
+// unions and, when the caller supplies it, serialized size — both as options
+// (`SplitOptions`); the library carries no provider's byte cap. The split's
+// top-level classifier and its nesting-depth measure are exported beside it:
+// `describeExtraction` reports with them, and a host comparing a piece against
+// its route's depth cap reads the same walk.
+export {
+  MAX_NULLABLE_UNIONS_PER_CALL,
+  serializedNestingDepth,
+  splitExtractionSchema,
+  topLevelKeyKinds,
+} from "./extraction/schema/split-schema.js";
+export type {
+  ExtractionGroup,
+  SplitOptions,
+  TopLevelKey,
+  TopLevelKeyKind,
+  TopLevelKeyKinds,
+} from "./extraction/schema/split-schema.js";
+// The dry run of the split: what a schema will become — keys, path, call
+// shape, per-piece measurements, and the refusal construction would raise —
+// reported synchronously, before an extractor is constructed and without a
+// model. Reads everything off the split's own code, so it cannot drift from
+// what construction actually does.
+export { describeExtraction } from "./extraction/schema/describe-extraction.js";
+export type {
+  DescribeDerivedSchemaOptions,
+  DescribeExtractionOptions,
+  DescribeRawSchemaOptions,
+  ExtractionDescription,
+  ExtractionFlatReason,
+  ExtractionPieceDescription,
+  ExtractionRefusal,
+  ExtractionRefusalStage,
+  SchemaMeasures,
+} from "./extraction/schema/describe-extraction.js";
+
+// The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level
+// group, concurrently with a bounded pool, assembled into one result. The
+// sibling of `singleShotExtractor`; same `Extractor` seam. Composition plan
+// Task 12 re-expressed it as a preset over `groupedExtractor`: the derived
+// plan (`perGroupPlan`) and the per-group override layer (`overrideGroups`)
+// are exported so a host can take the defaults everywhere and replace or wrap
+// one group — per piece, so a partitioned group's override applies to every
+// piece — without rebuilding the other nineteen.
+export {
+  overrideGroups,
+  perGroupArrayExtractor,
+  perGroupExtractor,
+  perGroupPlan,
+  perGroupSingletonExtractor,
+} from "./extraction/strategies/per-group.js";
+export type {
+  GroupOverride,
+  GroupTargets,
+  PerGroupOptions,
+  PerGroupPlan,
+} from "./extraction/strategies/per-group.js";
+
+// The entry point that takes a RAW zod schema: the `enveloped()` derivation and
+// the single-shot-vs-per-group selection run inside, so a newcomer hands over
+// the schema they wrote, a chat client and a model, and gets an `Extractor`.
+export { schemaExtractor } from "./extraction/strategies/schema-extractor.js";
+export type {
+  EnvelopedSchemaExtractorOptions,
+  RawSchemaExtractorOptions,
+} from "./extraction/strategies/schema-extractor.js";
+
+// The schema-retry combinator: wraps a base extractor with a bounded
+// self-correction loop that feeds a `SchemaParseError` back to the model as
+// conversation turns — the failed output as an assistant turn, the validation
+// error as a user turn — never by touching the transcript.
+export { schemaRetryExtractor } from "./extraction/strategies/schema-retry.js";
+export type { SchemaRetryOptions } from "./extraction/strategies/schema-retry.js";
+
+// The presence-narrowed preset — the managed path's ADR 0026 narrowing. A
+// presence phase seeds every group key into the draft; the fill phase then
+// makes one value-extraction call per group with at least one present leaf,
+// over a `projectTarget`-narrowed target carrying exactly the active leaves.
+// The preset takes the presence phase as a PARAMETER (core's chat-backed
+// `presencePhase`, or the System One one) rather than importing one, and ships
+// opt-in — no existing default changed. A host wanting engine knobs
+// hand-assembles the same list through core's `phasedExtractor`.
+export { presenceNarrowedExtractor } from "./extraction/strategies/presence-narrowed.js";
+
+// Task 16 — the R1.6 instance-modeling strategy ladder: three tiers composed
+// through `fallbackExtractor` so that the strongest strategy can fall back to
+// weaker ones, with the accepted tier stamped on `usage.strategy`.
+export { instanceLadder } from "./extraction/strategies/instance-ladder.js";
+export type { InstanceLadderOptions } from "./extraction/strategies/instance-ladder.js";
+
+// The gap-fill combinator: wraps a base extractor with one bounded follow-up
+// call over leaves that abstained despite quoting evidence. It is a
+// `phasedExtractor` preset — an `extractorPhase` base followed by the
+// follow-up phase — so a host can assemble the same phase list by hand and
+// extend it with phases of its own. The leaf-walk and merge helpers are
+// exported for testing, as `buildGroupMessages` is.
+export {
+  findAbstainedLeaves,
+  findUngroundedLeaves,
+  formatLeafPath,
+  gapFillExtractor,
+  mergeGapFilledLeaves,
+} from "./extraction/gap-fill/gap-fill.js";
+export type {
+  AbstainedLeaf,
+  GapFillOptions,
+  GapFillTarget,
+} from "./extraction/gap-fill/gap-fill.js";
+// The gap-fill follow-up phase itself — the second phase of the
+// `gapFillExtractor` preset, exported so a host can assemble and extend the
+// phase list by hand (design `phased-extraction-design.md` §4.7).
+export { gapFillPhase } from "./phases/gap-fill-phase.js";
+export type { GapFillPhaseOptions } from "./phases/gap-fill-phase.js";
+
+// The scoped-instance inventory phase — the first phase of the
+// `scopedInstanceExtractor` port, exported (with the note key its roster
+// crosses the phase boundary under) so a host can assemble and extend the
+// phase list by hand.
+export { inventoryPhase, rosterNoteKey } from "./phases/inventory-phase.js";
+export type { InventoryPhaseOptions } from "./phases/inventory-phase.js";
+// The scoped-instance fill phase — the second phase of the port: one job per
+// `(group, piece, instance)`, recombined with `mergeGroupPieces`. Exported for
+// the same hand-assembly a host may want.
+export { fillPhase } from "./phases/fill-phase.js";
+export type { FillPhaseOptions } from "./phases/fill-phase.js";
+// The Task 9 inventory-pass extraction call: one house-wide call that returns a
+// roster of candidate instances per collection group, parsed through a supplied
+// roster schema.
+export { extractInventory } from "./extraction/scoped-instance/inventory.js";
+export type { InventoryOptions } from "./extraction/scoped-instance/inventory.js";
+// Task 10 — scoped per-instance fills and assembly: one inventory call followed by
+// one fill call per current instance, with a scope block that names siblings and
+// excluded candidates. Exports the extractor and the prompt assembly helpers; the
+// generic roster/fill-scope types the adapter's `buildFillInstructions` consumes
+// are exported above, from `inventory-types.ts`. `PreparedGroup` is the per-piece
+// shape the two scoped-instance phases take, and `prepareGroups` is its ONE
+// construction site — a host composing its own phase list builds the same groups
+// the preset builds.
+export {
+  buildFillMessages,
+  prepareGroups,
+  projectFillExample,
+  scopedInstanceExtractor,
+} from "./extraction/scoped-instance/instance-fill.js";
+export type {
+  PreparedGroup,
+  ScopedFillOptions,
+} from "./extraction/scoped-instance/instance-fill.js";
+
+// The derived extraction shape: apply explicit shape operations to a caller's
+// plain zod schema and get the artifact pair — an extraction schema, and the
+// mapping back as data — plus the reversal combinator that turns an extractor
+// over the extraction shape into one over the derived patch.
+//
+// Two derivation surfaces. `deriveExtractionShape` is the model-free applier:
+// the caller hands in explicit operations and the artifact comes out, or it
+// throws the first refusal. Its sibling `deriveExtractionShapePartially` is
+// the same applier collecting instead: every refusal it can find in one pass,
+// classified (local / consequential / set, with the consequential culprit
+// named), plus the artifact derived from the operations that survived — a
+// host applying a model's proposal gets the middle option between "throw the
+// set away" and "catch, parse the message by hand, strip one op, retry". The
+// model-driven counterpart is `proposeShapeOperations` — the model emits the
+// operations, the same applier applies them. `proposeExtractionShape` is the
+// one-call convenience that composes the two for a host that wants the
+// artifact directly.
+export {
+  deriveExtractionShape,
+  deriveExtractionShapePartially,
+} from "./extraction/shape/shape-operations.js";
+export type { DeriveExtractionShapeOptions } from "./extraction/shape/shape-operations.js";
+export type {
+  PartiallyDerivedShape,
+  ShapeRefusal,
+  ShapeRefusalCause,
+  ShapeRefusalClass,
+} from "./extraction/shape/shape-refusal.js";
+export type { ShapeOperation } from "./extraction/shape/shape-operation.js";
+export type { DerivedExtractionShape } from "./extraction/shape/derived-shape.js";
+export { assertShapeMapping, retypeToPatchValue } from "./extraction/shape/shape-mapping.js";
+export type {
+  LeafKind,
+  LeafMapping,
+  Retype,
+  ShapeMapping,
+} from "./extraction/shape/shape-mapping.js";
+export { reverseShapedFields } from "./extraction/shape/shape-reverse.js";
+export { reshapedExtractor } from "./extraction/shape/reshaped-extractor.js";
+export { generateShapedValue } from "./extraction/shape/shape-generate.js";
+export type { GenerateOptions } from "./extraction/shape/shape-generate.js";
+export {
+  proposeExtractionShape,
+  proposeShapeOperations,
+} from "./extraction/shape/operations-proposer.js";
+export type { ProposeOptions } from "./extraction/shape/operations-proposer.js";
+export { renderLeafInventory, walkLeafInventory } from "./extraction/shape/leaf-inventory.js";
+export type { LeafInventoryEntry } from "./extraction/shape/leaf-inventory.js";
 
 // Chunking was built here and REMOVED after measurement. `chunkedExtractor` split a
 // transcript past a context window, extracted each piece and merged. Measured against

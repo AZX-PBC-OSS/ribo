@@ -5,7 +5,8 @@
  * tool adapter (which knows what instances exist in the transcript) and the
  * scoped instance fill strategy (which turns one candidate at a time into a
  * structured extraction). They live in `ribo-core` because the adapter cannot
- * depend on the extractor package, but both already depend on core.
+ * depend on the extractor package — and the scoped instance fill strategy
+ * moved into core beside them, so both sides of the contract meet here.
  *
  * Adapters may declare narrower, zod-inferred versions of `Roster` and
  * `RosterCandidate` (e.g. an enum eligibility or a two-branch candidate); those

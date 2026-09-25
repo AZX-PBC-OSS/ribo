@@ -18,8 +18,9 @@ import { presenceFillPhase } from "./presence-fill-phase.js";
  *
  * The phase-level tests drive `plan`/`run`/`merge` directly through the phase's
  * `with`, over hand-seeded drafts (the span-phase suite's fold). The
- * composition tests moved with the preset to `@azx/ribo-extractor-openai`: they
- * run core's REAL `presencePhase` ahead of this phase, because the seed is the
+ * composition tests live with the preset in
+ * `extraction/strategies/presence-narrowed.test.ts`: they run core's REAL
+ * `presencePhase` ahead of this phase, because the seed is the
  * invariant under test, so a hand-built stub presence phase would let the
  * ADR 0009 pin pass for the wrong reason — the test would be seeding the draft
  * itself, which is the thing that must be pinned as the presence phase's job.

@@ -50,8 +50,9 @@ Fast Transcription behind the same `Transcriber` seam, with **no capacity to aut
 an endpoint and an injected `fetch`, so the credential lives in the host's transport and never in the
 package. `ribo-core` composes the two with `firstCapable` (sequential) or `hedged` (an opt-in race on
 a latency budget). `@azx/ribo-adapter-snuggpro` is the real Snugg Pro `ToolAdapter`; `@azx/ribo-extractor-openai` is
-the managed-chat extractor package (the `openAiChat` and `helixChat` transports, the per-group/instance/shape
-strategies, and re-exports of the transport-agnostic single-shot cluster, which moved into `ribo-core`);
+the managed-chat extractor package (the `openAiChat` and `helixChat` transports, and re-exports of the
+transport-agnostic strategy cluster — single-shot, the per-group/instance/shape strategies, the schema
+split and the shape derivation — which moved into `ribo-core`);
 `@azx/ribo-extractor-ondevice` is the on-device extractor (three-phase extraction
 over the platform's on-device Language Model). `@azx/ribo-systemone-managed` is the System One
 client — TypeSafe's own SDK behind the host's transport, with no capacity to authenticate, serving
@@ -145,18 +146,18 @@ on `ribo-extractor-openai` (a real `workspace:^` `dependencies` entry) for `perG
 leaf package depends on a sibling leaf. The field app composes all of
 these; nothing depends on the field app.
 
-| Tier                                 | Location                                 | Responsibility                                                                                                                                                                                                     |
-| ------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@azx/ribo-core`                     | `packages/ribo-core`                     | Headless engine: capture state machine, transcription, extraction, leaf-path review, queue/write. No React, no DOM rendering.                                                                                      |
-| `@azx/ribo-ui-react`                 | `packages/ribo-ui-react`                 | Headless React hook layer over the core engine — `RiboProvider` plus recorder, storage, review, sessions, connectivity, work-safety and storage-persistence hooks. No components beyond `RiboProvider`, no markup. |
-| `@azx/ribo-adapter-snuggpro`         | `packages/ribo-adapter-snuggpro`         | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                                                                                                                                        |
-| `@azx/ribo-extractor-openai`         | `packages/ribo-extractor-openai`         | Tool-agnostic extractor plasmid: the OpenAI-compatible and Helix chat transports, the strategies above them, and re-exports of core's transport-agnostic single-shot cluster.                                      |
-| `@azx/ribo-extractor-ondevice`       | `packages/ribo-extractor-ondevice`       | On-device extractor plasmid: three-phase managed-LLM extraction over the platform's on-device Language Model.                                                                                                      |
-| `@azx/ribo-transcriber-ondevice`     | `packages/ribo-transcriber-ondevice`     | On-device WASM Whisper transcription; measures device RTF at `prime()` time so `capability()` can report `too-slow`.                                                                                               |
-| `@azx/ribo-transcriber-managed`      | `packages/ribo-transcriber-managed`      | Managed Azure AI Speech Fast Transcription behind the `Transcriber` seam; no capacity to authenticate.                                                                                                             |
-| `@azx/ribo-transcriber-managed-docs` | `packages/ribo-transcriber-managed-docs` | Managed document transcription — `Transcriber<DocumentCapture>` with engine id `"managed-docs"`, a hosted document understanding API behind the host's transport; no capacity to authenticate.                     |
-| `@azx/ribo-transcriber-pdfjs`        | `packages/ribo-transcriber-pdfjs`        | PDF document transcription via pdf.js; `Transcriber<DocumentCapture>` with engine id `"pdfjs"`, lazy-loaded worker, page markers, and `no-text-layer` guard.                                                       |
-| Field app                            | **separate repo**                        | The deployed Helix app that composes these packages. Not built here.                                                                                                                                               |
+| Tier                                 | Location                                 | Responsibility                                                                                                                                                                                                                      |
+| ------------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@azx/ribo-core`                     | `packages/ribo-core`                     | Headless engine: capture state machine, transcription, extraction, leaf-path review, queue/write. No React, no DOM rendering.                                                                                                       |
+| `@azx/ribo-ui-react`                 | `packages/ribo-ui-react`                 | Headless React hook layer over the core engine — `RiboProvider` plus recorder, storage, review, sessions, connectivity, work-safety and storage-persistence hooks. No components beyond `RiboProvider`, no markup.                  |
+| `@azx/ribo-adapter-snuggpro`         | `packages/ribo-adapter-snuggpro`         | The **only** tool-specific surface: Snugg Pro field mapping and write-back.                                                                                                                                                         |
+| `@azx/ribo-extractor-openai`         | `packages/ribo-extractor-openai`         | Tool-agnostic extractor plasmid: the OpenAI-compatible and Helix chat transports, plus re-exports of core's transport-agnostic strategy cluster (single-shot, per-group/instance/shape strategies, schema split, shape derivation). |
+| `@azx/ribo-extractor-ondevice`       | `packages/ribo-extractor-ondevice`       | On-device extractor plasmid: three-phase managed-LLM extraction over the platform's on-device Language Model.                                                                                                                       |
+| `@azx/ribo-transcriber-ondevice`     | `packages/ribo-transcriber-ondevice`     | On-device WASM Whisper transcription; measures device RTF at `prime()` time so `capability()` can report `too-slow`.                                                                                                                |
+| `@azx/ribo-transcriber-managed`      | `packages/ribo-transcriber-managed`      | Managed Azure AI Speech Fast Transcription behind the `Transcriber` seam; no capacity to authenticate.                                                                                                                              |
+| `@azx/ribo-transcriber-managed-docs` | `packages/ribo-transcriber-managed-docs` | Managed document transcription — `Transcriber<DocumentCapture>` with engine id `"managed-docs"`, a hosted document understanding API behind the host's transport; no capacity to authenticate.                                      |
+| `@azx/ribo-transcriber-pdfjs`        | `packages/ribo-transcriber-pdfjs`        | PDF document transcription via pdf.js; `Transcriber<DocumentCapture>` with engine id `"pdfjs"`, lazy-loaded worker, page markers, and `no-text-layer` guard.                                                                        |
+| Field app                            | **separate repo**                        | The deployed Helix app that composes these packages. Not built here.                                                                                                                                                                |
 
 Supporting, non-published: `packages/tsconfig` (`@azx/tsconfig`, the shared compiler options) and
 `playground/` (a Vite app that imports **every** published package, so its production build is a real
@@ -487,14 +488,14 @@ runs. If you ever find code branching on a package name, that is the bug.
 
 Reserved categories:
 
-| Package              | Category                    | Examples / status                                         |
-| -------------------- | --------------------------- | --------------------------------------------------------- |
-| `ribo-core`          | Contracts + headless engine | the one everything depends inward on                      |
-| `ribo-ui-*`          | UI component sets           | `ribo-ui-react` (headless recorder/review/storage hooks)… |
-| `ribo-transcriber-*` | Transcriber plasmids        | `ribo-transcriber-ondevice`, `ribo-transcriber-azure`…    |
-| `ribo-extractor-*`   | Extractor plasmids          | `ribo-extractor-openai` (single-shot managed LLM)…        |
-| `ribo-adapter-*`     | Per-tool `ToolAdapter`s     | `ribo-adapter-snuggpro`…                                  |
-| `ribo-storage-*`     | Storage backends (the port) | `ribo-storage-rxdb` (RxDB + Dexie, the production one)    |
+| Package              | Category                    | Examples / status                                           |
+| -------------------- | --------------------------- | ----------------------------------------------------------- |
+| `ribo-core`          | Contracts + headless engine | the one everything depends inward on                        |
+| `ribo-ui-*`          | UI component sets           | `ribo-ui-react` (headless recorder/review/storage hooks)…   |
+| `ribo-transcriber-*` | Transcriber plasmids        | `ribo-transcriber-ondevice`, `ribo-transcriber-azure`…      |
+| `ribo-extractor-*`   | Extractor plasmids          | `ribo-extractor-openai` (the OpenAI/Helix chat transports)… |
+| `ribo-adapter-*`     | Per-tool `ToolAdapter`s     | `ribo-adapter-snuggpro`…                                    |
+| `ribo-storage-*`     | Storage backends (the port) | `ribo-storage-rxdb` (RxDB + Dexie, the production one)      |
 
 `ribo-storage-*` holds implementations of the storage port (§5.5). `@azx/ribo-storage-rxdb` is the
 production one and owns everything RxDB: the three `RxJsonSchema`s, the migration strategies, the
@@ -574,7 +575,8 @@ Checklist:
   resolve core's `.d.ts`, and devDependencies are never installed for consumers.
   `ribo-adapter-snuggpro`, `ribo-extractor-openai` and `ribo-transcriber-ondevice` are all
   plain-`dependencies`, but not all for the same reason: `ribo-transcriber-ondevice` imports core
-  type-only; `ribo-extractor-openai` imports core values too (the single-shot cluster moved there);
+  type-only; `ribo-extractor-openai` imports core values too (the transport-agnostic strategy
+  cluster moved there);
   `ribo-adapter-snuggpro` also calls
   the runtime `enveloped()` helper (`schema.ts`) to derive its extraction schema. None of the three
   holds onto a core `Recorder`/`Storage`/`Connectivity` instance with identity that must stay shared

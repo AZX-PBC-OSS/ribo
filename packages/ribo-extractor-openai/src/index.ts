@@ -1,14 +1,14 @@
 /**
  * @file The public surface of `@azx/ribo-extractor-openai`.
  *
- * A tool-agnostic extractor plasmid: the chat transports and the strategies
- * above them. The transport-agnostic single-shot cluster (the strategy, the
- * projection it consumes and the shared prompt/trust-boundary helpers) lives
- * in `@azx/ribo-core` and is re-exported from here, so existing consumers keep
- * working — the same compatibility move the chat seam itself already made. It
- * works against any `ExtractionTarget<F>` from `@azx/ribo-core`, so it lives
- * outside every tool adapter — a SnuggPro adapter, a future adapter, or a test
- * target all wire the same extractor. Re-exports only.
+ * A tool-agnostic extractor plasmid: the two chat transports, plus re-exports
+ * of the transport-agnostic strategy cluster that lives in `@azx/ribo-core`
+ * and once lived here — the strategies, presets, schema split and shape
+ * derivation over the chat seam. Re-exporting keeps existing consumers
+ * working, the same compatibility move the chat seam itself already made.
+ * Everything works against any `ExtractionTarget<F>` from `@azx/ribo-core`,
+ * so it lives outside every tool adapter — a SnuggPro adapter, a future
+ * adapter, or a test target all wire the same extractor.
  */
 
 // The single-shot managed-LLM extractor (the built default) and its options —
@@ -25,26 +25,28 @@ export type { SingleShotOptions } from "@azx/ribo-core";
 // provider's byte cap. The split's top-level classifier and its nesting-depth
 // measure are exported beside it: `describeExtraction` reports with them, and a
 // host comparing a piece against its route's depth cap reads the same walk.
+// Moved to `@azx/ribo-core` with the strategies that consume it; re-exported
+// for compatibility.
 export {
   MAX_NULLABLE_UNIONS_PER_CALL,
   serializedNestingDepth,
   splitExtractionSchema,
   topLevelKeyKinds,
-} from "./schema/split-schema.js";
+} from "@azx/ribo-core";
 export type {
   ExtractionGroup,
   SplitOptions,
   TopLevelKey,
   TopLevelKeyKind,
   TopLevelKeyKinds,
-} from "./schema/split-schema.js";
+} from "@azx/ribo-core";
 
 // The dry run of the split: what a schema will become — keys, path, call
 // shape, per-piece measurements, and the refusal construction would raise —
 // reported synchronously, before an extractor is constructed and without a
 // model. Reads everything off the split's own code, so it cannot drift from
 // what construction actually does.
-export { describeExtraction } from "./schema/describe-extraction.js";
+export { describeExtraction } from "@azx/ribo-core";
 export type {
   DescribeDerivedSchemaOptions,
   DescribeExtractionOptions,
@@ -55,16 +57,13 @@ export type {
   ExtractionRefusal,
   ExtractionRefusalStage,
   SchemaMeasures,
-} from "./schema/describe-extraction.js";
+} from "@azx/ribo-core";
 
 // The entry point that takes a RAW zod schema: the `enveloped()` derivation and
 // the single-shot-vs-per-group selection run inside, so a newcomer hands over
 // the schema they wrote, a chat client and a model, and gets an `Extractor`.
-export { schemaExtractor } from "./strategies/schema-extractor.js";
-export type {
-  EnvelopedSchemaExtractorOptions,
-  RawSchemaExtractorOptions,
-} from "./strategies/schema-extractor.js";
+export { schemaExtractor } from "@azx/ribo-core";
+export type { EnvelopedSchemaExtractorOptions, RawSchemaExtractorOptions } from "@azx/ribo-core";
 
 // The derived extraction shape: apply explicit shape operations to a caller's
 // plain zod schema and get the artifact pair — an extraction schema, and the
@@ -83,26 +82,26 @@ export type {
 // operations, the same applier applies them. `proposeExtractionShape` is the
 // one-call convenience that composes the two for a host that wants the
 // artifact directly.
-export { deriveExtractionShape, deriveExtractionShapePartially } from "./shape/shape-operations.js";
-export type { DeriveExtractionShapeOptions } from "./shape/shape-operations.js";
+export { deriveExtractionShape, deriveExtractionShapePartially } from "@azx/ribo-core";
+export type { DeriveExtractionShapeOptions } from "@azx/ribo-core";
 export type {
   PartiallyDerivedShape,
   ShapeRefusal,
   ShapeRefusalCause,
   ShapeRefusalClass,
-} from "./shape/shape-refusal.js";
-export type { ShapeOperation } from "./shape/shape-operation.js";
-export type { DerivedExtractionShape } from "./shape/derived-shape.js";
-export { assertShapeMapping, retypeToPatchValue } from "./shape/shape-mapping.js";
-export type { LeafKind, LeafMapping, Retype, ShapeMapping } from "./shape/shape-mapping.js";
-export { reverseShapedFields } from "./shape/shape-reverse.js";
-export { reshapedExtractor } from "./shape/reshaped-extractor.js";
-export { generateShapedValue } from "./shape/shape-generate.js";
-export type { GenerateOptions } from "./shape/shape-generate.js";
-export { proposeExtractionShape, proposeShapeOperations } from "./shape/operations-proposer.js";
-export type { ProposeOptions } from "./shape/operations-proposer.js";
-export { renderLeafInventory, walkLeafInventory } from "./shape/leaf-inventory.js";
-export type { LeafInventoryEntry } from "./shape/leaf-inventory.js";
+} from "@azx/ribo-core";
+export type { ShapeOperation } from "@azx/ribo-core";
+export type { DerivedExtractionShape } from "@azx/ribo-core";
+export { assertShapeMapping, retypeToPatchValue } from "@azx/ribo-core";
+export type { LeafKind, LeafMapping, Retype, ShapeMapping } from "@azx/ribo-core";
+export { reverseShapedFields } from "@azx/ribo-core";
+export { reshapedExtractor } from "@azx/ribo-core";
+export { generateShapedValue } from "@azx/ribo-core";
+export type { GenerateOptions } from "@azx/ribo-core";
+export { proposeExtractionShape, proposeShapeOperations } from "@azx/ribo-core";
+export type { ProposeOptions } from "@azx/ribo-core";
+export { renderLeafInventory, walkLeafInventory } from "@azx/ribo-core";
+export type { LeafInventoryEntry } from "@azx/ribo-core";
 
 // Projection of an extraction target onto one top-level group key — the pure
 // narrow half of per-group prompt assembly, reusable by any strategy. Moved to
@@ -124,33 +123,29 @@ export {
   perGroupExtractor,
   perGroupPlan,
   perGroupSingletonExtractor,
-} from "./strategies/per-group.js";
-export type {
-  GroupOverride,
-  GroupTargets,
-  PerGroupOptions,
-  PerGroupPlan,
-} from "./strategies/per-group.js";
+} from "@azx/ribo-core";
+export type { GroupOverride, GroupTargets, PerGroupOptions, PerGroupPlan } from "@azx/ribo-core";
 
 // The presence-narrowed fill phase and its preset — the managed path's ADR
 // 0026 narrowing. A presence phase seeds every group key into the draft; the
-// fill phase (moved to `@azx/ribo-core` beside the phases it follows, and
-// re-exported from there) then makes one value-extraction call per group with
-// at least one present leaf, over a `projectTarget`-narrowed target carrying
-// exactly the active leaves. The preset stays here and takes the presence
-// phase as a PARAMETER (core's chat-backed `presencePhase`, or the System One
-// one) rather than importing one, and ships opt-in — no existing default
-// changed. A host wanting engine knobs hand-assembles the same list through
-// core's `phasedExtractor`.
+// fill phase then makes one value-extraction call per group with at least one
+// present leaf, over a `projectTarget`-narrowed target carrying exactly the
+// active leaves. Both moved to `@azx/ribo-core` (the phase beside the phases
+// it follows, the preset beside the strategies it composes) and are
+// re-exported from there. The preset takes the presence phase as a PARAMETER
+// (core's chat-backed `presencePhase`, or the System One one) rather than
+// importing one, and ships opt-in — no existing default changed. A host
+// wanting engine knobs hand-assembles the same list through core's
+// `phasedExtractor`.
 export { presenceFillPhase } from "@azx/ribo-core";
 export type { PresenceFillPhaseOptions } from "@azx/ribo-core";
-export { presenceNarrowedExtractor } from "./strategies/presence-narrowed.js";
+export { presenceNarrowedExtractor } from "@azx/ribo-core";
 
 // Task 16 — the R1.6 instance-modeling strategy ladder: three tiers composed
 // through `fallbackExtractor` so that the strongest strategy can fall back to
 // weaker ones, with the accepted tier stamped on `usage.strategy`.
-export { instanceLadder } from "./strategies/instance-ladder.js";
-export type { InstanceLadderOptions } from "./strategies/instance-ladder.js";
+export { instanceLadder } from "@azx/ribo-core";
+export type { InstanceLadderOptions } from "@azx/ribo-core";
 
 // The gap-fill combinator: wraps a base extractor with one bounded follow-up
 // call over leaves that abstained despite quoting evidence. It is a
@@ -164,34 +159,34 @@ export {
   formatLeafPath,
   gapFillExtractor,
   mergeGapFilledLeaves,
-} from "./gap-fill/gap-fill.js";
-export type { AbstainedLeaf, GapFillOptions, GapFillTarget } from "./gap-fill/gap-fill.js";
+} from "@azx/ribo-core";
+export type { AbstainedLeaf, GapFillOptions, GapFillTarget } from "@azx/ribo-core";
 
 // The gap-fill follow-up phase itself — the second phase of the
 // `gapFillExtractor` preset, exported so a host can assemble and extend the
 // phase list by hand (design `phased-extraction-design.md` §4.7).
-export { gapFillPhase } from "./gap-fill/gap-fill-phase.js";
-export type { GapFillPhaseOptions } from "./gap-fill/gap-fill-phase.js";
+export { gapFillPhase } from "@azx/ribo-core";
+export type { GapFillPhaseOptions } from "@azx/ribo-core";
 
 // The scoped-instance inventory phase — the first phase of the
 // `scopedInstanceExtractor` port, exported (with the note key its roster
 // crosses the phase boundary under) so a host can assemble and extend the
 // phase list by hand.
-export { inventoryPhase, rosterNoteKey } from "./scoped-instance/inventory-phase.js";
-export type { InventoryPhaseOptions } from "./scoped-instance/inventory-phase.js";
+export { inventoryPhase, rosterNoteKey } from "@azx/ribo-core";
+export type { InventoryPhaseOptions } from "@azx/ribo-core";
 
 // The scoped-instance fill phase — the second phase of the port: one job per
 // `(group, piece, instance)`, recombined with `mergeGroupPieces`. Exported for
 // the same hand-assembly a host may want.
-export { fillPhase } from "./scoped-instance/fill-phase.js";
-export type { FillPhaseOptions } from "./scoped-instance/fill-phase.js";
+export { fillPhase } from "@azx/ribo-core";
+export type { FillPhaseOptions } from "@azx/ribo-core";
 
 // The schema-retry combinator: wraps a base extractor with a bounded
 // self-correction loop that feeds a `SchemaParseError` back to the model as
 // conversation turns — the failed output as an assistant turn, the validation
 // error as a user turn — never by touching the transcript.
-export { schemaRetryExtractor } from "./strategies/schema-retry.js";
-export type { SchemaRetryOptions } from "./strategies/schema-retry.js";
+export { schemaRetryExtractor } from "@azx/ribo-core";
+export type { SchemaRetryOptions } from "@azx/ribo-core";
 
 // Per-group prompt assembly: `buildGroupMessages` builds per-group chat messages
 // (instructions + projected examples + transcript), and `projectExample` narrows
@@ -212,8 +207,8 @@ export {
 // The Task 9 inventory-pass extraction phase: one house-wide call that returns a
 // roster of candidate instances per collection group, parsed through a supplied
 // roster schema.
-export { extractInventory } from "./scoped-instance/inventory.js";
-export type { InventoryOptions } from "./scoped-instance/inventory.js";
+export { extractInventory } from "@azx/ribo-core";
+export type { InventoryOptions } from "@azx/ribo-core";
 
 // Task 10 — scoped per-instance fills and assembly: one inventory call followed by
 // one fill call per current instance, with a scope block that names siblings and
@@ -227,14 +222,14 @@ export {
   prepareGroups,
   projectFillExample,
   scopedInstanceExtractor,
-} from "./scoped-instance/instance-fill.js";
+} from "@azx/ribo-core";
 export type {
   FillScope,
   PreparedGroup,
   Roster,
   RosterCandidate,
   ScopedFillOptions,
-} from "./scoped-instance/instance-fill.js";
+} from "@azx/ribo-core";
 
 // The OpenAI-compatible chat transport and its options.
 export { openAiChat } from "./chat/openai-chat.js";
