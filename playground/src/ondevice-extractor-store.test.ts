@@ -1,6 +1,11 @@
 import { expect, test, vi } from "vitest";
-import type { ChatCapability, ChatClient, ChatCompletion } from "@azx/ribo-extractor-openai";
-import type { Connectivity, Transcript } from "@azx/ribo-core";
+import type {
+  ChatCapability,
+  ChatClient,
+  ChatCompletion,
+  Connectivity,
+  Transcript,
+} from "@azx/ribo-core";
 import { snuggExamples } from "@azx/ribo-adapter-snuggpro";
 import type {
   DownloadProgressEvent,

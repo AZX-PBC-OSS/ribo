@@ -6,11 +6,11 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vitest";
 
-import type { ChatClient } from "@azx/ribo-extractor-openai";
-import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
+import { type ChatClient, singleShotExtractor } from "@azx/ribo-core";
+import { openAiChat } from "@azx/ribo-chat-openai";
 // The CLI-backed transport — a sibling developer test harness, not part of any published
 // package (see its file header for the full contract and why it lives here rather than in
-// `@azx/ribo-extractor-openai`: that package is browser-targeted and published, and a
+// `@azx/ribo-core`: that package is browser-targeted and published, and a
 // `node:child_process` import has no business anywhere in its graph).
 import type { CliShapeResult } from "./cli-chat.js";
 import { cliChat } from "./cli-chat.js";

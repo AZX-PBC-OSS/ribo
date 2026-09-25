@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": minor
 ---
 
 Let `fillPhase` and `gapFillPhase` skip a failed item instead of failing the run.

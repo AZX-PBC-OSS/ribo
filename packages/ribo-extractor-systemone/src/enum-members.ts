@@ -9,10 +9,13 @@ import type { LeafPath } from "@azx/ribo-core";
  *
  * Corroboration asks one calibrated question per committed leaf and must state the leaf's
  * members in it: without them a verifier reads the schema's own encoding of what was said —
- * a spoken duration recorded as the band containing it — as a fabrication (ADR 0021). The walk itself mirrors `ribo-extractor-openai`'s
- * `leafSchemaAtPath` but is deliberately a local copy, not an import: that package is a leaf
- * sibling, and a dependency between the two is a direction the architecture rules out. (Moving
- * the walk into core is a separate, scheduled refactor — do not do it here.)
+ * a spoken duration recorded as the band containing it — as a fabrication (ADR 0021). The
+ * walk itself mirrors `leafSchemaAtPath` but is deliberately a local copy, not an import:
+ * the original sat in `ribo-extractor-openai`, a leaf sibling, when this copy was made (a
+ * dependency between the two extractor packages was a direction the architecture rules
+ * out), and it has since moved into `@azx/ribo-core` with the rest of that package (ADR
+ * 0027). Converging the two walks now that they share a home is a separate, scheduled
+ * refactor — do not do it here.
  *
  * Two behaviours are contractual, and both differ from `leafSchemaAtPath` for the same reason:
  * THAT function resolves paths that came from data already parsed against the schema, so an

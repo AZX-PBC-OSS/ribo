@@ -26,7 +26,8 @@ export function scratchPackageJson(tarballPaths) {
     dependencies: {
       "@azx/ribo-core": fileSpec("@azx/ribo-core"),
       "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
-      "@azx/ribo-extractor-openai": fileSpec("@azx/ribo-extractor-openai"),
+      "@azx/ribo-chat-helix": fileSpec("@azx/ribo-chat-helix"),
+      "@azx/ribo-chat-openai": fileSpec("@azx/ribo-chat-openai"),
       "@azx/ribo-extractor-systemone": fileSpec("@azx/ribo-extractor-systemone"),
       "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
       "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
@@ -57,7 +58,8 @@ export function scratchPackageJson(tarballPaths) {
       overrides: {
         "@azx/ribo-core": fileSpec("@azx/ribo-core"),
         "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
-        "@azx/ribo-extractor-openai": fileSpec("@azx/ribo-extractor-openai"),
+        "@azx/ribo-chat-helix": fileSpec("@azx/ribo-chat-helix"),
+        "@azx/ribo-chat-openai": fileSpec("@azx/ribo-chat-openai"),
         "@azx/ribo-extractor-systemone": fileSpec("@azx/ribo-extractor-systemone"),
         "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
         "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
@@ -137,9 +139,10 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
  * Split into two independently-caught phases so a failure's `category` tells a human reading a red
  * CI run which of three unrelated things broke, without opening this script:
  *
- *   - `"setup-before-worker"` — one of ribo-core / ribo-adapter-snuggpro / ribo-extractor-openai /
- *     ribo-extractor-systemone / ribo-extractor-ondevice / ribo-transcriber-managed /
- *     ribo-transcriber-managed-docs / ribo-transcriber-pdfjs / ribo-ui-react threw.
+ *   - `"setup-before-worker"` — one of ribo-core / ribo-adapter-snuggpro / ribo-chat-openai /
+ *     ribo-chat-helix / ribo-extractor-systemone / ribo-extractor-ondevice /
+ *     ribo-transcriber-managed / ribo-transcriber-managed-docs / ribo-transcriber-pdfjs /
+ *     ribo-ui-react threw.
  *     None of this touches the network, so a Hub outage can never explain it —
  *     this is a real packaging regression in one of those packages.
  *   - `"worker-spawn-or-import"` — `prime()` threw and the worker never reported even an `initiate`
@@ -154,13 +157,14 @@ export const TEST_MODEL_REVISION = "e1a9e01a339a6c8ba2aadb92a271624e46f86d05";
  *     rate limit), not a packaging defect. Not a certainty — a heuristic — but the cheapest real
  *     signal available.
  */
-export const MAIN_JS = `import { isSpanGrounded, TerminalError } from "@azx/ribo-core";
+export const MAIN_JS = `import { isSpanGrounded, singleShotExtractor, TerminalError } from "@azx/ribo-core";
 import {
   normalizeFields,
   snuggExtractionSchema,
   snuggProAdapter,
 } from "@azx/ribo-adapter-snuggpro";
-import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
+import { helixChat } from "@azx/ribo-chat-helix";
+import { openAiChat } from "@azx/ribo-chat-openai";
 import { enumMembersAt } from "@azx/ribo-extractor-systemone";
 import { OnDeviceChat, threePhaseExtractor, ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 import { OnDeviceTranscriber } from "@azx/ribo-transcriber-ondevice";
@@ -187,7 +191,7 @@ function report(ok, extra) {
 async function run() {
   const checks = {};
 
-  // ---- setup: ribo-core, ribo-adapter-snuggpro, ribo-extractor-openai, ribo-ui-react ------------
+  // ---- setup: ribo-core, ribo-adapter-snuggpro, ribo-chat-*, ribo-ui-react ----------------------
   try {
     // ribo-core: a real zod-backed call, not just a bundled-and-unused import.
     checks.riboCoreGroundedSpanTrue = isSpanGrounded("R-49", "The attic insulation is R-49 today.");
@@ -196,9 +200,12 @@ async function run() {
     // ribo-adapter-snuggpro: the schema resolved and has real shape.
     checks.adapterSchemaKeyCount = Object.keys(snuggProAdapter.schema.shape).length;
 
-    // ribo-extractor-openai composed with the adapter across a tarball boundary. Constructed only,
-    // never called: openAiChat needs a baseUrl to build its request URL eagerly (not lazily inside
-    // complete()), but nothing here ever calls .extract(), so no network happens.
+    // The chat transports composed with the adapter across a tarball boundary (the
+    // strategies now live in ribo-core, ADR 0028; the transports are the dialect
+    // packages). Constructed only, never called: openAiChat needs a baseUrl to build
+    // its request URL eagerly (not lazily inside complete()), but nothing here ever
+    // calls .extract(), so no network happens. helixChat's capability() without a
+    // connectivity source is pure logic — ready, no fetch.
     const extractor = singleShotExtractor({
       target: snuggProAdapter,
       chat: openAiChat({ apiKey: "unused-not-called", baseUrl: "https://api.openai.com/v1" }),
@@ -206,6 +213,11 @@ async function run() {
       normalize: normalizeFields,
     });
     checks.extractorHasExtractFn = typeof extractor.extract === "function";
+
+    const helix = helixChat({ token: "unused-not-called", baseUrl: "https://example.invalid" });
+    checks.helixEngineId = helix.engine === "helix";
+    const helixCapability = await helix.capability();
+    checks.helixCapabilityReady = helixCapability.status === "ready";
 
     // ribo-extractor-systemone: the schema walk answers a KNOWN enum leaf of a REAL derived
     // extraction schema, across the tarball boundary — members in declaration order. hvac is a

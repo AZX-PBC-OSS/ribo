@@ -1,6 +1,7 @@
 ---
-"@azx/ribo-extractor-openai": minor
 "@azx/ribo-adapter-snuggpro": minor
+"@azx/ribo-chat-openai": minor
+"@azx/ribo-core": minor
 ---
 
 Widen the `ChatClient` seam: token cap, abort, and typed errors.

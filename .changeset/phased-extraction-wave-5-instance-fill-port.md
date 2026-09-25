@@ -1,6 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": major
-"@azx/ribo-core": minor
+"@azx/ribo-core": major
 ---
 
 **`scopedInstanceExtractor` is now a `phasedExtractor` preset** — the new exported `inventoryPhase` (one house-wide roster pass, all roster interpretation in its merge) followed by the new exported `fillPhase` (one scoped fill per `(group, piece, instance)`, recombined with `mergeGroupPieces`) — rather than a hand-rolled orchestrator. A host can assemble the same phase list by hand and extend or reorder it with phases of its own.

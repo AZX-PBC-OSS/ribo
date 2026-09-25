@@ -41,7 +41,7 @@
  *
  * ## Where the real `openAiChat` comes from — and why it is DEV-ONLY
  *
- * The keyed path uses the REAL `openAiChat` from `@azx/ribo-extractor-openai`, but
+ * The keyed path uses the REAL `openAiChat` from `@azx/ribo-chat-openai`, but
  * it can only load on the DEV server. The `@azx/*` workspace packages ship only
  * TypeScript source (no `dist`), and resolve to that source through the
  * `@azx/source` export condition — which `tsc` honours (`customConditions`) and the
@@ -49,7 +49,7 @@
  * and the preview server (plain Node/esbuild resolution) do NOT. A static `import`
  * by package name would resolve to the missing `dist/index.js` and crash the whole
  * middleware at load. So the dev server loads the package's TS source lazily through
- * its SSR module runner — `server.ssrLoadModule("@azx/ribo-extractor-openai")`,
+ * its SSR module runner — `server.ssrLoadModule("@azx/ribo-chat-openai")`,
  * gated behind `ssr.resolve.conditions: ["@azx/source"]` in `vite.config.ts` — the
  * same pipeline the vitest `unit` project uses to consume these packages. Only the
  * *value* `openAiChat` is loaded that way; the `ChatClient`/`ChatRequest` TYPES are
@@ -76,7 +76,7 @@ import type { Plugin } from "vite";
 // (resolved by `tsc` via `customConditions: ["@azx/source"]`). The *value*
 // `openAiChat` is loaded lazily at runtime via `ssrLoadModule` — see
 // {@link extractApiPlugin} — because the source-only package has no `dist/`.
-import type { ChatClient, ChatRequest } from "@azx/ribo-extractor-openai";
+import type { ChatClient, ChatRequest } from "@azx/ribo-core";
 
 /** Display label for the keyless codex backend (the CLI's default model). */
 const CODEX_MODEL_LABEL = "gpt-5.6";
@@ -665,7 +665,7 @@ export function extractApiPlugin(): Plugin {
   return {
     name: "ribo-extract-api",
     configureServer(server) {
-      // Load the real `openAiChat` from the source-only `@azx/ribo-extractor-openai`
+      // Load the real `openAiChat` from the source-only `@azx/ribo-chat-openai`
       // lazily through the dev server's SSR module runner, cached after the first
       // request. `ssrLoadModule` resolves + transforms the package's TS source
       // (gated by `ssr.resolve.conditions: ["@azx/source"]` in vite.config.ts); a
@@ -676,7 +676,7 @@ export function extractApiPlugin(): Plugin {
       let cached: Promise<OpenAiChatFn> | undefined;
       const loadOpenAiChat = (): Promise<OpenAiChatFn> =>
         (cached ??= server
-          .ssrLoadModule("@azx/ribo-extractor-openai")
+          .ssrLoadModule("@azx/ribo-chat-openai")
           .then((mod) => (mod as { openAiChat: OpenAiChatFn }).openAiChat));
       mount(server.middlewares, devOpenAiRunner(loadOpenAiChat));
     },

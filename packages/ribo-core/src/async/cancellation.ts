@@ -2,12 +2,12 @@
  * @file The cancellation marker `ribo-core` can recognise without importing a transport's
  * error type.
  *
- * The discriminator has to work on an error constructed in another package: `ChatError`
- * (`ribo-extractor-openai`) already extends `Error` and cannot also extend a core class,
- * and core cannot import it — the dependency edge runs the other way. A branded property
- * is the only mechanism that lets a foreign error opt in without either package importing
- * the other's type. A combinator in core consults {@link isCancellation} instead of an
- * `instanceof` against a class it cannot name.
+ * The discriminator has to work on an error constructed outside this module: `ChatError`
+ * (the chat seam's own, in core since the seam moved here) already extends `Error` and cannot
+ * also extend a second base class, and a transport's injected `fetch` can reject with error
+ * types no package of ours declares at all. A branded property is the only mechanism that
+ * lets any of them opt in without a shared base class. A combinator in core consults
+ * {@link isCancellation} instead of an `instanceof` against a class it cannot name.
  *
  * What this deliberately does NOT do: change `isTransientFailure`, or decide for the relay
  * whether a cancelled extraction step is retryable. Those are a different layer's question

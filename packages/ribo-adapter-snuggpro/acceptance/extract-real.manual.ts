@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { test } from "vitest";
 
-import type { ChatClient } from "@azx/ribo-extractor-openai";
-import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
+import { type ChatClient, singleShotExtractor } from "@azx/ribo-core";
+import { openAiChat } from "@azx/ribo-chat-openai";
 
 import { cliChat } from "./cli-chat.js";
 import { normalizeFields, snuggProAdapter } from "../src/index.js";

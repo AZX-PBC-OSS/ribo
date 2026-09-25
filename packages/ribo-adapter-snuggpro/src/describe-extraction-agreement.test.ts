@@ -8,8 +8,8 @@ import {
   perGroupPlan,
   schemaExtractor,
   splitExtractionSchema,
-} from "@azx/ribo-extractor-openai";
-import type { SplitOptions } from "@azx/ribo-extractor-openai";
+  type SplitOptions,
+} from "@azx/ribo-core";
 
 import { SCHEMA_SERIALIZED_CHAR_CAP, snuggExtractionSchema } from "./schema.js";
 import type { SnuggValues } from "./schema.js";

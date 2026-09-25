@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-chat-helix": minor
 ---
 
 Add `helixChat` — a second `ChatClient` for the Helix platform LLM route.

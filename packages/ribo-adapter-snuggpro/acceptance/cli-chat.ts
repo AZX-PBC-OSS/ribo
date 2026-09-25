@@ -5,18 +5,20 @@
  * key is dead. It is a DEVELOPER TEST HARNESS for {@link file://./gate.manual.ts}, not a shipped
  * transport — see the "Why this lives here" note below for what that means for where it lives.
  *
- * ## Why this lives in `acceptance/`, not in `@azx/ribo-extractor-openai`
+ * ## Why this lives in `acceptance/`, not in `@azx/ribo-core`
  *
  * This file imports `node:child_process`, `node:fs`, `node:os`, `node:path` and `ajv` — Node
- * built-ins and a runtime dependency with no browser equivalent. `@azx/ribo-extractor-openai` is
- * a PUBLISHED, browser-targeted package (its tsconfig extends `browser-library.json`, and
- * `playground/src/extractor-store.ts` imports its main entry by value into the browser bundle);
- * putting a `node:child_process` import anywhere in that package's dependency graph is a defect
- * regardless of which entry point carries it, because `child_process` can never run in a browser
- * and every consumer of the package would incur `ajv` as a dependency for a code path they
- * cannot physically execute. An earlier version of this file lived there behind its own
- * `./cli-chat` published subpath — the root cause was not that some entry point was wrong, but
- * that any entry point in that package was wrong for Node-only code.
+ * built-ins and a runtime dependency with no browser equivalent. `@azx/ribo-core` (which owns
+ * the `ChatClient` seam this transport implements) is a PUBLISHED, browser-targeted package
+ * (its tsconfig extends `browser-library.json`, and `playground/src/extractor-store.ts`
+ * imports its main entry by value into the browser bundle); putting a `node:child_process`
+ * import anywhere in that package's dependency graph is a defect regardless of which entry
+ * point carries it, because `child_process` can never run in a browser and every consumer of
+ * the package would incur `ajv` as a dependency for a code path they cannot physically
+ * execute. An earlier version of this file lived in a sibling extractor package behind its
+ * own `./cli-chat` published subpath — the root cause was not that some entry point was
+ * wrong, but that any entry point in a browser-targeted package was wrong for Node-only
+ * code.
  *
  * `packages/ribo-adapter-snuggpro/acceptance/` is the right home instead: it is already Node-only
  * (every file here assumes a Node runtime), already manual/opt-in (this directory is excluded
@@ -24,7 +26,7 @@
  * entry and its published `files: ["dist"]`, so this file is never typechecked, built, or shipped
  * as part of that package either), and already the sole consumer of this transport
  * ({@link file://./gate.manual.ts}). It imports `ChatClient`/`ChatCompletion`/`ChatMessage`/
- * `ChatRequest`/`ChatCallOptions` from `@azx/ribo-extractor-openai`'s PUBLISHED surface as
+ * `ChatRequest`/`ChatCallOptions` from `@azx/ribo-core`'s PUBLISHED surface as
  * type-only imports (erased at build), and `ChatError` as a value — the typed error the transport
  * now throws. See the import comment below for the coupling that value import adds and why it is
  * confined to this harness.
@@ -69,17 +71,17 @@ import type { ValidateFunction } from "ajv";
 
 // `ChatError` is a VALUE import (the typed error this transport now throws); the
 // rest are type-only, erased at build. The value import adds runtime coupling, but
-// `ribo-adapter-snuggpro` already depends on `@azx/ribo-extractor-openai`, and this
+// `ribo-adapter-snuggpro` already depends on `@azx/ribo-core`, and this
 // file is never shipped (see the file header), so that coupling is confined to the
 // acceptance harness.
-import { ChatError } from "@azx/ribo-extractor-openai";
+import { ChatError } from "@azx/ribo-core";
 import type {
   ChatCallOptions,
   ChatClient,
   ChatCompletion,
   ChatMessage,
   ChatRequest,
-} from "@azx/ribo-extractor-openai";
+} from "@azx/ribo-core";
 
 /** Which agentic CLI to shell out to. Both are used exactly as a developer would run them
  *  interactively — this client adds no credential and no flag beyond what keeps them from

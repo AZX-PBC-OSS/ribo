@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
-import { perGroupExtractor } from "@azx/ribo-extractor-openai";
-import { enveloped, type ExtractionTarget } from "@azx/ribo-core";
+import { enveloped, perGroupExtractor, type ExtractionTarget } from "@azx/ribo-core";
 
 import { OnDeviceChat } from "./ondevice-chat.js";
 import {

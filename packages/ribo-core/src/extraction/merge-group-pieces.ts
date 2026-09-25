@@ -1,8 +1,9 @@
 /**
  * @file The partitioned-group merge — recombine two group values that are pieces
  * of the SAME top-level key. Moved to core beside `groupedExtractor`, which owns
- * the merge, and so that `ribo-extractor-openai`'s per-group and instance-fill
- * strategies share the one copy instead of importing it through a sibling module.
+ * the merge, and so that the per-group and instance-fill strategies (which moved
+ * into core from `ribo-extractor-openai` with it) share the one copy instead of
+ * importing it through a sibling module.
  */
 
 /**

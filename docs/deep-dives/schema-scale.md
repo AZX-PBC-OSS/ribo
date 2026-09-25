@@ -87,7 +87,7 @@ validator and points at the model provider.
 
 ## What Ribo does about it
 
-`splitExtractionSchema` (`@azx/ribo-extractor-openai`) partitions a schema by nullable-union weight,
+`splitExtractionSchema` (`@azx/ribo-core`) partitions a schema by nullable-union weight,
 not by leaf count, against a tunable `MAX_NULLABLE_UNIONS_PER_CALL` (16 by default). A group over the
 cap is split into multiple entries sharing one response key, run as separate calls against a bounded
 concurrency pool, and reassembled into one result — the same mechanism whether the split is forced

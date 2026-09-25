@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": major
-"@azx/ribo-extractor-openai": major
 ---
 
 **The unwrapped portion is an option, not a map key** — a breaking change to an unreleased API

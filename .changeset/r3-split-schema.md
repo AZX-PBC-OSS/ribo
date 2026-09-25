@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 Add `splitExtractionSchema` — the pure, model-free half of R3 (per-group

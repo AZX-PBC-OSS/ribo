@@ -3,18 +3,16 @@ import { expect, test } from "vitest";
 import {
   DEFAULT_BACKOFF_BASE_MS,
   DEFAULT_BACKOFF_CAP_MS,
-  type SessionItem,
-  type Transcript,
-} from "@azx/ribo-core";
-import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
-import {
   MAX_NULLABLE_UNIONS_PER_CALL,
   splitExtractionSchema,
   type ChatClient,
   type ChatCompletion,
   type ChatRequest,
   type ExtractionGroup,
-} from "@azx/ribo-extractor-openai";
+  type SessionItem,
+  type Transcript,
+} from "@azx/ribo-core";
+import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 import { z } from "zod";
 import {
   SNUGGPRO_ADAPTER_NAME,
@@ -70,7 +68,7 @@ const session: SessionItem = {
 /**
  * The real per-group split, including nullable-union partitioning — the same list
  * `perGroupExtractor` builds internally for the Snugg target (see
- * `ribo-extractor-openai/src/per-group.ts`). Every group carrying more nullable
+ * `@azx/ribo-core`'s `extraction/strategies/per-group.ts`). Every group carrying more nullable
  * unions than {@link MAX_NULLABLE_UNIONS_PER_CALL} is split into entries sharing one key;
  * every other group is untouched. Building this here (rather than assuming
  * "one entry per group") is what keeps the fake's request naming and response

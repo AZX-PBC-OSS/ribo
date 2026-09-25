@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": patch
+"@azx/ribo-core": patch
 ---
 
 Retry transient transport blips inside the shape-operation proposer's chat call; do not let them consume the repair budget.

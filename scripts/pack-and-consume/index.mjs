@@ -343,8 +343,8 @@ function describeFailure(result) {
   switch (result?.category) {
     case "setup-before-worker":
       return (
-        "packaging regression in ribo-core / ribo-adapter-snuggpro / ribo-extractor-openai / " +
-        `ribo-ui-react — none of this phase touches the network:\n${message}`
+        "packaging regression in ribo-core / ribo-adapter-snuggpro / ribo-chat-openai / " +
+        `ribo-chat-helix / ribo-ui-react — none of this phase touches the network:\n${message}`
       );
     case "worker-spawn-or-import":
       return (
@@ -381,6 +381,8 @@ function assertResult({ result, consoleErrors, pageErrors, tarballCount }) {
     ["riboCoreGroundedSpanFalse", c.riboCoreGroundedSpanFalse === false],
     ["adapterSchemaKeyCount > 0", c.adapterSchemaKeyCount > 0],
     ["extractorHasExtractFn", c.extractorHasExtractFn === true],
+    ["helixEngineId", c.helixEngineId === true],
+    ["helixCapabilityReady", c.helixCapabilityReady === true],
     ["onDeviceEngineId", c.onDeviceEngineId === true],
     ["onDeviceCapabilityShape", c.onDeviceCapabilityShape === true],
     ["onDeviceExtractorHasExtractFn", c.onDeviceExtractorHasExtractFn === true],

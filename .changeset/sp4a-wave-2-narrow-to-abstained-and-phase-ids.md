@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": minor
 ---
 
 Repetition means something, and a phase list can use a kind more than once.

@@ -198,7 +198,7 @@ export default defineConfig({
   },
   ssr: {
     // The SSR twin of `resolve.conditions` above. The dev-only `/api/extract`
-    // plugin (`vite-extract.ts`) loads the source-only `@azx/ribo-extractor-openai`
+    // plugin (`vite-extract.ts`) loads the source-only `@azx/ribo-chat-openai`
     // through the dev server's SSR module runner (`server.ssrLoadModule`), which
     // reads THIS condition list, not `resolve.conditions`. Without it the SSR
     // pipeline resolves the package to its missing `dist/` and the openai backend

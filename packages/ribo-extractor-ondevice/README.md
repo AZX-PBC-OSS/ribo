@@ -12,14 +12,14 @@ one, so `ribo-core`'s extraction-side composite prefers managed first and accept
 when the managed path can't run.
 
 Skip it if your deployment has reliable managed-model access; use
-[`@azx/ribo-extractor-openai`](../ribo-extractor-openai/README.md) alone instead. It borrows only
-the `ChatClient` types from `@azx/ribo-extractor-openai`, not the transports.
+[`@azx/ribo-chat-openai`](../ribo-chat-openai/README.md) alone instead. It borrows only
+the `ChatClient` types from `@azx/ribo-core`, not the transports.
 
 ## Composing it
 
 ```ts
-import { acceptAnySuccess, fallbackExtractor } from "@azx/ribo-core";
-import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
+import { acceptAnySuccess, fallbackExtractor, singleShotExtractor } from "@azx/ribo-core";
+import { openAiChat } from "@azx/ribo-chat-openai";
 import { OnDeviceChat, threePhaseExtractor } from "@azx/ribo-extractor-ondevice";
 
 // `target` is any adapter's `ExtractionTarget` slice — a placeholder for whichever

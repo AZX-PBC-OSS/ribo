@@ -4547,7 +4547,7 @@ export const SCHEMA_SERIALIZED_CHAR_CAP = 32_768;
  * The maximum nesting depth the structured-output route accepts, named
  * alongside the character cap in the vendor's error text: `schema must
  * serialize to <= 32768 characters and nest <= 12 levels`. Measured by
- * `@azx/ribo-extractor-openai`'s `serializedNestingDepth` — raw JSON nesting,
+ * `@azx/ribo-core`'s `serializedNestingDepth` — raw JSON nesting,
  * the only count the route was probed to agree with.
  *
  * The partitioned per-group pieces sit exactly AT this cap, with no headroom:

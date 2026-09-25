@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": patch
+"@azx/ribo-core": patch
 ---
 
 Group the flat `src/` into directories by concern, and split the oversized shape module.

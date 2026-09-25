@@ -319,6 +319,12 @@ transformers.js, no WASM. Kev-0.8B could in principle be ONNX-exported and run u
 way `ribo-transcriber-ondevice` does, but nothing like that exists today and 0.8B is the only
 plausible size.
 
+> **Superseded, 2026-09-22 — see [spike 0010](../0010-kev-ondevice/).** An ONNX export
+> (`onnx-community/kev-0.6b-ONNX`, the 0.6B Qwen3-generation checkpoint) now exists and runs under
+> transformers.js/WebGPU at 860 ms a pass. The paragraph above is left as written; what it got
+> wrong was the availability, not the conclusion. 0010 measured the model on these same cells and
+> still says do not build: `contradicts` wins 0 of 951 cells.
+
 ## Probe 8/9 — the ratio on the current schema
 
 Blocked, and worth recording why. Measuring the rejection ratio needs current-schema extractions;

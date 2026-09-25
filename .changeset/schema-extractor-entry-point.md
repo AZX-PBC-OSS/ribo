@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 **`schemaExtractor`: the entry point that takes a raw zod schema.** Hand it the plain patch schema

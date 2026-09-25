@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": major
-"@azx/ribo-extractor-openai": major
 "@azx/ribo-extractor-ondevice": major
 "@azx/ribo-transcriber-pdfjs": major
 ---

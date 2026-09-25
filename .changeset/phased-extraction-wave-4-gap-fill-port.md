@@ -1,6 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": major
-"@azx/ribo-core": minor
+"@azx/ribo-core": major
 ---
 
 **`gapFillExtractor` is now a `phasedExtractor` preset** — an `extractorPhase` base followed by the new exported `gapFillPhase` follow-up — rather than a closed wrapper. A host can assemble the same phase list by hand and extend it with phases of its own.

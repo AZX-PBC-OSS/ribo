@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 Add `gapFillExtractor` — a combinator that wraps any base

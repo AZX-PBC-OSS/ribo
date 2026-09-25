@@ -1,5 +1,4 @@
-import { buildGroupMessages } from "@azx/ribo-extractor-openai";
-import type { ExtractionTarget } from "@azx/ribo-core";
+import { buildGroupMessages, type ExtractionTarget, type FillScope } from "@azx/ribo-core";
 import { describe, expect, test } from "vitest";
 
 import { snuggProAdapter } from "./adapter.js";
@@ -12,7 +11,6 @@ import {
   snuggProInstructions,
   TRANSCRIPT_SECTION,
 } from "./instructions.js";
-import type { FillScope } from "@azx/ribo-extractor-openai";
 import type { SnuggValues } from "./schema.js";
 
 /**

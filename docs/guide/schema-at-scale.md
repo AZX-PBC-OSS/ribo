@@ -63,7 +63,7 @@ ceiling or split a group that never needed to be split.
 
 ## The machinery
 
-`splitExtractionSchema` (`@azx/ribo-extractor-openai`) is the pure, model-free half of this: given a
+`splitExtractionSchema` (`@azx/ribo-core`) is the pure, model-free half of this: given a
 target's `extractionSchema`, it derives one `ExtractionGroup` per top-level key the schema's own
 `enveloped()` derivation produced — no adapter wiring, no hard-coded group list. Pass a
 `maxNullableUnionsPerGroup` (the extractors below default it to the exported
@@ -72,7 +72,7 @@ multiple entries that all share the same top-level `key`, so the response still 
 property the caller expects.
 
 ```ts
-import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "@azx/ribo-extractor-openai";
+import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "@azx/ribo-core";
 
 const groups = splitExtractionSchema(target.extractionSchema, MAX_NULLABLE_UNIONS_PER_CALL);
 // one entry per group, or several sharing a key for a group over the cap
@@ -94,7 +94,7 @@ probe script each: which top-level keys are groups and which are loose, which sp
 many pieces the caps produce and what each measures, and whether construction would succeed:
 
 ```ts
-import { describeExtraction } from "@azx/ribo-extractor-openai";
+import { describeExtraction } from "@azx/ribo-core";
 
 const report = describeExtraction({
   extractionSchema: target.extractionSchema, // or `schema` plus shape `operations`

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kev-0.6b WebGPU probe</title>
+  </head>
+  <body>
+    <pre id="log">starting…</pre>
+    <script type="module">
+      // Throwaway spike page: does the kev ONNX export run under WebGPU in a real browser, and
+      // how fast? Loads transformers.js from a CDN, which shipped ribo code may never do (the
+      // offline guarantee and host CSPs, see ribo-transcriber-ondevice/src/config.ts) — here it
+      // keeps the probe to one file with no bundler.
+      const el = document.getElementById("log");
+      const out = [];
+      const say = (m) => {
+        out.push(m);
+        el.textContent = out.join("\n");
+        console.log(m);
+      };
+
+      const post = (body) =>
+        fetch("/collect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+      try {
+        if (!navigator.gpu) throw new Error("navigator.gpu missing — not a WebGPU browser");
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) throw new Error("no GPU adapter — run headed, headless Chromium has none");
+        say(`adapter ok: ${JSON.stringify(adapter.info ?? {})}`);
+
+        const { AutoTokenizer, PreTrainedModel, Tensor } =
+          await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm");
+
+        const REPO = "onnx-community/kev-0.6b-ONNX";
+        const T = 1.9318726578496908; // kev-0.6b fitted temperature; NOT in the exported graph
+
+        let t = performance.now();
+        const tokenizer = await AutoTokenizer.from_pretrained(REPO);
+        // q4f16 is the variant built for WebGPU (the rest of the graph in fp16).
+        const model = await PreTrainedModel.from_pretrained(REPO, {
+          dtype: "q4f16",
+          device: "webgpu",
+        });
+        const loadMs = Math.round(performance.now() - t);
+        say(`loaded q4f16/webgpu in ${(loadMs / 1000).toFixed(1)}s`);
+
+        const D = model.config.kev.delimiter_ids;
+        const enc = (s) =>
+          Array.from(
+            tokenizer(String(s).replace(/<\|([A-Za-z0-9_]+)\|>/g, "<¦$1¦>"), {
+              add_special_tokens: false,
+            }).input_ids.data,
+            Number,
+          );
+
+        // A transcript-sized state and a batch of noul questions, so the latency is comparable to
+        // run-2's ~3200-token CPU passes. Attention is quadratic, so a comparison at a very
+        // different length would flatter one side. This lands at ~2537 tokens — repeated filler
+        // tokenizes more compactly than real speech, so it is close rather than matched, and the
+        // CPU figure is the slower end of the pair.
+        const state = (
+          "The auditor walks the attic. " +
+          "R-value looks like thirty-eight in the flat areas. ".repeat(140)
+        ).trim();
+        const questions = Array.from({ length: 40 }, (_, i) => ({
+          instr: `Does this dictation discuss field number ${i}, an attic or wall measurement?`,
+          options: ["no", "yes"],
+        }));
+
+        const tokens = [D.state, ...enc(state)];
+        const groups = questions.map((q) => {
+          const instr = enc(q.instr);
+          const spans = q.options.map((o) => [D.option_start, ...enc(o), D.option_end]);
+          const base = tokens.length;
+          let cursor = 1 + instr.length;
+          const ends = spans.map((s) => {
+            cursor += s.length;
+            return base + cursor - 1;
+          });
+          tokens.push(D.question, ...instr, ...spans.flat(), D.decide);
+          return ends;
+        });
+        for (const ends of groups) {
+          for (const i of ends) if (tokens[i] !== D.option_end) throw new Error(`bad index ${i}`);
+        }
+        say(`packed ${tokens.length} tokens, ${questions.length} questions`);
+
+        const run = async () => {
+          const t0 = performance.now();
+          const { logits } = await model({
+            input_ids: new Tensor("int64", BigInt64Array.from(tokens, BigInt), [1, tokens.length]),
+            attention_mask: new Tensor("int64", new BigInt64Array(tokens.length).fill(1n), [
+              1,
+              tokens.length,
+            ]),
+          });
+          const data = Array.from(logits.to("float32").data);
+          return { ms: performance.now() - t0, data };
+        };
+
+        const first = await run();
+        say(`first pass (includes shader compile) ${Math.round(first.ms)}ms`);
+        const warm = [];
+        for (let i = 0; i < 3; i += 1) warm.push((await run()).ms);
+        say(`warm passes ${warm.map((m) => Math.round(m)).join(", ")}ms`);
+
+        // Sanity: the probabilities must be real, not uniform. A silent delimiter failure gives
+        // exactly 0.5 for every noul (see kev.mjs) — this is the same trap, checked in-browser.
+        const softmax = (xs) => {
+          const m = Math.max(...xs);
+          const e = xs.map((x) => Math.exp(x - m));
+          const s = e.reduce((a, b) => a + b, 0);
+          return e.map((x) => x / s);
+        };
+        const probs = groups.map((ends) => softmax(ends.map((i) => first.data[i] / T))[1]);
+        const spread = Math.max(...probs) - Math.min(...probs);
+        say(
+          `p(yes) range ${Math.min(...probs).toFixed(3)}..${Math.max(...probs).toFixed(3)} (spread ${spread.toFixed(3)})`,
+        );
+
+        await post({
+          ok: true,
+          adapter: adapter.info ?? null,
+          loadMs,
+          tokens: tokens.length,
+          questions: questions.length,
+          firstPassMs: Math.round(first.ms),
+          warmPassMs: warm.map((m) => Math.round(m)),
+          uniform: spread < 1e-6,
+          log: out,
+        });
+        say("done");
+      } catch (err) {
+        say(`FAILED: ${err?.message ?? err}`);
+        await post({ ok: false, error: String(err?.stack ?? err), log: out });
+      }
+    </script>
+  </body>
+</html>

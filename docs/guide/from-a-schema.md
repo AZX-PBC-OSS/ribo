@@ -12,8 +12,8 @@ said"), a chat client, and a model, to `schemaExtractor`:
 
 ```ts
 import { z } from "zod";
-import { isSpanGrounded } from "@azx/ribo-core";
-import { openAiChat, schemaExtractor } from "@azx/ribo-extractor-openai";
+import { isSpanGrounded, schemaExtractor } from "@azx/ribo-core";
+import { openAiChat } from "@azx/ribo-chat-openai";
 
 const visitSchema = z
   .object({
@@ -132,8 +132,7 @@ Here is a worked one, using the exported `extractInventory` for the call itself:
 
 ```ts
 import { z } from "zod";
-import type { Roster } from "@azx/ribo-core";
-import { extractInventory } from "@azx/ribo-extractor-openai";
+import { extractInventory, type Roster } from "@azx/ribo-core";
 
 // What one candidate looks like. Every span field must quote the transcript
 // verbatim — the response is parsed against this schema, so a fabricated
@@ -206,7 +205,8 @@ works, and is one call.
 applier — the model emits the operations, and the same Stage 1 applier applies them:
 
 ```ts
-import { proposeExtractionShape, openAiChat } from "@azx/ribo-extractor-openai";
+import { proposeExtractionShape } from "@azx/ribo-core";
+import { openAiChat } from "@azx/ribo-chat-openai";
 
 const chat = openAiChat({ apiKey, baseUrl, fetchImpl: /* origin-injecting, see above */ });
 

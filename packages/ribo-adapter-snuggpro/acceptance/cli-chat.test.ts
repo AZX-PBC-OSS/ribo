@@ -14,8 +14,7 @@ import type { spawn } from "node:child_process";
 
 import { describe, expect, test, vi } from "vitest";
 
-import { ChatError } from "@azx/ribo-extractor-openai";
-import type { ChatRequest } from "@azx/ribo-extractor-openai";
+import { ChatError, type ChatRequest } from "@azx/ribo-core";
 
 import { cliChat, extractLastJsonObject } from "./cli-chat.js";
 import type { CliShapeResult } from "./cli-chat.js";

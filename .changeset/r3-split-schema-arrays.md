@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 Teach `splitExtractionSchema` to detect top-level groups wrapped in `z.array()`.

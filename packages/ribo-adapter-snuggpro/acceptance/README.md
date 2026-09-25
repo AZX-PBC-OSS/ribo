@@ -12,9 +12,9 @@ It makes real inference calls. That is the point (you cannot measure extraction
 quality without inference), and it is why the gate is **opt-in by nature**: it lives
 under its own `vitest.acceptance.config.ts`, is **not** part of `./check.sh`, and is
 **not** matched by any Vitest project the gate runs (`*.manual.ts`, and outside
-`src/`). The key-free unit tests for the extractor now live in
-`@azx/ribo-extractor-openai` (`single-shot.test.ts`, `openai-chat.test.ts`,
-`cli-chat.test.ts`) — request shape, trust boundary, transient-failure
+`src/`). The key-free unit tests for the extractor now live in `@azx/ribo-core`
+(`single-shot.test.ts`), in `@azx/ribo-chat-openai` (`openai-chat.test.ts`) and here
+(`cli-chat.test.ts`) — request shape, trust boundary, transient-failure
 classification, the CLI shape-conformance retry loop — and are the parts that run in
 CI.
 

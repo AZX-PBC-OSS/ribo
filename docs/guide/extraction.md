@@ -98,16 +98,19 @@ scratch with it.
 
 ## The two real extractors
 
-### `@azx/ribo-extractor-openai`: the managed-LLM strategies
+### The managed-LLM strategies (`@azx/ribo-core`) and their transports
 
 `singleShotExtractor` is the built default: one structured-output chat call per extraction, its
 response parsed against the target's `extractionSchema`. It needs a `ChatClient` to actually talk to
-a model, and this package ships two. They are different transports, not two endpoints of one.
+a model, and two transports ship beside the seam. They are different transports, not two endpoints of
+one.
 
-- **`openAiChat`** is the OpenAI-compatible transport: it POSTs to `${baseUrl}/chat/completions`
+- **`openAiChat`** (`@azx/ribo-chat-openai`) is the OpenAI-compatible transport: it POSTs to
+  `${baseUrl}/chat/completions`
   with bearer auth and reads `choices[0].message.content`, the shape any OpenAI-compatible endpoint
   speaks.
-- **`helixChat`** serves the Helix platform's own provider-neutral `/_api/llm/chat` route and is not
+- **`helixChat`** (`@azx/ribo-chat-helix`) serves the Helix platform's own provider-neutral
+  `/_api/llm/chat` route and is not
   OpenAI-compatible. The wire shape is different too — a flat `{ model, content, stopReason, usage }`
   body rather than an OpenAI `choices` array, and a system message becomes a top-level `system` field
   rather than a message in the array.
@@ -117,7 +120,8 @@ top of it) is written against the interface and never against either transport's
 one a host constructs is a deployment choice, not a code branch.
 
 ```ts
-import { singleShotExtractor, openAiChat } from "@azx/ribo-extractor-openai";
+import { singleShotExtractor } from "@azx/ribo-core";
+import { openAiChat } from "@azx/ribo-chat-openai";
 
 const extractor = singleShotExtractor({
   target: { name: "contact", extractionSchema, instructions: "Extract the caller's details." },
@@ -150,7 +154,7 @@ source-span fidelity to 100% grounded. Like the managed extractors, it reads its
 
 ## Phased composition: a multi-pass strategy is a list of phases
 
-Three strategies — `gapFillExtractor` and `scopedInstanceExtractor` in `@azx/ribo-extractor-openai`,
+Three strategies — `gapFillExtractor` and `scopedInstanceExtractor` in `@azx/ribo-core`,
 `threePhaseExtractor` in `@azx/ribo-extractor-ondevice` — look like three bespoke orchestrators.
 They are not — each is a preset over one combinator, `phasedExtractor`
 (`@azx/ribo-core`), that runs a list of **phases** in order. You meet this machinery when you wire
@@ -252,8 +256,8 @@ into a list beside shipped ones. What is public, and from where:
   read-site throw; and the three-phase strategy's parts, `presencePhase`, `spanPhase`,
   `classifyPhase` and `classifyWrappedPhase`, with the `extractGroups` walk that feeds them and their
   note keys `presenceNoteKey`, `spansNoteKey` and `unsupportedNoteKey` — plus the caller-owned
-  kinds, `askPhase` and `computePhase`, and the `PhaseFold` type their options share.
-- **From `@azx/ribo-extractor-openai`** — `gapFillPhase`, `inventoryPhase`, `fillPhase`, plus the
+  kinds, `askPhase` and `computePhase`, and the `PhaseFold` type their options share; and
+  `gapFillPhase`, `inventoryPhase`, `fillPhase`, plus the
   `rosterNoteKey` the inventory and fill phases hand off under.
 - **From `@azx/ribo-extractor-ondevice`** — only the `threePhaseExtractor` preset, which tunes those
   core phases to the on-device transport; the phases themselves are core's.
@@ -457,7 +461,8 @@ so those keys are already in the draft; scoping would skip work that was **never
 ### Which phases you can actually compose
 
 `gapFillPhase`, `inventoryPhase`, `fillPhase` and `rosterNoteKey` are exported from
-`@azx/ribo-extractor-openai`'s barrel. The on-device strategy's four phases moved to `@azx/ribo-core`
+`@azx/ribo-core`'s barrel (they moved there with the managed cluster, ADR 0028). The on-device
+strategy's four phases moved to `@azx/ribo-core`
 in SP4a wave 5 and are exported from there; the on-device package's entry point exposes only the
 preset — and this repo forbids deep imports. Compose from what is actually available rather than
 assuming every preset's pieces are public. `extractorPhase(id, extractor)`, from `@azx/ribo-core`,

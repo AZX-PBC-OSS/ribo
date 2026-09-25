@@ -80,18 +80,17 @@ const rideAudit = z.object({
   }),
 });
 
-// The build path: I need to import the proposer from the BUILT package
-// because the script loads via Node, not Vite. The `tsdown` build emits
-// dist/ that this script consumes.
-const buildRoot = new URL("../packages/ribo-extractor-openai/dist/index.js", import.meta.url)
-  .pathname;
-const {
-  proposeExtractionShape,
-  proposeShapeOperations,
-  schemaExtractor,
-  openAiChat,
-  deriveExtractionShape,
-} = await import(buildRoot);
+// The build path: I need to import the proposer from the BUILT packages
+// because the script loads via Node, not Vite. The `tsdown` builds emit
+// dist/ that this script consumes. The strategies and shape derivation live
+// in `@azx/ribo-core` (ADR 0028); the `openAiChat` transport lives in
+// `@azx/ribo-chat-openai`.
+const coreBuild = new URL("../packages/ribo-core/dist/index.js", import.meta.url).pathname;
+const { proposeExtractionShape, proposeShapeOperations, schemaExtractor, deriveExtractionShape } =
+  await import(coreBuild);
+const { openAiChat } = await import(
+  new URL("../packages/ribo-chat-openai/dist/index.js", import.meta.url).pathname
+);
 
 // Origin-injecting fetch — explains how a dev token reaches the route.
 const originInjectedFetch = async (input, init) => {

@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 **Adds `nest` to the shape-operation set** — `regroup`'s counterpart for a flat schema. Where

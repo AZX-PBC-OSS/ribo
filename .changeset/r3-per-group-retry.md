@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": patch
+"@azx/ribo-core": patch
 ---
 
 Add bounded per-group retry to `perGroupExtractor` (R3 Task 3).

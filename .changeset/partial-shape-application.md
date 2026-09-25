@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 **Adds `deriveExtractionShapePartially` — the shape applier's collecting surface — plus the

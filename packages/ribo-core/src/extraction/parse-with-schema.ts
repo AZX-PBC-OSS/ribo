@@ -2,8 +2,8 @@
  * @file The trust-boundary parse shared by every extractor that receives model
  * output: parse raw JSON against a zod schema, throwing a recognisable,
  * retryable error on failure. Moved to core beside `SchemaParseError` (which it
- * throws) so `groupedExtractor`'s second parse and `ribo-extractor-openai`'s
- * first parse are the same function, not two copies of the same semantics.
+ * throws) so `groupedExtractor`'s second parse and the managed extractors' first
+ * parse are the same function, not two copies of the same semantics.
  */
 import type { z } from "zod";
 

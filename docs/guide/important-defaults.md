@@ -171,7 +171,7 @@ errors.
 
 ## The schema partition has a per-call ceiling, tunable but not unlimited
 
-`@azx/ribo-extractor-openai` partitions a large schema into groups so each call's response schema
+`@azx/ribo-core` partitions a large schema into groups so each call's response schema
 stays under `MAX_NULLABLE_UNIONS_PER_CALL` nullable unions — the shape strict structured-output
 mode is measured to reject past. It's counted in unions, not leaves, because a leaf's cost in unions
 depends on its provenance granularity: an enveloped leaf costs two, a plain (`"row"` or `"none"`)

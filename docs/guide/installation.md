@@ -13,7 +13,7 @@ pnpm add @azx/ribo-core
 Add a UI or engine package as your app needs it, for example:
 
 ```bash
-pnpm add @azx/ribo-ui-react @azx/ribo-extractor-openai
+pnpm add @azx/ribo-ui-react @azx/ribo-chat-openai
 ```
 
 **Peer dependencies.** `@azx/ribo-ui-react` declares `react` and `react-dom` as peers

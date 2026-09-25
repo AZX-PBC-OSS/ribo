@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": minor
 ---
 
 Extraction usage — the strategy, the call count and the token totals — is persisted on the session.

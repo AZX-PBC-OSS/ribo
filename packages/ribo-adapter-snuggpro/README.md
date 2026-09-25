@@ -16,9 +16,9 @@ name or quirk leaks into `@azx/ribo-core` or `@azx/ribo-ui-react`.
 ## Composing it
 
 ```ts
-import { toSessionExtractStep } from "@azx/ribo-core";
+import { singleShotExtractor, toSessionExtractStep } from "@azx/ribo-core";
 import { normalizeFields, snuggProAdapter } from "@azx/ribo-adapter-snuggpro";
-import { openAiChat, singleShotExtractor } from "@azx/ribo-extractor-openai";
+import { openAiChat } from "@azx/ribo-chat-openai";
 
 // Any Extractor can target this adapter — it only needs `name`, `extractionSchema`,
 // `instructions`, and `examples` (the `ExtractionTarget` slice of `ToolAdapter`).

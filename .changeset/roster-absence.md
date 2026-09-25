@@ -1,7 +1,6 @@
 ---
 "@azx/ribo-core": minor
 "@azx/ribo-adapter-snuggpro": minor
-"@azx/ribo-extractor-openai": minor
 "@azx/ribo-ui-react": minor
 ---
 

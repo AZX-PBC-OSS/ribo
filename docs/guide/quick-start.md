@@ -67,11 +67,12 @@ Paste this into a `.ts` file in a project with `zod` and `@azx/ribo-core` instal
 
 `FakeExtractor` and a real extractor both satisfy the same `Extractor` contract, so nothing above
 it — the schema, `enveloped()`, the `isSpanGrounded` check — changes when you swap one in. Only
-the construction line does. `@azx/ribo-extractor-openai`'s `singleShotExtractor` builds one
+the construction line does. `@azx/ribo-core`'s `singleShotExtractor` builds one
 against an OpenAI-compatible chat endpoint:
 
 ```ts
-import { singleShotExtractor, openAiChat } from "@azx/ribo-extractor-openai";
+import { singleShotExtractor } from "@azx/ribo-core";
+import { openAiChat } from "@azx/ribo-chat-openai";
 
 const extractor = singleShotExtractor({
   target: { name: "contact", extractionSchema, instructions: "Extract the caller's details." },

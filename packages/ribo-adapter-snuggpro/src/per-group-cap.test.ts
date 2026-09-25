@@ -5,8 +5,8 @@ import {
   MAX_NULLABLE_UNIONS_PER_CALL,
   serializedNestingDepth,
   splitExtractionSchema,
-} from "@azx/ribo-extractor-openai";
-import type { ExtractionGroup } from "@azx/ribo-extractor-openai";
+  type ExtractionGroup,
+} from "@azx/ribo-core";
 
 import {
   SCHEMA_NESTING_DEPTH_CAP,
@@ -154,7 +154,7 @@ test("the real derived schema splits collection groups as arrays", () => {
  * `splitExtractionSchema`'s `maxNullableUnionsPerGroup` partitions an over-cap group into
  * multiple entries sharing one key (`ExtractionGroup.part`/`parts`); `perGroupExtractor`
  * makes one call per entry and recombines. This file only exercises the pure split —
- * recombination is exercised in `ribo-extractor-openai`'s tool-agnostic
+ * recombination is exercised in `@azx/ribo-core`'s tool-agnostic
  * `per-group.test.ts`.
  */
 describe("the per-group split respects the 8-enveloped-leaf / 16-nullable-union cap", () => {

@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": patch
-"@azx/ribo-extractor-openai": patch
 ---
 
 A schema parse failure is now a recognisable, still-retryable error.

@@ -1,24 +1,22 @@
 import {
   compositeExtractor,
   FakeExtractor,
+  perGroupExtractor,
+  singleShotExtractor,
   toSessionExtractStep,
+  type CapableChatClient,
+  type ChatClient,
   type CompositeExtractor,
   type CompositeExtractorEntry,
   type Connectivity,
   type SessionExtractStep,
 } from "@azx/ribo-core";
+import { openAiChat } from "@azx/ribo-chat-openai";
 import {
   OnDeviceChat,
   threePhaseExtractor,
   type LanguageModel,
 } from "@azx/ribo-extractor-ondevice";
-import {
-  openAiChat,
-  perGroupExtractor,
-  singleShotExtractor,
-  type CapableChatClient,
-  type ChatClient,
-} from "@azx/ribo-extractor-openai";
 import {
   normalizeFields,
   snuggExamples,

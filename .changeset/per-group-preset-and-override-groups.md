@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": minor
 ---
 
 `perGroupExtractor` becomes a preset over `groupedExtractor`, and the plan it

@@ -1,6 +1,6 @@
 ---
 "@azx/ribo-adapter-snuggpro": minor
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 Bring the inventory roster under the structured-output route's depth cap.

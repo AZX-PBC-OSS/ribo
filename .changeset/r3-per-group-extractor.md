@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 Add `perGroupExtractor` — the per-group extraction strategy (R3 Task 2).
