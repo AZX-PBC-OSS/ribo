@@ -6,8 +6,9 @@
   "include": [
     "../packages/ribo-core/src",
     "../packages/ribo-adapter-snuggpro/src",
+    "../packages/ribo-chat-helix/src",
+    "../packages/ribo-chat-openai/src",
     "../packages/ribo-extractor-ondevice/src",
-    "../packages/ribo-extractor-openai/src",
     "../packages/ribo-transcriber-managed/src",
     "../packages/ribo-transcriber-managed-docs/src",
     "../packages/ribo-transcriber-ondevice/src",

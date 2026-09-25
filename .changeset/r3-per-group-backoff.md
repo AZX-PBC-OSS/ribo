@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": patch
+"@azx/ribo-core": patch
 ---
 
 Add backoff between per-group retry attempts in `perGroupExtractor`.

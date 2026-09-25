@@ -1,8 +1,7 @@
 import { expect, test } from "vitest";
 
-import type { ExtractionTarget } from "@azx/ribo-core";
-import { singleShotExtractor } from "@azx/ribo-extractor-openai";
-import type { ChatClient, ChatRequest } from "@azx/ribo-extractor-openai";
+import type { ChatClient, ChatRequest, ExtractionTarget } from "@azx/ribo-core";
+import { singleShotExtractor } from "@azx/ribo-core";
 
 import { snuggProAdapter } from "./adapter.js";
 import type { SnuggValues } from "./schema.js";
@@ -47,7 +46,7 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * Any *future* unexplained movement is a regression.
  *
  * Why capture via the real extractor, not `z.toJSONSchema(snuggExtractionSchema, ...)`
- * inline: `singleShotExtractor` (ribo-extractor-openai/src/single-shot.ts) is the ONLY
+ * inline: `singleShotExtractor` (`@azx/ribo-core`'s `extraction/single-shot.ts`) is the ONLY
  * code path that produces the object landing in `response_format.json_schema.schema`.
  * Re-deriving that call by hand would silently stop catching it the day single-shot.ts
  * adds post-processing; running the real extractor against a fake `ChatClient`

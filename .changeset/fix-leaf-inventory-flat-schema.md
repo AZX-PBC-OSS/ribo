@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": patch
+"@azx/ribo-core": patch
 ---
 
 Fix `renderLeafInventory` on a flat schema.

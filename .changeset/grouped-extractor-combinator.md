@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": patch
 ---
 
 Add `groupedExtractor` — the per-group run-owner combinator — to `ribo-core`

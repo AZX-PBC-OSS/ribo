@@ -31,7 +31,6 @@
   },
   "dependencies": {
     "@azx/ribo-core": "workspace:^",
-    "@azx/ribo-extractor-openai": "workspace:^",
     "zod": "catalog:"
   },
   "devDependencies": {

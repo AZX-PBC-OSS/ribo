@@ -1,5 +1,6 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-chat-helix": minor
+"@azx/ribo-core": minor
 ---
 
 The chat transport seam gains a capability contract.

@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 `gapFillExtractor` can now re-ask leaves whose citation is not in the transcript, via

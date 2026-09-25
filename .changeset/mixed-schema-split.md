@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": minor
 ---
 
 **The `""` group key now means the unwrapped portion, not the whole schema** — a mixed schema

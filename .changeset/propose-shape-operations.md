@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 **Adds `proposeShapeOperations` and `proposeExtractionShape` — the model-driven counterparts

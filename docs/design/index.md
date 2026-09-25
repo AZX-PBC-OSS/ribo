@@ -50,9 +50,10 @@ value. ESM-only sidesteps the hazard entirely rather than working around it.
 
 ## "Headless" is a layering rule, enforced by ESLint
 
-`ribo-core`, `ribo-adapter-snuggpro` and `ribo-extractor-openai` are **browser libraries**, not
+`ribo-core` and `ribo-adapter-snuggpro` (and the chat transports, `ribo-chat-openai` and
+`ribo-chat-helix`) are **browser libraries**, not
 environment-agnostic ones: `MediaRecorder`, `IndexedDB`, `fetch`, `Blob`, `AudioContext` and `Worker`
-are all expressly allowed, and all three packages' TypeScript configs include the DOM lib so those
+are all expressly allowed, and those packages' TypeScript configs include the DOM lib so those
 types resolve. What is excluded is _rendering_ — a React import, or a reach for `document` or
 `window`. That is a **layering** distinction, not an environment one, and it is enforced
 accordingly: ESLint's `no-restricted-imports` blocks `react`/`react-dom` and `no-restricted-globals`

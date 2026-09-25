@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": minor
 ---
 
 Add `schemaRetryExtractor`, a bounded self-correction retry for schema validation failures.

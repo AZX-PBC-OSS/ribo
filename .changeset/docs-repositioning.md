@@ -1,7 +1,6 @@
 ---
 "@azx/ribo-core": patch
 "@azx/ribo-adapter-snuggpro": patch
-"@azx/ribo-extractor-openai": patch
 "@azx/ribo-extractor-ondevice": patch
 "@azx/ribo-transcriber-ondevice": patch
 "@azx/ribo-transcriber-managed": patch

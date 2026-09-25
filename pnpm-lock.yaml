@@ -201,9 +201,9 @@ importers:
       '@azx/build-config':
         specifier: workspace:*
         version: link:../build-config
-      '@azx/ribo-extractor-openai':
+      '@azx/ribo-chat-openai':
         specifier: workspace:*
-        version: link:../ribo-extractor-openai
+        version: link:../ribo-chat-openai
       '@azx/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -213,6 +213,62 @@ importers:
       ajv:
         specifier: 'catalog:'
         version: 8.20.0
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.23
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.23)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@24.13.3)(@vitest/browser-playwright@4.1.10)(vite@8.1.5(@types/node@24.13.3)(terser@5.49.0)(yaml@2.9.0))
+
+  packages/ribo-chat-helix:
+    dependencies:
+      '@azx/ribo-core':
+        specifier: workspace:^
+        version: link:../ribo-core
+    devDependencies:
+      '@arethetypeswrong/core':
+        specifier: 'catalog:'
+        version: 0.18.5
+      '@azx/build-config':
+        specifier: workspace:*
+        version: link:../build-config
+      '@azx/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      publint:
+        specifier: 'catalog:'
+        version: 0.3.23
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.23)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@24.13.3)(@vitest/browser-playwright@4.1.10)(vite@8.1.5(@types/node@24.13.3)(terser@5.49.0)(yaml@2.9.0))
+
+  packages/ribo-chat-openai:
+    dependencies:
+      '@azx/ribo-core':
+        specifier: workspace:^
+        version: link:../ribo-core
+    devDependencies:
+      '@arethetypeswrong/core':
+        specifier: 'catalog:'
+        version: 0.18.5
+      '@azx/build-config':
+        specifier: workspace:*
+        version: link:../build-config
+      '@azx/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       publint:
         specifier: 'catalog:'
         version: 0.3.23
@@ -258,40 +314,6 @@ importers:
         version: 4.1.10(@types/node@24.13.3)(@vitest/browser-playwright@4.1.10)(vite@8.1.5(@types/node@24.13.3)(terser@5.49.0)(yaml@2.9.0))
 
   packages/ribo-extractor-ondevice:
-    dependencies:
-      '@azx/ribo-core':
-        specifier: workspace:^
-        version: link:../ribo-core
-      '@azx/ribo-extractor-openai':
-        specifier: workspace:^
-        version: link:../ribo-extractor-openai
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
-    devDependencies:
-      '@arethetypeswrong/core':
-        specifier: 'catalog:'
-        version: 0.18.5
-      '@azx/build-config':
-        specifier: workspace:*
-        version: link:../build-config
-      '@azx/tsconfig':
-        specifier: workspace:*
-        version: link:../tsconfig
-      publint:
-        specifier: 'catalog:'
-        version: 0.3.23
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.23)(typescript@6.0.3)
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.13.3)(@vitest/browser-playwright@4.1.10)(vite@8.1.5(@types/node@24.13.3)(terser@5.49.0)(yaml@2.9.0))
-
-  packages/ribo-extractor-openai:
     dependencies:
       '@azx/ribo-core':
         specifier: workspace:^
@@ -606,15 +628,18 @@ importers:
       '@azx/ribo-adapter-snuggpro':
         specifier: workspace:*
         version: link:../packages/ribo-adapter-snuggpro
+      '@azx/ribo-chat-helix':
+        specifier: workspace:*
+        version: link:../packages/ribo-chat-helix
+      '@azx/ribo-chat-openai':
+        specifier: workspace:*
+        version: link:../packages/ribo-chat-openai
       '@azx/ribo-core':
         specifier: workspace:*
         version: link:../packages/ribo-core
       '@azx/ribo-extractor-ondevice':
         specifier: workspace:*
         version: link:../packages/ribo-extractor-ondevice
-      '@azx/ribo-extractor-openai':
-        specifier: workspace:*
-        version: link:../packages/ribo-extractor-openai
       '@azx/ribo-extractor-systemone':
         specifier: workspace:*
         version: link:../packages/ribo-extractor-systemone

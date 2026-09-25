@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": major
-"@azx/ribo-extractor-openai": major
 ---
 
 Phase dependencies are declared over **phase ids**, not note keys (ADR 0008, rewritten in place —

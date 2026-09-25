@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 **The derived extraction shape: apply explicit shape operations to a plain zod schema, and get the

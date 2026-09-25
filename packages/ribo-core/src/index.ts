@@ -356,8 +356,8 @@ export type { ScheduleTimer } from "./async/schedule-timer.js";
 
 // A model response that parsed as JSON but violated the extraction schema.
 // Thrown by the managed extractors and read by the default arbiter, so it lives
-// in core rather than in the extractor package — core cannot import from
-// `@azx/ribo-extractor-openai`.
+// in core — the arbiter cannot import from a leaf package, and the managed
+// extractors moved in beside it (ADR 0027).
 export { SchemaParseError } from "./extraction/schema-parse-error.js";
 
 // Storage and its foreground relay. Forwarded wholesale through the subsystem's
@@ -651,7 +651,8 @@ export type { ExtractorPhaseOptions } from "./phases/extractor-phase.js";
 
 // The chat transport seam — moved here from `@azx/ribo-extractor-openai` (SP4a wave 5)
 // beside the transport-agnostic phases that consume it. Core stays IMPLEMENTATION-free:
-// the transports (`openAiChat`, `helixChat`, the on-device one) live in the extractor
+// the transports (`openAiChat` and `helixChat` in `@azx/ribo-chat-openai` /
+// `@azx/ribo-chat-helix`, the on-device one in `ribo-extractor-ondevice`) live in leaf
 // packages and are injected. `ChatError` is a VALUE export (a class); the rest are types.
 export { ChatError } from "./phases/chat-client.js";
 export type {
@@ -684,8 +685,8 @@ export {
 // pure projection of a target onto one group key, and the shared prompt
 // assembly, usage accounting and wire-name guard every managed strategy
 // reuses. Nothing in them names OpenAI — the transports (`openAiChat`,
-// `helixChat`) stay in the extractor package, which re-exports this cluster so
-// no consumer breaks.
+// `helixChat`) live in their own dialect packages, `@azx/ribo-chat-openai` and
+// `@azx/ribo-chat-helix` (ADR 0027).
 export { projectTarget } from "./extraction/project-target.js";
 export type { ProjectTargetOptions } from "./extraction/project-target.js";
 export {
@@ -772,10 +773,11 @@ export { computePhase } from "./phases/compute-phase.js";
 export type { ComputePhaseOptions } from "./phases/compute-phase.js";
 
 // The managed-extraction cluster that moved from `@azx/ribo-extractor-openai`
-// (which re-exports it, ADR 0010's compatibility approach): the strategies,
-// presets, schema split and shape derivation over the chat seam, none of which
-// names a vendor — the transports (`openAiChat`, `helixChat`) are what stayed
-// behind in that package.
+// (which re-exported it — ADR 0010's compatibility approach — until ADR 0027
+// deleted the package): the strategies, presets, schema split and shape
+// derivation over the chat seam, none of which names a vendor — the transports
+// (`openAiChat`, `helixChat`) are what stayed behind, and they now live in
+// `@azx/ribo-chat-openai` and `@azx/ribo-chat-helix`.
 //
 // The per-group schema split — the pure, model-free half of R3. Takes a target's
 // `extractionSchema` and returns one entry per top-level group (or one fallback

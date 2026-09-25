@@ -82,10 +82,11 @@ until a registry is chosen.
 or `linked` groups. A change to `@azx/ribo-adapter-snuggpro` bumps only that package (and its
 dependents); it never drags `@azx/ribo-core` along. A release target is any package under
 `packages/*` that doesn't set `"private": true` — check there rather than trusting a count here. As
-of this writing that's nine packages, all `@azx/`-scoped and all currently `0.0.0`: `ribo-core`,
-`ribo-ui-react`, `ribo-transcriber-ondevice`, `ribo-extractor-openai`, `ribo-extractor-ondevice`,
-`ribo-adapter-snuggpro`, `ribo-transcriber-managed`, `ribo-transcriber-managed-docs`, and
-`ribo-transcriber-pdfjs`.
+of this writing that's thirteen packages, all `@azx/`-scoped and all currently `0.0.0`: `ribo-core`,
+`ribo-ui-react`, `ribo-transcriber-ondevice`, `ribo-chat-openai`, `ribo-chat-helix`,
+`ribo-extractor-ondevice`, `ribo-extractor-systemone`, `ribo-adapter-snuggpro`,
+`ribo-transcriber-managed`, `ribo-transcriber-managed-docs`, `ribo-transcriber-pdfjs`,
+`ribo-storage-rxdb` and `ribo-systemone-managed`.
 
 The non-publishable packages are excluded from versioning and publishing entirely: the private
 `playground` app, `@azx/tsconfig` (build-only compiler config), and `@azx/build-config` (shared
@@ -103,12 +104,12 @@ per-package statement, not a routine bump.
 **peer** dependency — the shared-instance case, where a consumer holds core's runtime objects and
 hands them to the plasmid, so both must see one copy of core (`AGENTS.md` §6.2 has the full
 criterion: runtime object-identity sharing, not "leaf vs. not"). `@azx/ribo-transcriber-ondevice`,
-`@azx/ribo-extractor-openai` and `@azx/ribo-adapter-snuggpro` all depend on `@azx/ribo-core` as a
+`@azx/ribo-chat-openai`, `@azx/ribo-chat-helix` and `@azx/ribo-adapter-snuggpro` all depend on `@azx/ribo-core` as a
 plain runtime `dependency` instead, for that reason. The peer declaration uses `workspace:^`, which
 pnpm rewrites to a caret range (`^<version>`) at publish time; the caret (rather than the exact
 `workspace:*` link) means an **in-range** core release does not force consumers to pull a new
 plasmid. Type-only and test-only devDependencies on core (and the adapter's dev-only dependency on
-`@azx/ribo-extractor-openai`) stay `workspace:*` — they never ship, so an exact link is fine.
+`@azx/ribo-chat-openai`) stay `workspace:*` — they never ship, so an exact link is fine.
 
 A core release is therefore a **deliberate, coordinated event, not a silent transitive bump**: when
 `@azx/ribo-core` changes, Changesets flags every package that peers on it and proposes a bump for

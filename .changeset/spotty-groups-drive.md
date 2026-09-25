@@ -1,6 +1,6 @@
 ---
 "@azx/ribo-extractor-ondevice": major
-"@azx/ribo-extractor-openai": major
+"@azx/ribo-core": major
 ---
 
 Export missing symbols from package barrels so consumers can reuse them instead of reimplementing trust-boundary logic:

@@ -1,13 +1,13 @@
 import { expect, test } from "vitest";
 import { z } from "zod";
 
-import { splitExtractionSchema } from "@azx/ribo-extractor-openai";
+import { splitExtractionSchema } from "@azx/ribo-core";
 
 import { snuggExtractionSchema } from "./schema.js";
 
 /**
  * Snugg-specific tests for `splitExtractionSchema` against the real
- * `snuggExtractionSchema`. The pure function lives in `@azx/ribo-extractor-openai`
+ * `snuggExtractionSchema`. The pure function lives in `@azx/ribo-core`
  * (tool-agnostic); these tests live here because the real schema lives here.
  */
 

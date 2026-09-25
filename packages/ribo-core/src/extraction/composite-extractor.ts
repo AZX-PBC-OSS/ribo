@@ -14,9 +14,9 @@ import type {
  *
  * Deliberately structural and minimal rather than an import of any one engine's capability type.
  * The composite reads three things — whether it is `ready`, and a reason plus detail for the
- * "nothing was selectable" error — and needs nothing else. `ChatCapability` in
- * `ribo-extractor-openai` satisfies this without declaring that it does, which is what keeps this
- * file free of any transport concept.
+ * "nothing was selectable" error — and needs nothing else. The chat seam's `ChatCapability`
+ * (core's own, since the seam moved here) satisfies this without declaring that it does, which
+ * is what keeps this file free of any transport concept.
  *
  * `reason` is `string` rather than a closed union on purpose: each engine family names its own
  * reasons (`ChatUnavailableReason`, `TranscriberUnavailableReason`), and a combinator that only

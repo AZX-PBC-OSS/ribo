@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": minor
 ---
 
 Move the transport-agnostic extraction cluster into `@azx/ribo-core`.

@@ -1,6 +1,6 @@
 ---
 "@azx/ribo-adapter-snuggpro": minor
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 Add per-group prompt assembly — each per-group extraction call gets the

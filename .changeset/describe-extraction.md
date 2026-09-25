@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 **Adds `describeExtraction`** — a synchronous, model-free dry run of the schema split, answering

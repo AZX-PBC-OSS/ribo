@@ -4,10 +4,10 @@
  * with the terminal/transient classification the managed extractors established.
  *
  * These moved here from `@azx/ribo-extractor-openai`'s `extraction-common` (which
- * re-exports them, so its surface and internal imports are unchanged): they are
- * transport-agnostic semantics over the chat seam (ADR 0010), and `askPhase` composes the
- * same chain its managed cousins do. One copy of the semantics, beside the seam — the
- * same reason `parseWithSchema` itself moved.
+ * re-exported them, keeping its surface unchanged, until ADR 0027 deleted the
+ * package): they are transport-agnostic semantics over the chat seam (ADR 0010), and
+ * `askPhase` composes the same chain its managed cousins do. One copy of the semantics,
+ * beside the seam — the same reason `parseWithSchema` itself moved.
  *
  * What this deliberately does not do: the zod parse. `parseWithSchema` (the trust
  * boundary) stays its own module and is not re-exported here, because a caller composes

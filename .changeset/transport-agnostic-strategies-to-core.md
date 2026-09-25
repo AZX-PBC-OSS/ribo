@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": minor
 ---
 
 Finish moving the transport-agnostic extraction code into `@azx/ribo-core`.

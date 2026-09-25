@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { serializedNestingDepth } from "@azx/ribo-extractor-openai";
+import { serializedNestingDepth } from "@azx/ribo-core";
 
 import { TRANSCRIPT_SECTION } from "./instructions.js";
 import {

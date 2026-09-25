@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": patch
+"@azx/ribo-core": patch
 ---
 
 Four refusals in `@azx/ribo-extractor-openai`'s shape apply to mappings and

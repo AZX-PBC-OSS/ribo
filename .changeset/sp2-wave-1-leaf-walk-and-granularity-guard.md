@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": patch
 ---
 
 The runtime walk over enveloped extraction results is now public in `@azx/ribo-core`, and a

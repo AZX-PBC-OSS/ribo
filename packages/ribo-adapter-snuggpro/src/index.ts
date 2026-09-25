@@ -197,6 +197,7 @@ export {
 // session as dead. Kept here because which leaves a group keeps is adapter knowledge.
 export { prunePersistedValues } from "./write/prune-persisted.js";
 
-// The single-shot managed-LLM extractor (`singleShotExtractor`), its OpenAI-compatible
-// transport (`openAiChat`) and the `ChatClient` seam are tool-agnostic — they now live in
-// `@azx/ribo-extractor-openai`. A consumer composes them with `snuggProAdapter` as the target.
+// The single-shot managed-LLM extractor (`singleShotExtractor`) and the `ChatClient`
+// seam are tool-agnostic — they live in `@azx/ribo-core`, with the `openAiChat`
+// transport in `@azx/ribo-chat-openai`. A consumer composes them with
+// `snuggProAdapter` as the target.

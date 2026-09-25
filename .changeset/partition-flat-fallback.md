@@ -1,5 +1,4 @@
 ---
-"@azx/ribo-extractor-openai": minor
 "@azx/ribo-core": minor
 ---
 

@@ -19,10 +19,11 @@ package bumps only that package and its dependents; it never drags an unrelated 
 
 A release target is any package under `packages/*` whose `package.json` doesn't set
 `"private": true` — check there rather than trusting a count here, since this list grows as packages
-are added. As of this writing that's nine packages, all under the `@azx/` scope and all currently
-`0.0.0`: `ribo-core`, `ribo-ui-react`, `ribo-transcriber-ondevice`, `ribo-extractor-openai`,
-`ribo-extractor-ondevice`, `ribo-adapter-snuggpro`, `ribo-transcriber-managed`,
-`ribo-transcriber-managed-docs`, and `ribo-transcriber-pdfjs`.
+are added. As of this writing that's thirteen packages, all under the `@azx/` scope and all currently
+`0.0.0`: `ribo-core`, `ribo-ui-react`, `ribo-transcriber-ondevice`, `ribo-chat-openai`,
+`ribo-chat-helix`, `ribo-extractor-ondevice`, `ribo-extractor-systemone`, `ribo-adapter-snuggpro`,
+`ribo-transcriber-managed`, `ribo-transcriber-managed-docs`, `ribo-transcriber-pdfjs`,
+`ribo-storage-rxdb` and `ribo-systemone-managed`.
 
 The private `playground` app, `@azx/tsconfig` (build-only compiler config), and
 `@azx/build-config` (shared build config) are all `private: true` and excluded from versioning and
@@ -45,7 +46,7 @@ a package to `1.0.0` is a per-package decision, not a routine bump.
 Only `@azx/ribo-ui-react` takes `@azx/ribo-core` as a **peer** dependency — the shared-instance
 case, where a consumer holds core's runtime `Recorder`/`Storage`/`Connectivity` objects and hands
 them to the package, so both must see one copy of core. `@azx/ribo-transcriber-ondevice`,
-`@azx/ribo-extractor-openai` and `@azx/ribo-adapter-snuggpro` all depend on `@azx/ribo-core` as a
+`@azx/ribo-chat-openai`, `@azx/ribo-chat-helix` and `@azx/ribo-adapter-snuggpro` all depend on `@azx/ribo-core` as a
 plain `dependencies` entry instead, because none of them holds onto a shared core instance with
 that kind of cross-boundary identity — see `AGENTS.md` §6.2 for the full criterion and why it's
 runtime object-identity sharing, not "leaf vs. not." That peer declaration uses `workspace:^`,

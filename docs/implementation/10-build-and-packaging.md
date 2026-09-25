@@ -15,15 +15,18 @@ ribo/
 │   ├── ribo-core/
 │   ├── ribo-ui-react/
 │   ├── ribo-adapter-snuggpro/
-│   ├── ribo-extractor-openai/
+│   ├── ribo-chat-openai/
+│   ├── ribo-chat-helix/
 │   ├── ribo-transcriber-ondevice/
 │   └── tsconfig/              # private shared tsconfig package
 └── playground/                # private Vite app — THE PRIMARY DEV LOOP
 ```
 
-Five publishable packages, not the three this diagram once showed — `ribo-extractor-openai` (Phase 4)
-and `ribo-transcriber-ondevice` (Phase 3) both landed after this doc was written, and `ribo-ui`
-became `ribo-ui-react` in R2. `build-config` and `tsconfig` are private, unpublished workspace
+This diagram is an excerpt, not the roster — the publishable count's home is
+`EXPECTED_PUBLISHED_COUNT` in `scripts/lib/publishable-packages.mjs` (thirteen as of ADR 0027,
+which replaced `ribo-extractor-openai` with the two `ribo-chat-*` dialect packages), and the tree
+above has trailed the real layout since the first package landed after this doc was written.
+`build-config` and `tsconfig` are private, unpublished workspace
 members (§2.2, §6.2). There is no `turbo.json`: Turborepo is discussed as an option in §2 and §9,
 but nothing in this repo depends on it today. There is no `.npmrc` yet either — nothing is published
 (AGENTS.md §2) — so the registry config it will eventually hold does not exist as a file to show
@@ -142,13 +145,13 @@ five**, sharing one config (`@azx/build-config`'s `sharedTsdown`, which every pa
 `tsdown.config.ts` spreads and adds only its own `entry` to) and one generated syntax floor
 (`BROWSER_TARGET`, §2.1). One tool, one target, no drift to police.
 
-#### `ribo-core`, `ribo-adapter-snuggpro`, `ribo-extractor-openai`, `ribo-ui-react` — tsdown, single `index` entry
+#### `ribo-core`, `ribo-adapter-snuggpro`, `ribo-chat-openai`, `ribo-chat-helix`, `ribo-ui-react` — tsdown, single `index` entry
 
-Four of the five packages have nothing package-specific to say about their build — which is the
+These are the packages with nothing package-specific to say about their build — which is the
 point of the reversal above, `ribo-ui-react` included:
 
 - **Declarations: the shared `tsc` generator**, `isolatedDeclarations` **off**. zod's `z.infer<typeof Schema>` cannot be emitted under `isolatedDeclarations`/oxc — types are inferred from runtime values, which isolated declarations forbid (one real package hit 374 errors).
-- **Entries: single `index`.** None of the four has a worker entry. Use the object form (`{ index: 'src/index.ts' }`) anyway so output filenames stay stable; the array form leaves you trusting name derivation.
+- **Entries: single `index`.** None of them has a worker entry. Use the object form (`{ index: 'src/index.ts' }`) anyway so output filenames stay stable; the array form leaves you trusting name derivation.
 - **`ribo-ui-react` has no CSS pipeline because it has no CSS.** The headless-hook-layer decision means this package ships `RiboProvider` and six hooks, no components that render markup, and no stylesheet. `sideEffects: false` (not `["*.css"]`) and no `./styles.css` export follow directly from that — there was never a build-tool question here once the package went headless.
 
 #### `@azx/ribo-transcriber-ondevice` — tsdown (worker build)
@@ -321,7 +324,8 @@ tool now, so neither cost exists to pay.
 - ~~Name and scaffold the separate on-device-transcriber package (§4.1) — the §1 layout still shows
   three publishable packages, and this makes four.~~ **Done, and overtaken.** `ribo-transcriber-ondevice`
   shipped in Phase 3; `ribo-extractor-openai` shipped in Phase 4 alongside it, so the count settled at
-  **five**, not four. §1's layout now lists all five.
+  **five**, not four — and has since kept growing (`ribo-chat-openai` and `ribo-chat-helix` replaced
+  `ribo-extractor-openai` under ADR 0027; `EXPECTED_PUBLISHED_COUNT` is the current roster's home).
 - Decide whether Storybook earns its place alongside the playground, or is deferred.
 - Pin the initial tsdown/Vite/TypeScript versions and record them in the catalog.
 - ~~Translate the §2.1 baseline into a concrete shared browserslist / per-tool `target`, and add a check that the two library builds agree on it.~~ **Done.** `pnpm target:refresh` (`scripts/refresh-target.mjs`) generates `BROWSER_TARGET` in `packages/build-config/src/target.generated.ts` from the §2.1 table, and every one of the five packages' `tsdown.config.ts` gets it from the same `sharedTsdown` object rather than declaring its own — there is one tool and one target now, not two builds that could disagree.

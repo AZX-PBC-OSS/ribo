@@ -129,7 +129,8 @@ export default tseslint.config(
     files: [
       "packages/ribo-core/**/*.{ts,tsx}",
       "packages/ribo-adapter-snuggpro/**/*.{ts,tsx}",
-      "packages/ribo-extractor-openai/**/*.{ts,tsx}",
+      "packages/ribo-chat-helix/**/*.{ts,tsx}",
+      "packages/ribo-chat-openai/**/*.{ts,tsx}",
     ],
     languageOptions: { globals: { ...globals.browser } },
     rules: {

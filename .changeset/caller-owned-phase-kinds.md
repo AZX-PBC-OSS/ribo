@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": patch
 ---
 
 The caller-owned phase kinds: `computePhase` and `askPhase`, beside the shipped ones in

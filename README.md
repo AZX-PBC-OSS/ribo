@@ -56,9 +56,11 @@ Stage by stage:
   rate against real field speech is not yet measured for either model
   ([the numbers](docs/implementation/14-transcription-measurement.md)).
 - **Extract** — a session's joined transcript becomes structured fields through an `Extractor`:
-  `@azx/ribo-extractor-openai` ships the managed default (`singleShotExtractor`) plus a per-group
+  `@azx/ribo-core` ships the managed default (`singleShotExtractor`) plus a per-group
   strategy (`perGroupExtractor`) that partitions a schema too big for one call across concurrent
-  calls; `@azx/ribo-extractor-ondevice` runs the same contract against an on-device chat model in
+  calls — driven through a chat transport from `@azx/ribo-chat-openai` (OpenAI-compatible) or
+  `@azx/ribo-chat-helix` (the Helix platform's own route); `@azx/ribo-extractor-ondevice` runs the
+  same contract against an on-device chat model in
   three phases. Every field arrives in a provenance envelope (`{ value, confidence, sourceSpan }`),
   and `isSpanGrounded` checks the span against the source text. Extraction quality has no current
   measured figure: the annotated corpus that produced earlier numbers is written in a field
@@ -110,7 +112,8 @@ a new adapter package and nothing else.
 | `@azx/ribo-transcriber-managed`      | Managed speech transcription (Azure AI Speech Fast Transcription) proxied through the host's transport. It never holds a credential — it takes an endpoint and an injected `fetch`.                                                                                             |
 | `@azx/ribo-transcriber-pdfjs`        | PDF transcription via pdf.js: extracts a PDF's existing text layer, and refuses a document with no text layer — it cannot OCR.                                                                                                                                                  |
 | `@azx/ribo-transcriber-managed-docs` | A hosted document-understanding API behind the host's transport, for scans and layouts pdf.js can't read. Composes with `ribo-transcriber-pdfjs` through `fallbackTranscriber`.                                                                                                 |
-| `@azx/ribo-extractor-openai`         | Tool-agnostic managed-LLM extraction: `singleShotExtractor` (the default) and `perGroupExtractor`, which partitions a schema too big for one call across concurrent calls.                                                                                                      |
+| `@azx/ribo-chat-openai`              | The OpenAI-compatible chat transport (`openAiChat`) over `@azx/ribo-core`'s `ChatClient` seam — POSTs to `${baseUrl}/chat/completions` with an injected key and `fetch`.                                                                                                        |
+| `@azx/ribo-chat-helix`               | The Helix platform's provider-neutral LLM route transport (`helixChat`) over the same seam — a `CapableChatClient` whose capability tracks a live connectivity model.                                                                                                           |
 | `@azx/ribo-extractor-ondevice`       | An on-device extractor over Chrome's built-in language model, running presence, span and classify as three phases against the same `Extractor` contract.                                                                                                                        |
 | `@azx/ribo-adapter-snuggpro`         | The **reference adapter and worked example**: Snugg Pro's field schema, the extractor instructions/examples, the deterministic normalization pass, and the write-back contract — the only tool-specific surface in the workspace.                                               |
 

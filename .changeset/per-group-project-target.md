@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": major
+"@azx/ribo-core": major
 ---
 
 `projectTarget` narrows an `ExtractionTarget` to one top-level group key, returning an `ExtractionTarget<Pick<V, K>>` whose schema, examples, and instructions are projected to that group.

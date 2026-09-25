@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": patch
-"@azx/ribo-extractor-openai": patch
 "@azx/ribo-extractor-ondevice": patch
 "@azx/ribo-ui-react": patch
 ---

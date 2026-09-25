@@ -17,7 +17,7 @@
     // rolldown (Vite 8's bundler) types use `Symbol.asyncDispose`, which the
     // base's `lib: ["ES2023"]` does not declare. Widened here for that reason —
     // and `DOM` is added because `vite-extract.ts` does a type-only
-    // `import type { ChatClient, ChatRequest } from "@azx/ribo-extractor-openai"`.
+    // `import type { ChatClient, ChatRequest } from "@azx/ribo-core"`.
     // Under `@azx/source` + `bundler` resolution that package resolves to TS
     // SOURCE, whose `index.ts` re-exports `singleShotExtractor`, transitively
     // pulling `@azx/ribo-core`'s DOM-using source (`MediaRecorder`, `AudioContext`,

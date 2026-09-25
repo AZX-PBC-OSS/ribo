@@ -1,7 +1,6 @@
 ---
 "@azx/ribo-core": minor
 "@azx/ribo-adapter-snuggpro": minor
-"@azx/ribo-extractor-openai": minor
 ---
 
 `ToolAdapter` now carries two field shapes instead of one — a writable patch and a

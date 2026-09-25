@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-extractor-openai": minor
+"@azx/ribo-core": minor
 ---
 
 Add `presenceFillPhase` and the `presenceNarrowedExtractor` preset — the managed

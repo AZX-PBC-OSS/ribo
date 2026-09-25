@@ -12,9 +12,10 @@
   },
   "dependencies": {
     "@azx/ribo-adapter-snuggpro": "workspace:*",
+    "@azx/ribo-chat-helix": "workspace:*",
+    "@azx/ribo-chat-openai": "workspace:*",
     "@azx/ribo-core": "workspace:*",
     "@azx/ribo-extractor-ondevice": "workspace:*",
-    "@azx/ribo-extractor-openai": "workspace:*",
     "@azx/ribo-extractor-systemone": "workspace:*",
     "@azx/ribo-systemone-managed": "workspace:*",
     "@azx/ribo-transcriber-managed": "workspace:*",

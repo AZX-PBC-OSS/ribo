@@ -17,8 +17,7 @@ two public steps, and you intervene between them.
 `singleShotExtractor` per group — **plus the projected targets those entries were built from**:
 
 ```ts
-import { groupedExtractor } from "@azx/ribo-core";
-import { perGroupPlan } from "@azx/ribo-extractor-openai";
+import { groupedExtractor, perGroupPlan } from "@azx/ribo-core";
 
 const plan = perGroupPlan({ target, chat, model });
 // plan.groups          — the per-key map of default entries
@@ -55,8 +54,12 @@ returns the **full** composition — untouched keys are reference-equal to the p
 unwrapped portion threads through — so the result spreads straight into `groupedExtractor`:
 
 ```ts
-import { groupedExtractor } from "@azx/ribo-core";
-import { perGroupPlan, overrideGroups, schemaRetryExtractor } from "@azx/ribo-extractor-openai";
+import {
+  groupedExtractor,
+  overrideGroups,
+  perGroupPlan,
+  schemaRetryExtractor,
+} from "@azx/ribo-core";
 
 const plan = perGroupPlan({ target, chat, model });
 
@@ -141,7 +144,7 @@ examples are projected to that key, and `options.instructions` replaces the inst
 group needs its own:
 
 ```ts
-import { projectTarget, singleShotExtractor } from "@azx/ribo-extractor-openai";
+import { projectTarget, singleShotExtractor } from "@azx/ribo-core";
 
 const hvacTarget = projectTarget(target, "hvac", {
   instructions: "Extract HVAC systems. A house may have several.",
