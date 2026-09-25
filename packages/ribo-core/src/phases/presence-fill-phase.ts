@@ -3,7 +3,7 @@
  * the presence map marked with at least one present leaf, as a `Phase` the
  * phased engine runs after a presence phase.
  *
- * This is the managed-path narrowing ADR 0028 licenses, on the shape of core's
+ * This is the managed-path narrowing ADR 0027 licenses, on the shape of core's
  * `spanPhase` (the on-device strategy's narrowing pass) and built from
  * `perGroupPlan`'s per-piece construction:
  *
@@ -12,7 +12,7 @@
  *   item and therefore no call. That is only sound because the presence phase
  *   SEEDED every group key into the draft with a full null envelope: the
  *   closing parse requires every top-level key, and a skipped group survives
- *   it on the seed's work, not this phase's (ADR 0028, narrowing ADR 0009's
+ *   it on the seed's work, not this phase's (ADR 0027, narrowing ADR 0009's
  *   rejection of unseeded scoping). Hence the `requires: ["presence"]`
  *   declaration — a narrowing phase that does not name its seeder is the bug
  *   the ADR warns surfaces far away, at the parse.
@@ -101,7 +101,7 @@ export interface PresenceFillPhaseOptions<V extends Record<string, unknown>, P =
    * it means naming that provider yourself (a renamed presence phase:
    * `presenceFillPhase({ requires: ["presence-strict"] })`), or validation
    * fails on a dangling id. See `PhaseMeta.requires` in `@azx/ribo-core`,
-   * ADR 0008 and ADR 0028.
+   * ADR 0008 and ADR 0027.
    */
   readonly requires?: readonly string[];
 }

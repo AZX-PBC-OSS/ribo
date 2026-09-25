@@ -461,7 +461,7 @@ so those keys are already in the draft; scoping would skip work that was **never
 ### Which phases you can actually compose
 
 `gapFillPhase`, `inventoryPhase`, `fillPhase` and `rosterNoteKey` are exported from
-`@azx/ribo-core`'s barrel (they moved there with the managed cluster, ADR 0029). The on-device
+`@azx/ribo-core`'s barrel (they moved there with the managed cluster, ADR 0028). The on-device
 strategy's four phases moved to `@azx/ribo-core`
 in SP4a wave 5 and are exported from there; the on-device package's entry point exposes only the
 preset — and this repo forbids deep imports. Compose from what is actually available rather than

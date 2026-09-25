@@ -191,6 +191,15 @@ describe("presenceNarrowedExtractor — the composition", () => {
     // The failed item's calls are not counted by the engine — usage sums
     // PhaseOutputs, and a failed item reports none.
     expect(result.usage.calls).toBe(3);
+    // And the skip is REPORTED, not just absorbed (ADR 0026). Without this the
+    // test passes on a run that silently drops the item: the leaves are null
+    // either way, and null is also what an honest "nobody said it" looks like.
+    //
+    // One entry, keyed by group. This phase plans one item per GROUP — the
+    // projection is singleton, so it has no instance or piece dimension — which
+    // is why `key` alone is the item's whole coordinates here, where
+    // `fillPhase` needs (group, instance, piece).
+    expect(result.skippedItems).toEqual([{ phaseId: "fill", key: "hvac" }]);
   });
 
   test("a misordered phase list is rejected at construction, naming the fill phase and its missing seeder", () => {

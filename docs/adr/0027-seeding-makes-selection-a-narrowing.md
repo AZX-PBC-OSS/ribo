@@ -1,4 +1,4 @@
-# 0028. Seeding makes selection a narrowing
+# 0027. Seeding makes selection a narrowing
 
 Status: Accepted
 Date: 2026-09-24

@@ -6,7 +6,7 @@ Foundry, or a proxy that speaks the same dialect.
 
 It is a dialect package (ADR 0020): everything above the transport — `singleShotExtractor`,
 `perGroupExtractor`, the schema split, the phases — lives in `@azx/ribo-core` and speaks the
-seam, so this package exists to name the dialect and nothing else (ADR 0029).
+seam, so this package exists to name the dialect and nothing else (ADR 0028).
 
 Everything is injected — the key, the base URL, and (for tests) the `fetch` implementation.
 No secret is hardcoded, and the package has no capacity to authenticate on a consumer's

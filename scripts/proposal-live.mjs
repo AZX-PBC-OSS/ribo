@@ -83,7 +83,7 @@ const rideAudit = z.object({
 // The build path: I need to import the proposer from the BUILT packages
 // because the script loads via Node, not Vite. The `tsdown` builds emit
 // dist/ that this script consumes. The strategies and shape derivation live
-// in `@azx/ribo-core` (ADR 0029); the `openAiChat` transport lives in
+// in `@azx/ribo-core` (ADR 0028); the `openAiChat` transport lives in
 // `@azx/ribo-chat-openai`.
 const coreBuild = new URL("../packages/ribo-core/dist/index.js", import.meta.url).pathname;
 const { proposeExtractionShape, proposeShapeOperations, schemaExtractor, deriveExtractionShape } =

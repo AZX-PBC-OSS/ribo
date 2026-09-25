@@ -357,7 +357,7 @@ export type { ScheduleTimer } from "./async/schedule-timer.js";
 // A model response that parsed as JSON but violated the extraction schema.
 // Thrown by the managed extractors and read by the default arbiter, so it lives
 // in core — the arbiter cannot import from a leaf package, and the managed
-// extractors moved in beside it (ADR 0029).
+// extractors moved in beside it (ADR 0028).
 export { SchemaParseError } from "./extraction/schema-parse-error.js";
 
 // Storage and its foreground relay. Forwarded wholesale through the subsystem's
@@ -686,7 +686,7 @@ export {
 // assembly, usage accounting and wire-name guard every managed strategy
 // reuses. Nothing in them names OpenAI — the transports (`openAiChat`,
 // `helixChat`) live in their own dialect packages, `@azx/ribo-chat-openai` and
-// `@azx/ribo-chat-helix` (ADR 0029).
+// `@azx/ribo-chat-helix` (ADR 0028).
 export { projectTarget } from "./extraction/project-target.js";
 export type { ProjectTargetOptions } from "./extraction/project-target.js";
 export {
@@ -746,7 +746,7 @@ export type { ClassifyPhaseOptions } from "./phases/classify-phase.js";
 // The presence-narrowed fill phase, moved from `@azx/ribo-extractor-openai`
 // beside the phases it follows: one value-extraction call per group the
 // presence map marked with at least one present leaf, over a
-// `projectTarget`-narrowed target (ADR 0028). A phase, not a preset — the
+// `projectTarget`-narrowed target (ADR 0027). A phase, not a preset — the
 // composition with a presence phase is `presenceNarrowedExtractor`, which
 // moved into core with it (in the strategy groups below).
 export { presenceFillPhase } from "./phases/presence-fill-phase.js";
@@ -773,7 +773,7 @@ export { computePhase } from "./phases/compute-phase.js";
 export type { ComputePhaseOptions } from "./phases/compute-phase.js";
 
 // The managed-extraction cluster that moved from `@azx/ribo-extractor-openai`
-// (which re-exported it — ADR 0010's compatibility approach — until ADR 0029
+// (which re-exported it — ADR 0010's compatibility approach — until ADR 0028
 // deleted the package): the strategies, presets, schema split and shape
 // derivation over the chat seam, none of which names a vendor — the transports
 // (`openAiChat`, `helixChat`) are what stayed behind, and they now live in
@@ -856,7 +856,7 @@ export type {
 export { schemaRetryExtractor } from "./extraction/strategies/schema-retry.js";
 export type { SchemaRetryOptions } from "./extraction/strategies/schema-retry.js";
 
-// The presence-narrowed preset — the managed path's ADR 0028 narrowing. A
+// The presence-narrowed preset — the managed path's ADR 0027 narrowing. A
 // presence phase seeds every group key into the draft; the fill phase then
 // makes one value-extraction call per group with at least one present leaf,
 // over a `projectTarget`-narrowed target carrying exactly the active leaves.

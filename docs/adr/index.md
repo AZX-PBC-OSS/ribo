@@ -68,6 +68,6 @@ receives.
 | [0023](./0023-the-empty-group-key-means-unwrapped-not-whole.md)                     | The empty group key means unwrapped, not whole                                               | Accepted |
 | [0024](./0024-the-shape-applier-collects-refusals-and-applies-partially.md)         | The shape applier collects every refusal and applies the surviving operations                | Accepted |
 | [0025](./0025-a-roster-candidates-absent-span-is-an-empty-string.md)                | A roster candidate's absent span is an empty string, not null                                | Accepted |
-| [0026](./0026-a-skip-is-reported-per-item-on-the-result.md)                    | A skip is reported per item, on the result                                                   | Accepted |
-| [0028](./0028-seeding-makes-selection-a-narrowing.md)                               | Seeding makes selection a narrowing                                                          | Accepted |
-| [0029](./0029-transport-agnostic-extraction-lives-in-core-not-a-sibling-package.md) | Transport-agnostic extraction lives in core, not a sibling package                           | Accepted |
+| [0026](./0026-a-skip-is-reported-per-item-on-the-result.md)                         | A skip is reported per item, on the result                                                   | Accepted |
+| [0027](./0027-seeding-makes-selection-a-narrowing.md)                               | Seeding makes selection a narrowing                                                          | Accepted |
+| [0028](./0028-transport-agnostic-extraction-lives-in-core-not-a-sibling-package.md) | Transport-agnostic extraction lives in core, not a sibling package                           | Accepted |

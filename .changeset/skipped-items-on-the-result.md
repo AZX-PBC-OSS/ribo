@@ -1,6 +1,5 @@
 ---
 "@azx/ribo-core": minor
-"@azx/ribo-extractor-openai": minor
 ---
 
 Report which phase items a run skipped. `ExtractionResult.skippedItems` lists each item a skip
