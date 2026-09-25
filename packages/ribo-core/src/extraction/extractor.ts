@@ -2,6 +2,7 @@ import type { ToolAdapter } from "../write/adapter.js";
 import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
 import type { NoProvenance } from "../provenance/enveloped.js";
 import type { SessionExtractStep } from "../storage/relay.js";
+import type { PhaseUnit } from "./extraction-observer.js";
 
 /**
  * @file The extraction contract: how a transcript becomes structured host-tool fields.
@@ -90,7 +91,32 @@ export interface ExtractionResult<F> {
    * inventory pass and never produces this field.
    */
   readonly statedEmptyGroups?: Readonly<Record<string, string>>;
+  /**
+   * The phase items this run gave up on under `onItemFailure: "skip"` — the
+   * work whose answer the engine never got, so whatever `fields` holds there
+   * was written by a `merge` in its place (for a fill, an abstention), not
+   * given by a model. The data cannot carry that distinction: an engine-written
+   * abstention is exactly a legal model abstention.
+   *
+   * Absent means this extractor does not report skips — nothing that is not
+   * built on `phasedExtractor` has a skip path. `[]` means it reports and
+   * nothing was skipped. Combinators that rebuild a result carry it through
+   * (ADR 0026).
+   */
+  readonly skippedItems?: readonly SkippedItem[];
 }
+
+/**
+ * One phase item a run skipped: the phase that planned it and the item's
+ * coordinates, exactly as the observer's `PhaseUnit` events carry them — so a
+ * persisted report and the live stream name an item the same way. A fill item
+ * is one `(group, piece, instance)`, which is why a collection group with one
+ * failed instance of two reports that one, not the whole group.
+ */
+export type SkippedItem = Pick<
+  PhaseUnit,
+  "phaseId" | "key" | "leaf" | "instance" | "instances" | "part" | "parts"
+>;
 
 /**
  * Turns a transcript into structured host-tool fields.

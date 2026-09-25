@@ -317,6 +317,33 @@ describe("cachedExtractor — failures and faults", () => {
     expect(third.fields).toEqual(FIELDS);
   });
 
+  test("a result with skipped items is returned but NOT cached — a partial failure is a rejection's cousin", async () => {
+    // Cached, the engine-written abstentions would replay at calls: 0 on every
+    // re-run of the transcript, however healthy the transport had become.
+    let calls = 0;
+    const partial: Extractor<Fields> = {
+      extract: async () => {
+        calls += 1;
+        return {
+          fields: FIELDS,
+          usage: { calls: 1 },
+          skippedItems: calls === 1 ? [{ phaseId: "fill", key: "heating" }] : [],
+        };
+      },
+    };
+    const extractor = cachedExtractor(partial, { target: baseTarget() });
+
+    const first = await extractor.extract(transcript);
+    expect(first.skippedItems).toEqual([{ phaseId: "fill", key: "heating" }]);
+    await extractor.extract(transcript);
+    expect(calls).toBe(2);
+
+    // The clean run (`[]`) was cached, and its report replays with it.
+    const third = await extractor.extract(transcript);
+    expect(calls).toBe(2);
+    expect(third.skippedItems).toEqual([]);
+  });
+
   test("a cache whose get throws degrades to a miss", async () => {
     const inner = new FakeExtractor(FIELDS);
     const cache: ExtractionCache = {

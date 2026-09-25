@@ -23,7 +23,8 @@ import type {
  *   differing in examples produce different output. A key omitting them serves
  *   one's result for the other: the same silent-wrong-data failure the key
  *   exists to prevent, introduced by the key itself.
- * - **Failures are never cached**, and **neither a read nor a write may fail the
+ * - **Failures are never cached** — nor is a partial one, a result whose
+ *   `skippedItems` names anything — and **neither a read nor a write may fail the
  *   extraction**. A read that throws degrades to a miss. A write that throws — a
  *   quota, a structured-clone failure — is swallowed after the result is already
  *   in hand: failing there would discard a result the inner extractor has
@@ -211,6 +212,9 @@ export function cachedExtractor<F, V extends Record<string, unknown>, P = NoProv
       // reaches NO cache write — a cached rejection would turn one bad minute
       // into a permanent one.
       const result = await extractor.extract(transcript, callerOptions);
+      // A run that skipped items is a partial failure: cached, its abstentions would
+      // replay on every re-run however healthy the transport became. Same rule.
+      if (result.skippedItems !== undefined && result.skippedItems.length > 0) return result;
 
       try {
         await cache.set(key, result);

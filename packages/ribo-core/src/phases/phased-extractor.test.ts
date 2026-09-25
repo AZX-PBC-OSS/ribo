@@ -12,6 +12,11 @@ import type { DeepPartial } from "./phase-draft.js";
 import type { Phase } from "./phase.js";
 import { phaseBuilder } from "./phase.js";
 import { phasedExtractor } from "./phased-extractor.js";
+import { extractorPhase } from "./extractor-phase.js";
+import { fallbackExtractor } from "../extraction/fallback-extractor.js";
+import { retryExtractor } from "../extraction/retry-extractor.js";
+import { timeoutExtractor } from "../extraction/timeout-extractor.js";
+import { terminalFallsThrough } from "../extraction/arbitration.js";
 import type { RetryBudget } from "../async/retry-budget.js";
 import { TerminalError, isTransientFailure } from "../storage/backoff.js";
 import { SchemaParseError } from "../extraction/schema-parse-error.js";
@@ -1346,5 +1351,145 @@ describe("phasedExtractor — usage carries engine and strategy", () => {
 
     expect(result.usage.engine).toBe("a");
     expect(result.usage.strategy).toBe("s");
+  });
+});
+
+describe("phasedExtractor — the result names the items a skip policy gave up on", () => {
+  function transient503(): Error {
+    return Object.assign(new Error("service unavailable"), { status: 503 });
+  }
+
+  /** A skip-policy phase over items `a`/`b` whose `run` throws for the named ones. */
+  function skippingPhase(failing: readonly string[], id = "fill"): Phase<TestValues> {
+    return build({
+      id,
+      onItemFailure: "skip",
+      maxRetries: 0,
+      plan: () => ["a", "b"],
+      describeItem: (item) => ({ key: "systems", instance: item === "a" ? 1 : 2, instances: 2 }),
+      run: async (item) => {
+        if (failing.includes(item)) throw transient503();
+        return { value: item };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+  }
+
+  test("a failed item under skip is named with its phase and coordinates", async () => {
+    const extractor = phasedExtractor<TestValues>({ target, phases: [skippingPhase(["b"])] });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.skippedItems).toEqual([
+      { phaseId: "fill", key: "systems", instance: 2, instances: 2 },
+    ]);
+  });
+
+  test("the same phase with every item succeeding names nothing — present and empty", async () => {
+    // The regression guard: reporting follows what happened, not the option.
+    const extractor = phasedExtractor<TestValues>({ target, phases: [skippingPhase([])] });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.skippedItems).toEqual([]);
+  });
+
+  test("an item that fails and then recovers on retry is not named", async () => {
+    let attempts = 0;
+    const flaky = build({
+      id: "flaky",
+      onItemFailure: "skip",
+      maxRetries: 1,
+      plan: () => ["a"],
+      run: async () => {
+        attempts += 1;
+        if (attempts === 1) throw transient503();
+        return { value: 1 };
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({
+      target,
+      phases: [flaky],
+      delay: () => Promise.resolve(),
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(attempts).toBe(2);
+    expect(result.skippedItems).toEqual([]);
+  });
+
+  test("the same failure under abort rejects, so nothing is reported", async () => {
+    const boom = transient503();
+    const aborting = build({
+      id: "fill",
+      maxRetries: 0,
+      plan: () => ["a"],
+      run: async () => {
+        throw boom;
+      },
+      merge: (draft) => draft,
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [aborting] });
+
+    await expect(extractor.extract(transcript)).rejects.toBe(boom);
+  });
+
+  test("an item with no describeItem is named by the whole-document key", async () => {
+    const bare = build({
+      id: "bare",
+      onItemFailure: "skip",
+      maxRetries: 0,
+      plan: () => [1],
+      run: async () => {
+        throw transient503();
+      },
+      merge: (draft) => ({ ...draft, fields: noteFields("done") }),
+    });
+    const extractor = phasedExtractor<TestValues>({ target, phases: [bare] });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.skippedItems).toEqual([{ phaseId: "bare", key: "" }]);
+  });
+
+  test("a lifted extractor's own skipped items reach the outer result", async () => {
+    const inner = phasedExtractor<TestValues>({ target, phases: [skippingPhase(["a"])] });
+    const outer = phasedExtractor<TestValues>({
+      target,
+      phases: [extractorPhase("base", inner), skippingPhase(["b"], "follow-up")],
+    });
+
+    const result = await outer.extract(transcript);
+
+    expect(result.skippedItems).toEqual([
+      { phaseId: "fill", key: "systems", instance: 1, instances: 2 },
+      { phaseId: "follow-up", key: "systems", instance: 2, instances: 2 },
+    ]);
+  });
+
+  test("the report survives a fallback ladder that accepts the skipping rung", async () => {
+    const skipping = phasedExtractor<TestValues>({ target, phases: [skippingPhase(["b"])] });
+    const ladder = timeoutExtractor(
+      fallbackExtractor(
+        [
+          {
+            strategy: "down",
+            extractor: { extract: () => Promise.reject(new TerminalError("x")) },
+          },
+          { strategy: "phased", extractor: retryExtractor(skipping) },
+        ],
+        terminalFallsThrough,
+      ),
+      { timeoutMs: 60_000 },
+    );
+
+    const result = await ladder.extract(transcript);
+
+    expect(result.usage.strategy).toBe("phased");
+    expect(result.skippedItems).toEqual([
+      { phaseId: "fill", key: "systems", instance: 2, instances: 2 },
+    ]);
   });
 });

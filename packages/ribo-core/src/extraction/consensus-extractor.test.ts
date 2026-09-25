@@ -9,6 +9,7 @@ import type {
   ExtractionResult,
   ExtractionTarget,
   ExtractionUsage,
+  SkippedItem,
 } from "./extractor.js";
 import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
 import type { Extracted } from "../provenance/provenance.js";
@@ -520,6 +521,28 @@ describe("consensusExtractor — failure and notification", () => {
 
     expect("raw" in result).toBe(false);
     expect("statedEmptyGroups" in result).toBe(false);
+  });
+
+  test("skippedItems is every survivor's report in survivor order, absent when none reported", async () => {
+    const first: SkippedItem = { phaseId: "fill", key: "heating" };
+    const second: SkippedItem = { phaseId: "fill", key: "solar", instance: 1, instances: 1 };
+    const reporting = (skippedItems: readonly SkippedItem[]) =>
+      extractorReturning({ fields: agreedFields, usage: { calls: 1 }, skippedItems });
+
+    const unioned = await consensusExtractor(
+      [reporting([first]), candidate(agreedFields), reporting([second])],
+      { target },
+    ).extract(transcript);
+    const silent = await consensusExtractor([candidate(agreedFields), candidate(agreedFields)], {
+      target,
+    }).extract(transcript);
+    const clean = await consensusExtractor([reporting([]), candidate(agreedFields)], {
+      target,
+    }).extract(transcript);
+
+    expect(unioned.skippedItems).toEqual([first, second]);
+    expect("skippedItems" in silent).toBe(false);
+    expect(clean.skippedItems).toEqual([]);
   });
 });
 

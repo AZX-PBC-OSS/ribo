@@ -14,6 +14,7 @@ import type {
   ExtractionResult,
   ExtractionTarget,
   ExtractionUsage,
+  SkippedItem,
 } from "./extractor.js";
 import type { Extracted } from "../provenance/provenance.js";
 
@@ -65,6 +66,12 @@ import type { Extracted } from "../provenance/provenance.js";
  *   run; keeping the first survivor's `statedEmptyGroups` would hand the census
  *   and the session record a roster of "there are none of these" spans that no
  *   other candidate agreed to — an un-agreed claim asserted as consensus.
+ * - **`skippedItems` is the union, not dropped.** It is the opposite kind of
+ *   claim: not "this is so" but "check this". One survivor's engine-written
+ *   abstention is enough to contest a leaf under `unanimousValues`, so its skip
+ *   explains a null in the output. When a policy accepts another survivor's
+ *   answer instead, the union over-reports — the direction a review screen can
+ *   afford.
  */
 
 /**
@@ -253,10 +260,28 @@ export function consensusExtractor<V extends Record<string, unknown>, P = NoProv
       // story every combinator that rewrites a result tells.
       const fields = mapExtractedLeaves(first.fields, [], walk) as Enveloped<V, P>;
 
-      return { fields, usage: mergeUsage(survivors) };
+      const skippedItems = unionSkipped(survivors);
+      return {
+        fields,
+        usage: mergeUsage(survivors),
+        ...(skippedItems === undefined ? {} : { skippedItems }),
+      };
     },
   };
 }
+
+/**
+ * Every survivor's skipped items, in survivor order — see the file header. Absent
+ * only when no survivor reported at all.
+ */
+const unionSkipped = (
+  survivors: readonly ExtractionResult<unknown>[],
+): readonly SkippedItem[] | undefined => {
+  const reports = survivors.flatMap((survivor) =>
+    survivor.skippedItems === undefined ? [] : [survivor.skippedItems],
+  );
+  return reports.length === 0 ? undefined : reports.flat();
+};
 
 /** The usage members a consensus sums-or-omits; `calls` is handled separately. */
 interface TokenTotals {

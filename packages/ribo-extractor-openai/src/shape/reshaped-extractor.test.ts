@@ -1,5 +1,12 @@
 import { enveloped } from "@azx/ribo-core";
-import type { ChatClient, ChatRequest, Transcript } from "@azx/ribo-core";
+import type {
+  ChatClient,
+  ChatRequest,
+  Enveloped,
+  Extractor,
+  NoProvenance,
+  Transcript,
+} from "@azx/ribo-core";
 import { z } from "zod";
 import { expect, test } from "vitest";
 
@@ -552,4 +559,29 @@ test("end to end through a nest: the model answers the grouped schema, review se
   );
   expect(Object.keys(request.fields).sort()).toEqual(["heatingType", "yearBuilt"]);
   expect(request.fields.yearBuilt!.isGrounded).toBe(true);
+});
+
+test("a skip report crosses reversal in the patch's keys — a nest group's item names the flat leaves it feeds", async () => {
+  const flatSchema = z.object({
+    yearBuilt: z.string().nullable().optional(),
+    heatingType: z.enum(["gas", "oil", "electric"]).nullable().optional(),
+  });
+  const nestedShape = deriveExtractionShape(flatSchema, {
+    operations: [{ op: "nest", group: "construction", moves: { yearBuilt: "yearBuilt" } }],
+  });
+  const abstained = { value: null, confidence: 0, sourceSpan: null };
+  const skipping: Extractor<Enveloped<Record<string, unknown>, NoProvenance>> = {
+    extract: async () => ({
+      fields: { construction: { yearBuilt: abstained }, heatingType: abstained },
+      usage: { calls: 1 },
+      skippedItems: [{ phaseId: "fill", key: "construction", instance: 1, instances: 1 }],
+    }),
+  };
+
+  const result = await reshapedExtractor(skipping, nestedShape).extract({
+    text: "nothing useful",
+    annotations: {},
+  });
+
+  expect(result.skippedItems).toEqual([{ phaseId: "fill", key: "yearBuilt" }]);
 });
