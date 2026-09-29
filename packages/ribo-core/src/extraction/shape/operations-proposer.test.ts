@@ -132,6 +132,8 @@ describe("proposer — the leaf inventory", () => {
     expect(byPath.get("vessel.dimensions.beamM")!.kind).toBe("number");
     expect(byPath.get("vessel.identification.buildYear")!.kind).toBe("string");
     expect(byPath.get("inspections.hull.condition")!.kind).toBe("enum");
+    expect(byPath.get("inspections.hull.condition")!.values).toEqual(["Good", "Fair", "Poor"]);
+    expect(byPath.get("vessel.notes")!.values).toBeUndefined();
     // `inArray` flags collection membership — even a nested array's leaves
     // still report `inArray: true` because the schema-time convention is
     // arrays transparent above the leaf.
@@ -229,12 +231,26 @@ describe("proposer — the leaf inventory", () => {
     // and retype must be inspectable.
     expect(text).toContain('- yearBuilt (string) — "Year the home or building was constructed."');
     expect(text).toContain('- squareMeters (number) — "Indoor floor area in square meters."');
-    expect(text).toContain("- heatingType (enum)");
+    expect(text).toContain('- heatingType (enum: "gas" | "oil" | "electric")');
     expect(text).toContain("- hasGarage (boolean)");
 
     // No nameless leaf line — the old bug emitted `    -  (string) — "..."`
     // on every flat leaf.
     expect(text).not.toMatch(/^ {4}-\s+\(/m);
+  });
+
+  test("renderLeafInventory shows an enum's or literal's members, quoting strings only", () => {
+    const vocabulary = z.object({
+      fuel: z.object({
+        kind: z.enum(["gas", "oil"]).describe("The primary fuel.").nullable().optional(),
+        schemaVersion: z.literal(2).nullable().optional(),
+        source: z.literal("dictation").nullable().optional(),
+      }),
+    });
+    const text = renderLeafInventory(walkLeafInventory(vocabulary));
+    expect(text).toContain('    - kind (enum: "gas" | "oil") — "The primary fuel."');
+    expect(text).toContain("    - schemaVersion (literal: 2)");
+    expect(text).toContain('    - source (literal: "dictation")');
   });
 
   test("renderLeafInventory on a flat schema: every leaf appears exactly once with no duplicates", () => {
