@@ -996,7 +996,11 @@ export {
 } from "./extraction/shape/operations-proposer.js";
 export type { ProposeOptions } from "./extraction/shape/operations-proposer.js";
 export { renderLeafInventory, walkLeafInventory } from "./extraction/shape/leaf-inventory.js";
-export type { LeafInventoryEntry } from "./extraction/shape/leaf-inventory.js";
+export type {
+  InventoryDeclarations,
+  LeafInventoryEntry,
+  LeafValue,
+} from "./extraction/shape/leaf-inventory.js";
 
 // Chunking was built here and REMOVED after measurement. `chunkedExtractor` split a
 // transcript past a context window, extracted each piece and merged. Measured against

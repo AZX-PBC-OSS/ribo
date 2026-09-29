@@ -272,8 +272,11 @@ surface's success.
 
 Two entry points are exposed for hosts that want different lifecycles:
 
-- **`proposeShapeOperations(schema, …)`** returns the operations array — pure data, cacheable,
-  diffable, persistable.
+- **`proposeShapeOperations(schema, options, declarations)`** returns the operations array — pure
+  data, cacheable, diffable, persistable. Pass it the same `provenance`, `requiredOnCreate` and
+  `identifyingFields` you will derive with: each attempt is validated against them, so a drop that
+  would strand one is repaired during the proposal instead of throwing at your `deriveExtractionShape`
+  call.
 - **`proposeExtractionShape(schema, …)`** composes the operations with `deriveExtractionShape` and
   returns the full `DerivedExtractionShape` artifact, ready for `schemaExtractor`'s
   `extractionSchema` passthrough.

@@ -81,6 +81,7 @@ import type { DeriveExtractionShapeOptions } from "./shape-operations.js";
 import type { ShapeOperation } from "./shape-operation.js";
 import type { ShapeRefusal } from "./shape-refusal.js";
 import { renderLeafInventory, walkLeafInventory } from "./leaf-inventory.js";
+import type { InventoryDeclarations } from "./leaf-inventory.js";
 
 /**
  * Options for {@link proposeShapeOperations}.
@@ -261,7 +262,8 @@ The operations are a SET, not a sequence. Composition rules the applier enforces
 - one regroup's or nest's move destinations are pairwise distinct, no two destinations prefix one another, and no regroup destination lies under a dropped path;
 - a retype names a patch LEAF whose declared kind is "string";
 - a move's source and destination are inside the group's element for a collection group, never passing through or landing on the array;
-- a drop that empties the parent object is refused — drop the parent instead.
+- a drop that empties the parent object is refused — drop the parent instead;
+- a drop that removes what a declaration names is refused: never drop a field tagged [required on create] or [identifying], a group tagged [provenance: ...], or a group containing a tagged field.
 
 There is no cap on the number of operations. Decide freely which to propose; the schema packing, if your proposal is large, is a downstream concern.
 
@@ -364,6 +366,7 @@ const runAttempt = async (
   request: ChatRequest,
   context: string,
   schema: z.ZodObject,
+  declarations: InventoryDeclarations,
   options: ExtractOptions | undefined,
   networkRetry: { maxRetries: number; delay?: (ms: number) => Promise<void> },
 ): Promise<ProposeAttemptResult> => {
@@ -483,7 +486,7 @@ const runAttempt = async (
   // folded before.
   let refusals: readonly ShapeRefusal[];
   try {
-    refusals = deriveExtractionShapePartially(schema, { operations }).refusals;
+    refusals = deriveExtractionShapePartially(schema, { ...declarations, operations }).refusals;
   } catch (cause) {
     return {
       ok: false,
@@ -599,6 +602,12 @@ const repairFeedback = (
  * operations — `[]` when nothing survived, the argued default's special case.
  * ADR 0016 records the original `[]` decision and ADR 0023 the amendment.
  *
+ * **Declarations.** Pass the `provenance`, `requiredOnCreate` and
+ * `identifyingFields` the result will be derived with. Each attempt is
+ * validated against them, so a drop that would strand one is repaired here
+ * rather than thrown by the later derive, and the inventory tags what they
+ * name so the model can avoid it.
+ *
  * **Cancellation and deadline.** `options.signal` and `options.deadline`
  * are forwarded into each chat call through `completeOrClassify`. A caller
  * that does not pass `options` simply gets no signal/deadline plumbing.
@@ -606,9 +615,10 @@ const repairFeedback = (
 export async function proposeShapeOperations(
   schema: z.ZodObject,
   options: ProposeOptions,
+  declarations: InventoryDeclarations = {},
 ): Promise<readonly ShapeOperation[]> {
   const context = proposeContext(options.context);
-  const inventoryText = renderLeafInventory(walkLeafInventory(schema));
+  const inventoryText = renderLeafInventory(walkLeafInventory(schema), declarations);
   const systemPrompt =
     options.instructions.length === 0
       ? PROPOSE_DIRECTIVE
@@ -630,6 +640,7 @@ export async function proposeShapeOperations(
       buildProposeRequest(options.model, messages, options.maxTokens),
       context,
       schema,
+      declarations,
       options.options,
       networkRetry,
     );
@@ -682,6 +693,7 @@ export async function proposeShapeOperations(
         buildProposeRequest(options.model, messages, options.maxTokens),
         context,
         schema,
+        declarations,
         options.options,
         networkRetry,
       );
@@ -711,8 +723,8 @@ export async function proposeShapeOperations(
  * steps are independent and a host composing a different phase order (e.g.
  * their own applier) prefers the operations-only call.
  *
- * The schema's `provenance`, `requiredOnCreate` and `identifyingFields`
- * pass through unwrapped: the proposer has nothing to do with them and the
+ * The schema's `provenance`, `requiredOnCreate` and `identifyingFields` reach
+ * both steps: the proposer validates each attempt against them, and the
  * applier carries them as it does for a hand-written operation list. They
  * are optional here exactly because they are optional on `deriveExtractionShape`.
  */
@@ -721,6 +733,6 @@ export async function proposeExtractionShape(
   options: ProposeOptions,
   deriveOptions: Omit<DeriveExtractionShapeOptions, "operations"> = {},
 ): Promise<DerivedExtractionShape> {
-  const operations = await proposeShapeOperations(schema, options);
+  const operations = await proposeShapeOperations(schema, options, deriveOptions);
   return deriveExtractionShape(schema, { ...deriveOptions, operations });
 }
