@@ -33,7 +33,7 @@ test("the RxDB required list is exactly zod's non-optional fields", () => {
   expect(required).toEqual(zodKeys.filter((key) => !optionalKeys.includes(key)));
 });
 
-test("the optional fields are the step outputs, the error, the close timestamp, receipts, and statedEmptyGroups", () => {
+test("the optional fields are the step outputs, the error, the close timestamp, receipts, statedEmptyGroups, and skippedItems", () => {
   expect(optionalKeys).toEqual([
     "closedAt",
     "extracted",
@@ -43,6 +43,7 @@ test("the optional fields are the step outputs, the error, the close timestamp, 
     "lastError",
     "receipts",
     "reviewOutcome",
+    "skippedItems",
     "statedEmptyGroups",
     "writeResult",
   ]);
@@ -66,16 +67,18 @@ test("the collection name is not the storage's", () => {
   expect(SESSION_COLLECTION_NAME).not.toBe("storage");
 });
 
-test("the RxDB schema is at version 2, with a strategy for each step it took", () => {
+test("the RxDB schema is at version 3, with a strategy for each step it took", () => {
   // v0 → v1 added `extractionUsage`. v1 → v2 added `receipts` and backfills
   // `reviewOutcome.instanceKeys` for pre-existing accepted/edited outcomes.
-  // An OPTIONAL addition still needs the bump: RxDB validates the declared
-  // schema against the one the collection was created with, so adding a
-  // property at the same version fails at `addCollections` with DB6 — a
-  // database that will not open. Every version must also have a strategy, or
-  // `addCollections` fails with COL12 instead.
-  expect(sessionRxSchema.version).toBe(2);
-  expect(Object.keys(SESSION_MIGRATION_STRATEGIES)).toEqual(["1", "2"]);
+  // v2 → v3 added `skippedItems` (identity — an absent optional field is the
+  // correct state for every pre-existing session). An OPTIONAL addition still
+  // needs the bump: RxDB validates the declared schema against the one the
+  // collection was created with, so adding a property at the same version
+  // fails at `addCollections` with DB6 — a database that will not open. Every
+  // version must also have a strategy, or `addCollections` fails with COL12
+  // instead.
+  expect(sessionRxSchema.version).toBe(3);
+  expect(Object.keys(SESSION_MIGRATION_STRATEGIES)).toEqual(["1", "2", "3"]);
 });
 
 test("the session state machine has the expected statuses", () => {
@@ -285,5 +288,65 @@ describe("statedEmptyGroups — additive optional field on v2, cleared on re-ext
     const merged = { ...prior, ...reExtractedPatch };
     const parsed = sessionItemSchema.parse(merged);
     expect(parsed.statedEmptyGroups).toBeUndefined();
+  });
+});
+
+describe("skippedItems — additive optional field on v3, cleared on re-extraction", () => {
+  test("a v2 document migrates to a v3 document still lacking skippedItems", () => {
+    const v2 = {
+      ...validSession(),
+      status: "awaiting-review" as const,
+      extracted: { hvac: [] },
+      statedEmptyGroups: { hvac: "there's no HVAC in this unit" },
+    } as SessionDocument;
+    const migrated = SESSION_MIGRATION_STRATEGIES[3]!(v2);
+    expect(migrated.skippedItems).toBeUndefined();
+    // The v2 field the document does carry survives the identity rung.
+    expect(migrated.statedEmptyGroups).toEqual({ hvac: "there's no HVAC in this unit" });
+  });
+
+  test("a persisted skippedItems round-trips the zod boundary with its coordinates intact", () => {
+    const doc = sessionDocumentSchema.parse({
+      ...validSession(),
+      status: "awaiting-review" as const,
+      extracted: { hvac: [{ hvacSystemEquipmentType: null }] },
+      skippedItems: [
+        { phaseId: "fill", key: "hvac", instance: 1, instances: 1, part: 2, parts: 2 },
+      ],
+    });
+    expect(doc.skippedItems).toEqual([
+      { phaseId: "fill", key: "hvac", instance: 1, instances: 1, part: 2, parts: 2 },
+    ]);
+  });
+
+  test("re-extraction clears a prior skippedItems — content, not transport metadata, and absent stays distinct from []", () => {
+    // The relay patches skippedItems unconditionally: an extraction that
+    // reports skips must clear a prior run's stale report, and an extraction
+    // with no skip path must leave the field ABSENT — not write `[]`, which
+    // would claim "verified nothing skipped" for a run that cannot report.
+    const prior = sessionDocumentSchema.parse({
+      ...validSession(),
+      status: "awaiting-review" as const,
+      extracted: { hvac: [{ hvacSystemEquipmentType: null }] },
+      skippedItems: [{ phaseId: "fill", key: "hvac", instance: 1, instances: 1 }],
+    });
+
+    const clearedPatch: SessionPatch = {
+      extracted: { hvac: [{ hvacSystemEquipmentType: "Boiler" }] },
+      skippedItems: undefined,
+      status: "awaiting-review" as const,
+      attempts: 0,
+    };
+    const cleared = sessionItemSchema.parse({ ...prior, ...clearedPatch });
+    expect(cleared.skippedItems).toBeUndefined();
+
+    const emptyReportPatch: SessionPatch = {
+      extracted: { hvac: [{ hvacSystemEquipmentType: "Boiler" }] },
+      skippedItems: [],
+      status: "awaiting-review" as const,
+      attempts: 0,
+    };
+    const emptyReport = sessionItemSchema.parse({ ...cleared, ...emptyReportPatch });
+    expect(emptyReport.skippedItems).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-import type { ExtractionUsage, ExtractOptions } from "../extraction/extractor.js";
+import type { ExtractionUsage, ExtractOptions, SkippedItem } from "../extraction/extractor.js";
 import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
 import type { CapturePayload } from "../capture/capture-item.js";
 import type { Transcriber } from "../transcription/transcriber.js";
@@ -63,6 +63,21 @@ export interface ExtractStepResult {
    * not use a roster.
    */
   readonly statedEmptyGroups?: Readonly<Record<string, string>>;
+  /**
+   * The phase items this run gave up on under `onItemFailure: "skip"` — the
+   * sibling report to `statedEmptyGroups`, and the same shape of problem: an
+   * engine-written abstention parses exactly like a model abstention, so the
+   * fields cannot carry the difference and only the result can say. Persisted
+   * as its own session field (`skippedItems`), and surfaced on the review
+   * tree's collection, object and instance nodes (`node.skipped`) so a review
+   * screen can tell "we asked and could not get an answer" from "the auditor
+   * never mentioned it". Absent for any extractor that does not report skips —
+   * note that a `fallbackExtractor` tier built on `groupedExtractor` cannot
+   * report them (its entries have no skip policy), so an absent field can also
+   * mean the winning tier had no skip path; `[]` always means "reports,
+   * nothing skipped" (ADR 0026).
+   */
+  readonly skippedItems?: readonly SkippedItem[];
 }
 
 /**
@@ -607,6 +622,12 @@ class QueueRelay implements Relay {
       // leave a stale quote from the previous extraction on the session — same
       // reasoning as `lastError: undefined` below.
       statedEmptyGroups: result.statedEmptyGroups,
+      // Same reasoning, same mechanism: `skippedItems` is content about this
+      // transcript, so a re-extraction clears a prior run's stale report — and
+      // the absent/`[]` distinction (no skip path vs. nothing skipped) passes
+      // through persistence unchanged. The copy exists only because the
+      // session patch's inferred array is mutable and the report's is readonly.
+      skippedItems: result.skippedItems === undefined ? undefined : [...result.skippedItems],
       extractedFromRecordingIds: recordingIds,
       status: "awaiting-review",
       attempts: 0,

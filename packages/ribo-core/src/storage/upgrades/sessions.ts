@@ -7,7 +7,7 @@
 
 import type { ShapeUpgrade } from "./rung.js";
 
-export const SESSION_DOCUMENT_VERSION = 2;
+export const SESSION_DOCUMENT_VERSION = 3;
 
 export const SESSION_DOCUMENT_UPGRADES: readonly ShapeUpgrade[] = [
   {
@@ -51,5 +51,19 @@ export const SESSION_DOCUMENT_UPGRADES: readonly ShapeUpgrade[] = [
       }
       return { ...document, reviewOutcome: { ...reviewOutcome, instanceKeys } };
     },
+  },
+  {
+    reason:
+      "Added the optional `skippedItems` field — the per-item report of what an " +
+      '`onItemFailure: "skip"` policy gave up on, persisted so review can tell an ' +
+      "engine-written abstention from a genuine one (ADR 0026 deferred exactly this step). " +
+      "No stored document needs transforming — an absent optional field is the correct " +
+      "state for every pre-existing session — but the bump is still required, which is " +
+      "the expensive lesson this repository has already paid for twice. RxDB validates " +
+      "a declared schema against the one the collection was CREATED with, so adding a " +
+      "property at the same version is refused at `addCollections` with DB6 on any " +
+      "device that has merely opened the app; all three collections are added in one " +
+      "call on one database, so that refusal takes the captures with it.",
+    rewrite: "none",
   },
 ];

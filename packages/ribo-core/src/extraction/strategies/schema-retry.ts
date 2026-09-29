@@ -36,8 +36,6 @@
  * string, which is exactly the channel that must stay pristine.
  */
 
-import { z } from "zod";
-
 import { SchemaParseError } from "../schema-parse-error.js";
 import type { AnnotatedTranscript } from "../../capture/annotated-transcript.js";
 import type { ChatClient, ChatMessage } from "../../phases/chat-client.js";
@@ -52,6 +50,9 @@ import type {
 
 import type { UsageTotals } from "../extraction-common.js";
 import { addUsage, buildMessages } from "../extraction-common.js";
+import type { FieldGuidanceOptions } from "../field-guidance.js";
+import { fieldDescriptionsMode } from "../field-guidance.js";
+import { toJsonSchemaForWire } from "../schema/wire-schema.js";
 import {
   assertStopFinishReason,
   completeOrClassify,
@@ -106,6 +107,13 @@ export interface SchemaRetryOptions<V extends Record<string, unknown>, P = NoPro
    * same pass here. Defaults to identity.
    */
   readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
+  /**
+   * Where the schema's field descriptions travel, as in
+   * {@link SingleShotOptions.fieldDescriptions}. Pass the same mode the base
+   * extractor was built with: the retry re-frames the base's request and does
+   * not read the base's mode itself.
+   */
+  readonly fieldDescriptions?: FieldGuidanceOptions["fieldDescriptions"];
 }
 
 /**
@@ -158,16 +166,15 @@ export function schemaRetryExtractor<V extends Record<string, unknown>, P = NoPr
   maxTokens,
   maxRetries = DEFAULT_MAX_RETRIES,
   normalize = (fields) => fields,
+  fieldDescriptions,
 }: SchemaRetryOptions<V, P>): Extractor<Enveloped<V, P>> {
   if (!Number.isInteger(maxRetries) || maxRetries < 0) {
     throw new TypeError(
       `schemaRetryExtractor: maxRetries must be a non-negative integer, got ${maxRetries}`,
     );
   }
-  const jsonSchema = z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" }) as Record<
-    string,
-    unknown
-  >;
+  const keepDescriptions = fieldDescriptionsMode({ fieldDescriptions }) === "schema";
+  const jsonSchema = toJsonSchemaForWire(target.extractionSchema, { keepDescriptions });
   const context = `schemaRetryExtractor: model response for "${target.name}"`;
   // `-`, not `:` — the schema-name charset constraint documented in per-group.
   const name = `${target.name}-retry`;
@@ -188,7 +195,7 @@ export function schemaRetryExtractor<V extends Record<string, unknown>, P = NoPr
       // Assembled once per extract() and grown in place — each attempt appends
       // its own pair of turns, so attempt n sees every earlier rejected answer.
       // The transcript message itself is never touched.
-      const messages: ChatMessage[] = buildMessages(target, transcript.text);
+      const messages: ChatMessage[] = buildMessages(target, transcript.text, { fieldDescriptions });
       const totals: UsageTotals = {};
       let calls = 0;
       for (;;) {

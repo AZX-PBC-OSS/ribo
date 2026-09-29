@@ -301,6 +301,61 @@ function twoWidgets(): Roster {
   };
 }
 
+describe("fillPhase — field guidance follows the prepared groups", () => {
+  const describedValues = z
+    .object({
+      widgets: z
+        .array(
+          z
+            .object({ color: z.string().nullable().optional().describe("paint, not trim") })
+            .strict(),
+        )
+        .optional(),
+    })
+    .strict();
+  type DescribedValues = z.infer<typeof describedValues>;
+  const describedTarget: ExtractionTarget<DescribedValues> = {
+    name: "demo",
+    extractionSchema: enveloped(describedValues),
+    instructions: "Demo extraction instructions.",
+    examples: [],
+  };
+  const describedCtx: PhaseContext<DescribedValues> = { ...ctx, target: describedTarget };
+  const roster: Roster = { widgets: [currentCandidate("the red widget")] };
+  const planned = (mode: "prompt" | "schema" | undefined) => {
+    const groups = prepareGroups(
+      describedTarget,
+      splitExtractionSchema(describedTarget.extractionSchema, MAX_NULLABLE_UNIONS_PER_CALL),
+      mode === undefined ? undefined : { fieldDescriptions: mode },
+    );
+    const phase = fillPhase<DescribedValues>({
+      target: describedTarget,
+      chat: {} as ChatClient,
+      model: "m",
+      prepared: groups,
+      buildFillInstructions,
+    });
+    let jobs: { messages: { content: string }[]; group: { jsonSchema: unknown } }[] = [];
+    phase.with((def) => {
+      jobs = def.plan(draftWith(roster), describedCtx) as never;
+    });
+    return jobs;
+  };
+
+  test("groups prepared for the prompt carry their guidance with no fill-phase option", () => {
+    const jobs = planned("prompt");
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]!.messages[0]!.content).toContain("paint, not trim");
+    expect(JSON.stringify(jobs[0]!.group.jsonSchema)).not.toContain("paint, not trim");
+  });
+
+  test("groups prepared by default keep the description in the schema and out of the prompt", () => {
+    const jobs = planned(undefined);
+    expect(jobs[0]!.messages[0]!.content).not.toContain("paint, not trim");
+    expect(JSON.stringify(jobs[0]!.group.jsonSchema)).toContain("paint, not trim");
+  });
+});
+
 describe("fillPhase — describeItem", () => {
   test("reports the job's key, instance, instances, part, parts", () => {
     const roster: Roster = { systems: [currentCandidate("a"), currentCandidate("b")] };

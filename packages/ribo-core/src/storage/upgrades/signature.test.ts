@@ -73,6 +73,10 @@ const SESSION_SIGNATURES: Record<number, string> = {
     "attempts,closedAt?,ctx?,extracted?,extractedBy?,extractedFromRecordingIds?," +
     "extractionUsage?,id,idempotencyKey,lastError?,nextAttemptAt,openedAt,receipts?," +
     "ref,reviewOutcome?,statedEmptyGroups?,status,writeResult?",
+  3:
+    "attempts,closedAt?,ctx?,extracted?,extractedBy?,extractedFromRecordingIds?," +
+    "extractionUsage?,id,idempotencyKey,lastError?,nextAttemptAt,openedAt,receipts?," +
+    "ref,reviewOutcome?,skippedItems?,statedEmptyGroups?,status,writeResult?",
 };
 
 const PLUGIN_STORAGE_SIGNATURES: Record<number, string> = {

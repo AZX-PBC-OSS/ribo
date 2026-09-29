@@ -6,14 +6,25 @@ test("the session ladder has one rung per version", () => {
   expect(SESSION_DOCUMENT_UPGRADES).toHaveLength(SESSION_DOCUMENT_VERSION);
 });
 
-test("the session document is at shape version 2", () => {
-  expect(SESSION_DOCUMENT_VERSION).toBe(2);
+test("the session document is at shape version 3", () => {
+  expect(SESSION_DOCUMENT_VERSION).toBe(3);
 });
 
 test("every session rung says why the version moved", () => {
   for (const rung of SESSION_DOCUMENT_UPGRADES) {
     expect(rung.reason.length).toBeGreaterThan(0);
   }
+});
+
+test("the v3 rung is an identity — an absent optional field needs no transformation", () => {
+  // skippedItems ships optional; every pre-existing session correctly lacks it.
+  // The rung exists so the migration path is declared and exercised, not
+  // skipped — the same shape as the v1 extractionUsage rung.
+  const rung = SESSION_DOCUMENT_UPGRADES[2]!;
+  if (!("rewrite" in rung) || rung.rewrite !== "none") {
+    throw new Error("rung 2 should be an identity rung");
+  }
+  expect(rung.reason.length).toBeGreaterThan(0);
 });
 
 const instanceKeysRung = () => {

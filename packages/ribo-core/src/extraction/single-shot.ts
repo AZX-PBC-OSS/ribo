@@ -26,8 +26,6 @@
  * behind each is not copied.
  */
 
-import { z } from "zod";
-
 import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
 import type { ChatClient } from "../phases/chat-client.js";
 import type { Enveloped, NoProvenance } from "../provenance/enveloped.js";
@@ -45,6 +43,9 @@ import {
   parseJsonContent,
   parseWithSchema,
 } from "./extraction-common.js";
+import type { FieldGuidanceOptions } from "./field-guidance.js";
+import { fieldDescriptionsMode } from "./field-guidance.js";
+import { toJsonSchemaForWire } from "./schema/wire-schema.js";
 
 /**
  * Options for {@link singleShotExtractor}.
@@ -82,6 +83,13 @@ export interface SingleShotOptions<
    * extractor stays generic; the Snugg wiring MUST pass `normalizeFields`.
    */
   readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
+  /**
+   * Where the schema's field descriptions travel. Defaults to `"schema"`:
+   * they ride `response_format`. `"prompt"` renders the wire schema without
+   * them and carries the same text in the system message, for a route whose
+   * cap is on the schema rather than the messages. See `field-guidance.ts`.
+   */
+  readonly fieldDescriptions?: FieldGuidanceOptions["fieldDescriptions"];
 }
 
 /**
@@ -115,16 +123,15 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
   model,
   maxTokens,
   normalize = (fields) => fields,
+  fieldDescriptions,
   onUnit,
 }: SingleShotOptions<V, P>): Extractor<Enveloped<V, P>> {
   // The target's name IS this request's `json_schema.name` — guard it at
   // construction, where the schema author is present, rather than at the route
   // as a 400 that reads identically to an over-cap schema.
   assertWireSafeSchemaName(target.name, "singleShotExtractor");
-  const jsonSchema = z.toJSONSchema(target.extractionSchema, { target: "draft-2020-12" }) as Record<
-    string,
-    unknown
-  >;
+  const keepDescriptions = fieldDescriptionsMode({ fieldDescriptions }) === "schema";
+  const jsonSchema = toJsonSchemaForWire(target.extractionSchema, { keepDescriptions });
   const context = `singleShotExtractor: model response for "${target.name}"`;
 
   return {
@@ -139,7 +146,7 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
           chat,
           {
             model,
-            messages: buildMessages(target, transcript.text),
+            messages: buildMessages(target, transcript.text, { fieldDescriptions }),
             response_format: {
               type: "json_schema",
               json_schema: { name: target.name, schema: jsonSchema, strict: true },

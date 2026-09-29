@@ -198,6 +198,45 @@ export const sessionDocumentSchema = z.strictObject({
    */
   statedEmptyGroups: z.record(z.string(), z.string()).optional(),
   /**
+   * The phase items the winning extraction gave up on under
+   * `onItemFailure: "skip"`, in run order — the same report
+   * `ExtractionResult.skippedItems` carried, persisted so a review screen can
+   * tell "we asked and could not get an answer" from "the auditor never
+   * mentioned it" (the abstained value those items left in `extracted` parses
+   * exactly like a genuine model abstention, so the fields cannot carry the
+   * distinction). Surfaced from `toSessionExtractStep` and `#sessionExtract`,
+   * and consulted by `buildReviewRequest` to set the `skipped` flag on the
+   * review tree's collection, object and instance nodes.
+   *
+   * Absent for any extractor that does not report skips, and for sessions
+   * extracted before this field shipped; `[]` means the run reports skips and
+   * skipped nothing. That distinction is load-bearing downstream — a
+   * `groupedExtractor` tier has no skip path, so an absent field can also
+   * mean the winning tier could not have skipped silently — and it survives
+   * persistence: like `statedEmptyGroups`, this is content about a specific
+   * transcript, not transport metadata, so the relay sets it **unconditionally**
+   * on every extraction and a re-extraction clears a prior run's stale report.
+   *
+   * Typed here (unlike `extractionUsage`'s loose record) because the item
+   * shape is core's own vocabulary — the members a `PhaseUnit` event carries —
+   * and not host-tool data. zod's object parse strips unknown keys, so a
+   * future member reaches readers as absent until the packages they bundle
+   * move, which is the same version-skew posture as every other typed member.
+   */
+  skippedItems: z
+    .array(
+      z.object({
+        phaseId: z.string(),
+        key: z.string(),
+        leaf: z.string().optional(),
+        instance: z.number().optional(),
+        instances: z.number().optional(),
+        part: z.number().optional(),
+        parts: z.number().optional(),
+      }),
+    )
+    .optional(),
+  /**
    * The vendor write idempotency key. Generated once at session open and reused
    * on every retry, and sent as `Idempotency-Key`.
    *

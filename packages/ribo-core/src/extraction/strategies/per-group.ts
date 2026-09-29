@@ -98,6 +98,7 @@ import type { RetryBudgetObserver } from "../../async/retry-budget.js";
 import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
 import type { ExtractionGroup } from "../schema/split-schema.js";
 import { assertWireSafeSchemaName, narrowToLeaves } from "../extraction-common.js";
+import type { FieldGuidanceOptions } from "../field-guidance.js";
 import { projectTarget } from "../project-target.js";
 import { singleShotExtractor } from "../single-shot.js";
 import type { ToolAdapterExample } from "../../write/adapter.js";
@@ -207,6 +208,16 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
    * have always been.
    */
   readonly maxSerializedCharsPerGroup?: number;
+  /**
+   * Where the schema's field descriptions travel, as in
+   * {@link SingleShotOptions.fieldDescriptions}. Forwarded to every default
+   * piece entry (each a {@link singleShotExtractor} over its projected target),
+   * so a per-group call carries only its own group's guidance and a partitioned
+   * piece only its piece's — the projected schema the entry walks IS the piece's.
+   * A host replacing a group via {@link overrideGroups} builds its replacement's
+   * prompt itself and decides there.
+   */
+  readonly fieldDescriptions?: FieldGuidanceOptions["fieldDescriptions"];
 }
 
 /**
@@ -321,16 +332,24 @@ function defaultPieceEntry<W extends Record<string, unknown>, P = NoProvenance>(
   chat,
   model,
   maxTokens,
+  fieldDescriptions,
   wrapKey,
 }: {
   readonly pieceTarget: ExtractionTarget<W, P>;
   readonly chat: ChatClient;
   readonly model: string;
   readonly maxTokens?: number;
+  readonly fieldDescriptions?: FieldGuidanceOptions["fieldDescriptions"];
   /** The group key whose parsed singleton value is wrapped back into an array. */
   readonly wrapKey?: string;
 }): Extractor<Enveloped<W, P>> {
-  const entry = singleShotExtractor({ target: pieceTarget, chat, model, maxTokens });
+  const entry = singleShotExtractor({
+    target: pieceTarget,
+    chat,
+    model,
+    maxTokens,
+    fieldDescriptions,
+  });
   const callsByRun = new WeakMap<AbortSignal, number>();
   return {
     extract: async (transcript, options) => {
@@ -381,6 +400,7 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
     singleton = false,
     maxNullableUnionsPerGroup,
     maxSerializedCharsPerGroup,
+    fieldDescriptions,
   } = options;
 
   // Split at plan time — the group list is a pure function of the schema and
@@ -403,7 +423,13 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
     return {
       groups: {},
       targets: {},
-      unwrapped: defaultPieceEntry({ pieceTarget: target, chat, model, maxTokens }),
+      unwrapped: defaultPieceEntry({
+        pieceTarget: target,
+        chat,
+        model,
+        maxTokens,
+        fieldDescriptions,
+      }),
       unwrappedTarget: target,
     };
   }
@@ -529,6 +555,7 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
           chat,
           model,
           maxTokens,
+          fieldDescriptions,
           wrapKey: wrapToArray ? group.key : undefined,
         }),
       );

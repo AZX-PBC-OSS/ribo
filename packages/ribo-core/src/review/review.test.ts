@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
 import type { enveloped } from "../provenance/enveloped.js";
-import type { ExtractOptions, Extractor } from "../extraction/extractor.js";
+import type { ExtractOptions, Extractor, SkippedItem } from "../extraction/extractor.js";
 import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
 import type { ExistingRecord } from "./instance-identity.js";
 import {
@@ -830,10 +830,12 @@ const collectionRequestFor = (
   extracted: Record<string, unknown>,
   existingRecords?: Record<string, readonly ExistingRecord[]>,
   statedEmptyGroups?: Readonly<Record<string, string>>,
+  skippedItems?: readonly SkippedItem[],
 ): ReviewRequest =>
   buildReviewRequest(extracted, transcript, withCollectionsSchema, {
     existingRecords,
     statedEmptyGroups,
+    skippedItems,
   });
 
 describe("buildReviewRequest — collections: data counts instances, schema counts leaves", () => {
@@ -1036,6 +1038,102 @@ describe("buildReviewRequest — statedEmptyGroups: a grounded 'stated empty' gr
     const hvac = request.tree.find((node) => node.key === "hvac");
     expect(hvac?.kind === "collection" && hvac.state).toBe("populated");
     expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
+  });
+});
+
+describe("buildReviewRequest — skippedItems: the 'we asked and could not get an answer' flag", () => {
+  test("a skipped fill item marks its group and the instance it addressed, not the others", () => {
+    // One of two HVAC fills gave up: the group flag says "something here may
+    // be an abstention", the instance flag says which one — ADR 0026's
+    // item-level truth, carried onto the tree.
+    const request = collectionRequestFor(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+            hvacHeatingEnergySource: { value: "Oil", confidence: 1, sourceSpan: "oil" },
+            hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+          },
+          {
+            hvacSystemEquipmentType: { value: null, confidence: 0, sourceSpan: null },
+            hvacHeatingEnergySource: { value: null, confidence: 0, sourceSpan: null },
+            hvacUpgradeAction: { value: null, confidence: 0, sourceSpan: null },
+          },
+        ],
+        dhw: [{ dhwType2: { value: "Tank", confidence: 1, sourceSpan: "tank" } }],
+      },
+      undefined,
+      undefined,
+      [{ phaseId: "fill", key: "hvac", instance: 2, instances: 2, part: 1, parts: 1 }],
+    );
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    const dhw = request.tree.find((node) => node.key === "dhw");
+    expect(hvac?.kind === "collection" && hvac.skipped).toBe(true);
+    expect(dhw?.kind === "collection" && dhw.skipped).toBe(false);
+    const hvacInstances = hvac?.kind === "collection" ? hvac.instances : [];
+    expect(hvacInstances.map((i) => i.skipped)).toEqual([false, true]);
+    // The state is untouched by the flag — the group is still populated.
+    expect(hvac?.kind === "collection" && hvac.state).toBe("populated");
+  });
+
+  test("a skipped group-level item (a span or presence ask) marks the group but no instance", () => {
+    const request = collectionRequestFor({ hvac: [], dhw: [] }, undefined, undefined, [
+      { phaseId: "span", key: "hvac" },
+    ]);
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    const dhw = request.tree.find((node) => node.key === "dhw");
+    expect(hvac?.kind === "collection" && hvac.skipped).toBe(true);
+    expect(dhw?.kind === "collection" && dhw.skipped).toBe(false);
+    const hvacInstances = hvac?.kind === "collection" ? hvac.instances : [];
+    expect(hvacInstances).toHaveLength(0);
+  });
+
+  test("no report — every flag false, and the state family keeps its own answers", () => {
+    // An absent report renders as no flag anywhere: honest for a run that
+    // could not have skipped silently. The absent-vs-[] question lives on the
+    // session field, not the tree.
+    const request = collectionRequestFor(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+            hvacHeatingEnergySource: { value: "Oil", confidence: 1, sourceSpan: "oil" },
+            hvacUpgradeAction: { value: "Keep", confidence: 1, sourceSpan: "keep" },
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      undefined,
+    );
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.skipped).toBe(false);
+    const hvacInstances = hvac?.kind === "collection" ? hvac.instances : [];
+    expect(hvacInstances.map((i) => i.skipped)).toEqual([false]);
+  });
+
+  test("an empty report is also all-false — reported, nothing skipped", () => {
+    const request = collectionRequestFor({ hvac: [] }, undefined, undefined, []);
+
+    const hvac = request.tree.find((node) => node.key === "hvac");
+    expect(hvac?.kind === "collection" && hvac.skipped).toBe(false);
+  });
+
+  test("a skipped item naming an unknown or flat key marks nothing", () => {
+    // The flat fallback and gap-fill phases name key "" — attributable to no
+    // group in the schema — and a stale key names no group at all.
+    const request = collectionRequestFor({ hvac: [], dhw: [] }, undefined, undefined, [
+      { phaseId: "gap-fill", key: "" },
+      { phaseId: "fill", key: "ghost", instance: 1 },
+    ]);
+
+    for (const node of request.tree) {
+      if (node.kind === "leaf") continue;
+      expect(node.skipped).toBe(false);
+    }
   });
 });
 
@@ -1605,5 +1703,46 @@ describe("buildReviewRequest — the tree carries the shape the walk already kne
 
   test("presentButEmpty is gone — the state it encoded lives on the group", () => {
     expect("presentButEmpty" in treeRequestFor({ hvac: [] })).toBe(false);
+  });
+
+  test("a skipped item naming a singleton (object) group marks that node, not its neighbours", () => {
+    const request = buildReviewRequest(
+      { healthSafety: { ambientCo: { value: "passed", confidence: 1, sourceSpan: "co" } } },
+      transcript,
+      treeSchema,
+      { skippedItems: [{ phaseId: "fill", key: "healthSafety", instance: 1, instances: 1 }] },
+    );
+
+    const group = groupNamed(request, "healthSafety");
+    expect(group?.kind === "object" && group.skipped).toBe(true);
+    const hvac = groupNamed(request, "hvac");
+    expect(hvac?.kind === "collection" && hvac.skipped).toBe(false);
+  });
+
+  test("a skipped item names a top-level group only — a nested collection sharing its key is not marked", () => {
+    const nestedSchema = z.object({
+      hvac: z.array(hvacElementSchema).optional(),
+      attic: z.object({ hvac: z.array(hvacElementSchema).optional() }).optional(),
+    });
+    const system = {
+      hvacSystemEquipmentType: { value: "Boiler", confidence: 1, sourceSpan: "boiler" },
+    };
+    const request = buildReviewRequest(
+      { hvac: [system], attic: { hvac: [system] } },
+      transcript,
+      nestedSchema,
+      { skippedItems: [{ phaseId: "fill", key: "hvac", instance: 1, instances: 1 }] },
+    );
+
+    const attic = groupNamed(request, "attic");
+    const nested =
+      attic?.kind === "object" ? attic.children.find((n) => n.key === "hvac") : undefined;
+    expect(nested?.kind).toBe("collection");
+    expect(nested?.kind === "collection" && nested.skipped).toBe(false);
+    expect(nested?.kind === "collection" && nested.instances.map((i) => i.skipped)).toEqual([
+      false,
+    ]);
+    const top = groupNamed(request, "hvac");
+    expect(top?.kind === "collection" && top.instances.map((i) => i.skipped)).toEqual([true]);
   });
 });

@@ -700,6 +700,24 @@ export {
 } from "./extraction/extraction-common.js";
 export type { UsageTotals } from "./extraction/extraction-common.js";
 
+// Field descriptions travel in the prompt, not the response schema: the
+// guidance block the prompt builders append, and the wire render that strips
+// the schema's copy to match. `renderFieldGuidance` is exported for a host
+// composing its own system message the builders do; the strip is exported
+// because its safe walk over schema positions (never a key-name filter — a
+// property genuinely named `description` survives with its `required` entry)
+// is the answer any hand-rolled response-format builder needs too.
+export {
+  fieldDescriptionsMode,
+  renderFieldGuidance,
+  withFieldGuidance,
+} from "./extraction/field-guidance.js";
+export type { FieldDescriptionsMode, FieldGuidanceOptions } from "./extraction/field-guidance.js";
+export {
+  toJsonSchemaForWire,
+  stripJsonSchemaDescriptions,
+} from "./extraction/schema/wire-schema.js";
+
 // The single-shot strategy over any `ChatClient` — one structured-output call,
 // the pre-parse `finishReason` gate, the trust-boundary parse, the deterministic
 // normalize pass. Transport-agnostic (it depends only on the injected seam),
