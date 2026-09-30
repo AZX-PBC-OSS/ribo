@@ -312,6 +312,10 @@ export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvena
   /**
    * Writes accepted fields into the host tool. Rejects if the write fails.
    *
+   * A write that is more than one request must reject with
+   * `ReceiptedWriteError` if it fails after the record landed, so the
+   * receipt survives the failure (ADR 0031).
+   *
    * Resolves with a **receipt**: whatever string lets a later attempt address the
    * record this write landed, so an amend updates it rather than duplicating it.
    * Core stores it and hands it back as {@link WriteMetadata.linkTarget}; it never

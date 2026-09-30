@@ -9,6 +9,7 @@ import { isTransientFailure, TerminalError } from "../storage/backoff.js";
 import { openStorage, type Storage } from "../storage/storage.js";
 import { createRelay } from "../storage/relay.js";
 import type { SessionItem } from "../storage/session-schema.js";
+import { ReceiptedWriteError } from "./receipted-write-error.js";
 import { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./instance-write-step.js";
 import { restrictToKind } from "../transcription/restrict-to-kind.js";
 
@@ -939,4 +940,93 @@ test("after reopening from dead and removing the first instance, the survivor re
   expect(receiptResult?.receipts?.instances?.hvac).toEqual({
     k2: `uuid-${deriveInstanceIdempotencyKey(postRemoval!.idempotencyKey, "hvac", 0)}`,
   });
+});
+
+// --- A write that landed its record and then failed ------------------------
+
+test("a ReceiptedWriteError checkpoints its receipt, then the cause propagates unchanged", async () => {
+  const storage = await openTestOutbox();
+  const transient = Object.assign(new Error("follow-up 503"), { status: 503 });
+  const terminal = new TerminalError("follow-up refused");
+
+  for (const cause of [transient, terminal]) {
+    const adapter: ToolAdapter<Values, JobContext> = {
+      ...makeAdapter([]),
+      write: async () => {
+        throw new ReceiptedWriteError("landed-uuid", cause);
+      },
+    };
+    const { session, ctx } = await seedSession(
+      storage,
+      { jobId: "job-7" },
+      { hvac: [{ hvacSystemEquipmentType: "Furnace" }] },
+      { hvac: ["k1"] },
+    );
+    const checkpointed: Array<[string, string, string]> = [];
+    const thrown = await toInstanceWriteStep({ adapter, collectionGroups: ["hvac"] })({
+      session,
+      reviewed: reviewFields(session),
+      idempotencyKey: session.idempotencyKey,
+      ctx,
+      recordReceipt: async (group, instanceKey, receipt) => {
+        checkpointed.push([group, instanceKey, receipt]);
+      },
+    }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    // The very object, so the relay classifies it as it always did.
+    expect(thrown).toBe(cause);
+    expect(checkpointed).toEqual([["hvac", "k1", "landed-uuid"]]);
+  }
+  expect(isTransientFailure(transient)).toBe(true);
+  expect(isTransientFailure(terminal)).toBe(false);
+});
+
+test("a receipt carried by a failed create turns the relay's retry into an update", async () => {
+  const clock = new TestClock();
+  const storage = await openTestOutbox(clock);
+  const written: Write[] = [];
+  let firstAttempt = true;
+  const adapter: ToolAdapter<Values, JobContext> = {
+    ...makeAdapter(written),
+    write: async (fields, ctx, meta) => {
+      written.push({ fields, ctx, meta });
+      if (firstAttempt) {
+        firstAttempt = false;
+        throw new ReceiptedWriteError(
+          "landed-uuid",
+          Object.assign(new Error("follow-up 503"), { status: 503 }),
+        );
+      }
+      return { receipt: meta.linkTarget ?? "a-second-record" };
+    },
+  };
+  const { session } = await seedSession(
+    storage,
+    { jobId: "job-7" },
+    { hvac: [{ hvacSystemEquipmentType: "Furnace" }] },
+    { hvac: ["k1"] },
+  );
+  const relay = createRelay({
+    storage,
+    transcriber: restrictToKind("audio", new FakeTranscriber()),
+    sessionExtract: () => Promise.reject(new Error("session extraction should not run")),
+    sessionWrite: toInstanceWriteStep({ adapter, collectionGroups: ["hvac"] }),
+    now: clock.now,
+    random: () => 1,
+    baseMs: 500,
+  });
+
+  await relay.syncNow();
+  const failed = await storage.sessions.get(session.id);
+  expect(failed?.status).toBe("failed");
+  expect(failed?.receipts?.instances?.hvac).toEqual({ k1: "landed-uuid" });
+
+  clock.advance(501);
+  await relay.syncNow();
+  expect((await storage.sessions.get(session.id))?.status).toBe("done");
+  expect(written).toHaveLength(2);
+  expect(written[1]?.meta.linkTarget).toBe("landed-uuid");
 });

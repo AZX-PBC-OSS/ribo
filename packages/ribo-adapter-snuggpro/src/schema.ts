@@ -2364,8 +2364,9 @@ export const HvacFields = z
       /**
        * Which rating `hvacHeatingSystemEfficiency` is expressed in. The spec
        * declares `enum: []` — the value list is unpublished — and staging
-       * accepts any text, so this stays free text. `createHvac` ignores what is sent
-       * and derives the unit from the equipment type; `updateHvac` stores it.
+       * accepts any text, so this stays free text. `createHvac` discards what is sent
+       * and derives the unit from the equipment type; `updateHvac` stores it, so the
+       * writer follows a create that states a unit with an update (ADR 0031).
        */
       hvacHeatingSystemEfficiencyRatingUnit: z
         .string()
@@ -2375,7 +2376,7 @@ export const HvacFields = z
         .nullable()
         .optional(),
 
-      /** Which rating `hvacCoolingSystemEfficiency` is expressed in — free text, same create/update behaviour as the heating twin. */
+      /** Which rating `hvacCoolingSystemEfficiency` is expressed in — free text, and the writer compensates on create exactly as for the heating twin. */
       hvacCoolingSystemEfficiencyRatingUnit: z
         .string()
         .describe(

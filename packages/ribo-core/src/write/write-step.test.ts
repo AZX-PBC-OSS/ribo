@@ -10,6 +10,7 @@ import { openStorage, type Storage } from "../storage/storage.js";
 import { createRelay, type SessionWriteInput } from "../storage/relay.js";
 import { restrictToKind } from "../transcription/restrict-to-kind.js";
 import { sessionItemSchema, type SessionItem } from "../storage/session-schema.js";
+import { ReceiptedWriteError } from "./receipted-write-error.js";
 import { toWriteStep } from "./write-step.js";
 
 /**
@@ -300,6 +301,30 @@ test("a failing write propagates unchanged — the relay's retry contract is not
   // And still classified as transient, which is the property that actually matters.
   expect(isTransientFailure(thrown)).toBe(true);
   expect(thrown).not.toBeInstanceOf(TerminalError);
+});
+
+test("a ReceiptedWriteError is unwrapped, so a terminal cause is not retried as transient", async () => {
+  // `toWriteStep` has no receipt to checkpoint, but the wrapper carries no `status`
+  // and is not a `TerminalError`, so left alone it would read as transient.
+  const cause = new TerminalError("follow-up refused");
+  const adapter: ToolAdapter<AtticValues, JobContext> = {
+    ...makeAdapter([]),
+    write: () => Promise.reject(new ReceiptedWriteError("landed", cause)),
+  };
+
+  const thrown = await toWriteStep(adapter)({
+    recordReceipt: noRecordReceipt,
+    session: sessionAt("session-1"),
+    reviewed: { rValue: 19 },
+    idempotencyKey: "key-session-1",
+    ctx: { jobId: "job-7" },
+  }).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+
+  expect(thrown).toBe(cause);
+  expect(isTransientFailure(thrown)).toBe(false);
 });
 
 // --- The classification, as the relay actually applies it -------------------

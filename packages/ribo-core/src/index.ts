@@ -394,6 +394,7 @@ export { toWriteStep } from "./write/write-step.js";
 // progress in the storage so a retry resumes after the instances already written.
 export { deriveInstanceIdempotencyKey, toInstanceWriteStep } from "./write/instance-write-step.js";
 export type { ToInstanceWriteStepOptions } from "./write/instance-write-step.js";
+export { ReceiptedWriteError } from "./write/receipted-write-error.js";
 
 // Extraction: the pluggable seam a transcript becomes structured fields through,
 // the function that collapses any extractor onto the relay's injected step, and
