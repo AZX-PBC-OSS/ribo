@@ -54,6 +54,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "PLUGIN_STORAGE_DOCUMENT_VERSION",
     "RECORDING_CAPTURE_STATUSES",
     "ROW_SOURCE_SPAN_KEY",
+    "ReceiptedWriteError",
     "Recorder",
     "RecorderError",
     "ReviewValidationError",
