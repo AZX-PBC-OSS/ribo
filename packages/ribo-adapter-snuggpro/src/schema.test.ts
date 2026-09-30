@@ -185,6 +185,23 @@ describe("snuggValuesSchema — the writable patch", () => {
     ).toThrow();
   });
 
+  test("the lists the vendor enforces but does not publish reject what a real write 400'd on", () => {
+    // Both leaves are `enum: []` in the spec and were free text until staging rejected
+    // these exact values on 2026-09-30.
+    expect(() => snuggValuesSchema.parse({ hvac: [{ hvacDuctLocation: "Basement" }] })).toThrow();
+    expect(() =>
+      snuggValuesSchema.parse({ wall: [{ wallExteriorWallConstruction: "2x4" }] }),
+    ).toThrow();
+    // The vendor also accepts "", which is deliberately not a member — null says "no answer".
+    expect(() => snuggValuesSchema.parse({ hvac: [{ hvacDuctLocation: "" }] })).toThrow();
+
+    const members = {
+      hvac: [{ hvacDuctLocation: "50/50 Basement (unconditioned) - Conditioned Space" }],
+      wall: [{ wallExteriorWallConstruction: "Don't Know" }],
+    };
+    expect(snuggValuesSchema.parse(members)).toEqual(members);
+  });
+
   test("leaf types are still checked — a patch is optional, not untyped", () => {
     expect(() =>
       snuggValuesSchema.parse({ hvac: [{ hvacHeatingSystemModelYear: "two thousand four" }] }),

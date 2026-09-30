@@ -1540,6 +1540,12 @@ Total formData fields: **22** — already covered by the existing schema: **0** 
 
 **Unpublished enums (`enum: []` — free-text into review).** Exactly one across these five resources: `wallExteriorWallConstruction`. It is a named dropdown ("Select the type of construction material used to build the exterior walls of the home that are above grade") with no member list published, so a dictated "two-by-four stick frame" or "block" has to go through review rather than be validated.
 
+> **Update 2026-09-30: the premise is wrong.** `createWall` and `createHvac` enforce member lists
+> for `wallExteriorWallConstruction` and `hvacDuctLocation` that this spec omits. A free-text
+> `"2x4"` came back `400` on a real write-back, and the `400` body listed every member. Both are
+> enums in `schema.ts` now. None of the other `enum: []` parameters listed in §4.5 has been probed,
+> so do not assume any of them is free text.
+
 **Null enum member.** `wallCavityInsulationType` and `wallCavityInsulationTypeImproved` publish a literal `null` as the FIRST enum member, ahead of `Fiberglass or Rockwool Batt`. No other enum across these five resources does this. Both are on the already-covered list, so check the existing schema tolerates an explicit null.
 
 **Nothing is required.** All 112 formData parameters across the five creates are `required: false`. A create with an empty body is legal, so the API will not catch a dropped field — validation is entirely Ribo's problem.

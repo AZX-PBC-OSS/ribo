@@ -42,7 +42,9 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  * `range`, `refrigerator` and `pv`, each an array of per-instance records), and
  * the job update-surface trim (the field set narrowed to the `PUT /jobs/{jobId}`
  * parameter list, job creation being out of scope — the diff confined to the job
- * group's properties and required list).
+ * group's properties and required list), and the two enforced-but-unpublished
+ * lists (`hvacDuctLocation` and `wallExteriorWallConstruction` turned from free
+ * text into enums — the diff confined to those two leaves).
  * Any *future* unexplained movement is a regression.
  *
  * Why capture via the real extractor, not `z.toJSONSchema(snuggExtractionSchema, ...)`

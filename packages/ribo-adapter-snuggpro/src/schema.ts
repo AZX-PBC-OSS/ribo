@@ -127,6 +127,10 @@
  *     `enveloped()` has no numeric-enum leaf — so all four are `z.number()`
  *     with their vocabularies in their descriptions, the treatment
  *     `energyStarColdClimateHeatPump` established.
+ *   - **`hvacDuctLocation` and `wallExteriorWallConstruction` are `enum: []` in
+ *     the spec but real enums here.** The vendor's validator enforces lists its
+ *     documentation omits; both were harvested from `400` bodies on 2026-09-30
+ *     after a real write-back failed.
  *   - **`job.accountId` and `job.programId` are integer ids on the wire but
  *     PLAIN FREE TEXT here** — the spoken assignee/program name, resolved
  *     against the real id lists at review/write time per
@@ -146,7 +150,10 @@ import { VENDOR_DESCRIPTIONS } from "./descriptions.generated.js";
 // Every member is COPIED VERBATIM from the swagger spec's `enum` array — do not
 // tidy casing, spacing, percent signs or inch marks; a "cleaned up" member is a
 // write that fails at the API. `enum: []` in the spec means Snugg publishes no
-// value list; called out per-field where it happens.
+// value list; called out per-field where it happens. It does NOT mean the API
+// takes free text: `hvacDuctLocation` and `wallExteriorWallConstruction` both
+// enforce a list that surfaces only in a `400` body. POST a bogus value and read
+// the rejection before trusting any remaining `enum: []` field to be free text.
 
 // == basedata ================================================================
 
@@ -695,6 +702,37 @@ export const HvacDuctInsulation = z.enum([
   "Measured (R Value)",
 ]);
 
+/**
+ * `hvacDuctLocation` (`hvac`). An ENFORCED BUT UNPUBLISHED list: the spec declares
+ * `enum: []`, yet `createHvac` rejects anything else with a `400` whose body
+ * enumerates the members — harvested from staging 2026-09-30 by POSTing a bogus
+ * value. The vendor also accepts `""`; it is left out because the envelope's
+ * `null` already says "no answer", and a second empty value would be one the
+ * model could emit to dodge that rule.
+ *
+ * Most members pair a place with whether it is conditioned, and a dictation
+ * usually names only the place. The description tells the model to abstain
+ * then — `null` value, the words kept as `sourceSpan` — so the auditor picks
+ * the member at review instead of the model guessing it.
+ */
+export const HvacDuctLocation = z
+  .enum([
+    "Intentionally Conditioned Space",
+    "Attic (unconditioned)",
+    "Belly",
+    "Basement (unconditioned)",
+    "Crawlspace (unconditioned)",
+    "50/50 Attic - Basement (both unconditioned)",
+    "50/50 Attic (unconditioned) - Conditioned Space",
+    "50/50 Attic - Crawlspace (both unconditioned)",
+    "50/50 Basement (unconditioned) - Conditioned Space",
+    "50/50 Crawlspace (unconditioned) - Conditioned Space",
+    "70/30 Conditioned Space - Garage (unconditioned)",
+  ])
+  .describe(
+    'Pick a member only when the dictation settles all of it, including whether each space is conditioned and whether the ducts are split between two. When it only names a place ("the ducts are in the basement"), leave value null and quote those words as sourceSpan — a reviewer chooses the member.',
+  );
+
 // == attic ===================================================================
 
 /**
@@ -859,6 +897,29 @@ export const WallContinuousInsulationType = z.enum([
   "Closed Cell Spray Foam",
   "Other",
 ]);
+
+/**
+ * `wallExteriorWallConstruction` (`wall`). An ENFORCED BUT UNPUBLISHED list: the
+ * spec declares `enum: []`, yet `createWall` rejects anything else with a `400`
+ * whose body enumerates the members — harvested from staging 2026-09-30 by
+ * POSTing a bogus value. The vendor also accepts `""`, left out for the reason
+ * `HvacDuctLocation` gives.
+ */
+export const WallExteriorWallConstruction = z
+  .enum([
+    "Concrete Block",
+    "Full Brick",
+    "2x4 Frame",
+    "2x6 Frame",
+    "Log",
+    "Mobile Home 2x3",
+    "Straw Bale",
+    "Adobe",
+    "Don't Know",
+  ])
+  .describe(
+    'Framing or masonry of the above-grade walls: "two by four" is "2x4 Frame", "block" is "Concrete Block". A brick face on a framed wall is brick veneer siding (wallExteriorWallSiding), not "Full Brick", which is solid masonry. "Don\'t Know" only when the auditor said they could not tell.',
+  );
 
 // == window ==================================================================
 
@@ -2115,14 +2176,8 @@ export const HvacFields = z
         .nullable()
         .optional(),
 
-      /**
-       * Where the ducts run. The spec declares this property with `enum: []` and
-       * publishes no value list, so this stays free text rather than inventing one —
-       * the extracted phrase reaches review intact and a human picks the dropdown
-       * entry. The other unpublished-enum field, `hvacHeatingEnergySource`, borrows a
-       * sibling's list because fuel has one; duct location has no sibling to borrow from.
-       */
-      hvacDuctLocation: z.string().nullable().optional(),
+      /** Where the ducts run — an enforced, unpublished list; see `HvacDuctLocation`. */
+      hvacDuctLocation: HvacDuctLocation.nullable().optional(),
 
       /** Qualitative duct tightness, or `"Measured (CFM25)"` when a number was read. */
       hvacDuctLeakage: HvacDuctLeakage.nullable().optional(),
@@ -2300,7 +2355,7 @@ export const HvacFields = z
       /**
        * Which rating `hvacHeatingSystemEfficiency` is expressed in. The spec
        * declares `enum: []` — the value list is unpublished — so this stays
-       * free text, the `hvacDuctLocation` precedent.
+       * free text — unprobed; see the note above the enumerations.
        */
       hvacHeatingSystemEfficiencyRatingUnit: z
         .string()
@@ -2794,18 +2849,11 @@ export const WallFields = z
       wallCavityInsulationType: WallCavityInsulationType.nullable().optional(),
 
       /**
-       * Above-grade exterior wall construction material. UNPUBLISHED ENUM: the spec
-       * declares a named dropdown with `enum: []` and no member list, so a dictated
-       * construction is captured as free text and goes through review rather than
-       * being validated against a vocabulary.
+       * Above-grade exterior wall construction. The vendor documents no list, but
+       * its API enforces one — see `WallExteriorWallConstruction`. This was free
+       * text until a real write came back `400` on `"2x4"`.
        */
-      wallExteriorWallConstruction: z
-        .string()
-        .describe(
-          'Construction material of the above-grade exterior walls ("two-by-four stick frame", "block"). Snugg publishes no value list for this dropdown, so capture the construction as spoken free text — never invent a member of some other field\'s enum for it.',
-        )
-        .nullable()
-        .optional(),
+      wallExteriorWallConstruction: WallExteriorWallConstruction.nullable().optional(),
 
       /** Total R-value of continuous insulation (foam/rigid, unbroken across framing). */
       wallContinuousInsulation: z
@@ -3284,7 +3332,7 @@ export const DhwFields = z
       /**
        * The boiler an indirect (sidearm) tank is attached to — a CROSS-RESOURCE
        * reference to an hvac instance. The spec declares `enum: []` and publishes
-       * no value list, so this stays free text (the `hvacDuctLocation` precedent):
+       * no value list, so this stays free text:
        * the boiler as the auditor referred to it. Matching that reference against
        * the job's hvac systems is a later, human-supervised step, not extraction's
        * (the `fromTemplateUuid` pattern).
@@ -4418,7 +4466,7 @@ export const UtilitiesFields = z
        * The electric rate plan's name as spoken, FREE TEXT: the spec declares
        * this field with `enum: []` and publishes no value list (doc 20 §4.5), so
        * the spoken name reaches review intact rather than being forced onto an
-       * invented list — the `hvacDuctLocation` precedent.
+       * invented list. Unprobed; see the note above the enumerations.
        */
       electricRatePlan: z
         .string()

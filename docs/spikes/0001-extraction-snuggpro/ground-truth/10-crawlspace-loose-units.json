@@ -24,7 +24,7 @@
           "hvacDuctLocation": {
             "status": "asserted",
             "sourceSpan": "the crawlspace, unconditioned crawl, dirt floor down there",
-            "value": "the crawlspace, unconditioned crawl, dirt floor down there"
+            "member": "Crawlspace (unconditioned)"
           },
           "hvacDuctInsulation": {
             "status": "asserted",
