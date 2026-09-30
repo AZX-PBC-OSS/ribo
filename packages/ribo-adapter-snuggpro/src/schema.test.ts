@@ -202,6 +202,17 @@ describe("snuggValuesSchema — the writable patch", () => {
     expect(snuggValuesSchema.parse(members)).toEqual(members);
   });
 
+  test("both heating-fuel fields take the vendor's enforced list, including what the borrowed list lacked", () => {
+    const fuels = {
+      hvac: [{ hvacHeatingEnergySource: "Coal", hvacHeatingEnergySourceImproved: "Kerosene" }],
+    };
+    expect(snuggValuesSchema.parse(fuels)).toEqual(fuels);
+    // The proposed fuel was free text; the vendor rejects anything off the base side's list.
+    expect(() =>
+      snuggValuesSchema.parse({ hvac: [{ hvacHeatingEnergySourceImproved: "heat pump" }] }),
+    ).toThrow();
+  });
+
   test("leaf types are still checked — a patch is optional, not untyped", () => {
     expect(() =>
       snuggValuesSchema.parse({ hvac: [{ hvacHeatingSystemModelYear: "two thousand four" }] }),

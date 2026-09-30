@@ -5557,9 +5557,12 @@
                       "Pellets",
                       "Wood",
                       "Solar",
-                      "None"
+                      "None",
+                      "Don't Know",
+                      "Coal",
+                      "Kerosene"
                     ],
-                    "description": "This is the primary fuel source. It is used to set prices and energy content."
+                    "description": "This is the primary fuel source. It is used to set prices and energy content. \"Don't Know\" only when the auditor said they could not tell the fuel; an unmentioned fuel is null."
                   },
                   {
                     "type": "null"
@@ -6813,7 +6816,20 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "description": "This is the primary fuel source. It is used to set prices and energy content. The proposed system's fuel as spoken, free text — the vendor publishes no value list for this field. A recommended fuel switch is dictated intent; never leave it null just because there is no list to match against."
+                    "enum": [
+                      "Electricity",
+                      "Natural Gas",
+                      "Fuel Oil",
+                      "Propane",
+                      "Pellets",
+                      "Wood",
+                      "Solar",
+                      "None",
+                      "Don't Know",
+                      "Coal",
+                      "Kerosene"
+                    ],
+                    "description": "This is the primary fuel source. It is used to set prices and energy content. The proposed system's fuel. A recommended fuel switch is dictated intent, so set it when one is recommended; null when no change of fuel was proposed."
                   },
                   {
                     "type": "null"
