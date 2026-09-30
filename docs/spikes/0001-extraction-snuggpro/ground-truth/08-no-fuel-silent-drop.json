@@ -56,7 +56,11 @@
           "hvacDuctLocation": {
             "status": "asserted",
             "sourceSpan": "its own ducts up in the attic",
-            "value": "up in the attic"
+            "member": "Attic (unconditioned)",
+            "arguable": {
+              "acceptableMiss": true,
+              "note": "The auditor names the attic but never says whether it is conditioned, and hvacDuctLocation pairs every place with that. Attic (unconditioned) is the likely truth, but the leaf is told to abstain (value null, span kept) when only a place is named, so a null here follows the instruction rather than missing a stated answer."
+            }
           },
           "hvacDuctLeakage": {
             "status": "asserted",

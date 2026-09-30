@@ -44,7 +44,7 @@
           "hvacDuctLocation": {
             "status": "asserted",
             "sourceSpan": "The ducts run through the basement, which is unconditioned down there",
-            "value": "the basement, which is unconditioned down there"
+            "member": "Basement (unconditioned)"
           },
           "hvacDuctLeakage": {
             "status": "asserted",
