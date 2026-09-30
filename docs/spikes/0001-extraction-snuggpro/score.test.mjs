@@ -164,8 +164,11 @@ heading("0. SCHEMA INTROSPECTION (schema-leaves.mjs) — derived, not hand-count
   // `POST /jobs` creation fields, and Snugg Pro opens this app on an existing job). The
   // enum-member drop is those leaves' enums going with them — `renterOwner`, `jobType`,
   // `state`, `propertyOwnerState` and the rest.
+  // 861 → 895 on 2026-09-30: `hvacDuctLocation`, `wallExteriorWallConstruction` and
+  // `hvacHeatingEnergySourceImproved` turned from free text into the enums the vendor's API
+  // enforces but its spec omits, and `hvacHeatingEnergySource` gained three members.
   check("leaf count matches the merged field set", LEAVES.length === 441);
-  check("enum-member total matches the merged field set", totalMembers === 861);
+  check("enum-member total matches the merged field set", totalMembers === 895);
   check(
     "ENUM_VOCAB has an entry for every enum leaf (no collisions at import time)",
     ENUM_VOCAB.size === enumLeaves.length,

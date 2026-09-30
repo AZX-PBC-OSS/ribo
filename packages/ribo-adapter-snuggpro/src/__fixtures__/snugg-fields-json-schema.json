@@ -5557,9 +5557,12 @@
                       "Pellets",
                       "Wood",
                       "Solar",
-                      "None"
+                      "None",
+                      "Don't Know",
+                      "Coal",
+                      "Kerosene"
                     ],
-                    "description": "This is the primary fuel source. It is used to set prices and energy content."
+                    "description": "This is the primary fuel source. It is used to set prices and energy content. \"Don't Know\" only when the auditor said they could not tell the fuel; an unmentioned fuel is null."
                   },
                   {
                     "type": "null"
@@ -5781,7 +5784,20 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "description": "Select the location of the duct work for this system."
+                    "enum": [
+                      "Intentionally Conditioned Space",
+                      "Attic (unconditioned)",
+                      "Belly",
+                      "Basement (unconditioned)",
+                      "Crawlspace (unconditioned)",
+                      "50/50 Attic - Basement (both unconditioned)",
+                      "50/50 Attic (unconditioned) - Conditioned Space",
+                      "50/50 Attic - Crawlspace (both unconditioned)",
+                      "50/50 Basement (unconditioned) - Conditioned Space",
+                      "50/50 Crawlspace (unconditioned) - Conditioned Space",
+                      "70/30 Conditioned Space - Garage (unconditioned)"
+                    ],
+                    "description": "Select the location of the duct work for this system. Pick a member only when the dictation settles all of it, including whether each space is conditioned and whether the ducts are split between two. When it only names a place (\"the ducts are in the basement\"), leave value null and quote those words as sourceSpan — a reviewer chooses the member."
                   },
                   {
                     "type": "null"
@@ -6800,7 +6816,20 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "description": "This is the primary fuel source. It is used to set prices and energy content. The proposed system's fuel as spoken, free text — the vendor publishes no value list for this field. A recommended fuel switch is dictated intent; never leave it null just because there is no list to match against."
+                    "enum": [
+                      "Electricity",
+                      "Natural Gas",
+                      "Fuel Oil",
+                      "Propane",
+                      "Pellets",
+                      "Wood",
+                      "Solar",
+                      "None",
+                      "Don't Know",
+                      "Coal",
+                      "Kerosene"
+                    ],
+                    "description": "This is the primary fuel source. It is used to set prices and energy content. The proposed system's fuel. A recommended fuel switch is dictated intent, so set it when one is recommended; null when no change of fuel was proposed."
                   },
                   {
                     "type": "null"
@@ -8941,7 +8970,18 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "description": "Select the type of construction material used to build the exterior walls of the home that are above grade (above ground). Construction material of the above-grade exterior walls (\"two-by-four stick frame\", \"block\"). Snugg publishes no value list for this dropdown, so capture the construction as spoken free text — never invent a member of some other field's enum for it."
+                    "enum": [
+                      "Concrete Block",
+                      "Full Brick",
+                      "2x4 Frame",
+                      "2x6 Frame",
+                      "Log",
+                      "Mobile Home 2x3",
+                      "Straw Bale",
+                      "Adobe",
+                      "Don't Know"
+                    ],
+                    "description": "Select the type of construction material used to build the exterior walls of the home that are above grade (above ground). Framing or masonry of the above-grade walls: \"two by four\" is \"2x4 Frame\", \"block\" is \"Concrete Block\". A brick face on a framed wall is brick veneer siding (wallExteriorWallSiding), not \"Full Brick\", which is solid masonry. \"Don't Know\" only when the auditor said they could not tell."
                   },
                   {
                     "type": "null"
