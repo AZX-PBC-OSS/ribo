@@ -1,6 +1,7 @@
 import type { ToolAdapter } from "./adapter.js";
 import { TerminalError } from "../storage/backoff.js";
 import type { SessionWriteResult, SessionWriteStep, SessionWriteInput } from "../storage/relay.js";
+import { ReceiptedWriteError } from "./receipted-write-error.js";
 import { describeLocated, zodIssues } from "../review/zod-issues.js";
 
 /**
@@ -178,20 +179,33 @@ export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
           typeof decision === "string"
             ? decision
             : session.receipts?.instances?.[group]?.[instanceKey];
-        const { receipt } = await adapter.write(
-          adapter.schema.parse(instancePatch),
-          parsedCtx.data,
-          // A missing or `null` target means CREATE — the documented default,
-          // and the normal case: unlike `instanceKey` above, whose absence
-          // means receipts cannot be recorded safely, an unlinked instance is
-          // not an error, and throwing here would break every one of them. The
-          // member is omitted rather than passed as `undefined`, because absent
-          // is not a value.
-          {
-            idempotencyKey: instanceIdempotencyKey,
-            ...(typeof linkTarget === "string" ? { linkTarget } : {}),
-          },
-        );
+        let receipt: string;
+        try {
+          ({ receipt } = await adapter.write(
+            adapter.schema.parse(instancePatch),
+            parsedCtx.data,
+            // A missing or `null` target means CREATE — the documented default,
+            // and the normal case: unlike `instanceKey` above, whose absence
+            // means receipts cannot be recorded safely, an unlinked instance is
+            // not an error, and throwing here would break every one of them. The
+            // member is omitted rather than passed as `undefined`, because absent
+            // is not a value.
+            {
+              idempotencyKey: instanceIdempotencyKey,
+              ...(typeof linkTarget === "string" ? { linkTarget } : {}),
+            },
+          ));
+        } catch (error) {
+          // The record landed but the write did not finish (a create whose
+          // follow-up failed): checkpoint its receipt before surfacing the
+          // failure, or the retry creates a second record. The cause is
+          // rethrown unchanged so the relay classifies it as it always did.
+          if (error instanceof ReceiptedWriteError) {
+            await recordReceipt(group, instanceKey, error.receipt);
+            throw error.cause;
+          }
+          throw error;
+        }
         receipts.instances[group] ??= {};
         receipts.instances[group][instanceKey] = receipt;
         // Checkpoint the receipt as it is earned, not just at the end: a throw

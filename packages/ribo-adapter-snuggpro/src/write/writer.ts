@@ -10,7 +10,7 @@
  * credential (the `ribo-transcriber-managed` precedent).
  */
 
-import { TerminalError, type WriteMetadata } from "@azx/ribo-core";
+import { ReceiptedWriteError, TerminalError, type WriteMetadata } from "@azx/ribo-core";
 import type { SnuggWriteContext } from "../context.js";
 import { SNUGG_ENDPOINTS } from "../endpoints.generated.js";
 import type {
@@ -217,14 +217,44 @@ const readReceipt = async (
   return { receipt };
 };
 
+/**
+ * Leaves `createHvac` discards and re-derives from the equipment type, while
+ * `updateHvac` stores them as sent (measured on staging, job 588613,
+ * 2026-09-30). A create that carries one is followed by an update of the new
+ * record that carries just these, so the auditor's stated unit survives.
+ */
+const DERIVED_ON_CREATE: Readonly<Record<string, readonly string[]>> = {
+  hvac: ["hvacHeatingSystemEfficiencyRatingUnit", "hvacCoolingSystemEfficiencyRatingUnit"],
+};
+
+/**
+ * The follow-up's values: the discarded leaves the patch states. An explicit
+ * `null` is not followed up — on a new record there is nothing to clear, and the
+ * vendor's derived unit is a better value than an empty one.
+ */
+const followUpValues = (
+  group: string,
+  values: Record<string, unknown>,
+): Record<string, unknown> | undefined => {
+  const stated: Record<string, unknown> = {};
+  for (const name of DERIVED_ON_CREATE[group] ?? []) {
+    const value = values[name];
+    if (value !== undefined && value !== null) stated[name] = value;
+  }
+  return Object.keys(stated).length > 0 ? stated : undefined;
+};
+
 export const createSnuggHttpWriter = (options: SnuggHttpWriterOptions = {}): SnuggHttpWriter => {
   const doFetch = options.fetchImpl ?? fetch;
-  return async (group, values, ctx, meta) => {
-    const endpoints = SNUGG_ENDPOINTS[group];
-    if (!endpoints) {
-      throw new Error(`write/writer: no Snugg Pro endpoint table entry for group "${group}".`);
-    }
-    const { name, kind, operation } = selectOperation(group, endpoints, meta.linkTarget);
+
+  const send = async (
+    group: string,
+    name: SnuggWriteOperationName,
+    operation: SnuggEndpointOperation,
+    values: Record<string, unknown>,
+    ctx: SnuggWriteContext,
+    meta: WriteMetadata,
+  ): Promise<Response> => {
     const url = buildRequestUrl(ctx, operation.path, meta.linkTarget);
     const body = buildWriteBody(group, name, values);
     const response = await doFetch(url, {
@@ -241,6 +271,48 @@ export const createSnuggHttpWriter = (options: SnuggHttpWriterOptions = {}): Snu
     if (!response.ok) {
       await throwClassifiedFailure(response, group, name, meta, ctx);
     }
-    return readReceipt(response, group, kind, ctx);
+    return response;
+  };
+
+  return async (group, values, ctx, meta) => {
+    const endpoints = SNUGG_ENDPOINTS[group];
+    if (!endpoints) {
+      throw new Error(`write/writer: no Snugg Pro endpoint table entry for group "${group}".`);
+    }
+    const { name, kind, operation } = selectOperation(group, endpoints, meta.linkTarget);
+    const response = await send(group, name, operation, values, ctx, meta);
+    const written = await readReceipt(response, group, kind, ctx);
+
+    const followUp = name === "create" ? followUpValues(group, values) : undefined;
+    if (followUp === undefined) return written;
+
+    // The record now exists and its receipt is not yet returned, so anything
+    // thrown from here must carry the receipt out (`ReceiptedWriteError`):
+    // without it the retry creates a second record on a customer's job.
+    try {
+      const update = endpoints.update;
+      if (!update) {
+        throw new Error(`write/writer: the "${group}" group has no "update" operation.`);
+      }
+      await send(group, "update", update, followUp, ctx, { ...meta, linkTarget: written.receipt });
+    } catch (error) {
+      if (error instanceof TerminalError) {
+        // The record exists without the stated units and a retry cannot fix what
+        // the vendor refuses, so the item goes dead, loudly, with the receipt kept.
+        throw new ReceiptedWriteError(
+          written.receipt,
+          new TerminalError(
+            `write/writer: the ${group} record ${written.receipt} was created, but the follow-up ` +
+              `update that stores its rating unit failed, so it exists WITHOUT the unit you ` +
+              `stated (Snugg Pro derives one from the equipment type on create). ${error.message} ` +
+              `Fix the unit in Snugg Pro, or re-park with Storage.sessions.reopenForReview(id) ` +
+              `to update this same record.`,
+            { cause: error },
+          ),
+        );
+      }
+      throw new ReceiptedWriteError(written.receipt, error);
+    }
+    return written;
   };
 };

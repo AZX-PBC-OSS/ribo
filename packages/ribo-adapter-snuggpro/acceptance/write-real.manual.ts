@@ -39,6 +39,8 @@ import type { SnuggWriteContext } from "../src/context.js";
  *      ignored, and a singleton upsert still merges. Spike 0007 established both and doc 15
  *      §3.3 records them, but a finding a vendor can change silently needs a gate rather
  *      than a paragraph (ADR 0019). These two are that gate.
+ *   6. **`createHvac` still discards a sent rating unit**, and a stated unit now survives a
+ *      create through the adapter, which follows the create with an update (ADR 0031).
  *
  * ## Reversible by construction
  *
@@ -258,5 +260,80 @@ test.runIf(configured)(
       expect(restored["healthRadon"], "restored").toBeNull();
       expect(restored["healthAsbestos"], "restored").toBeNull();
     }
+  },
+);
+
+/**
+ * `createHvac` discards a sent efficiency rating unit and derives it from the equipment type;
+ * `updateHvac` stores it (measured on staging, job 588613, 2026-09-30). The HTTP writer
+ * compensates with an update right after a create (see `DERIVED_ON_CREATE` in `write/writer.ts`),
+ * so if Snugg Pro ever fixes `createHvac` this is what says the compensation is now redundant
+ * (ADR 0019). Raw `fetch` again, for the same reason as the two checks above.
+ *
+ * HSPF on a Boiler is the probe: a Boiler's derived unit is AFUE, so a stored HSPF could only
+ * have come from the sent value.
+ */
+/**
+ * Snugg Pro allows at most three heating systems per job (a create past that is a 400), and
+ * the checks above leave three probe records behind until `afterAll`. Delete them first, so
+ * these two start from the job's baseline.
+ */
+const releaseProbes = async (): Promise<void> => {
+  for (const uuid of created.splice(0)) {
+    const res = await gatewayFetch(`${BASE}/jobs/hvac/${uuid}`, { method: "DELETE" });
+    console.log(`release: DELETE /jobs/hvac/${uuid} -> ${res.status}`);
+  }
+};
+
+test.runIf(configured)("the vendor's createHvac still DISCARDS a sent rating unit", async () => {
+  await releaseProbes();
+  const res = await gatewayFetch(`${BASE}/jobs/${JOB_ID ?? ""}/hvac`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      hvacSystemEquipmentType: "Boiler",
+      hvacUpgradeAction: "Keep an existing system as is",
+      hvacSystemName: `${PROBE_NAME} (discarded unit)`,
+      hvacHeatingSystemEfficiencyRatingUnit: "HSPF",
+    }),
+  });
+  const text = await res.text();
+  expect(res.ok, `the probe create was accepted (HTTP ${res.status}: ${text.slice(0, 300)})`).toBe(
+    true,
+  );
+  const { uuid } = JSON.parse(text) as { uuid: string };
+  created.push(uuid);
+
+  const stored = (await listHvacs()).find((record) => record["uuid"] === uuid);
+  expect(stored, "the probe record reads back").toBeDefined();
+  // If this ever fails, createHvac now honours the unit: the writer's follow-up update is
+  // redundant. Read ADR 0031 before removing it.
+  expect(stored?.["hvacHeatingSystemEfficiencyRatingUnit"]).not.toBe("HSPF");
+});
+
+test.runIf(configured)(
+  "a stated rating unit on a create survives through createSnuggProAdapter",
+  async () => {
+    await releaseProbes();
+    const adapter = createSnuggProAdapter({ fetchImpl: gatewayFetch });
+
+    const { receipt } = await adapter.write(
+      {
+        hvac: [
+          {
+            hvacSystemEquipmentType: "Boiler",
+            hvacUpgradeAction: "Keep an existing system as is",
+            hvacSystemName: `${PROBE_NAME} (kept unit)`,
+            hvacHeatingSystemEfficiencyRatingUnit: "HSPF",
+          },
+        ],
+      },
+      ctx(),
+      meta(),
+    );
+    created.push(receipt);
+
+    const stored = (await listHvacs()).find((record) => record["uuid"] === receipt);
+    expect(stored?.["hvacHeatingSystemEfficiencyRatingUnit"]).toBe("HSPF");
   },
 );

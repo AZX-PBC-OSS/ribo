@@ -73,3 +73,4 @@ receives.
 | [0028](./0028-transport-agnostic-extraction-lives-in-core-not-a-sibling-package.md) | Transport-agnostic extraction lives in core, not a sibling package                             | Accepted |
 | [0029](./0029-the-skip-report-crosses-the-session-seam.md)                          | The skip report crosses the session seam as a session field and a tree flag, not a group state | Accepted |
 | [0030](./0030-field-descriptions-move-to-the-prompt-on-request.md)                  | Field descriptions move to the prompt on request, and ribo does the strip                      | Accepted |
+| [0031](./0031-a-write-that-lands-its-record-then-fails-carries-the-receipt.md)      | A write that lands its record and then fails carries the receipt                               | Accepted |

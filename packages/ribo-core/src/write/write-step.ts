@@ -1,6 +1,7 @@
 import type { ToolAdapter } from "./adapter.js";
 import { TerminalError } from "../storage/backoff.js";
 import type { SessionWriteResult, SessionWriteStep, SessionWriteInput } from "../storage/relay.js";
+import { ReceiptedWriteError } from "./receipted-write-error.js";
 import { describeLocated, zodIssues } from "../review/zod-issues.js";
 
 /**
@@ -109,7 +110,14 @@ export function toWriteStep<V extends Record<string, unknown>, C>(
       );
     }
 
-    const { receipt } = await adapter.write(fields.data, parsedCtx.data, { idempotencyKey });
-    return { receipts: { singleton: receipt } };
+    try {
+      const { receipt } = await adapter.write(fields.data, parsedCtx.data, { idempotencyKey });
+      return { receipts: { singleton: receipt } };
+    } catch (error) {
+      // This composition records no per-instance receipt, so there is nothing to
+      // checkpoint; unwrap so the relay still classifies the real failure (a
+      // terminal follow-up must not be retried as if it were transient).
+      throw error instanceof ReceiptedWriteError ? error.cause : error;
+    }
   };
 }
