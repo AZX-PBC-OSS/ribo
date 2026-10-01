@@ -489,8 +489,9 @@ const formatCause = (cause: ShapeRefusalCause): string => {
   if (cause.kind === "operation") {
     // The index is the culprit's position in the delta the model just sent —
     // `commitAttempt` translated it out of the combined array — so the model
-    // can find the culprit in its own reply.
-    return ` (caused by the applied ${formatOperation(cause.operation)} at index ${String(cause.index)} — retract that one to make this applicable)`;
+    // can find the culprit in its own reply. A culprit is never committed, so
+    // it is not "applied": both sides are back with the model.
+    return ` (caused by your ${formatOperation(cause.operation)} at index ${String(cause.index)} in this reply, which was not applied either — fix or drop one of the two)`;
   }
   const where = cause.leaf === undefined ? `"${cause.group}"` : `"${cause.group}.${cause.leaf}"`;
   return ` (caused by the ${cause.declaration} declaration on ${where}, which this operation would strand — retract the operation or the declaration; the declaration was kept)`;
@@ -639,8 +640,10 @@ export async function proposeShapeOperations(
       { role: "system", content: systemPrompt },
       {
         role: "user",
+        // Nothing committed means nothing to tag — and deriving an empty set
+        // would rethrow a schema defect the fold already turned into feedback.
         content:
-          feedback === undefined
+          feedback === undefined || committed.length === 0
             ? renderLeafInventory(entries, declarations)
             : renderLeafInventory(
                 entries,

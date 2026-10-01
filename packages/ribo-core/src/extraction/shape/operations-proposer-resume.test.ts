@@ -360,4 +360,50 @@ describe("proposer — the resume", () => {
     expect(paragraph).toMatch(/new operations only/i);
     expectCleanDerive(schema, ops);
   });
+
+  test("3.14 — a schema defect never throws out: the resume turn renders without deriving an empty committed set", async () => {
+    // An empty group is a schema defect the applier throws on. The first
+    // attempt's fold throws and is folded into feedback; rendering the resume
+    // turn's field list must not derive the (empty) committed set, or the same
+    // throw escapes the loop.
+    const defective = z.object({
+      e: z.object({}),
+      top: z.string().nullable().optional(),
+    });
+    const { chat, requests } = scriptedChat([
+      completion(wireOps([{ op: "drop", path: "top" }])),
+      completion(wireOps([])),
+    ]);
+
+    const ops = await proposeShapeOperations(defective, {
+      ...proposeOptions(chat, "schema-defect"),
+      maxRepairAttempts: 1,
+    });
+
+    expect(ops).toEqual([]);
+    expect(requests).toHaveLength(2);
+    expect(requests[1]!.messages.at(-1)!.content).toContain(
+      "would not produce a valid extraction shape",
+    );
+  });
+
+  test("3.15 — a culprit in the same reply is not called applied: it was never committed", async () => {
+    const { chat, requests } = scriptedChat([
+      completion(
+        wireOps([
+          { op: "drop", path: "g.a" },
+          { op: "retype", path: "g.a", to: "number" },
+        ]),
+      ),
+      completion(wireOps([])),
+    ]);
+
+    await proposeShapeOperations(schema, proposeOptions(chat, "culprit-wording"));
+
+    const feedback = requests[1]!.messages.at(-1)!.content;
+    const retypeLine = feedback.split("\n").find((line) => line.startsWith('- retype "g.a"'))!;
+    expect(retypeLine).toContain('drop "g.a" at index 0');
+    expect(retypeLine).not.toContain("the applied");
+    expect(retypeLine).toContain("not applied either");
+  });
 });
