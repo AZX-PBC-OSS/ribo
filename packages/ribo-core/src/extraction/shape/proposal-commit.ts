@@ -96,8 +96,18 @@ export const commitAttempt = (
   };
 
   // Dropped before validation: a model that re-sends committed work must not
-  // hit a duplicate conflict and lose the operation for good.
-  const fresh = incoming.filter((op) => !committed.some((c) => sameOperation(c, op)));
+  // hit a duplicate conflict and lose the operation for good. The kept
+  // operations' positions in `incoming` ride along — the model sees the delta
+  // it sent, so every index a refusal reports is one of those, never a
+  // position in this filtered list.
+  const fresh: ShapeOperation[] = [];
+  const freshAt: number[] = [];
+  for (const [position, op] of incoming.entries()) {
+    if (!committed.some((c) => sameOperation(c, op))) {
+      fresh.push(op);
+      freshAt.push(position);
+    }
+  }
 
   const combinedRun = runApplier([...committed, ...fresh]);
 
@@ -232,7 +242,7 @@ export const commitAttempt = (
         cause: {
           kind: "operation",
           operation: cause.operation,
-          index: cause.index - committed.length,
+          index: freshAt[cause.index - committed.length]!,
         },
       };
     }
@@ -252,16 +262,19 @@ export const commitAttempt = (
       (refusal) => refusal.index >= committed.length && causedIndex(refusal) === combinedIndex,
     );
     if (incomingRefusal !== undefined) {
+      // The reason already names the refusal this one caused; a cause field
+      // here would name the culprit itself.
       return {
         operation,
         reason: `named as the cause of another refusal: ${incomingRefusal.reason}`,
-        cause: { kind: "operation", operation, index: position },
       };
     }
     // Unreachable: the applier partitions applied and refused exactly, and
     // the candidates exclude precisely the refused and the cause-named.
     throw new Error(
-      `commitAttempt(): internal — the operation at incoming position ${position} was neither committed nor refused.`,
+      `commitAttempt(): internal — the operation at incoming position ${String(
+        freshAt[position],
+      )} was neither committed nor refused.`,
     );
   }
 };

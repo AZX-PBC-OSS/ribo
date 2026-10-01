@@ -269,4 +269,33 @@ describe("commitAttempt", () => {
       expectRefusedOnce(refused, [retype], committed);
     }
   });
+
+  test("1.16 — reported cause indexes are positions in incoming, counting filtered duplicates", () => {
+    const committedDrop: ShapeOperation = { op: "drop", path: "g.x" };
+    const duplicate: ShapeOperation = { op: "drop", path: "g.x" };
+    const dropA: ShapeOperation = { op: "drop", path: "g.a" };
+    const retype: ShapeOperation = { op: "retype", path: "g.a", to: "number" };
+    const { committed, refused } = commitAttempt(
+      schema,
+      {},
+      [committedDrop],
+      [duplicate, dropA, retype],
+    );
+    expect(committed).toEqual([committedDrop]);
+    const retypeRefusal = refused.find((r) => r.operation === retype)!;
+    // The culprit's position in the delta the model sent — the identical
+    // duplicate ahead of it counts, even though the rule filtered it.
+    expect(retypeRefusal.cause).toEqual({ kind: "operation", operation: dropA, index: 1 });
+    expectCommittedClean(schema, {}, committed);
+  });
+
+  test("1.17 — a culprit's report names no cause: the reason already says what happened", () => {
+    const drop: ShapeOperation = { op: "drop", path: "g.a" };
+    const retype: ShapeOperation = { op: "retype", path: "g.a", to: "number" };
+    const { committed, refused } = commitAttempt(schema, {}, [], [drop, retype]);
+    expect(committed).toEqual([]);
+    const dropRefusal = refused.find((r) => r.operation === drop)!;
+    expect(dropRefusal.reason).toMatch(/^named as the cause of another refusal/);
+    expect(dropRefusal.cause).toBeUndefined();
+  });
 });
