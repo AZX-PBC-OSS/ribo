@@ -14,7 +14,7 @@
  * NEW operations only, so a repair reply containing just the fixes — the
  * reply that broke the re-proposing loop, which accepted it as the whole set
  * and discarded 446 applied operations — is now the correct answer by
- * construction. The resume ADR records the choice; ADR 0016 records the
+ * construction. ADR 0032 records the choice; ADR 0016 records the
  * one-shot-plus-repair it amends.
  *
  * **Two distinct retry layers, one budget.** The chat-call step wraps
@@ -135,8 +135,8 @@ export interface ProposeOptions {
    * At exhaustion the proposal returns the committed set — every operation
    * that applied, in commit order — `[]` when nothing committed, a valid
    * operation set either way. See ADR 0016 for the argued default, ADR 0024
-   * for the surviving-subset amendment the committed set subsumes, and the
-   * resume ADR for the resume itself; a caller who would rather see an
+   * for the surviving-subset amendment the committed set subsumes, and ADR
+   * 0032 for the resume itself; a caller who would rather see an
    * exception can wrap and check the operations array.
    *
    * **Default 3, raised from 1 on measured evidence.** ADR 0016 argued one
@@ -594,7 +594,7 @@ const repairFeedback = (
  * model replies with a delta of NEW operations only. The default budget is
  * `maxRepairAttempts: 3`. At exhaustion, the function returns the committed
  * set — `[]` when nothing committed. ADR 0016 records the original `[]`
- * decision, ADR 0024 the surviving-subset amendment, and the resume ADR the
+ * decision, ADR 0024 the surviving-subset amendment, and ADR 0032 the
  * committed set that subsumes both.
  *
  * **Declarations.** Pass the `provenance`, `requiredOnCreate` and
