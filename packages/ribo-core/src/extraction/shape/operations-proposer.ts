@@ -92,13 +92,12 @@ import type { CommitRefusal } from "./proposal-commit.js";
 /**
  * Options for {@link proposeShapeOperations}.
  *
- * `chat`, `model`, `name` and `instructions` own the call the way
- * `singleShotExtractor`'s options do. `extract` runs once per schema; the
+ * `chat`, `model`, `context` and `instructions` own the call the way
+ * `singleShotExtractor`'s options do. The proposer runs once per schema; the
  * caller passes a `ChatClient` and a model, and the same instance would
- * naturally serve the eventual extractor. `name` is the schema constant
- * carried into repair turns as a context label, NOT the wire-schema name
- * (the proposer pins its own wire name so renaming the target does not
- * invalidate the response schema).
+ * naturally serve the eventual extractor. `context` labels this call in error
+ * messages, NOT the wire-schema name (the proposer pins its own wire name so
+ * renaming the target does not invalidate the response schema).
  */
 export interface ProposeOptions {
   /** The injected chat transport. A fake in tests; `openAiChat` / `helixChat` in production. */
@@ -494,7 +493,7 @@ const formatCause = (cause: ShapeRefusalCause): string => {
     return ` (caused by your ${formatOperation(cause.operation)} at index ${String(cause.index)} in this reply, which was not applied either — fix or drop one of the two)`;
   }
   const where = cause.leaf === undefined ? `"${cause.group}"` : `"${cause.group}.${cause.leaf}"`;
-  return ` (caused by the ${cause.declaration} declaration on ${where}, which this operation would strand — retract the operation or the declaration; the declaration was kept)`;
+  return ` (caused by the ${cause.declaration} declaration on ${where}, which this operation would strand — revise or drop the operation; declarations are the caller's and stay as they are)`;
 };
 
 /** The one-line label a resume turn prefixes a refusal with — the operation it names. */
@@ -545,8 +544,9 @@ const repairFeedback = (
     // fallback.
     return (
       `Your previous response was rejected by the transport: ${refusal}. ` +
-      "Re-attempt the proposal in the same JSON shape; the model's answer is " +
-      "the one a downstream extraction call can consume."
+      "Re-attempt in the same JSON shape; the model's answer is the one a downstream " +
+      "extraction call can consume. The `operations` array holds NEW operations only — the " +
+      "field list shows what is already applied and locked."
     );
   }
   if (failure === "json") {

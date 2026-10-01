@@ -338,7 +338,7 @@ describe("proposer — the resume", () => {
     expectCleanDerive(schema, ops);
   });
 
-  test("3.11 — the directive gains the resume paragraph; everything around it is byte-identical", async () => {
+  test("3.11 — the directive gains the resume paragraph between the last composition rule and the cap paragraph, both intact", async () => {
     const { chat, requests } = scriptedChat([completion(wireOps([]))]);
 
     const ops = await proposeShapeOperations(schema, proposeOptions(chat, "directive"));
