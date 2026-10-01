@@ -250,18 +250,19 @@ How it lands on a working extraction at every failure mode:
 - **A successful proposal returns the operations**; the applier's `assertShapeMapping` post-condition
   fires on the same path the hand-written call takes, so the proposed shape and a hand-written shape
   are interchangeable from the rest of the pipeline's perspective.
-- **A proposal the applier refuses is repaired on the next turn** — EVERY refusal the applier found
-  becomes the user-turn feedback (one line each, the applier's own message prefixed with the
-  operation it names), the model's previous (rejected) answer becomes the assistant turn, and the
-  schema's pre-`strict` JSON path travels unchanged. Two bad operations — or eighteen — cost one
-  repair turn, not N.
-- **At exhaustion (no repair budget, transport verdict repeats) the function returns the final
-  proposal's surviving operations** — `[]` when nothing survived, a valid operation set either way.
-  The applier accepts the survivors as a partial derivation, and the extraction runs end-to-end
-  without dropping on a model verdict the host cannot inspect mid-talk. The argument for salvaging
-  over a thrown error is a newcomer: handing them a working extraction either way is the goal the
-  wave locked. (ADR 0016 pinned `[]`-always; ADR 0024 amends it — the surviving subset is the same
-  "keep the pipeline open" property, held more often.)
+- **A proposal the applier refuses is repaired on the next turn** — and the turn is a resume, not a
+  re-proposal: operations that apply are committed and never re-sent, the model's previous answer is
+  not echoed back, and the request shows the field list as the committed operations left it (tagged
+  `[dropped]`, `[retyped → number]`, `[moved → …]`) plus every refusal, one line each. The model
+  replies with a delta of new operations only, so a reply containing just the fixes loses nothing.
+- **At exhaustion (no repair budget, transport verdict repeats) the function returns the committed
+  set — every operation that applied, in commit order** — `[]` only when nothing committed, a valid
+  operation set either way. The applier accepts the committed set as a derivation, and the
+  extraction runs end-to-end without dropping on a model verdict the host cannot inspect mid-talk.
+  The argument for salvaging over a thrown error is a newcomer: handing them a working extraction
+  either way is the goal the wave locked. (ADR 0016 pinned `[]`-always; ADR 0024 amended it to the
+  surviving subset; ADR 0032 amends both — the committed set holds the same "keep the pipeline
+  open" property on every exit path.)
 
 A host applying a model's proposal itself — or diffing, caching, or auditing one — has the same two
 surfaces at the applier level: `deriveExtractionShape` throws the first refusal, while its sibling

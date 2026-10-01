@@ -21,6 +21,7 @@
 import { z } from "zod";
 import { childPath, stripOptionalNullable } from "../../provenance/field-path.js";
 
+import type { DerivedExtractionShape } from "./derived-shape.js";
 import type { DeriveExtractionShapeOptions } from "./shape-operations.js";
 
 /** The caller's declarations the inventory tags — the derive options minus the operations. */
@@ -123,6 +124,39 @@ const readLeafValues = (schema: z.ZodType): readonly LeafValue[] | undefined => 
 };
 
 /**
+ * What the committed operations did to each original leaf, keyed by the
+ * leaf's path in the caller's schema — the tags a resume turn's field list
+ * renders. Read off the derived artifact's mapping alone, never by
+ * re-applying operations: the mapping already says where every extraction
+ * leaf came from, so a dropped leaf is an original leaf that is no entry's
+ * `source`, a retype is an entry with a `retype`, and a move is an entry
+ * whose extraction path differs from its source.
+ */
+export function appliedTags(
+  schema: z.ZodObject,
+  shape: DerivedExtractionShape,
+): ReadonlyMap<string, readonly string[]> {
+  const extractionPathBySource = new Map<string, string>();
+  for (const [extractionPath, entry] of Object.entries(shape.mapping.leaves)) {
+    extractionPathBySource.set(entry.source, extractionPath);
+  }
+  const tags = new Map<string, readonly string[]>();
+  for (const { path } of walkLeafInventory(schema)) {
+    const extractionPath = extractionPathBySource.get(path);
+    if (extractionPath === undefined) {
+      tags.set(path, ["[dropped]"]);
+      continue;
+    }
+    const leaf: string[] = [];
+    const entry = shape.mapping.leaves[extractionPath]!;
+    if (entry.retype !== undefined) leaf.push(`[retyped → ${entry.retype.extraction}]`);
+    if (extractionPath !== path) leaf.push(`[moved → ${extractionPath}]`);
+    if (leaf.length > 0) tags.set(path, leaf);
+  }
+  return tags;
+}
+
+/**
  * Render the inventory as text — what the model sees. One line per group
  * (a top-level object or array-of-object), followed by indented leaves with
  * their kind and description. Intentional choices:
@@ -132,6 +166,8 @@ const readLeafValues = (schema: z.ZodType): readonly LeafValue[] | undefined => 
  *   - **An enum or literal lists its members** beside the kind.
  *   - **Declarations render as bracketed tags** after the kind, so the model
  *     sees what a drop would strand before the applier refuses it.
+ *   - **Applied operations render as bracketed tags** after the declaration
+ *     tags, so a resume turn shows what is already applied and locked.
  *   - **No count summary or totals** — the proposal schema bounds the
  *     operation count, not the inventory. A model's reasoning lives in the
  *     leaves, not in how many there are.
@@ -150,6 +186,7 @@ const readLeafValues = (schema: z.ZodType): readonly LeafValue[] | undefined => 
 export function renderLeafInventory(
   entries: readonly LeafInventoryEntry[],
   declarations: InventoryDeclarations = {},
+  applied?: ReadonlyMap<string, readonly string[]>,
 ): string {
   if (entries.length === 0) return "Schema has no leaves.";
 
@@ -176,6 +213,7 @@ export function renderLeafInventory(
     const tags = [
       ...groupTags(leaf.path, declarations),
       ...leafTags(leaf.path, leaf.path, declarations),
+      ...(applied?.get(leaf.path) ?? []),
     ];
     lines.push(`- ${leaf.path} (${renderKind(leaf)})${renderTags(tags)}${tail}`);
   }
@@ -186,7 +224,10 @@ export function renderLeafInventory(
     for (const leaf of leaves) {
       const inside = leaf.path.slice(group.length + 1);
       const tail = leaf.description === undefined ? "" : ` — "${leaf.description}"`;
-      const tags = renderTags(leafTags(group, inside, declarations));
+      const tags = renderTags([
+        ...leafTags(group, inside, declarations),
+        ...(applied?.get(leaf.path) ?? []),
+      ]);
       lines.push(`    - ${inside} (${renderKind(leaf)})${tags}${tail}`);
     }
   }
