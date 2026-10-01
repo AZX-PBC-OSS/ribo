@@ -8,13 +8,13 @@ import { proposeShapeOperations } from "./operations-proposer.js";
 /**
  * @file The proposer's half of the partial-application change.
  *
- * The repair turn now receives EVERY refusal the applier found in one pass —
+ * The repair turn receives EVERY refusal the applier found in one pass —
  * two bad operations (or eighteen) cost one repair turn, not N — and at
- * exhaustion the function returns the surviving subset of the final proposal
- * instead of `[]`. `[]` remains the answer when nothing survived, and the two
- * transport-exhaustion exits still return it: no proposal arrived on that
- * turn to partially apply. ADR 0016's exhaustion default is amended by ADR
- * 0023; the `[]` case is a special case of the new value, not a contradiction.
+ * exhaustion the function returns what applied rather than `[]`: first the
+ * final proposal's surviving subset (ADR 0024's amendment of ADR 0016), now
+ * the committed set the resume loop folded each attempt into. `[]` remains
+ * the answer when nothing applied, and transport exhaustion on the FIRST
+ * attempt still returns it: nothing was ever committed.
  */
 
 const surveySchema = z.object({
@@ -149,10 +149,11 @@ describe("proposer — exhaustion returns the surviving subset", () => {
     expect(requests).toHaveLength(2);
   });
 
-  test("transport exhaustion on a repair attempt still returns [] — no proposal arrived to salvage", async () => {
-    // The two transport-exhaustion exits keep their value even when an
-    // earlier attempt left survivors: on this turn the model was never
-    // reached, so there is nothing to partially apply.
+  test("transport exhaustion on a resume attempt returns attempt 1's committed operations", async () => {
+    // The transport-exhaustion exit returns the committed set even when an
+    // earlier attempt committed work: on this turn the model was never
+    // reached, so nothing new can be committed — but what already committed
+    // is not lost (the spec's §3 decision).
     const limited = ChatError.http(429, "openAiChat: 429 from /chat/completions");
     const { chat, requests } = scriptedChat([
       completion({
@@ -173,8 +174,8 @@ describe("proposer — exhaustion returns the surviving subset", () => {
       maxRepairAttempts: 1,
       networkRetryDelay: () => Promise.resolve(),
     });
-    expect(ops).toEqual([]);
-    // The initial call plus the repair attempt's three network tries.
+    expect(ops).toEqual([{ op: "drop", path: "vessel.notes" }]);
+    // The initial call plus the resume attempt's three network tries.
     expect(requests).toHaveLength(4);
   });
 });

@@ -408,23 +408,23 @@ describe("proposer — repair", () => {
       path: "vessel.identification.buildYear",
       to: "number",
     });
-    // Two turns, with the second carrying the previous output as an assistant
-    // turn and the refusal text in a user turn.
+    // Two turns, with the second a fresh resume request: no assistant turn
+    // echoes the previous answer; the refusal text closes the request.
     expect(requests).toHaveLength(2);
     const repair = requests[1]!;
-    expect(repair.messages.find((m) => m.role === "assistant")?.content).toContain(
-      "vessel.typoLeaf",
-    );
+    expect(repair.messages.find((m) => m.role === "assistant")).toBeUndefined();
+    expect(repair.messages.map((m) => m.role)).toEqual(["system", "user", "user"]);
     const feedback = repair.messages.at(-1)!;
     expect(feedback.role).toBe("user");
     expect(feedback.content).toContain("not produce a valid extraction shape");
     expect(feedback.content).toContain("vessel.typoLeaf");
-    // The leaf inventory is on the FIRST turn only — repair appends the
-    // assistant + user feedback pair without re-rendering the inventory.
+    // The field list is re-rendered on the resume turn — tagged with what the
+    // committed operations did (nothing committed here, so no applied tags).
     const inventoryLines = repair.messages.filter(
       (m) => m.content.includes("engines (array)") || m.content.includes("vessel (object)"),
     );
     expect(inventoryLines).toHaveLength(1);
+    expect(inventoryLines[0]!.content).not.toContain("[dropped]");
   });
 
   test("a repair reuses the same response_format the initial attempt used", async () => {
