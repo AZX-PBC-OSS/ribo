@@ -153,6 +153,24 @@ describe("the partition operation", () => {
     expect(shape.partitions).toEqual({});
   });
 
+  test("a partition on a group a drop in the same list removes: refused consequential, the cause is the drop", () => {
+    const drop: ShapeOperation = { op: "drop", path: "systems" };
+    const partition: ShapeOperation = {
+      op: "partition",
+      group: "systems",
+      parts: { identity: ["make"] },
+    };
+
+    const { refusals } = deriveExtractionShapePartially(surveySchema, {
+      operations: [drop, partition],
+    });
+
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0]!.operation).toEqual(partition);
+    expect(refusals[0]!.class).toBe("consequential");
+    expect(refusals[0]!.cause).toEqual({ kind: "operation", operation: drop, index: 0 });
+  });
+
   test("1.6 a top-level-leaf group, an empty parts record, and a part with no fields: each refused local", () => {
     const onLeaf = deriveExtractionShapePartially(surveySchema, {
       operations: [{ op: "partition", group: "notes", parts: { all: ["notes"] } }],

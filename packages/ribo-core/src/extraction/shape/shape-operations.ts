@@ -697,11 +697,22 @@ export function deriveExtractionShapePartially(
     }
     const groupNode = shapedTree.children.get(group);
     if (groupNode === undefined) {
+      // A dropped group is the drop's doing — name it, as a dropped field does.
+      const cover = coveringDrop(appliedDrops, [group]);
       return {
-        class: "local",
+        class: cover === undefined ? "local" : "consequential",
         reason:
           `deriveExtractionShape(): partition names group "${group}", which is not a top-level ` +
           "property of the schema — it may name a dropped group, or nothing at all.",
+        ...(cover === undefined
+          ? {}
+          : {
+              cause: {
+                kind: "operation",
+                operation: cover.operation,
+                index: cover.index,
+              } as ShapeRefusalCause,
+            }),
       };
     }
     if (groupNode.kind === "leaf") {
