@@ -149,9 +149,9 @@ export interface EnvelopedSchemaExtractorOptions<
   readonly extractionSchema: ExtractionTarget<V, NoProvenance>["extractionSchema"];
   /**
    * The derived shape's partitions record (`DerivedExtractionShape.partitions`),
-   * forwarded to the per-group split. Only on this shape: a raw caller has no
-   * extraction-space paths to give — the derivation runs inside, and its own
-   * partitions come from the operations that built it. A non-empty record also
+   * forwarded to the per-group split. Only on this shape: the raw shape runs
+   * `enveloped()` inside and takes no shape operations, so it has no
+   * partitions to give. A non-empty record also
    * forces the per-group path: one call over the whole schema would mix parts.
    */
   readonly partitions?: ShapePartitions;

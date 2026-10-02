@@ -192,6 +192,34 @@ describe("partition prompts", () => {
     expect(singleton!.messages[0]!.content).not.toContain("This call covers");
   });
 
+  test("scopedInstanceExtractor with a partitioned object group: each part's fill request carries its label line", async () => {
+    const fillBodies: Record<string, string> = {
+      "demo-basedata-fill-0": JSON.stringify({ basedata: leaves("yearBuilt", "storeys") }),
+      "demo-basedata-fill-1": JSON.stringify({ basedata: leaves("externalWall", "floorType") }),
+    };
+    const { chat, requests } = fakeChat((request) => ({
+      content: fillBodies[requestName(request)] ?? "{}",
+      finishReason: "stop",
+    }));
+
+    await scopedInstanceExtractor({
+      target,
+      chat,
+      model: "m",
+      inventory: async () => ({ systems: [] }),
+      buildFillInstructions: (key) => `Fill ${key}.`,
+      partitions: PARTITIONS,
+    }).extract({ text: "the transcript", annotations: {} });
+
+    const byName = new Map(requests.map((r) => [requestName(r), r]));
+    expect(byName.get("demo-basedata-fill-0")?.messages[0]!.content).toContain(
+      "This call covers the envelope fields of basedata.",
+    );
+    expect(byName.get("demo-basedata-fill-1")?.messages[0]!.content).toContain(
+      "This call covers the comfort fields of basedata.",
+    );
+  });
+
   test("2.9 schemaExtractor: without partitions a fitting schema makes one call (regression pin); with them it makes one call per part", async () => {
     const plain = bodyChat();
     await schemaExtractor<Values>({
