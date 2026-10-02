@@ -77,16 +77,22 @@ Decided in conversation before this design was written:
   sub-objects would cost nesting depth, and Helix's depth cap already binds the per-group pieces.
 - **Remainder.** A group field not named in any part goes to one implicit remainder part, so
   nothing goes unextracted.
+- **Fields are the group's direct fields** — one segment, the group's (or its element's) own
+  properties. The split cuts a group's properties; it cannot carve inside a sub-object, so a
+  deeper path is refused rather than silently served wrong.
 - **Refused**, each with a reason the proposer is told:
   - two partitions on one group (`set`);
-  - a field in two parts, a field that does not exist or that a drop removed (the drop named as
-    cause);
-  - an empty or duplicate label within the group;
+  - a group that is not an object group or collection — a top-level leaf rides the split's loose
+    portion and would be silently ignored;
+  - no parts, or a part with no fields;
+  - a field in two parts, a field that is not a direct leaf of the group, or a field under an
+    applied drop (`consequential`, the drop named as cause, as `retype` does);
+  - an empty or duplicate label within the group, or the reserved label `remainder`;
   - a group at "row" or "none" provenance (one quote per row cannot be shared across calls);
   - a group that a `nest` creates (partition addresses the caller's groups; a nest group's layout
     is the proposer's to choose already);
   - a group that a `regroup` also restructures (`set`: paths would mean two things).
-- **Composes with** drop (a part whose fields are all dropped vanishes) and retype.
+- **Composes with** retype, and with drops of fields it does not name.
 - **The part is the unit of both halves of the pair.** Under per-instance fill: one call per part
   per instance. Under batched fill: one call per part for all instances. An unpartitioned group is
   one part.
@@ -123,17 +129,23 @@ Decided in conversation before this design was written:
   `discriminator`, `distinguishedBy` — and the not-current candidates as out of scope, as the
   per-instance scope block does. The label line of §5 applies.
 - **Strict validation:** every roster id appears exactly once. A missing or duplicated id fails the
-  item, retryably, with the reason in the retry. At exhaustion the item is skipped through the
-  existing skip machinery: a skipped item naming the group and part with no instance, and the
-  part's fields abstained on every instance (`fillAbsentKeys`), so the array has no holes.
+  item, retryably; the engine re-runs the same item (its messages are built at plan time), so the
+  retry is a re-send and the reason is reported on the unit stream's error event, not in the
+  request. Feeding the reason back would mean changing the engine's retry ownership — out of
+  scope. At exhaustion, with `onItemFailure: "skip"`, the item is skipped through the existing
+  skip machinery: a skipped item naming the group and part with no instance, and the part's
+  fields abstained on every instance (derived from the piece's element schema), so the array has
+  no holes.
 - **Merge by id:** each element is written at its instance's roster position and merged with the
   instance's other pieces (`mergeGroupPieces`). `instanceId` is stripped before writing. Reply
   order does not matter.
 - **Choosing the mode.** The scoped-instance extractor gains
   `fill: "per-instance" | "batched" | { batchAbove: N }`, decided **per group at plan time** from
   the roster's current-instance count: `{ batchAbove: 2 }` is per-instance for one or two instances
-  and batched for three or more. The default is per-instance, so existing hosts see no change; the
-  instance ladder's tier 1 can take either. The mode each group used is recorded on the result. The
+  and batched for three or more. The default is per-instance, so existing hosts' requests and
+  fields do not change; the instance ladder's tier 1 can take either. The mode each group used is
+  recorded on the result as an additive, non-persisted `fillModes` field, forwarded by
+  `reshapedExtractor` so the documented composition carries it. The
   per-group choice is a plain value so that a future planner can set it per group (§9).
 - **Composes with** gap-fill after it (it addresses fields by indexed path) and with row-provenance
   collections (each element carries its own row quote).
