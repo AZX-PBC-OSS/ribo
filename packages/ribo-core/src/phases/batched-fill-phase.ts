@@ -304,7 +304,7 @@ export function batchedFillPhase<V extends Record<string, unknown>, P = NoProven
         const withLabel =
           group.label === undefined
             ? base
-            : `${base}\n\n${partitionLabelLine(group.key, group.label)}`;
+            : `${base}\n\n${partitionLabelLine(group.key, group.label, group.elsewhere)}`;
         const instructions =
           group.fieldDescriptions === "prompt"
             ? withFieldGuidance(withLabel, group.schema)

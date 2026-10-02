@@ -160,6 +160,15 @@ export interface ExtractionGroup {
    * The request builders render {@link partitionLabelLine} from it.
    */
   readonly label?: string;
+  /**
+   * The group's fields this piece does NOT ask for — every other part's, and a
+   * same-part sibling piece's — in declaration order. Present exactly when
+   * `label` is. The request names them so a fact whose field is answered by
+   * another call is left out, not pushed into the nearest field this call can
+   * see: measured, a narrowed call put a manufacturer in a name field and a
+   * model number in an indoor-model field when the real fields were elsewhere.
+   */
+  readonly elsewhere?: readonly string[];
 }
 
 /**
@@ -257,8 +266,18 @@ function normalizeOptions(options?: number | SplitOptions): SplitOptions {
  * prompt's only trace of it. Exported because the phase presets build their own
  * requests and reuse it verbatim.
  */
-export function partitionLabelLine(groupKey: string, label: string): string {
-  return `This call covers the ${label} fields of ${groupKey}.`;
+export function partitionLabelLine(
+  groupKey: string,
+  label: string,
+  elsewhere: readonly string[] = [],
+): string {
+  const line = `This call covers the ${label} fields of ${groupKey}.`;
+  if (elsewhere.length === 0) return line;
+  return (
+    `${line} These ${groupKey} fields are extracted in other calls, not this one: ` +
+    `${elsewhere.join(", ")}. If the transcript states one of them, leave it out here — its ` +
+    "value is captured by its own call, so do not put it in a field of this one."
+  );
 }
 
 /**
@@ -479,6 +498,10 @@ const groupCandidate = (value: z.ZodType): z.ZodType =>
   // function only receives schemas built through the classic `z` API.
   value instanceof z.ZodArray ? arrayElement(value) : value;
 
+/** The group (or element) object a packed piece asks for — its fields are its shape's keys. */
+const pieceCandidate = (piece: ExtractionGroup): z.ZodObject =>
+  groupCandidate(fieldAt((piece.schema as z.ZodObject).shape, piece.key)) as z.ZodObject;
+
 /**
  * Split one top-level group's properties into pieces that satisfy BOTH caps,
  * greedily in declaration order. Used when a byte cap is supplied; the
@@ -619,7 +642,11 @@ function cutAlongParts(
     const partCandidate = z.strictObject(partShape);
     for (const piece of pack(partCandidate)) pieces.push({ ...piece, label });
   }
-  return pieces.map((piece, part) => ({ ...piece, part, parts: pieces.length }));
+  return pieces.map((piece, part) => {
+    const own = new Set(Object.keys(pieceCandidate(piece).shape));
+    const elsewhere = propertyKeys.filter((field) => !own.has(field));
+    return { ...piece, part, parts: pieces.length, elsewhere };
+  });
 }
 
 /**

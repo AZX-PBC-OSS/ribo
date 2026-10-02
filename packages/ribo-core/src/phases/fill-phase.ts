@@ -277,7 +277,9 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
                     fieldDescriptions: group.fieldDescriptions,
                     // A labelled piece (a partitions entry on a singleton
                     // object group) says so; absent, no line and today's text.
-                    ...(group.label === undefined ? {} : { label: group.label }),
+                    ...(group.label === undefined
+                      ? {}
+                      : { label: group.label, elsewhere: group.elsewhere }),
                   },
                 );
           jobs.push({
@@ -327,7 +329,9 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
               fieldDescriptions: group.fieldDescriptions,
               // A labelled piece (a partitions entry) says so; absent, no
               // line and today's text.
-              ...(group.label === undefined ? {} : { label: group.label }),
+              ...(group.label === undefined
+                ? {}
+                : { label: group.label, elsewhere: group.elsewhere }),
             },
           );
           jobs.push({

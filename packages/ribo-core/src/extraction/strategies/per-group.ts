@@ -564,7 +564,7 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
         const instructions =
           group.label === undefined
             ? baseInstructions
-            : `${baseInstructions}\n\n${partitionLabelLine(group.key, group.label)}`;
+            : `${baseInstructions}\n\n${partitionLabelLine(group.key, group.label, group.elsewhere)}`;
         const projected = projectTarget<V, P, typeof key>(target, key, {
           instructions,
           leafKeys,

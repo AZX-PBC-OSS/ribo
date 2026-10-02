@@ -255,6 +255,8 @@ export interface PreparedGroup {
    * piece's label line; the merge and the identity are the group's own.
    */
   readonly label?: string;
+  /** The group's fields other calls cover — {@link ExtractionGroup.elsewhere}, copied. */
+  readonly elsewhere?: readonly string[];
 }
 
 /** The options bag {@link buildFillMessages} takes beside its positional inputs. */
@@ -265,6 +267,8 @@ export interface FillMessageOptions extends FieldGuidanceOptions {
    * block.
    */
   readonly label?: string;
+  /** The group's fields other calls cover, named in the label line. */
+  readonly elsewhere?: readonly string[];
 }
 
 /**
@@ -340,7 +344,7 @@ export function buildFillMessages<V extends Record<string, unknown>, P = NoProve
   const withLabel =
     label === undefined
       ? baseInstructions
-      : `${baseInstructions}\n\n${partitionLabelLine(groupKey, label)}`;
+      : `${baseInstructions}\n\n${partitionLabelLine(groupKey, label, options?.elsewhere)}`;
   const withGuidance =
     pieceSchema !== undefined && fieldDescriptionsMode(options) === "prompt"
       ? withFieldGuidance(withLabel, pieceSchema)
@@ -480,6 +484,7 @@ export function prepareGroups<V extends Record<string, unknown>, P = NoProvenanc
       parts: group.parts,
       leafKeys,
       label: group.label,
+      elsewhere: group.elsewhere,
     };
   });
 }

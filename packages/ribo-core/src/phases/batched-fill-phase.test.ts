@@ -453,6 +453,12 @@ describe("batched fill — one call per (group, piece), keyed by roster id", () 
     expect(byName.get("demo-systems-fill-1-batched")!.messages[0]!.content).toContain(
       "This call covers the output fields of systems.",
     );
+    expect(byName.get("demo-systems-fill-0-batched")!.messages[0]!.content).toContain(
+      "These systems fields are extracted in other calls, not this one: rating, year.",
+    );
+    expect(byName.get("demo-systems-fill-1-batched")!.messages[0]!.content).toContain(
+      "These systems fields are extracted in other calls, not this one: make, fuel.",
+    );
 
     expect(result.fields.systems).toEqual([
       { make: env("furnace"), fuel: env("gas"), rating: env("20"), year: env("1998") },

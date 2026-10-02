@@ -265,3 +265,24 @@ describe("splitExtractionSchema — partitions", () => {
     expect(guidance).toBeGreaterThan(label);
   });
 });
+
+describe("splitExtractionSchema — the fields other calls cover", () => {
+  test("each labelled piece names the group's fields not in it, in declaration order, including a same-part sibling piece's", () => {
+    const cap = serializedCharCount(basedataPiece(["yearBuilt", "storeys", "externalWall"])) - 1;
+    const groups = splitExtractionSchema(schema, {
+      maxSerializedCharsPerGroup: cap,
+      partitions: {
+        basedata: { big: ["yearBuilt", "storeys", "externalWall"], small: ["floorType"] },
+      },
+    });
+
+    const pieces = groups.filter((g) => g.key === "basedata");
+    const all = ["yearBuilt", "storeys", "externalWall", "floorType"];
+    for (const piece of pieces) {
+      const own = pieceFields(piece);
+      expect(piece.elsewhere, piece.label).toEqual(all.filter((field) => !own.includes(field)));
+    }
+    // An unpartitioned group's piece carries no list, so its request is unchanged.
+    expect(groups.find((g) => g.key === "systems")!.elsewhere).toBeUndefined();
+  });
+});

@@ -136,6 +136,16 @@ describe("partition prompts", () => {
       "demo-systems",
     ]);
     const byName = new Map(requests.map((r) => [requestName(r), r]));
+    // Each part's call names the group's fields that other calls cover, so a
+    // fact whose field is elsewhere is left out rather than pushed into the
+    // nearest field this call can see (the smoke run's failure mode).
+    expect(byName.get("demo-basedata-0")!.messages[0]!.content).toContain(
+      "These basedata fields are extracted in other calls, not this one: externalWall, floorType.",
+    );
+    expect(byName.get("demo-basedata-1")!.messages[0]!.content).toContain(
+      "These basedata fields are extracted in other calls, not this one: yearBuilt, storeys.",
+    );
+    expect(byName.get("demo-systems")!.messages[0]!.content).not.toContain("other calls");
     expect(byName.get("demo-basedata-0")!.messages[0]!.content).toContain(
       "This call covers the envelope fields of basedata.",
     );
@@ -185,6 +195,11 @@ describe("partition prompts", () => {
           ? "This call covers the identity fields of systems."
           : "This call covers the output fields of systems.";
       expect(request.messages[0]!.content, name).toContain(labelLine);
+      const elsewhere =
+        part === 0
+          ? "These systems fields are extracted in other calls, not this one: ratingKw."
+          : "These systems fields are extracted in other calls, not this one: make, fuel.";
+      expect(request.messages[0]!.content, name).toContain(elsewhere);
     }
     // The unpartitioned singleton's fill carries no label line.
     const singleton = requests.find((r) => requestName(r) === "demo-basedata-fill");
