@@ -107,6 +107,14 @@ Decided in conversation before this design was written:
 - **The label in the prompt.** Every call for a labelled piece gets one line from core: "This call
   covers the _heating_ fields of _hvac_." The same line under per-group, per-instance and batched
   fill. Adapter instructions stay keyed by group.
+- **The fields other calls cover.** The same line names the group's fields this piece does not
+  ask for (`ExtractionGroup.elsewhere`) and says to leave their facts out. Added after the Helix
+  smoke run (2026-10-02, `gpt-5.6-luna`, three corpus transcripts): without it a narrowed call
+  pushed facts into the nearest field it could see — a model number copied into an indoor-model
+  field, a manufacturer into a name field — and one transcript's hard hallucinations went 3 → 7.
+  With it, partitioned runs matched the unpartitioned baseline's hallucination and correct counts
+  on all three transcripts, one sample each. It is r1.6's negative-sibling remedy applied to
+  fields.
 - **Plumbing.** `schemaExtractor`, `perGroupExtractor` and the scoped-instance extractor accept
   `partitions` and pass it to the split. Composing a proposed shape becomes
   `schemaExtractor({ extractionSchema: shape.extractionSchema, partitions: shape.partitions, … })`,
@@ -208,6 +216,9 @@ for `@azx/ribo-core` (minor).
   opt-in in core; a host turns it on.
 - **The proposer choosing the fill mode or a model per group.** The future planner (ADR 0011). §6's
   per-group choice is a plain value so a planner can set it without the phase changing.
-- **Read-only context across parts** — a cooling call seeing `hvacSystemEquipmentType` without
-  extracting it. Each call already has the transcript and the instance's description.
+- **Read-only context values across parts** — a cooling call seeing the heating call's extracted
+  `hvacSystemEquipmentType` value. Each call already names the fields other calls cover (§5) and
+  has the transcript and the instance's description. The smoke run's one remaining invented value
+  sat in the implicit remainder part, which has no topic; a proposer that names every field in a
+  real part avoids it.
 - **Carving fields into new top-level groups** (§2).

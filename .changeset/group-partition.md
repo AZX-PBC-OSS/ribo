@@ -14,5 +14,5 @@ New API: `partition` joins the `ShapeOperation` union; `DerivedExtractionShape.p
 (`ShapePartitions`) records the applied cut; `SplitOptions.partitions`, `PerGroupOptions.partitions`,
 `ScopedFillOptions.partitions` and the enveloped `schemaExtractor`'s `partitions` option forward it
 to the split (a non-empty record forces the per-group path over single-shot);
-`partitionLabelLine(groupKey, label)` renders the label line. A host that passes no partitions gets
+`partitionLabelLine(groupKey, label, elsewhere?)` renders the label line, naming the group's fields other calls cover (`ExtractionGroup.elsewhere`) so a narrowed call leaves their facts out. A host that passes no partitions gets
 byte-identical requests, phase lists and fields.

@@ -39,6 +39,12 @@ untouched, so identity, the merge, review and write-back see one collection exac
 skip report all keep working unchanged, because the cut never leaves the group. An oversized part
 still splits by size inside itself, under the one label.
 
+**A narrowed call must be told what it cannot see.** A real-model smoke run showed a part's call
+filing facts into the nearest visible field when their own field sat in another part (one
+transcript's hard hallucinations 3 → 7). Each partitioned call therefore names the group's fields
+other calls cover and says to leave their facts out; with that, the smoke run matched the
+unpartitioned baseline. The cost of partitioning is not only calls.
+
 **`nest` is unchanged.** It stays the way a flat schema gains structure. Partition addresses the
 caller's own groups — a nest-created group is refused, and a partitioned group cannot also be
 regrouped, since its paths would mean two things.
