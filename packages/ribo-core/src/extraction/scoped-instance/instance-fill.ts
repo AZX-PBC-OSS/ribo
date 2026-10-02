@@ -48,8 +48,10 @@ import type { RetryBudgetObserver } from "../../async/retry-budget.js";
 import { assertWireSafeSchemaName, narrowToLeaves } from "../extraction-common.js";
 import type { FieldDescriptionsMode, FieldGuidanceOptions } from "../field-guidance.js";
 import { fieldDescriptionsMode, withFieldGuidance } from "../field-guidance.js";
+import { batchedFillPhase } from "../../phases/batched-fill-phase.js";
 import { fillPhase } from "../../phases/fill-phase.js";
 import { inventoryPhase } from "../../phases/inventory-phase.js";
+import type { Phase } from "../../phases/phase.js";
 import { partitionedLeafKeys } from "../strategies/per-group.js";
 import {
   MAX_NULLABLE_UNIONS_PER_CALL,
@@ -154,6 +156,30 @@ export interface ScopedFillOptions<V extends Record<string, unknown>, P = NoProv
    * today's.
    */
   readonly partitions?: ShapePartitions;
+  /**
+   * How each collection group's instances are filled, decided per group at plan
+   * time from the roster's current-instance count (design
+   * `group-partition-and-batched-fill-design.md` §6):
+   *
+   * - `"per-instance"` (the default) — one fill call per `(piece, instance)`,
+   *   today's behaviour. The batched phase is not added at all, so the phase
+   *   list, the unit stream and every request are byte-identical to today's.
+   * - `"batched"` — one fill call per `(group, piece)` covering every current
+   *   instance in a single response, each element keyed by its roster id.
+   * - `{ batchAbove: n }` — batched exactly when the group's current-instance
+   *   count exceeds `n`; per-instance otherwise.
+   *
+   * The mode each collection group with current instances used is recorded on
+   * the result's `fillModes` — additive and never persisted.
+   */
+  readonly fill?: "per-instance" | "batched" | { readonly batchAbove: number };
+  /**
+   * What happens when one fill call fails, forwarded to both fill phases:
+   * `"abort"` (the default) fails the run; `"skip"` abstains the failed piece
+   * (per instance for the per-instance fill, on every instance for a batched
+   * one) and the run resolves. See `FillPhaseOptions.onItemFailure`.
+   */
+  readonly onItemFailure?: "abort" | "skip";
   /**
    * Where the schema's field descriptions travel, as in
    * {@link SingleShotOptions.fieldDescriptions}. Applies to the fill calls; the
@@ -510,6 +536,8 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
     maxNullableUnionsPerGroup,
     maxSerializedCharsPerGroup,
     partitions,
+    fill = "per-instance",
+    onItemFailure,
     fieldDescriptions,
     onUnit,
     onRetryBudget,
@@ -541,41 +569,87 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
   const groups = splitExtractionSchema(target.extractionSchema, splitOptions);
   const prepared = prepareGroups(target, groups, { fieldDescriptions });
 
-  const engine = phasedExtractor<V, P>({
-    target,
-    phases: [
-      inventoryPhase<V, P>({ inventory, prepared, instanceCap }),
-      fillPhase<V, P>({
-        target,
-        chat,
-        model,
-        maxTokens,
-        prepared,
-        buildFillInstructions,
-      }),
-    ],
-    concurrency,
-    maxRetries,
-    stepTimeoutMs,
-    perCallCeilingMs,
-    delay,
-    // BackoffOptions members pass straight through: the signature is unchanged,
-    // so TypeScript would not catch dropping them, and no test supplies them —
-    // a silent loss of injectable jitter, which is what makes retry tests
-    // deterministic. The defaults match the engine's own.
-    baseMs: baseMs ?? DEFAULT_BACKOFF_BASE_MS,
-    capMs: capMs ?? DEFAULT_BACKOFF_CAP_MS,
-    random,
-    requireRetryBudget,
-    onRetryBudget,
-    onUnit,
-  });
+  // The per-group fill-mode decision (see the `fill` option): the two fill
+  // phases' filters are its complement and itself, so a collection is filled
+  // by exactly one of them.
+  const batchedFor = (key: string, currentInstances: number): boolean => {
+    if (fill === "batched") return true;
+    if (fill === "per-instance") return false;
+    return currentInstances > fill.batchAbove;
+  };
 
   return {
     async extract(
       transcript: AnnotatedTranscript,
       extractOptions?: ExtractOptions,
     ): Promise<ExtractionResult<Enveloped<V, P>>> {
+      // The mode decisions are recorded on the result, but the extractor cannot
+      // read phase notes after the engine returns — so the includeGroup
+      // closures record them as each phase plans, into THIS call's own map.
+      // The phases (and engine) are built per call precisely so two overlapping
+      // extract() calls never share it — a map held beside the engine would be
+      // shared exactly as a module-level one would be.
+      const fillModes = new Map<string, "per-instance" | "batched">();
+      const includePerInstance = (key: string, count: number): boolean => {
+        if (batchedFor(key, count)) return false;
+        fillModes.set(key, "per-instance");
+        return true;
+      };
+      const includeBatched = (key: string, count: number): boolean => {
+        if (!batchedFor(key, count)) return false;
+        fillModes.set(key, "batched");
+        return true;
+      };
+
+      const phases: Phase<V, P>[] = [
+        inventoryPhase<V, P>({ inventory, prepared, instanceCap }),
+        fillPhase<V, P>({
+          target,
+          chat,
+          model,
+          maxTokens,
+          prepared,
+          buildFillInstructions,
+          includeGroup: includePerInstance,
+          ...(onItemFailure === undefined ? {} : { onItemFailure }),
+        }),
+        // The batched phase exists only when the host opted into it — with the
+        // default "per-instance" the phase list is today's, byte-identically.
+        ...(fill === "per-instance"
+          ? []
+          : [
+              batchedFillPhase<V, P>({
+                target,
+                chat,
+                model,
+                maxTokens,
+                prepared,
+                includeGroup: includeBatched,
+                ...(onItemFailure === undefined ? {} : { onItemFailure }),
+              }),
+            ]),
+      ];
+
+      const engine = phasedExtractor<V, P>({
+        target,
+        phases,
+        concurrency,
+        maxRetries,
+        stepTimeoutMs,
+        perCallCeilingMs,
+        delay,
+        // BackoffOptions members pass straight through: the signature is unchanged,
+        // so TypeScript would not catch dropping them, and no test supplies them —
+        // a silent loss of injectable jitter, which is what makes retry tests
+        // deterministic. The defaults match the engine's own.
+        baseMs: baseMs ?? DEFAULT_BACKOFF_BASE_MS,
+        capMs: capMs ?? DEFAULT_BACKOFF_CAP_MS,
+        random,
+        requireRetryBudget,
+        onRetryBudget,
+        onUnit,
+      });
+
       const result = await engine.extract(transcript, extractOptions);
       // `normalize` wraps the engine rather than being handed to it, and both
       // halves of that matter. Today it runs AFTER the closing parse and takes
@@ -586,7 +660,11 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
       // the types. Awaiting the engine and applying it to `result.fields`
       // preserves today's order exactly — and needs no cast, because the
       // parsed fields are already `Enveloped<V, P>`.
-      return { ...result, fields: normalize(result.fields) };
+      return {
+        ...result,
+        fields: normalize(result.fields),
+        fillModes: Object.fromEntries(fillModes),
+      };
     },
   };
 }

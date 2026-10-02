@@ -84,6 +84,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "baseDocumentCaptureSchema",
     "basePayloadSchema",
     "baseRecordingSchema",
+    "batchedFillPhase",
     "budgetExtractor",
     "buildFieldPath",
     "buildFillMessages",

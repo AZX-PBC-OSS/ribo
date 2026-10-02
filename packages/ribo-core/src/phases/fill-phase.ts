@@ -35,6 +35,7 @@ import { z } from "zod";
 import { demandNote } from "./phase-notes.js";
 import { isExtractedLeaf } from "../provenance/extracted-leaves.js";
 import { abstainedValue } from "../provenance/abstained-value.js";
+import { fillAbsentKeys } from "./fill-abstain.js";
 import { mergeGroupPieces } from "../extraction/merge-group-pieces.js";
 import { phaseBuilder } from "./phase.js";
 import type { ChatClient, ChatMessage, ChatRequest } from "./chat-client.js";
@@ -94,6 +95,15 @@ export interface FillPhaseOptions<V extends Record<string, unknown>, P = NoProve
    * only, and the run resolves. See `abstainedValue` in `@azx/ribo-core`.
    */
   readonly onItemFailure?: "abort" | "skip";
+  /**
+   * A per-group filter, consulted for COLLECTION groups only (singletons and
+   * the `""` fallback are never filtered): return false and the group plans no
+   * per-instance job, because another phase — the batched fill — fills it.
+   * Omitted, every group is filled per instance, exactly as before. The
+   * scoped-instance preset wires the two phases' filters to a partition of the
+   * collections, so a group is filled by exactly one of them.
+   */
+  readonly includeGroup?: (groupKey: string, currentInstances: number) => boolean;
   /**
    * Overrides the phase's id — `"fill"` by default. See `PhaseMeta.id` in
    * `@azx/ribo-core` for what an id reaches and why a caller-chosen one is safe.
@@ -200,30 +210,6 @@ const abstainedPieceFor = (job: FillJob): unknown => {
 };
 
 /**
- * The error arm's write — `mergeGroupPieces` restricted to keys the slot does
- * NOT have. A failed piece's abstained value must never blank what the slot
- * already holds: an envelope with a null value can carry a non-null
- * `sourceSpan` a later pass relies on, and a committed value must survive a
- * failed re-ask (`narrowToAbstained`'s whole point). Later-wins is safe for the
- * success arm only because partitioned pieces hold disjoint leaf sets; an
- * abstained piece covers the piece's FULL leaf set, so it needs under-fill.
- */
-const fillAbsentKeys = (slot: unknown, abstained: unknown): unknown => {
-  // An absent slot takes the abstained value whole — the common case, and what
-  // lets a group whose every job failed still assemble a full array.
-  if (slot === undefined || slot === null) return abstained;
-  // A slot that is not a leaf map is not under-fillable; leave it for the
-  // closing parse to judge rather than destroying whatever it holds.
-  if (typeof slot !== "object" || Array.isArray(slot)) return slot;
-  const abstainedRecord = abstained as Record<string, unknown>;
-  const merged: Record<string, unknown> = { ...(slot as Record<string, unknown>) };
-  for (const [key, leafValue] of Object.entries(abstainedRecord)) {
-    if (!Object.hasOwn(merged, key)) merged[key] = leafValue;
-  }
-  return merged;
-};
-
-/**
  * The fill phase: derive one job per `(group, piece, instance)` from the
  * inventory's settled roster, make each job's one chat call, and recombine the
  * outcomes into the draft. See the file header for the shape of each member.
@@ -316,6 +302,11 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
         const candidates = rosterGroup as readonly RosterCandidate[];
         const current = candidates.filter((c) => c.eligibility === "current");
         if (current.length === 0) continue;
+
+        // The group filter — consulted before any job is built, for collection
+        // groups only. See the option.
+        if (options.includeGroup !== undefined && !options.includeGroup(group.key, current.length))
+          continue;
 
         for (let i = 0; i < current.length; i++) {
           // Narrowing first — see the singleton branch above; the granularity

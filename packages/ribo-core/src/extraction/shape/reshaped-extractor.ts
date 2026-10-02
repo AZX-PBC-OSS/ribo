@@ -28,10 +28,11 @@
  * retryable `SchemaParseError` instead of silently wrong review cards.
  *
  * No progress units of its own: a wrapper that delegates emits none (ADR 0004).
- * `usage`, `raw` and `statedEmptyGroups` pass through untouched — the
- * top-level keys the stated-empty map is keyed by are shared by both spaces.
- * `skippedItems` is the exception: a skipped item can name a nest group, which
- * the patch does not have, so it is reversed too (`shape-skipped.ts`).
+ * `usage`, `raw`, `statedEmptyGroups` and `fillModes` pass through untouched —
+ * the top-level keys the stated-empty map and the fill-mode map are keyed by
+ * are shared by both spaces. `skippedItems` is the exception: a skipped item
+ * can name a nest group, which the patch does not have, so it is reversed too
+ * (`shape-skipped.ts`).
  *
  * The cross-file invariant that safety rests on, with a nest in the vocabulary:
  * every `mapping.provenance` key is a top-level key of BOTH schemas, by a pair
@@ -103,6 +104,9 @@ export function reshapedExtractor<
         ...(result.statedEmptyGroups === undefined
           ? {}
           : { statedEmptyGroups: result.statedEmptyGroups }),
+        // Forwarded like `statedEmptyGroups`: keyed by collection group keys
+        // the two spaces share, so the reversal does not touch it.
+        ...(result.fillModes === undefined ? {} : { fillModes: result.fillModes }),
         ...(result.skippedItems === undefined
           ? {}
           : { skippedItems: reverseSkippedItems(result.skippedItems, shape.mapping) }),

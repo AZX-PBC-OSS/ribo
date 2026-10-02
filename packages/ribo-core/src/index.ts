@@ -929,6 +929,13 @@ export type { InventoryPhaseOptions } from "./phases/inventory-phase.js";
 // the same hand-assembly a host may want.
 export { fillPhase } from "./phases/fill-phase.js";
 export type { FillPhaseOptions } from "./phases/fill-phase.js";
+// The batched fill phase — the per-instance fill's alternative beside it: one
+// call per `(group, piece)` covering EVERY current instance of a collection,
+// each element keyed by its roster id and merged by id. Same roster note, same
+// phase-list slot (after the inventory); the scoped-instance preset chooses
+// per group between the two.
+export { batchedFillPhase } from "./phases/batched-fill-phase.js";
+export type { BatchedFillPhaseOptions, BatchedIdentity } from "./phases/batched-fill-phase.js";
 // The Task 9 inventory-pass extraction call: one house-wide call that returns a
 // roster of candidate instances per collection group, parsed through a supplied
 // roster schema.
