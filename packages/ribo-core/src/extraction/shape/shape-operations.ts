@@ -9,10 +9,10 @@
  * the refusal record and its canonical order live in `shape-refusal.ts`; the
  * regroup/nest validators and the tree mutations live in `shape-moves.ts`.
  * This module owns the applier's state machine: a fixed sequence of
- * COLLECTING passes — bucket, drops, retypes, regroups, nests, declarations,
- * build — each validating declaratively and recording refusals rather than
- * throwing at the first one, so a repair turn sees every refusal in one pass
- * and the surviving operations still produce an artifact.
+ * COLLECTING passes — bucket, drops, retypes, partitions, regroups, nests,
+ * declarations, build — each validating declaratively and recording refusals
+ * rather than throwing at the first one, so a repair turn sees every refusal
+ * in one pass and the surviving operations still produce an artifact.
  *
  * The pass order is load-bearing. Drops are final before anything else
  * validates: declaration and provenance conflicts refuse the DROP (the
@@ -94,6 +94,7 @@ type DropOperation = Extract<ShapeOperation, { op: "drop" }>;
 type RetypeOperation = Extract<ShapeOperation, { op: "retype" }>;
 type RegroupOperation = Extract<ShapeOperation, { op: "regroup" }>;
 type NestOperation = Extract<ShapeOperation, { op: "nest" }>;
+type PartitionOperation = Extract<ShapeOperation, { op: "partition" }>;
 
 /** One operation tracked through the passes, with its position in the caller's array. */
 interface Candidate<O extends ShapeOperation> {
@@ -184,17 +185,20 @@ export function deriveExtractionShapePartially(
   const retypeCount = new Map<string, number>();
   const regroupCount = new Map<string, number>();
   const nestCount = new Map<string, number>();
+  const partitionCount = new Map<string, number>();
   for (const operation of operations) {
     if (operation.op === "drop") bump(dropCount, operation.path);
     else if (operation.op === "retype") bump(retypeCount, operation.path);
     else if (operation.op === "regroup") bump(regroupCount, operation.group);
+    else if (operation.op === "partition") bump(partitionCount, operation.group);
     else bump(nestCount, operation.group);
   }
 
   const dropCandidates: DropCandidate[] = [];
   const retypeCandidates: Candidate<RetypeOperation>[] = [];
-  const regroupCandidates: Candidate<RegroupOperation>[] = [];
+  let regroupCandidates: Candidate<RegroupOperation>[] = [];
   let nestCandidates: Candidate<NestOperation>[] = [];
+  let partitionCandidates: Candidate<PartitionOperation>[] = [];
   const dropSeen = new Set<string>();
   const retypeSeen = new Set<string>();
   for (const [index, operation] of operations.entries()) {
@@ -258,6 +262,19 @@ export function deriveExtractionShapePartially(
         continue;
       }
       regroupCandidates.push({ operation, index });
+    } else if (operation.op === "partition") {
+      const count = partitionCount.get(operation.group)!;
+      if (count > 1) {
+        refuse(
+          operation,
+          index,
+          "set",
+          `deriveExtractionShape(): partition names group "${operation.group}" ${timesText(count)} — ` +
+            "merge the parts into one operation.",
+        );
+        continue;
+      }
+      partitionCandidates.push({ operation, index });
     } else {
       const count = nestCount.get(operation.group)!;
       if (count > 1) {
@@ -570,7 +587,37 @@ export function deriveExtractionShapePartially(
     appliedRetypes.set(path, "number");
   }
 
-  // 5 — Regroups, one refusal unit per operation, never per move within it.
+  // 5 — Partitions meet regroups before either pass runs: a shared group is a
+  // set conflict (both refused), and the regroup must not apply — it would
+  // restructure the very tree the partition's validation reads, and a refused
+  // operation may not leave its effect behind.
+  {
+    const partitionGroups = new Set(partitionCandidates.map((c) => c.operation.group));
+    const conflictedRegroups = regroupCandidates.filter((c) =>
+      partitionGroups.has(c.operation.group),
+    );
+    if (conflictedRegroups.length > 0) {
+      const conflictGroups = new Set(conflictedRegroups.map((c) => c.operation.group));
+      const conflictedPartitions = partitionCandidates.filter((c) =>
+        conflictGroups.has(c.operation.group),
+      );
+      regroupCandidates = regroupCandidates.filter((c) => !conflictGroups.has(c.operation.group));
+      partitionCandidates = partitionCandidates.filter(
+        (c) => !conflictGroups.has(c.operation.group),
+      );
+      const reason = (group: string): string =>
+        `deriveExtractionShape(): partition and regroup both name group "${group}" — ` +
+        "the group's paths would mean two things; partition a group no regroup restructures.";
+      for (const candidate of conflictedRegroups) {
+        refuse(candidate.operation, candidate.index, "set", reason(candidate.operation.group));
+      }
+      for (const candidate of conflictedPartitions) {
+        refuse(candidate.operation, candidate.index, "set", reason(candidate.operation.group));
+      }
+    }
+  }
+
+  // 6 — Regroups, one refusal unit per operation, never per move within it.
   // Disjoint groups are disjoint subtrees, so the order between groups cannot
   // change the result; input order is kept.
   const appliedRegroups = new Map<string, Map<string, string>>();
@@ -586,7 +633,7 @@ export function deriveExtractionShapePartially(
     }
   }
 
-  // 6 — Nests: the one pass that iterates. A nest group may take a name
+  // 7 — Nests: the one pass that iterates. A nest group may take a name
   // another nest frees, so a nest that fails un-frees a sibling's name —
   // re-validate until the candidate set stabilizes. Removal only shrinks the
   // freed-name set, so failures grow monotonically and the loop settles in at
@@ -627,7 +674,192 @@ export function deriveExtractionShapePartially(
     nestCandidates.map((candidate) => candidate.operation),
   );
 
-  // 7 — No pass above leaves an empty object behind: drops are filtered
+  // 8 — Partitions, validated against the settled shaped tree. The group must
+  // be the caller's own — present, an object group or collection, never a
+  // nest's creation — at a granularity whose span one call can carry, and its
+  // parts must name the group's direct leaves without overlap. A partition is
+  // atomic: the first defect refuses the whole operation, as a regroup's does.
+  // A survivor writes its group's record — the caller's parts, plus a
+  // "remainder" part holding the group's unnamed direct properties in
+  // declaration order, so nothing goes unextracted — and nothing else changes:
+  // the schemas and the mapping are the partition-free derivation's.
+  const partitions: Record<string, Record<string, readonly string[]>> = {};
+  const validatePartition = (operation: PartitionOperation): MoveFailure | undefined => {
+    const group = operation.group;
+    if (appliedNests.has(group)) {
+      return {
+        class: "local",
+        reason:
+          `deriveExtractionShape(): partition names group "${group}", which a nest creates — ` +
+          "partition addresses the caller's own groups; a nest group's layout is the " +
+          "nest's to choose.",
+      };
+    }
+    const groupNode = shapedTree.children.get(group);
+    if (groupNode === undefined) {
+      return {
+        class: "local",
+        reason:
+          `deriveExtractionShape(): partition names group "${group}", which is not a top-level ` +
+          "property of the schema — it may name a dropped group, or nothing at all.",
+      };
+    }
+    if (groupNode.kind === "leaf") {
+      return {
+        class: "local",
+        reason:
+          `deriveExtractionShape(): partition names group "${group}", which is a top-level leaf — ` +
+          "a partition cuts an object group's or a collection's fields, and a leaf would " +
+          "ride the split's loose portion, silently ignored.",
+      };
+    }
+    const element = groupNode.kind === "array" ? groupNode.element : groupNode;
+    const granularity = provenance[group];
+    if (granularity === "row" || granularity === "none") {
+      return {
+        class: "consequential",
+        reason:
+          `deriveExtractionShape(): partition names group "${group}", whose provenance is ` +
+          `"${granularity}" — a "${granularity}" group's span cannot be shared across the ` +
+          "parts' calls.",
+        cause: { kind: "declaration", declaration: "provenance", group },
+      };
+    }
+    const parts = Object.entries(operation.parts);
+    if (parts.length === 0) {
+      return {
+        class: "local",
+        reason:
+          `deriveExtractionShape(): partition names group "${group}" with an empty parts ` +
+          "record — name at least one part, or drop the operation.",
+      };
+    }
+    const seenLabels = new Set<string>();
+    const seenFields = new Map<string, string>();
+    for (const [label, fields] of parts) {
+      if (label === "") {
+        return {
+          class: "local",
+          reason:
+            `deriveExtractionShape(): partition on group "${group}" has an empty part label — ` +
+            "name each part, so its calls can say what they cover.",
+        };
+      }
+      if (label === "remainder") {
+        return {
+          class: "local",
+          reason:
+            `deriveExtractionShape(): partition on group "${group}" uses the reserved label ` +
+            `"remainder" — the group's unnamed fields take it automatically; pick another label.`,
+        };
+      }
+      // Unreachable through a record — an object cannot carry a key twice —
+      // but the rule is the record's contract, so the applier states it.
+      if (seenLabels.has(label)) {
+        return {
+          class: "local",
+          reason:
+            `deriveExtractionShape(): partition on group "${group}" names part "${label}" ` +
+            "twice — labels are unique within a group.",
+        };
+      }
+      seenLabels.add(label);
+      if (fields.length === 0) {
+        return {
+          class: "local",
+          reason:
+            `deriveExtractionShape(): partition on group "${group}" has part "${label}" with ` +
+            "no fields — a part without fields extracts nothing; drop the part or name its fields.",
+        };
+      }
+      let fieldDefect: MoveFailure | undefined;
+      for (const field of fields) {
+        const firstPart = seenFields.get(field);
+        if (firstPart !== undefined) {
+          fieldDefect = {
+            class: "local",
+            reason:
+              `deriveExtractionShape(): partition on group "${group}" names field "${field}" ` +
+              `in parts "${firstPart}" and "${label}" — a field is extracted in at most one part.`,
+          };
+          break;
+        }
+        seenFields.set(field, label);
+        const parsed = tryOpSegments(field, "partition field");
+        if (!parsed.ok) {
+          fieldDefect = { class: "local", reason: parsed.reason };
+          break;
+        }
+        if (parsed.segments.length !== 1) {
+          fieldDefect = {
+            class: "local",
+            reason:
+              `deriveExtractionShape(): partition on group "${group}" names field "${field}" — ` +
+              "a partition field is one segment naming a direct property of the group (its " +
+              "element's, for a collection); the split cuts a group's properties, not inside them.",
+          };
+          break;
+        }
+        const child = element.children.get(parsed.segments[0]!);
+        if (child === undefined) {
+          const cover = coveringDrop(appliedDrops, [group, parsed.segments[0]!]);
+          fieldDefect = {
+            class: cover === undefined ? "local" : "consequential",
+            reason:
+              `deriveExtractionShape(): partition on group "${group}" names field "${field}", ` +
+              "which is not a direct property of the group (it may name a dropped field, or " +
+              "nothing at all).",
+            ...(cover === undefined
+              ? {}
+              : {
+                  cause: {
+                    kind: "operation",
+                    operation: cover.operation,
+                    index: cover.index,
+                  } as ShapeRefusalCause,
+                }),
+          };
+          break;
+        }
+        if (child.kind !== "leaf") {
+          fieldDefect = {
+            class: "local",
+            reason:
+              `deriveExtractionShape(): partition on group "${group}" names field "${field}", ` +
+              `which is a ${child.kind === "array" ? "collection" : "group"}, not a leaf — ` +
+              "a partition names the group's direct leaf fields.",
+          };
+          break;
+        }
+      }
+      if (fieldDefect !== undefined) return fieldDefect;
+    }
+    return undefined;
+  };
+  for (const candidate of partitionCandidates) {
+    const failure = validatePartition(candidate.operation);
+    if (failure !== undefined) {
+      refuse(candidate.operation, candidate.index, failure.class, failure.reason, failure.cause);
+      continue;
+    }
+    const groupNode = shapedTree.children.get(candidate.operation.group);
+    if (groupNode === undefined || groupNode.kind === "leaf") {
+      throw new Error(
+        "deriveExtractionShape(): internal — a surviving partition's group vanished.",
+      );
+    }
+    const element = groupNode.kind === "array" ? groupNode.element : groupNode;
+    const named = new Set(
+      Object.values(candidate.operation.parts).flatMap((fields) => [...fields]),
+    );
+    const unnamed = [...element.children.keys()].filter((key) => !named.has(key));
+    partitions[candidate.operation.group] =
+      unnamed.length > 0
+        ? { ...candidate.operation.parts, remainder: unnamed }
+        : { ...candidate.operation.parts };
+  }
+
+  // 9 — No pass above leaves an empty object behind: drops are filtered
   // set-wise, each regroup simulates its own effect before committing, and a
   // nest's sources always land under its new group. Assert rather than
   // re-refuse.
@@ -642,7 +874,7 @@ export function deriveExtractionShapePartially(
     }
   }
 
-  // 8 — Rebuild the schemas. The patch is the derived patch (surviving drops
+  // 10 — Rebuild the schemas. The patch is the derived patch (surviving drops
   // removed, kinds original); the extraction schema is the shaped tree
   // enveloped.
   const patchSchema = treeToZod(patchTree);
@@ -675,7 +907,7 @@ export function deriveExtractionShapePartially(
   }
   const extractionSchema = enveloped(shapedSchema, { provenance });
 
-  // 9 — Derive the mapping: every surviving patch leaf, moved through its
+  // 11 — Derive the mapping: every surviving patch leaf, moved through its
   // group's regroup or the nest that claims it and carrying its retype, keyed
   // by where it lands in the extraction space. A nested leaf — a top-level
   // patch leaf by construction — keys its entry at `<nest group>.<destination>`.
@@ -707,7 +939,7 @@ export function deriveExtractionShapePartially(
   }
   const mapping: ShapeMapping = { leaves, provenance };
 
-  // 10 — The declarations review and write need, validated against the
+  // 12 — The declarations review and write need, validated against the
   // derived patch: every named group present, every named leaf survived the
   // operations. Coverage conflicts were already refused onto the drops, so
   // what fires here is what no operation explains — the hard boundary.
@@ -754,7 +986,7 @@ export function deriveExtractionShapePartially(
   validateDeclaration(requiredOnCreate, "requiredOnCreate");
   validateDeclaration(identifyingFields, "identifyingFields");
 
-  // 11 — Post-condition: the artifact relates its two schemas faithfully. The
+  // 13 — Post-condition: the artifact relates its two schemas faithfully. The
   // applier builds the mapping from one walk, so this holds by construction —
   // which is exactly why it is worth asserting: a future edit that breaks the
   // invariant fails here instead of at review. A partially-applied artifact
@@ -768,6 +1000,7 @@ export function deriveExtractionShapePartially(
     provenance,
     requiredOnCreate,
     identifyingFields,
+    partitions,
   };
   return { shape, refusals: [...refusals].sort(compareShapeRefusals) };
 }

@@ -979,7 +979,7 @@ export type {
   ShapeRefusalClass,
 } from "./extraction/shape/shape-refusal.js";
 export type { ShapeOperation } from "./extraction/shape/shape-operation.js";
-export type { DerivedExtractionShape } from "./extraction/shape/derived-shape.js";
+export type { DerivedExtractionShape, ShapePartitions } from "./extraction/shape/derived-shape.js";
 export { assertShapeMapping, retypeToPatchValue } from "./extraction/shape/shape-mapping.js";
 export type {
   LeafKind,
