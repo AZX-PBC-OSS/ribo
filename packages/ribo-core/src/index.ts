@@ -805,9 +805,12 @@ export type { ComputePhaseOptions } from "./phases/compute-phase.js";
 // (`SplitOptions`); the library carries no provider's byte cap. The split's
 // top-level classifier and its nesting-depth measure are exported beside it:
 // `describeExtraction` reports with them, and a host comparing a piece against
-// its route's depth cap reads the same walk.
+// its route's depth cap reads the same walk. `partitionLabelLine` is the one
+// line a partitioned piece's request carries — exported because the fill
+// phases and a host's own phases reuse it verbatim.
 export {
   MAX_NULLABLE_UNIONS_PER_CALL,
+  partitionLabelLine,
   serializedNestingDepth,
   splitExtractionSchema,
   topLevelKeyKinds,

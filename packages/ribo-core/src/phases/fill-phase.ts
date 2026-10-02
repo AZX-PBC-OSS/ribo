@@ -287,7 +287,12 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
                   options.buildFillInstructions,
                   group.leafKeys,
                   group.schema,
-                  { fieldDescriptions: group.fieldDescriptions },
+                  {
+                    fieldDescriptions: group.fieldDescriptions,
+                    // A labelled piece (a partitions entry on a singleton
+                    // object group) says so; absent, no line and today's text.
+                    ...(group.label === undefined ? {} : { label: group.label }),
+                  },
                 );
           jobs.push({
             group,
@@ -327,7 +332,12 @@ export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
             options.buildFillInstructions,
             group.leafKeys,
             group.schema,
-            { fieldDescriptions: group.fieldDescriptions },
+            {
+              fieldDescriptions: group.fieldDescriptions,
+              // A labelled piece (a partitions entry) says so; absent, no
+              // line and today's text.
+              ...(group.label === undefined ? {} : { label: group.label }),
+            },
           );
           jobs.push({
             group,

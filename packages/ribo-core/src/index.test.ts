@@ -177,6 +177,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "parseFieldPath",
     "parseJsonContent",
     "parseWithSchema",
+    "partitionLabelLine",
     "perGroupArrayExtractor",
     "perGroupExtractor",
     "perGroupPlan",

@@ -51,8 +51,13 @@ import { fieldDescriptionsMode, withFieldGuidance } from "../field-guidance.js";
 import { fillPhase } from "../../phases/fill-phase.js";
 import { inventoryPhase } from "../../phases/inventory-phase.js";
 import { partitionedLeafKeys } from "../strategies/per-group.js";
-import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
+import {
+  MAX_NULLABLE_UNIONS_PER_CALL,
+  partitionLabelLine,
+  splitExtractionSchema,
+} from "../schema/split-schema.js";
 import type { ExtractionGroup } from "../schema/split-schema.js";
+import type { ShapePartitions } from "../shape/derived-shape.js";
 import { toJsonSchemaForWire } from "../schema/wire-schema.js";
 
 // Re-export the generic inventory/fill vocabulary from `inventory-types.ts`,
@@ -142,6 +147,14 @@ export interface ScopedFillOptions<V extends Record<string, unknown>, P = NoProv
    */
   readonly maxSerializedCharsPerGroup?: number;
   /**
+   * The derived shape's partitions record (`DerivedExtractionShape.partitions`),
+   * forwarded to {@link splitExtractionSchema}: a group with an entry is cut
+   * along its parts — one fill call per part per instance, each carrying the
+   * part's label line. Absent or empty, every fill is byte-identical to
+   * today's.
+   */
+  readonly partitions?: ShapePartitions;
+  /**
    * Where the schema's field descriptions travel, as in
    * {@link SingleShotOptions.fieldDescriptions}. Applies to the fill calls; the
    * inventory roster's synthetic schema carries no descriptions, so no mode
@@ -209,6 +222,23 @@ export interface PreparedGroup {
    * accepts, rather than showing an assistant turn wider than the call allows.
    */
   readonly leafKeys?: readonly string[];
+  /**
+   * The partition label this piece was cut along, present only when the group
+   * has an entry in the caller's `partitions` — copied from the split's
+   * {@link ExtractionGroup.label}. {@link buildFillMessages} renders it as the
+   * piece's label line; the merge and the identity are the group's own.
+   */
+  readonly label?: string;
+}
+
+/** The options bag {@link buildFillMessages} takes beside its positional inputs. */
+export interface FillMessageOptions extends FieldGuidanceOptions {
+  /**
+   * The piece's partition label, when the piece was cut along a part — the
+   * label line lands between the base instructions and the field-guidance
+   * block.
+   */
+  readonly label?: string;
 }
 
 /**
@@ -274,13 +304,21 @@ export function buildFillMessages<V extends Record<string, unknown>, P = NoProve
   buildFillInstructions: (groupKey: string, scope: FillScope) => string,
   leafKeys?: readonly string[],
   pieceSchema?: z.ZodType,
-  options?: FieldGuidanceOptions,
+  options?: FillMessageOptions,
 ): ChatMessage[] {
   const baseInstructions = buildFillInstructions(groupKey, scope);
+  // The label line sits between the adapter's instructions and the guidance
+  // block — the partition's scope is core's text, so it lands after the
+  // adapter's and before the schema-derived block.
+  const label = options?.label;
+  const withLabel =
+    label === undefined
+      ? baseInstructions
+      : `${baseInstructions}\n\n${partitionLabelLine(groupKey, label)}`;
   const withGuidance =
     pieceSchema !== undefined && fieldDescriptionsMode(options) === "prompt"
-      ? withFieldGuidance(baseInstructions, pieceSchema)
-      : baseInstructions;
+      ? withFieldGuidance(withLabel, pieceSchema)
+      : withLabel;
   const messages: ChatMessage[] = [{ role: "system", content: withGuidance }];
   for (const example of target.examples ?? []) {
     const projected = projectFillExample(example, groupKey, instanceIndex, leafKeys);
@@ -333,8 +371,8 @@ export function singletonFillScope(groupKey: string): FillScope {
  * This is the ONE construction site for {@link PreparedGroup} — lifted out of
  * `scopedInstanceExtractor` and exported so a host composing its own phase list
  * builds the same groups the preset builds, and the test fixtures build them the
- * same way. The members the split provides (key, schema, part, parts) become the
- * full prepared shape here: the collection array unwrap (a collection
+ * same way. The members the split provides (key, schema, part, parts, label)
+ * become the full prepared shape here: the collection array unwrap (a collection
  * group's fill schema is ONE instance, never the array — that is what makes "a
  * fill cannot add an instance" true), the `draft-2020-12` rendering, the
  * wire-safe name, the error context, and `leafKeys` for a partitioned piece.
@@ -415,6 +453,7 @@ export function prepareGroups<V extends Record<string, unknown>, P = NoProvenanc
       part: group.part,
       parts: group.parts,
       leafKeys,
+      label: group.label,
     };
   });
 }
@@ -470,6 +509,7 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
     instanceCap = DEFAULT_INSTANCE_CAP,
     maxNullableUnionsPerGroup,
     maxSerializedCharsPerGroup,
+    partitions,
     fieldDescriptions,
     onUnit,
     onRetryBudget,
@@ -485,11 +525,18 @@ export function scopedInstanceExtractor<V extends Record<string, unknown>, P = N
   // every other schema rejection. PerGroupOptions exposes the same pair for the
   // per-group extractor; this option keeps the two presets symmetric so a
   // caller moving between them doesn't have to learn a second knob shape.
-  const splitOptions: { maxNullableUnionsPerGroup: number; maxSerializedCharsPerGroup?: number } = {
+  const splitOptions: {
+    maxNullableUnionsPerGroup: number;
+    maxSerializedCharsPerGroup?: number;
+    partitions?: ShapePartitions;
+  } = {
     maxNullableUnionsPerGroup: maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
   };
   if (maxSerializedCharsPerGroup !== undefined) {
     splitOptions.maxSerializedCharsPerGroup = maxSerializedCharsPerGroup;
+  }
+  if (partitions !== undefined) {
+    splitOptions.partitions = partitions;
   }
   const groups = splitExtractionSchema(target.extractionSchema, splitOptions);
   const prepared = prepareGroups(target, groups, { fieldDescriptions });
