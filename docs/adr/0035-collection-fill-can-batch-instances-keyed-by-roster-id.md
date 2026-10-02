@@ -5,13 +5,14 @@ Date: 2026-10-02
 
 ## Context
 
-After the inventory, the scoped-instance fill made one call per (piece, instance): every instance
-except the one in scope was held out of the prompt, because collection fills that saw several
-instances at once confused them and bled values between systems. The cost is arithmetic — by the
-design's own call model, five parts and two systems pay ten per-instance calls where five batched
-ones cover the same ground — and the isolation is only sometimes worth it. Batch without identity,
-though, and the old bleeding returns: the model answers with an array and nothing ties an element
-to its system.
+After the inventory, the scoped-instance fill made one call per (piece, instance), naming the other
+instances as out of scope. The r1.6 instance-extraction design gives the reason: a call with one
+slot and a fact that must go somewhere produces the false-but-plausible record — a fact about one
+system recorded on another, every field individually plausible — and naming the siblings, with the
+assurance that their facts land on their own records, makes `null` correct routing rather than a
+loss (its §1 and §5). The cost is arithmetic — five parts and two systems pay ten per-instance
+calls where five batched ones cover the same ground — and whether batching keeps that attribution
+safety is unmeasured. Batch without identity and nothing ties an element to its system at all.
 
 ## Decision
 

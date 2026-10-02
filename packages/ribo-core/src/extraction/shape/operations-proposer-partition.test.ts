@@ -212,7 +212,8 @@ describe("proposer — the partition operation", () => {
       "The supported operations, and their closed composition rule:";
     const after =
       "On a later turn the field list may reappear with some fields tagged [dropped], " +
-      "[retyped → number] or [moved → …]: those operations are already applied and locked. " +
+      "[retyped → number], [moved → …] or [part: …]: those operations are already applied and " +
+      "locked. " +
       "Reply then with new operations only — the fixes for what was refused plus anything else " +
       "you intend — and never repeat a tagged one; an empty `operations` array means you are " +
       "done.\n\n" +

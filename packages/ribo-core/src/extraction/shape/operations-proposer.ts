@@ -329,7 +329,7 @@ The operations are a SET, not a sequence. Composition rules the applier enforces
 - a drop that empties the parent object is refused — drop the parent instead;
 - a drop that removes what a declaration names is refused: never drop a field tagged [required on create] or [identifying], a group tagged [provenance: ...], or a group containing a tagged field.
 
-On a later turn the field list may reappear with some fields tagged [dropped], [retyped → number] or [moved → …]: those operations are already applied and locked. Reply then with new operations only — the fixes for what was refused plus anything else you intend — and never repeat a tagged one; an empty \`operations\` array means you are done.
+On a later turn the field list may reappear with some fields tagged [dropped], [retyped → number], [moved → …] or [part: …]: those operations are already applied and locked. Reply then with new operations only — the fixes for what was refused plus anything else you intend — and never repeat a tagged one; an empty \`operations\` array means you are done.
 
 There is no cap on the number of operations. Decide freely which to propose; the schema packing, if your proposal is large, is a downstream concern.
 
