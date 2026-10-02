@@ -37,7 +37,7 @@ import type { z } from "zod";
 import type { ProvenanceGranularity } from "../../provenance/enveloped.js";
 
 import { assertWireSafeSchemaName } from "../extraction-common.js";
-import type { DerivedExtractionShape } from "../shape/derived-shape.js";
+import type { DerivedExtractionShape, ShapePartitions } from "../shape/derived-shape.js";
 import type { ShapeOperation } from "../shape/shape-operation.js";
 import { deriveExtractionShape } from "../shape/shape-operations.js";
 import {
@@ -146,6 +146,16 @@ interface DescribeSharedOptions {
    * the library carries no provider's number (ADR 0015).
    */
   readonly maxSerializedCharsPerGroup?: number;
+  /**
+   * The partitions record the report should describe, as
+   * {@link schemaExtractor} takes it. Non-empty, it mirrors the extractor's
+   * forcing rule — the report never says single-shot for a partitioned schema —
+   * and the reported split cuts along the parts. On the raw-schema shape,
+   * absent, the derivation's own `partitions` (from any partition operations)
+   * stands in, so the report matches what building from the carried `shape`
+   * would do.
+   */
+  readonly partitions?: ShapePartitions;
   /**
    * Optional. When supplied, the same `assertWireSafeSchemaName` the
    * constructors run is run here and a failure is reported as
@@ -316,7 +326,14 @@ export function describeExtraction(options: DescribeExtractionOptions): Extracti
     depth: serializedNestingDepth(extractionSchema),
   };
   const unionCap = options.maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL;
+  // The forcing rule, mirrored: a non-empty partitions record sends the report
+  // per-group even when the whole schema would fit — the option's record when
+  // given, else the derivation's own on the raw path. A report that said
+  // single-shot here would contradict the extractor the caller builds from it.
+  const partitions = options.partitions ?? shape?.partitions;
+  const hasPartitions = partitions !== undefined && Object.keys(partitions).length > 0;
   const wholeFits =
+    !hasPartitions &&
     whole.nullableUnions <= unionCap &&
     (options.maxSerializedCharsPerGroup === undefined ||
       whole.serializedChars <= options.maxSerializedCharsPerGroup);
@@ -336,6 +353,7 @@ export function describeExtraction(options: DescribeExtractionOptions): Extracti
           ...(options.maxSerializedCharsPerGroup === undefined
             ? {}
             : { maxSerializedCharsPerGroup: options.maxSerializedCharsPerGroup }),
+          ...(partitions === undefined ? {} : { partitions }),
         }).map((entry) => ({
           key: entry.key,
           ...(entry.part === undefined ? {} : { part: entry.part, parts: entry.parts }),

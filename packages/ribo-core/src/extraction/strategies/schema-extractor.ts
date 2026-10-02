@@ -52,6 +52,7 @@ import type { Extractor, ExtractionTarget } from "../extractor.js";
 import type { RetryBudgetObserver } from "../../async/retry-budget.js";
 
 import { assertWireSafeSchemaName } from "../extraction-common.js";
+import type { ShapePartitions } from "../shape/derived-shape.js";
 import {
   MAX_NULLABLE_UNIONS_PER_CALL,
   nullableUnionCount,
@@ -146,6 +147,14 @@ export interface EnvelopedSchemaExtractorOptions<
    * schema was derived.
    */
   readonly extractionSchema: ExtractionTarget<V, NoProvenance>["extractionSchema"];
+  /**
+   * The derived shape's partitions record (`DerivedExtractionShape.partitions`),
+   * forwarded to the per-group split. Only on this shape: the raw shape runs
+   * `enveloped()` inside and takes no shape operations, so it has no
+   * partitions to give. A non-empty record also
+   * forces the per-group path: one call over the whole schema would mix parts.
+   */
+  readonly partitions?: ShapePartitions;
   /** Not on this shape — this options bag brings the derived schema. */
   readonly schema?: never;
   readonly provenance?: never;
@@ -168,6 +177,7 @@ interface SchemaExtractorImplOptions extends Omit<
   readonly extractionSchema?: EnvelopedSchemaExtractorOptions<
     Record<string, unknown>
   >["extractionSchema"];
+  readonly partitions?: ShapePartitions;
   readonly normalize?: (fields: never) => unknown;
 }
 
@@ -243,9 +253,15 @@ export function schemaExtractor(options: SchemaExtractorImplOptions): SchemaExtr
 
   // Selection: the WHOLE schema under both caps is one call; otherwise split
   // and go per-group. The union cap defaults to the measured constant; the byte
-  // cap applies only when supplied — the caller knows their route's ceiling.
+  // cap applies only when supplied — the caller knows their route's ceiling. A
+  // non-empty partitions record forces the per-group path even when the schema
+  // would fit: one call over the whole schema would mix the parts the caller
+  // named, which is the one thing a partition forbids.
+  const hasPartitions =
+    options.partitions !== undefined && Object.keys(options.partitions).length > 0;
   const unionCap = options.maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL;
   const wholeFits =
+    !hasPartitions &&
     nullableUnionCount(extractionSchema) <= unionCap &&
     (options.maxSerializedCharsPerGroup === undefined ||
       serializedCharCount(extractionSchema) <= options.maxSerializedCharsPerGroup);
@@ -283,6 +299,7 @@ export function schemaExtractor(options: SchemaExtractorImplOptions): SchemaExtr
     ...(options.maxSerializedCharsPerGroup === undefined
       ? {}
       : { maxSerializedCharsPerGroup: options.maxSerializedCharsPerGroup }),
+    ...(options.partitions === undefined ? {} : { partitions: options.partitions }),
     concurrency: options.concurrency,
     maxRetries: options.maxRetries,
     stepTimeoutMs: options.stepTimeoutMs,

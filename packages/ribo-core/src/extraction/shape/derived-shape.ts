@@ -5,6 +5,15 @@ import type { ProvenanceGranularity } from "../../provenance/enveloped.js";
 import type { ShapeMapping } from "./shape-mapping.js";
 
 /**
+ * The partitions the derivation applied: group key → (part label → the
+ * group's direct field paths in extraction-schema space), with a `remainder`
+ * part holding the group's unnamed fields. `partition`'s whole effect lives
+ * here — the extraction split reads it to cut the group's calls; identity,
+ * the merge, review and write-back never see it.
+ */
+export type ShapePartitions = Readonly<Record<string, Readonly<Record<string, readonly string[]>>>>;
+
+/**
  * @file The derived artifact: an extraction schema, and the mapping back.
  *
  * The goal this pair serves: someone hands Ribo a plain zod schema they wrote or
@@ -64,4 +73,11 @@ export interface DerivedExtractionShape {
    * descriptions certainly different real-world things.
    */
   readonly identifyingFields: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The applied partitions — see {@link ShapePartitions}. `{}` when no
+   * partition applied, never absent. It changes nothing about the extraction
+   * schema, the patch or the mapping: it only tells the split how to cut the
+   * group's calls.
+   */
+  readonly partitions: ShapePartitions;
 }
