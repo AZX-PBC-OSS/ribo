@@ -65,15 +65,15 @@ Decided in conversation before this design was written:
 ## 4. The `partition` operation
 
 - **Shape:** `partition { group, parts: { <label>: [<field>, …], … } }`. `group` is a top-level
-  object group or collection of the caller's schema. Fields are group-relative paths —
-  element-relative for a collection — in the original schema's space. Labels are the proposer's.
+  object group or collection of the caller's schema. Fields are the group's direct field names —
+  its element's, for a collection — in the original schema's space. Labels are the proposer's.
 - **Effect:** extraction for the group never mixes two parts in one call; within a part the size
   split still applies, so an oversized part becomes several calls under one label.
 - **Nothing else changes.** The extraction schema and the mapping are byte-identical with and
   without a partition. The derived shape gains a `partitions` record —
-  `{ hvac: { heating: [...], cooling: [...] } }` — in extraction-schema space, translated through
-  the mapping at derivation (identical in practice, since partition and regroup cannot share a
-  group and nest takes only top-level fields). The schema stays flat: encoding parts as
+  `{ hvac: { heating: [...], cooling: [...] } }` — in extraction-schema space, which for a
+  partitioned group is the caller's own names, so the record is written as given: partition and
+  regroup cannot share a group, and nest takes only top-level fields. The schema stays flat: encoding parts as
   sub-objects would cost nesting depth, and Helix's depth cap already binds the per-group pieces.
 - **Remainder.** A group field not named in any part goes to one implicit remainder part, so
   nothing goes unextracted.
