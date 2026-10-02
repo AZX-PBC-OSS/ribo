@@ -228,12 +228,12 @@ const shape = await proposeExtractionShape(visitSchema, {
 
 // Wire straight into the rest of the pipeline:
 const extractor = schemaExtractor({
-  schema: visitSchema,
   name: "service-visit",
   instructions: "Extract the visit fields. Quote spans verbatim.",
   chat,
   model: "gpt-5.6-sol",
   extractionSchema: shape.extractionSchema,
+  partitions: shape.partitions,
 });
 ```
 
@@ -250,7 +250,9 @@ proposes labels, each naming the group's direct fields (`heating`, `cooling`), a
 that group covers exactly one part, titled with a line like "This call covers the heating fields
 of hvac." Fields no part names form a `remainder` part, so nothing goes unextracted. A partition
 changes no schema, no mapping and no identity — the group keeps its key, and review and write-back
-never see the cut (ADR 0034).
+never see the cut (ADR 0034). The cut lives on the derived shape, not in its schema, so forward
+`shape.partitions` to the extractor as the example above does; an extractor built from
+`shape.extractionSchema` alone extracts the group unpartitioned.
 
 A `nest` buys extraction-side structure only: the extraction schema carries the new group as a
 subject rather than as loose fields, and it becomes its own `splitExtractionSchema` entry — its
