@@ -95,8 +95,13 @@ import type { ExtractionTarget, Extractor } from "../extractor.js";
 import type { GroupedEntries, GroupMap, UnwrappedEntry } from "../grouped-extractor.js";
 import type { RetryBudgetObserver } from "../../async/retry-budget.js";
 
-import { MAX_NULLABLE_UNIONS_PER_CALL, splitExtractionSchema } from "../schema/split-schema.js";
+import {
+  MAX_NULLABLE_UNIONS_PER_CALL,
+  partitionLabelLine,
+  splitExtractionSchema,
+} from "../schema/split-schema.js";
 import type { ExtractionGroup } from "../schema/split-schema.js";
+import type { ShapePartitions } from "../shape/derived-shape.js";
 import { assertWireSafeSchemaName, narrowToLeaves } from "../extraction-common.js";
 import type { FieldGuidanceOptions } from "../field-guidance.js";
 import { projectTarget } from "../project-target.js";
@@ -208,6 +213,15 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
    * have always been.
    */
   readonly maxSerializedCharsPerGroup?: number;
+  /**
+   * The derived shape's partitions record (`DerivedExtractionShape.partitions`),
+   * forwarded to {@link splitExtractionSchema}: a group with an entry is cut
+   * along its parts, and each piece's request appends
+   * {@link partitionLabelLine} to its base instructions — the target's or
+   * `groupInstructions`' text. Absent or empty, requests are byte-identical to
+   * what they have always been.
+   */
+  readonly partitions?: ShapePartitions;
   /**
    * Where the schema's field descriptions travel, as in
    * {@link SingleShotOptions.fieldDescriptions}. Forwarded to every default
@@ -400,6 +414,7 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
     singleton = false,
     maxNullableUnionsPerGroup,
     maxSerializedCharsPerGroup,
+    partitions,
     fieldDescriptions,
   } = options;
 
@@ -411,6 +426,7 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
   const pieces = splitExtractionSchema(target.extractionSchema, {
     maxNullableUnionsPerGroup: maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
     ...(maxSerializedCharsPerGroup === undefined ? {} : { maxSerializedCharsPerGroup }),
+    ...(partitions === undefined ? {} : { partitions }),
   });
 
   // The non-grouped fallback: the schema is not an object of groups, so there
@@ -537,10 +553,20 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
         // instructions and a projected example (narrowed to this piece's
         // leaves under partitioning, first element under singleton); otherwise
         // it gets the target's full instructions and UNPROJECTED examples —
-        // today's behaviour, so the requests stay byte-identical.
+        // today's behaviour, so the requests stay byte-identical. A labelled
+        // piece (a `partitions` entry) appends the partition label line to
+        // whichever base this call uses — the label is the prompt's only
+        // trace of the part boundary.
         const withGroupPrompt = groupInstructions !== undefined;
+        const baseInstructions = withGroupPrompt
+          ? groupInstructions(group.key)
+          : target.instructions;
+        const instructions =
+          group.label === undefined
+            ? baseInstructions
+            : `${baseInstructions}\n\n${partitionLabelLine(group.key, group.label, group.elsewhere)}`;
         const projected = projectTarget<V, P, typeof key>(target, key, {
-          instructions: withGroupPrompt ? groupInstructions(group.key) : undefined,
+          instructions,
           leafKeys,
           singleton,
         });

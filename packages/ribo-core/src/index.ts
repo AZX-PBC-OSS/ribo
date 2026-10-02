@@ -805,9 +805,12 @@ export type { ComputePhaseOptions } from "./phases/compute-phase.js";
 // (`SplitOptions`); the library carries no provider's byte cap. The split's
 // top-level classifier and its nesting-depth measure are exported beside it:
 // `describeExtraction` reports with them, and a host comparing a piece against
-// its route's depth cap reads the same walk.
+// its route's depth cap reads the same walk. `partitionLabelLine` is the one
+// line a partitioned piece's request carries — exported because the fill
+// phases and a host's own phases reuse it verbatim.
 export {
   MAX_NULLABLE_UNIONS_PER_CALL,
+  partitionLabelLine,
   serializedNestingDepth,
   splitExtractionSchema,
   topLevelKeyKinds,
@@ -926,6 +929,13 @@ export type { InventoryPhaseOptions } from "./phases/inventory-phase.js";
 // the same hand-assembly a host may want.
 export { fillPhase } from "./phases/fill-phase.js";
 export type { FillPhaseOptions } from "./phases/fill-phase.js";
+// The batched fill phase — the per-instance fill's alternative beside it: one
+// call per `(group, piece)` covering EVERY current instance of a collection,
+// each element keyed by its roster id and merged by id. Same roster note, same
+// phase-list slot (after the inventory); the scoped-instance preset chooses
+// per group between the two.
+export { batchedFillPhase } from "./phases/batched-fill-phase.js";
+export type { BatchedFillPhaseOptions, BatchedIdentity } from "./phases/batched-fill-phase.js";
 // The Task 9 inventory-pass extraction call: one house-wide call that returns a
 // roster of candidate instances per collection group, parsed through a supplied
 // roster schema.
@@ -979,7 +989,7 @@ export type {
   ShapeRefusalClass,
 } from "./extraction/shape/shape-refusal.js";
 export type { ShapeOperation } from "./extraction/shape/shape-operation.js";
-export type { DerivedExtractionShape } from "./extraction/shape/derived-shape.js";
+export type { DerivedExtractionShape, ShapePartitions } from "./extraction/shape/derived-shape.js";
 export { assertShapeMapping, retypeToPatchValue } from "./extraction/shape/shape-mapping.js";
 export type {
   LeafKind,

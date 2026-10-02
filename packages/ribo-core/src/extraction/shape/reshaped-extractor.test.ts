@@ -119,6 +119,7 @@ const shape = {
   provenance: {},
   requiredOnCreate: {},
   identifyingFields: {},
+  partitions: {},
 } satisfies DerivedExtractionShape;
 
 /** A ChatClient that records requests and answers with a canned enveloped payload. */
@@ -442,6 +443,7 @@ test("a row-granularity group reverses through the combinator: plain leaves, the
     provenance: { rooms: "row" as const },
     requiredOnCreate: {},
     identifyingFields: {},
+    partitions: {},
   } satisfies DerivedExtractionShape;
 
   const rowResponse = () => ({

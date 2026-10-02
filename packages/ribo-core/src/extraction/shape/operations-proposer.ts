@@ -10,7 +10,7 @@
  * never re-sent, and a turn with refusals or an outright failure is answered
  * with a fresh resume request — the system prompt, the field list as the
  * committed operations left it (tagged `[dropped]` / `[retyped → …]` /
- * `[moved → …]`), and the refusal block. The model replies with a delta of
+ * `[moved → …]` / `[part: …]`), and the refusal block. The model replies with a delta of
  * NEW operations only, so a repair reply containing just the fixes — the
  * reply that broke the re-proposing loop, which accepted it as the whole set
  * and discarded 446 applied operations — is now the correct answer by
@@ -195,6 +195,10 @@ export interface ProposeOptions {
  * in {@link movesToRecord} below, where the array is collapsed back into a
  * record for the applier. The change is wire-only: callers' {@link ShapeOperation}
  * objects still carry `moves: Readonly<Record<string, string>>`.
+ *
+ * A partition's `parts` is pairs for the same reason — `{ label, fields }` —
+ * converted by {@link partsToRecord}; a repeated label cannot survive that
+ * record, so {@link runAttempt} refuses it there instead of collapsing it.
  */
 const proposedOperationsSchema = z.object({
   operations: z.array(
@@ -210,6 +214,11 @@ const proposedOperationsSchema = z.object({
         op: z.literal("nest"),
         group: z.string(),
         moves: z.array(z.object({ from: z.string(), to: z.string() })).min(1),
+      }),
+      z.object({
+        op: z.literal("partition"),
+        group: z.string(),
+        parts: z.array(z.object({ label: z.string(), fields: z.array(z.string()).min(1) })).min(1),
       }),
     ]),
   ),
@@ -232,6 +241,52 @@ const movesToRecord = (
   }
   return out;
 };
+
+/**
+ * Convert the wire-format array of `{label, fields}` pairs into the record the
+ * applier accepts — partition's counterpart of {@link movesToRecord}. A
+ * repeated label cannot survive the record, and collapsing one would silently
+ * move the first part's fields into the remainder, so the conversion caller
+ * never hands a duplicate-label partition to the applier at all — see
+ * {@link runAttempt}, which reports it as a not-committed operation instead.
+ */
+const partsToRecord = (
+  pairs: ReadonlyArray<{ readonly label: string; readonly fields: readonly string[] }>,
+): Readonly<Record<string, readonly string[]>> => {
+  const out: Record<string, readonly string[]> = {};
+  for (const pair of pairs) {
+    out[pair.label] = pair.fields;
+  }
+  return out;
+};
+
+/** The first label a wire partition's parts name twice, if any. */
+const firstDuplicateLabel = (
+  pairs: ReadonlyArray<{ readonly label: string; readonly fields: readonly string[] }>,
+): string | undefined => {
+  const seen = new Set<string>();
+  for (const pair of pairs) {
+    if (seen.has(pair.label)) return pair.label;
+    seen.add(pair.label);
+  }
+  return undefined;
+};
+
+/**
+ * A refusal the wire-to-operation conversion raises itself — a partition
+ * whose wire parts repeat a label. The record form cannot carry the
+ * duplicate, so handing the operation to the applier would show it a
+ * different partition than the model sent; the refusal keeps it out of the
+ * applier's hands and reaches the model through the same feedback block as
+ * the commit rule's refusals.
+ */
+interface WireRefusal {
+  /** The operation's position in the model's original operations array. */
+  readonly at: number;
+  /** The not-committed operation, in record form for display; never applied. */
+  readonly operation: ShapeOperation;
+  readonly reason: string;
+}
 
 type ProposedOperations = z.infer<typeof proposedOperationsSchema>;
 
@@ -261,6 +316,7 @@ The supported operations, and their closed composition rule:
 - retype { path, to: "number" }: model the leaf as a number instead of its declared kind. ONLY for leaves whose declared kind in the schema is "string" — the closed retype set is exactly string→number. Use for fields the vendor typed as form-input strings but mean a number (the model's \`Number(quote)\` is the only legal forward).
 - regroup { group, moves: { from: to } }: re-nest leaves within ONE top-level group (deepen, flatten, rename). The moves' sources and destinations are below the group, never at it. NEVER across a top-level boundary, NEVER passing through or landing on an array — one extraction value would have to fill every element.
 - nest { group, moves: { from: to } }: CREATE a new top-level group and move top-level fields into it — this is how you give a flat schema structure. Every source is a top-level field (never an existing group, never a collection, never a nested path); destinations are paths below the new group. The group name may be one of the top-level fields you are moving — naming a group after the field that anchors it (group "pool" holding "pool", "poolSize", "poolPumpType") is fine and encouraged. It may NOT be the name of a top-level key you leave in place, or of one you dropped.
+- partition { group, parts: [{ label, fields }] }: split ONE top-level group's direct fields into named parts — each part is extracted in its own call, and no call mixes two parts. Use it where a group's fields fall into distinct topics (heating vs cooling, thermostat vs foundation); keep labels short and descriptive; a field appears in at most one part; fields no part names form a remainder part, which is extracted too.
 
 The operations are a SET, not a sequence. Composition rules the applier enforces and will refuse with the offending path named:
 - a duplicate drop / retype on the same path / regroup or nest on the same group is refused, not silently overwritten, and a top-level field may be moved by at most one nest;
@@ -268,10 +324,12 @@ The operations are a SET, not a sequence. Composition rules the applier enforces
 - one regroup's or nest's move destinations are pairwise distinct, no two destinations prefix one another, and no regroup destination lies under a dropped path;
 - a retype names a patch LEAF whose declared kind is "string";
 - a move's source and destination are inside the group's element for a collection group, never passing through or landing on the array;
+- at most one partition per group;
+- a partitioned group cannot also be regrouped;
 - a drop that empties the parent object is refused — drop the parent instead;
 - a drop that removes what a declaration names is refused: never drop a field tagged [required on create] or [identifying], a group tagged [provenance: ...], or a group containing a tagged field.
 
-On a later turn the field list may reappear with some fields tagged [dropped], [retyped → number] or [moved → …]: those operations are already applied and locked. Reply then with new operations only — the fixes for what was refused plus anything else you intend — and never repeat a tagged one; an empty \`operations\` array means you are done.
+On a later turn the field list may reappear with some fields tagged [dropped], [retyped → number], [moved → …] or [part: …]: those operations are already applied and locked. Reply then with new operations only — the fixes for what was refused plus anything else you intend — and never repeat a tagged one; an empty \`operations\` array means you are done.
 
 There is no cap on the number of operations. Decide freely which to propose; the schema packing, if your proposal is large, is a downstream concern.
 
@@ -328,7 +386,12 @@ const buildProposeRequest = (
  * same exhaustion path rather than letting them escape.
  */
 type RunAttemptResult =
-  | { readonly ok: true; readonly operations: readonly ShapeOperation[] }
+  | {
+      readonly ok: true;
+      readonly operations: readonly ShapeOperation[];
+      /** Partitions the conversion itself refused — never in `operations`. */
+      readonly wireRefusals: readonly WireRefusal[];
+    }
   | {
       readonly ok: false;
       readonly failure: "transport" | "json" | "schema";
@@ -455,15 +518,42 @@ const runAttempt = async (
     };
   }
 
-  // The wire-format moves (array of pairs, see `proposedOperationsSchema`'s
-  // header) are converted back to records before the commit rule sees them.
-  const operations: ShapeOperation[] = parsed.operations.map((op) => {
-    if (op.op === "regroup")
-      return { op: "regroup", group: op.group, moves: movesToRecord(op.moves) };
-    if (op.op === "nest") return { op: "nest", group: op.group, moves: movesToRecord(op.moves) };
-    return op;
+  // The wire-format records (arrays of pairs, see `proposedOperationsSchema`'s
+  // header) are converted back before the commit rule sees them. A partition
+  // whose parts repeat a label has no record form that means what the model
+  // sent, so it is refused here — reported alongside the commit rule's
+  // refusals, never handed to the applier.
+  const operations: ShapeOperation[] = [];
+  const wireRefusals: WireRefusal[] = [];
+  parsed.operations.forEach((op, index) => {
+    if (op.op === "regroup") {
+      operations.push({ op: "regroup", group: op.group, moves: movesToRecord(op.moves) });
+      return;
+    }
+    if (op.op === "nest") {
+      operations.push({ op: "nest", group: op.group, moves: movesToRecord(op.moves) });
+      return;
+    }
+    if (op.op === "partition") {
+      const duplicate = firstDuplicateLabel(op.parts);
+      if (duplicate === undefined) {
+        operations.push({ op: "partition", group: op.group, parts: partsToRecord(op.parts) });
+      } else {
+        // The record below is display-only — the duplicate cannot survive it,
+        // so this operation must never reach the applier.
+        wireRefusals.push({
+          at: index,
+          operation: { op: "partition", group: op.group, parts: partsToRecord(op.parts) },
+          reason:
+            `labels must be unique within a group — part "${duplicate}" is named more ` +
+            "than once.",
+        });
+      }
+      return;
+    }
+    operations.push(op);
   });
-  return { ok: true, operations };
+  return { ok: true, operations, wireRefusals };
 };
 
 /**
@@ -533,6 +623,45 @@ const refusalFeedback = (refused: readonly CommitRefusal[]): string =>
   "shown as tagged in the field list are already applied and locked, so do not repeat them. " +
   "An empty list means you are done.";
 
+/**
+ * Merge the conversion's own refusals with the commit rule's, in incoming
+ * order. The commit rule reports against the handed list — the model's
+ * operations minus the wire-refused ones — so each handed operation's
+ * original position is its index plus the wire refusals before it.
+ */
+const withWireRefusals = (
+  commitRefusals: readonly CommitRefusal[],
+  wireRefusals: readonly WireRefusal[],
+  handed: readonly ShapeOperation[],
+): readonly CommitRefusal[] => {
+  if (wireRefusals.length === 0) return commitRefusals;
+  const refusedAt = new Set(wireRefusals.map((refusal) => refusal.at));
+  const originalAt: number[] = [];
+  let original = 0;
+  for (let kept = 0; kept < handed.length; kept++) {
+    while (refusedAt.has(original)) original++;
+    originalAt.push(original);
+    original++;
+  }
+  // A culprit's index is rendered as its position in the model's reply, so it
+  // shifts too.
+  const inReply = (refusal: CommitRefusal): CommitRefusal =>
+    refusal.cause?.kind === "operation"
+      ? { ...refusal, cause: { ...refusal.cause, index: originalAt[refusal.cause.index]! } }
+      : refusal;
+  const positioned = [
+    ...commitRefusals.map((refusal) => ({
+      at: originalAt[handed.indexOf(refusal.operation)]!,
+      refusal: inReply(refusal),
+    })),
+    ...wireRefusals.map((refusal) => ({
+      at: refusal.at,
+      refusal: { operation: refusal.operation, reason: refusal.reason },
+    })),
+  ];
+  return positioned.sort((a, b) => a.at - b.at).map((entry) => entry.refusal);
+};
+
 const repairFeedback = (
   failure: "transport" | "json" | "schema" | "shape",
   refusal: string,
@@ -560,7 +689,7 @@ const repairFeedback = (
     return (
       `Your previous response did not match the response schema: ${refusal}. Return ` +
       "a JSON object with one `operations` array of valid operation objects whose discriminators " +
-      'are "drop", "retype", "regroup", or "nest". No prose outside the object; the array ' +
+      'are "drop", "retype", "regroup", "nest", or "partition". No prose outside the object; the array ' +
       "holds NEW operations only — the field list shows what is already applied and locked."
     );
   }
@@ -704,8 +833,9 @@ export async function proposeShapeOperations(
         continue;
       }
       committed = fold.committed;
-      if (fold.refused.length === 0) return committed;
-      nextFeedback = refusalFeedback(fold.refused);
+      const refused = withWireRefusals(fold.refused, result.wireRefusals, result.operations);
+      if (refused.length === 0) return committed;
+      nextFeedback = refusalFeedback(refused);
     }
     if (repairsLeft === 0) return committed;
     repairsLeft--;

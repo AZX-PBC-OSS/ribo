@@ -92,6 +92,18 @@ export interface ExtractionResult<F> {
    */
   readonly statedEmptyGroups?: Readonly<Record<string, string>>;
   /**
+   * The fill mode each collection group was extracted with — `"per-instance"`
+   * or `"batched"` — keyed by the group's top-level key. Set only by the
+   * scoped-instance extractor, which decides per group at plan time (its
+   * `fill` option), and only for collection groups that had current instances.
+   *
+   * Additive and NOT persisted: it never reaches the session document, the
+   * relay or the RxDB schema — it is a live report of how the run's calls were
+   * cut, for the host that made the call. Absent from any extractor without a
+   * fill-mode choice to report.
+   */
+  readonly fillModes?: Readonly<Record<string, "per-instance" | "batched">>;
+  /**
    * The phase items this run gave up on under `onItemFailure: "skip"` — the
    * work whose answer the engine never got, so whatever `fields` holds there
    * was written by a `merge` in its place (for a fill, an abstention), not

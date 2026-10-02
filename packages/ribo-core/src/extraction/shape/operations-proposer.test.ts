@@ -682,9 +682,9 @@ describe("proposer — the closed overlap with deriveExtractionShape", () => {
     const feedback = repair.messages.at(-1)!;
     expect(feedback.role).toBe("user");
     expect(feedback.content).toContain("did not match the response schema");
-    // The repair names the whole vocabulary — naming three of four would teach
+    // The repair names the whole vocabulary — naming all but one would teach
     // the wrong one.
-    expect(feedback.content).toContain('"drop", "retype", "regroup", or "nest"');
+    expect(feedback.content).toContain('"drop", "retype", "regroup", "nest", or "partition"');
   });
 
   test("a parsed response whose operations compose is accepted on the first attempt", async () => {

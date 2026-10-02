@@ -69,6 +69,8 @@
  *     and regroup already allows a destination to take a name its own source
  *     frees. The applier detaches every nest source before creating any nest
  *     group, so this stays order-independent and the set stays a set.
+ *   - `partition` changes how a group is cut into calls, not the value space:
+ *     at most one per group, and never on a group a regroup also targets.
  *
  *     The "pairwise distinct" rule is its own check, not the prefix rule: equal
  *     destinations are reported as a same-destination collision, not as "one
@@ -126,4 +128,16 @@ export type ShapeOperation =
       readonly group: string;
       /** Top-level patch leaf key → destination path relative to the new group. */
       readonly moves: Readonly<Record<string, string>>;
+    } /** Name the parts a group's extraction calls are cut along — the calls
+   * for one part never mix another's fields. `group` is a top-level object
+   * group or collection of the caller's schema; each label maps the group's
+   * DIRECT field names (single segments; the element's own properties for a
+   * collection). Fields no part names form a `remainder` part, so the label
+   * itself is reserved. The schemas and the mapping are untouched. */
+  | {
+      readonly op: "partition";
+      /** The top-level object group or collection whose fields the parts cut. */
+      readonly group: string;
+      /** Part label → the group's direct field names. */
+      readonly parts: Readonly<Record<string, readonly string[]>>;
     };

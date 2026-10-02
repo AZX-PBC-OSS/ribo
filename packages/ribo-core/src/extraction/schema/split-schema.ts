@@ -86,6 +86,7 @@
 import { z } from "zod";
 
 import { isExtractedSchema } from "../../provenance/provenance.js";
+import type { ShapePartitions } from "../shape/derived-shape.js";
 
 /**
  * Narrowed accessors for the zod internals this file walks.
@@ -144,12 +145,30 @@ export interface ExtractionGroup {
    * This entry's 0-based position among the pieces sharing `key`, present only
    * when `key`'s leaves were partitioned across multiple calls. Partitioning
    * applies when a caller opted in via `maxNullableUnionsPerGroup` (the grouped
-   * path) or via `maxSerializedCharsPerGroup` (the union AND flat paths).
-   * Undefined for a group under the cap.
+   * path) or via `maxSerializedCharsPerGroup` (the union AND flat paths) — or
+   * when a `partitions` entry cuts the group along its parts, which always
+   * numbers its pieces. Undefined for a group under the cap with no partition.
    */
   readonly part?: number;
   /** The total number of pieces sharing `key`, present exactly when `part` is. */
   readonly parts?: number;
+  /**
+   * The partition label this piece was cut along — the parts record's label
+   * (`remainder` for the applier's implicit remainder part). Present exactly
+   * when the group has an entry in the caller's `partitions`, even when the
+   * group fits whole under the caps: a partitioned group is one piece per part.
+   * The request builders render {@link partitionLabelLine} from it.
+   */
+  readonly label?: string;
+  /**
+   * The group's fields this piece does NOT ask for — every other part's, and a
+   * same-part sibling piece's — in declaration order. Present exactly when
+   * `label` is. The request names them so a fact whose field is answered by
+   * another call is left out, not pushed into the nearest field this call can
+   * see: measured, a narrowed call put a manufacturer in a name field and a
+   * model number in an indoor-model field when the real fields were elsewhere.
+   */
+  readonly elsewhere?: readonly string[];
 }
 
 /**
@@ -218,12 +237,47 @@ export interface SplitOptions {
    * construction.
    */
   readonly maxSerializedCharsPerGroup?: number;
+  /**
+   * The derived shape's partitions record (`DerivedExtractionShape.partitions`):
+   * group key → part label → the group's direct field names in extraction-schema
+   * space. A group with an entry is cut along its parts FIRST — one subset per
+   * label in record order, each subset then packed by the caps as usual — and
+   * every piece of the group carries its part's `label`. The cut applies even
+   * when the whole group fits under the caps (a partition changes what one call
+   * may mix, not only how much). Fields no part names ride an implicit
+   * `remainder` piece, so nothing goes unextracted from a hand-built record;
+   * the applier writes `remainder` itself. Absent or empty, every group is cut
+   * exactly as before — byte-identical output.
+   */
+  readonly partitions?: ShapePartitions;
 }
 
 /** Normalize the second argument: a bare number is the pre-options positional union cap. */
 function normalizeOptions(options?: number | SplitOptions): SplitOptions {
   if (typeof options === "number") return { maxNullableUnionsPerGroup: options };
   return options ?? {};
+}
+
+/**
+ * The one line a labelled piece's request carries, naming the part it covers —
+ * the same sentence under the per-group calls, the per-instance fills and the
+ * batched fills, so a call always says which slice of the group it is asking
+ * about. The part is the unit of every call shape (spec §4); the line is the
+ * prompt's only trace of it. Exported because the phase presets build their own
+ * requests and reuse it verbatim.
+ */
+export function partitionLabelLine(
+  groupKey: string,
+  label: string,
+  elsewhere: readonly string[] = [],
+): string {
+  const line = `This call covers the ${label} fields of ${groupKey}.`;
+  if (elsewhere.length === 0) return line;
+  return (
+    `${line} These ${groupKey} fields are extracted in other calls, not this one: ` +
+    `${elsewhere.join(", ")}. If the transcript states one of them, leave it out here — its ` +
+    "value is captured by its own call, so do not put it in a field of this one."
+  );
 }
 
 /**
@@ -444,6 +498,10 @@ const groupCandidate = (value: z.ZodType): z.ZodType =>
   // function only receives schemas built through the classic `z` API.
   value instanceof z.ZodArray ? arrayElement(value) : value;
 
+/** The group (or element) object a packed piece asks for — its fields are its shape's keys. */
+const pieceCandidate = (piece: ExtractionGroup): z.ZodObject =>
+  groupCandidate(fieldAt((piece.schema as z.ZodObject).shape, piece.key)) as z.ZodObject;
+
 /**
  * Split one top-level group's properties into pieces that satisfy BOTH caps,
  * greedily in declaration order. Used when a byte cap is supplied; the
@@ -532,6 +590,63 @@ function partitionGroupTwoCaps(
     part,
     parts: pieces.length,
   }));
+}
+
+/**
+ * Cut one group along its partition's parts, then pack each part's subset with
+ * the packer the group would otherwise use (`pack`).
+ *
+ * Each part becomes a candidate object of exactly its fields — in schema
+ * declaration order, whatever order the record listed them in — and the
+ * packer's pieces inherit the part's label. Every piece is then renumbered
+ * across the WHOLE key (`part` 0…n−1, `parts` n), so the merge, the request
+ * names and skipped-item reporting see one cut per key, whatever packed each
+ * part inside it. Fields no part names ride one implicit `remainder` piece:
+ * the applier writes `remainder` itself, so this only guards a hand-built
+ * record against silently dropping a leaf from every piece.
+ */
+function cutAlongParts(
+  key: string,
+  value: z.ZodType,
+  candidate: z.ZodObject,
+  partition: Readonly<Record<string, readonly string[]>>,
+  pack: (partCandidate: z.ZodObject) => readonly ExtractionGroup[],
+): ExtractionGroup[] {
+  const shape = candidate.shape;
+  const propertyKeys = Object.keys(shape);
+  const named = new Set<string>();
+  for (const fields of Object.values(partition)) {
+    for (const field of fields) named.add(field);
+  }
+  const labelled: (readonly [string, readonly string[]])[] = Object.entries(partition);
+  const remainder = propertyKeys.filter((field) => !named.has(field));
+  if (remainder.length > 0) labelled.push(["remainder", remainder]);
+
+  const pieces: ExtractionGroup[] = [];
+  for (const [label, fields] of labelled) {
+    for (const field of fields) {
+      if (!Object.hasOwn(shape, field)) {
+        throw new Error(
+          `splitExtractionSchema: group "${key}" has a partition field "${field}" that is not a ` +
+            `property of the group — a partition's fields are the group's direct properties.`,
+        );
+      }
+    }
+    // Declaration order, not the record's listing order: the labels decide the
+    // cut, the schema decides what order a part's fields travel in.
+    const fieldSet = new Set(fields);
+    const partShape: Record<string, z.ZodType> = {};
+    for (const field of propertyKeys) {
+      if (fieldSet.has(field)) partShape[field] = fieldAt(shape, field);
+    }
+    const partCandidate = z.strictObject(partShape);
+    for (const piece of pack(partCandidate)) pieces.push({ ...piece, label });
+  }
+  return pieces.map((piece, part) => {
+    const own = new Set(Object.keys(pieceCandidate(piece).shape));
+    const elsewhere = propertyKeys.filter((field) => !own.has(field));
+    return { ...piece, part, parts: pieces.length, elsewhere };
+  });
 }
 
 /**
@@ -778,7 +893,8 @@ export function splitExtractionSchema(
   schema: z.ZodType,
   options?: number | SplitOptions,
 ): readonly ExtractionGroup[] {
-  const { maxNullableUnionsPerGroup, maxSerializedCharsPerGroup } = normalizeOptions(options);
+  const { maxNullableUnionsPerGroup, maxSerializedCharsPerGroup, partitions } =
+    normalizeOptions(options);
 
   // The grouped/flat question is asked of the shared classifier — asked ONCE,
   // here, so `describeExtraction` can report this function's own answer rather
@@ -837,31 +953,63 @@ export function splitExtractionSchema(
   // The group entries are the grouped path verbatim, run over the group keys.
   // Under a byte cap the pieces are measured exactly (see
   // `partitionGroupTwoCaps`), so the request's own rendering is what was
-  // verified.
+  // verified. A group with a `partitions` entry is cut along its parts first —
+  // each part's subset packed by the same packer the whole group would have
+  // had, every piece renumbered across the key and carrying its part's label.
   const groupPieces: ExtractionGroup[] =
     maxSerializedCharsPerGroup !== undefined
-      ? groupKeys.flatMap((key) =>
-          partitionGroupTwoCaps(
-            key,
-            fieldAt(shape, key),
-            groupCandidate(fieldAt(shape, key)) as z.ZodObject,
-            maxNullableUnionsPerGroup,
-            maxSerializedCharsPerGroup,
-          ),
-        )
-      : maxNullableUnionsPerGroup === undefined
-        ? groupKeys.map((key) => ({
-            key,
-            schema: z.strictObject({ [key]: fieldAt(shape, key) }),
-          }))
-        : groupKeys.flatMap((key) =>
-            partitionGroup(
+      ? groupKeys.flatMap((key) => {
+          const value = fieldAt(shape, key);
+          const candidate = groupCandidate(value) as z.ZodObject;
+          const pack = (partCandidate: z.ZodObject): readonly ExtractionGroup[] =>
+            partitionGroupTwoCaps(
               key,
-              fieldAt(shape, key),
-              groupCandidate(fieldAt(shape, key)) as z.ZodObject,
+              value,
+              partCandidate,
               maxNullableUnionsPerGroup,
-            ),
-          );
+              maxSerializedCharsPerGroup,
+            );
+          const partition = partitions?.[key];
+          return partition === undefined
+            ? pack(candidate)
+            : cutAlongParts(key, value, candidate, partition, pack);
+        })
+      : maxNullableUnionsPerGroup === undefined
+        ? groupKeys.flatMap((key) => {
+            const value = fieldAt(shape, key);
+            const partition = partitions?.[key];
+            if (partition === undefined) {
+              return [{ key, schema: z.strictObject({ [key]: value }) }];
+            }
+            const candidate = groupCandidate(value) as z.ZodObject;
+            const pack = (partCandidate: z.ZodObject): readonly ExtractionGroup[] => [
+              {
+                key,
+                schema: z.strictObject({
+                  [key]: value instanceof z.ZodArray ? z.array(partCandidate) : partCandidate,
+                }),
+              },
+            ];
+            return cutAlongParts(key, value, candidate, partition, pack);
+          })
+        : groupKeys.flatMap((key) => {
+            const value = fieldAt(shape, key);
+            const candidate = groupCandidate(value) as z.ZodObject;
+            const partition = partitions?.[key];
+            if (partition === undefined) {
+              return partitionGroup(key, value, candidate, maxNullableUnionsPerGroup);
+            }
+            // The part's own subset rides as `value`, so the packer's
+            // fits-in-one-piece arm rebuilds the part, not the whole group.
+            const pack = (partCandidate: z.ZodObject): readonly ExtractionGroup[] =>
+              partitionGroup(
+                key,
+                value instanceof z.ZodArray ? z.array(partCandidate) : partCandidate,
+                partCandidate,
+                maxNullableUnionsPerGroup,
+              );
+            return cutAlongParts(key, value, candidate, partition, pack);
+          });
 
   if (looseKeys.length === 0) {
     return groupPieces;

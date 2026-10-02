@@ -130,7 +130,10 @@ const readLeafValues = (schema: z.ZodType): readonly LeafValue[] | undefined => 
  * re-applying operations: the mapping already says where every extraction
  * leaf came from, so a dropped leaf is an original leaf that is no entry's
  * `source`, a retype is an entry with a `retype`, and a move is an entry
- * whose extraction path differs from its source.
+ * whose extraction path differs from its source. A committed partition tags
+ * its fields `[part: <label>]`, read from the shape's `partitions` record —
+ * partition and regroup cannot share a group, so a part's extraction-space
+ * paths are the caller's own.
  */
 export function appliedTags(
   schema: z.ZodObject,
@@ -139,6 +142,12 @@ export function appliedTags(
   const extractionPathBySource = new Map<string, string>();
   for (const [extractionPath, entry] of Object.entries(shape.mapping.leaves)) {
     extractionPathBySource.set(entry.source, extractionPath);
+  }
+  const partTags = new Map<string, string>();
+  for (const [group, parts] of Object.entries(shape.partitions)) {
+    for (const [label, fields] of Object.entries(parts)) {
+      for (const field of fields) partTags.set(`${group}.${field}`, `[part: ${label}]`);
+    }
   }
   const tags = new Map<string, readonly string[]>();
   for (const { path } of walkLeafInventory(schema)) {
@@ -151,6 +160,8 @@ export function appliedTags(
     const entry = shape.mapping.leaves[extractionPath]!;
     if (entry.retype !== undefined) leaf.push(`[retyped → ${entry.retype.extraction}]`);
     if (extractionPath !== path) leaf.push(`[moved → ${extractionPath}]`);
+    const part = partTags.get(path);
+    if (part !== undefined) leaf.push(part);
     if (leaf.length > 0) tags.set(path, leaf);
   }
   return tags;
