@@ -191,6 +191,13 @@ const batchedResponseSchema = (group: PreparedGroup, ids: readonly string[]): z.
         `batched fill covers collection groups only.`,
     );
   }
+  // The spread below would let the element's own leaf replace the id enum.
+  if (Object.hasOwn(element.shape, "instanceId")) {
+    throw new TypeError(
+      `batchedFillPhase: group "${group.key}" has its own "instanceId" field, which the ` +
+        "batched reply reserves for the roster id — fill this group per instance.",
+    );
+  }
   // THE CAST: `z.enum` wants a tuple; `ids` is non-empty by construction (plan
   // skips a group with no current candidates) but typed `string[]`.
   const elementWithId = z.strictObject({

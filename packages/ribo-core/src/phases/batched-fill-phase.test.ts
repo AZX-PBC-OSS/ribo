@@ -5,7 +5,8 @@ import { enveloped } from "../provenance/enveloped.js";
 import { nullEnvelope } from "./presence-phase.js";
 import { emptyDraft } from "./phase-draft.js";
 import { emptyNotes } from "./phase-notes.js";
-import { rosterNoteKey } from "./inventory-phase.js";
+import { inventoryPhase, rosterNoteKey } from "./inventory-phase.js";
+import { phasedExtractor } from "./phased-extractor.js";
 import { fillPhase } from "./fill-phase.js";
 import {
   MAX_NULLABLE_UNIONS_PER_CALL,
@@ -638,13 +639,40 @@ describe("batched fill — one call per (group, piece), keyed by roster id", () 
       delay: noDelay,
     }).extract({ text: "the transcript", annotations: {} });
 
+    // Today's preset, composed by hand: the two phases with no filter.
+    const today = fakeChat((name) => {
+      const body = PER_INSTANCE_BODIES[name];
+      if (body === undefined) throw new Error(`unexpected request ${name}`);
+      return body();
+    });
+    const prepared = prepareGroups(
+      target,
+      splitExtractionSchema(target.extractionSchema, MAX_NULLABLE_UNIONS_PER_CALL),
+    );
+    const todayResult = await phasedExtractor<Values>({
+      target,
+      phases: [
+        inventoryPhase<Values>({ inventory: async () => TWO_SYSTEMS, prepared, instanceCap: 10 }),
+        fillPhase<Values>({
+          target,
+          chat: today.chat,
+          model: "m",
+          prepared,
+          buildFillInstructions,
+        }),
+      ],
+      delay: noDelay,
+    }).extract({ text: "the transcript", annotations: {} });
+
     // The phase list is today's: the unit stream sees no batched phase.
     expect([...new Set(events.map((e) => e.phaseId))].sort()).toEqual(["fill", "inventory"]);
     expect(requests.map(requestName)).toEqual(["demo-systems-fill-0", "demo-systems-fill-1"]);
+    expect(requests).toEqual(today.requests);
     expect(result.fields.systems?.map((system) => system.make.value)).toEqual([
       "furnace",
       "handler",
     ]);
+    expect(result.fields).toEqual(todayResult.fields);
     expect(result.fillModes).toEqual({ systems: "per-instance" });
   });
 
@@ -740,6 +768,42 @@ describe("batched fill — one call per (group, piece), keyed by roster id", () 
       "handler",
     ]);
   });
+});
+
+test("a collection whose element has its own instanceId leaf is refused by name, not silently overwritten", async () => {
+  const clashing = z
+    .object({
+      tags: z
+        .array(
+          z
+            .object({
+              instanceId: z.string().nullable().optional(),
+              label: z.string().nullable().optional(),
+            })
+            .strict(),
+        )
+        .optional(),
+    })
+    .strict();
+  const { chat, requests } = fakeChat(() => ({}));
+
+  const run = scopedInstanceExtractor<z.infer<typeof clashing>>({
+    target: {
+      name: "demo",
+      extractionSchema: enveloped(clashing),
+      instructions: "Extract the fields.",
+      examples: [],
+    },
+    chat,
+    model: "m",
+    inventory: async () => ({ tags: [current("t1"), current("t2")] }),
+    buildFillInstructions,
+    fill: "batched",
+    delay: noDelay,
+  }).extract({ text: "the transcript", annotations: {} });
+
+  await expect(run).rejects.toThrow(/"tags".*instanceId/);
+  expect(requests).toHaveLength(0);
 });
 
 describe("fillPhase — includeGroup", () => {
