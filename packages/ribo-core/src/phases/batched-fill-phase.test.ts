@@ -215,8 +215,6 @@ const requestName = (request: ChatRequest): string => request.response_format.js
 const instanceIdSchemaOf = (
   request: ChatRequest,
   key: string,
-  // `enum` is quoted: the dev server's transform mis-parses the reserved word as
-  // an optional member name.
 ): { readonly enum?: unknown } | undefined => {
   const schema = request.response_format.json_schema.schema as {
     properties?: Record<string, { items?: { properties?: Record<string, { enum?: unknown }> } }>;
