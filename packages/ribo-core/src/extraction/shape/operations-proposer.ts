@@ -643,10 +643,16 @@ const withWireRefusals = (
     originalAt.push(original);
     original++;
   }
+  // A culprit's index is rendered as its position in the model's reply, so it
+  // shifts too.
+  const inReply = (refusal: CommitRefusal): CommitRefusal =>
+    refusal.cause?.kind === "operation"
+      ? { ...refusal, cause: { ...refusal.cause, index: originalAt[refusal.cause.index]! } }
+      : refusal;
   const positioned = [
     ...commitRefusals.map((refusal) => ({
       at: originalAt[handed.indexOf(refusal.operation)]!,
-      refusal,
+      refusal: inReply(refusal),
     })),
     ...wireRefusals.map((refusal) => ({
       at: refusal.at,

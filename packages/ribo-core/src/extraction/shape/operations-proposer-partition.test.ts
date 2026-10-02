@@ -353,4 +353,31 @@ describe("proposer — the partition operation", () => {
     expect(partitionLine).toContain('"heating"');
     expectCleanDerive(schema, ops);
   });
+
+  test("a culprit's index in the feedback counts the model's own reply, including a duplicate-label partition before it", async () => {
+    const { chat, requests } = scriptedChat([
+      completion({
+        operations: [
+          {
+            op: "partition",
+            group: "g",
+            parts: [
+              { label: "heating", fields: ["b"] },
+              { label: "heating", fields: ["c"] },
+            ],
+          },
+          { op: "drop", path: "g.a" },
+          { op: "retype", path: "g.a", to: "number" },
+        ],
+      }),
+      completion(wireOps([])),
+    ]);
+
+    await proposeShapeOperations(schema, proposeOptions(chat, "culprit-index"));
+
+    const feedback = requests[1]!.messages.at(-1)!.content;
+    const retypeLine = feedback.split("\n").find((line) => line.startsWith('- retype "g.a":'));
+    expect(retypeLine).toBeDefined();
+    expect(retypeLine).toContain('caused by your drop "g.a" at index 1 in this reply');
+  });
 });
