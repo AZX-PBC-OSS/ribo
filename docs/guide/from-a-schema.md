@@ -193,6 +193,14 @@ out of scope, the results assemble into the array your schema declares, and a `s
 entry seeds the group empty with its span recorded. A roster naming more current instances than
 `instanceCap` throws rather than truncating.
 
+Per-instance is the default (`fill: "per-instance"`) and the safe choice: each fill sees one
+instance with its siblings held out of scope. When a collection has many instances,
+`fill: "batched"` asks for every current one in a single call per part, each reply element
+carrying its roster `instanceId` and merged by id, so the order the model answers in cannot
+mispair values; `fill: { batchAbove: n }` batches only collections with more than `n` current
+instances (ADR 0035). The mode each collection used lands on the result's `fillModes` — a live
+report of how the run's calls were cut, never persisted.
+
 ## Letting a model propose shape operations
 
 The `schemaExtractor` example above uses the schema as-is: every leaf becomes a fillable field, and
@@ -236,6 +244,13 @@ new top-level group and move top-level leaves into it — how a flat schema gain
 operations. The cap is **not** in the prompt — proposing as many or as few operations as warranted
 is the model's call; the schema packing is `schemaExtractor`'s downstream concern. The wave's ADR
 (0016) records the cap-policy argument.
+
+A `partition` splits one group's extraction calls by meaning instead of by size: the model
+proposes labels, each naming the group's direct fields (`heating`, `cooling`), and every call for
+that group covers exactly one part, titled with a line like "This call covers the heating fields
+of hvac." Fields no part names form a `remainder` part, so nothing goes unextracted. A partition
+changes no schema, no mapping and no identity — the group keeps its key, and review and write-back
+never see the cut (ADR 0034).
 
 A `nest` buys extraction-side structure only: the extraction schema carries the new group as a
 subject rather than as loose fields, and it becomes its own `splitExtractionSchema` entry — its
