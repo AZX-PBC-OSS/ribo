@@ -39,12 +39,12 @@ export function scratchPackageJson(tarballPaths) {
       "@azx/ribo-ui-react": fileSpec("@azx/ribo-ui-react"),
       // Exact versions, matching the workspace catalog (pnpm-workspace.yaml) — this app is NOT a
       // workspace member, so it cannot write `catalog:`; these are hand-pinned to the same values.
-      react: "19.2.8",
-      "react-dom": "19.2.8",
+      react: "19.3.0",
+      "react-dom": "19.3.0",
       zod: "4.4.3", // peer of @azx/ribo-ui-react; ribo-core also depends on it directly.
     },
     devDependencies: {
-      vite: "8.1.5",
+      vite: "8.3.4",
     },
     // None of these packages is published yet (doc 10 §10), so a nested reference — e.g.
     // ribo-adapter-snuggpro's own `"@azx/ribo-core": "^0.0.0"`, rewritten from `workspace:^` at
