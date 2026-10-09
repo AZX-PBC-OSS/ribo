@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { userEvent } from "@vitest/browser/context";
+import { userEvent } from "vitest/browser";
 
 /**
  * @file Does a synthesised click satisfy the Prompt API's user-activation requirement?
