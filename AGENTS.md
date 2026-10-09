@@ -398,7 +398,7 @@ actually got.
 Two entries are held back on purpose. Both have comments in the file; do not bump them without
 reading the comment:
 
-- **`typescript: "6.0.3"`** — TypeScript 7 is GA, but `typescript-eslint@8.65.0` declares a peer
+- **`typescript: "6.0.3"`** — TypeScript 7 is GA, but `typescript-eslint@8.71.1` declares a peer
   range of `>=4.8.4 <6.1.0`, so **TS 7 is not lintable yet**. Per
   [`10 §9`](docs/implementation/10-build-and-packaging.md), TS 7 is a fast-follow, not a day-one
   dependency; nothing in the design needs it. Revisit when typescript-eslint ships TS 7 support.
