@@ -21,7 +21,6 @@ import { useReview, useSessions } from "@azx/ribo-ui-react";
 import { snuggProAdapter, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 
-import { demoReviewPlan } from "./demo-review-plan.js";
 import { getConnectivity } from "./connectivity-store.js";
 import {
   extractorComposite,
@@ -88,20 +87,10 @@ import {
  *
  * ## Sections are the plan's outline, rendered from the tree
  *
- * When the host passes a `reviewPlan` (the demo plan below by default), the tree also
- * carries section nodes — the plan's labelled groupings — and the card renders each as a
- * real heading at one level under the heading it appears inside (group h3 → section h4 in
- * a singleton group; instance h4 → section h5 in a collection instance; a nest section at
- * top level renders h3; a deeper intermediate section one level under its own section).
- * Labels render verbatim — they are the plan author's words, not schema keys to humanize.
- * The tree is the rendering channel: sections and fields appear in the order the tree
- * presents them, and inside a section the patch's own subtree structure renders flattened
- * (plain field rows, no headings of its own), which is how anything nested inside a group
- * or instance renders today. Without a plan no section node exists anywhere in the tree,
- * so none of these render branches are reachable and the card is exactly what it always
- * was. Sections carry no path and no key, so they are located by the uniform
- * `data-testid="review-section"` on the heading itself — labels are model-authored free
- * text, so there is nothing stable to slug.
+ * With a `reviewPlan` the tree carries section nodes, and the card renders each as a heading
+ * one level under the heading it sits inside, with its label verbatim. Fields keep the
+ * tree's order; a patch subtree inside a section renders as plain rows, as nested groups do
+ * elsewhere. A section has no path or key, so tests find it by `data-testid="review-section"`.
  *
  * ## The gate
  *
@@ -246,7 +235,7 @@ function cardEntries(tree: readonly ReviewNode[]): readonly CardEntry[] {
 export function ReviewPanel({
   reviewPlan,
 }: {
-  /** The plan the card's tree is laid out by; defaults to the demo plan. */
+  /** The plan the card's tree is laid out by; without one, no sections. */
   readonly reviewPlan?: ReviewPlan;
 }) {
   const { items: parked, loading, error } = useSessions({ status: "awaiting-review" });
@@ -444,10 +433,10 @@ function OnDeviceExtractorDownloadProgress({ state }: { state: OnDeviceExtractor
 
 function ReviewCard({
   session,
-  reviewPlan = demoReviewPlan,
+  reviewPlan,
 }: {
   readonly session: SessionItem;
-  /** The plan the card's tree is laid out by; defaults to the demo plan. */
+  /** The plan the card's tree is laid out by; without one, no sections. */
   readonly reviewPlan?: ReviewPlan;
 }) {
   const {
@@ -747,7 +736,7 @@ function InstanceSection({
 /**
  * The review card's heading type scale, by heading level — one home for every
  * heading the card renders: a group heading is level 3, an instance heading
- * level 4, and a section the level the layout gives it (DD-C's nesting), so a
+ * level 4, and a section one level under its container, so a
  * section at group level shares the group heading's size.
  */
 const HEADING_SIZE: Readonly<Record<number, string>> = {

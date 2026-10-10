@@ -74,10 +74,9 @@ the same walk in the same order — now holds for the no-plan layout only; with 
 presents the plan's order over the same leaves, and `fields` keeps its declaration order.
 
 **The compile break is the announcement.** Hosts that switch exhaustively over node kinds break
-at compile time on a minor version, whether or not they pass a plan. The in-repo walkers that
-switch on kind by fall-through each owe a section branch with no compiler signal — a missed site
-misreads a section as a collection silently, which is why the panel render and the e2e pin
-sections through a real browser.
+at compile time on a minor version, whether or not they pass a plan. Walkers that treat the last
+kind by fall-through break too, since a section lacks the collection fields they read — that is
+how typecheck found every in-repo site.
 
 **The plan's quiet degrade is deliberate silence.** An unknown group or field in the plan is
 ignored — no throw, no report — because the plan is presentation input over an already-validated

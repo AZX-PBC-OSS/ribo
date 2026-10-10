@@ -307,10 +307,7 @@ export interface ReviewSectionNode {
 }
 
 export type ReviewNode =
-  | ReviewLeafNode
-  | ReviewObjectNode
-  | ReviewCollectionNode
-  | ReviewSectionNode;
+  ReviewLeafNode | ReviewObjectNode | ReviewCollectionNode | ReviewSectionNode;
 
 /** What a human reviewer is shown. */
 export interface ReviewRequest {
@@ -924,7 +921,7 @@ export interface BuildReviewRequestOptions<T extends z.ZodObject = z.ZodObject> 
    *
    * - A partitioned group shows one section per part, in the plan's label order with each
    *   part's fields in the plan's order, and an "Other" section last for the `remainder` part,
-   *   unmapped (dropped) leaves and nested subtrees. Every instance of a collection gets the
+   *   leaves no mapping entry names and nested subtrees. Every instance of a collection gets the
    *   same sections.
    * - A regroup's new intermediate groups show as sections inside their group; a leaf moved
    *   under an object the patch already declares joins that object instead. A nest's new

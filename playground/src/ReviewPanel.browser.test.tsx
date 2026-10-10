@@ -6,6 +6,7 @@ import { snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 import { RiboProvider } from "@azx/ribo-ui-react";
 import { z } from "zod";
 
+import { demoReviewPlan } from "./demo-review-plan.js";
 import { ReviewPanel } from "./ReviewPanel.js";
 
 /**
@@ -497,17 +498,9 @@ test("a stated-empty group renders the verbatim quote instead of 'none described
 
 // ---- the review plan's sections on the rendered card -----------------------
 //
-// The heading pins below cover all four of criterion 22's heading cases. The
-// demo plan (a partition of the hvac COLLECTION) is the default the card
-// carries, so the h5 case renders through the default; the other three reach
-// the card through the panel's optional `reviewPlan` prop — the demo plan
-// cannot produce them (it is a partition only), and this file's charter is to
-// render the real panel as App wires it, not to call `useReview` directly.
-//
-// Plans over `snuggValuesSchema` for the singleton cases are derived with the
-// real derivation; the top-level nest case is hand-written, because the Snugg
-// schema has no top-level leaf for a derivation to nest — a nest's mapping
-// entry is exactly what one looks like, and the layout reads the plan as data.
+// The demo plan (a partition of the hvac collection) gives the instance-level case; the other
+// heading levels need plans the demo cannot produce, passed through the panel's prop. The
+// top-level nest plan is hand-written because the Snugg schema has no top-level leaf to nest.
 
 /** A partition of the singleton `basedata` group — sections inside a singleton group. */
 const basedataPartitionPlan = deriveExtractionShape(snuggValuesSchema, {
@@ -542,7 +535,7 @@ test("the demo plan renders the hvac instance's sections as h5 headings in plan 
   const storage = await openTestOutbox();
   await parkedItem(storage, {});
 
-  const screen = await renderReviewPanel(storage);
+  const screen = await renderReviewPanel(storage, demoReviewPlan);
   const instance = screen.getByTestId("review-instance-hvac[k1]");
   await expect.element(instance).toBeInTheDocument();
 
@@ -684,7 +677,7 @@ test("the demo plan's sections render on every instance of the collection, not j
   const storage = await openTestOutbox();
   await parkedItem(storage, {}, { hvac: 2 });
 
-  const screen = await renderReviewPanel(storage);
+  const screen = await renderReviewPanel(storage, demoReviewPlan);
   const expected = ["H5:cooling", "H5:heating", "H5:Other"];
   await vi.waitFor(() => {
     expect(headingsOf(screen.getByTestId("review-instance-hvac[k1]"))).toEqual(expected);
@@ -753,7 +746,7 @@ test("adding an instance to a partitioned collection presents the plan's section
   const storage = await openTestOutbox();
   await parkedItem(storage, {}, { hvac: 0 });
 
-  const screen = await renderReviewPanel(storage);
+  const screen = await renderReviewPanel(storage, demoReviewPlan);
   await screen.getByTestId("add-instance-hvac").click();
 
   const instance = screen.getByTestId("review-instance-hvac[k1]");
@@ -805,7 +798,7 @@ test("a singleton group renders no add-instance affordance — only a collection
   const storage = await openTestOutbox();
   await parkedItem(storage, {});
 
-  const screen = await renderReviewPanel(storage);
+  const screen = await renderReviewPanel(storage, demoReviewPlan);
 
   await expect.element(screen.getByTestId("review-group-basedata")).toBeInTheDocument();
   await expect.element(screen.getByTestId("add-instance-basedata")).not.toBeInTheDocument();
@@ -823,7 +816,7 @@ test("the affordance on a populated collection still adds a sectioned instance",
   const storage = await openTestOutbox();
   await parkedItem(storage, {}, { hvac: 1 });
 
-  const screen = await renderReviewPanel(storage);
+  const screen = await renderReviewPanel(storage, demoReviewPlan);
   await expect.element(screen.getByTestId("review-instance-hvac[k1]")).toBeInTheDocument();
 
   await screen.getByTestId("add-instance-hvac").click();

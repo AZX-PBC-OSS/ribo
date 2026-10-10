@@ -108,8 +108,8 @@ export interface UseReviewOptions<T extends z.ZodObject = z.ZodObject> {
    * **Hold it still, like `valuesSchema`.** It is a `useMemo` dependency: the
    * request is rebuilt when the plan's reference changes and not rebuilt per
    * render when it is held still — so an inline plan object in JSX rebuilds
-   * the whole request on every render. A derived shape is a module-level
-   * constant, which is the intended shape of this argument.
+   * the whole request on every render. Hold a derived shape in a module constant, state or a
+   * memo, not inline.
    */
   readonly reviewPlan?: ReviewPlan;
   /** Bypasses the provider. What the tests inject through. */
