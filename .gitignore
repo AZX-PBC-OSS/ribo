@@ -23,7 +23,10 @@ docs/deep-dives/accuracy.md
 # when a browser test fails. Regenerated on the next run; never reviewed as source.
 # The glob is deliberate: Vitest writes the directory next to the test file that
 # failed, so a fixed path only covers wherever a test happened to fail first.
+# Vitest 5 additionally writes a root-level `.vitest/attachments/` for the same
+# failures — same artifacts, same rule.
 .vitest-attachments/
+.vitest/
 **/__screenshots__/
 
 # Manual extraction acceptance-gate outputs (Phase 4 Task 3): per-transcript

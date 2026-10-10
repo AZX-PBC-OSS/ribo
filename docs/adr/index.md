@@ -77,3 +77,4 @@ receives.
 | [0032](./0032-a-repair-resumes-from-committed-operations.md)                        | A repair resumes from committed operations instead of re-proposing the set                     | Accepted |
 | [0034](./0034-a-group-splits-for-extraction-by-partition-not-by-carving.md)         | A group splits for extraction by partition, not by carving new groups                          | Accepted |
 | [0035](./0035-collection-fill-can-batch-instances-keyed-by-roster-id.md)            | Collection fill can batch instances, keyed by roster id                                        | Accepted |
+| [0036](./0036-a-shape-plan-lays-the-review-tree-out-by-sections.md)                 | A shape plan lays the review tree out by sections                                              | Accepted |

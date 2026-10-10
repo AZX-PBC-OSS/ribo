@@ -9,7 +9,9 @@ import type { ShapeMapping } from "./shape-mapping.js";
  * group's direct field paths in extraction-schema space), with a `remainder`
  * part holding the group's unnamed fields. `partition`'s whole effect lives
  * here — the extraction split reads it to cut the group's calls; identity,
- * the merge, review and write-back never see it.
+ * the merge and write-back never see it, and review sees the cut only when
+ * the host hands the record back as a `reviewPlan`, whose layout sections the
+ * review tree by it (ADR 0036).
  */
 export type ShapePartitions = Readonly<Record<string, Readonly<Record<string, readonly string[]>>>>;
 

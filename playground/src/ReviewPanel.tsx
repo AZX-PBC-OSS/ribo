@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useSyncExternalStore, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+  type ChangeEvent,
+  type ReactElement,
+} from "react";
 import { z } from "zod";
 import { stripOptionalNullable } from "@azx/ribo-core";
 import type {
@@ -7,12 +13,15 @@ import type {
   ReviewField,
   ReviewFields,
   ReviewNode,
+  ReviewPlan,
+  ReviewSectionNode,
   SessionItem,
 } from "@azx/ribo-core";
 import { useReview, useSessions } from "@azx/ribo-ui-react";
 import { snuggProAdapter, snuggValuesSchema } from "@azx/ribo-adapter-snuggpro";
 import { ONDEVICE_CHAT_ENGINE } from "@azx/ribo-extractor-ondevice";
 
+import { demoReviewPlan } from "./demo-review-plan.js";
 import { getConnectivity } from "./connectivity-store.js";
 import {
   extractorComposite,
@@ -71,11 +80,28 @@ import {
  *
  * A card's groups and instances come from `useReview`'s `tree` — core's own schema walk,
  * handed over in the shape it saw rather than flattened into path text this file would
- * have to parse back. `groupFields` below is a rename onto this panel's rendering types,
+ * have to parse back. `cardEntries` below is a rename onto this panel's rendering types,
  * not a reconstruction. Collection groups render each instance as a subsection with an
  * add/remove affordance; a group whose state is `empty` renders with an add affordance so
  * the auditor can still notice it was missed, while an `absent` one renders nothing —
  * "there are none of these" and "never mentioned" are different claims.
+ *
+ * ## Sections are the plan's outline, rendered from the tree
+ *
+ * When the host passes a `reviewPlan` (the demo plan below by default), the tree also
+ * carries section nodes — the plan's labelled groupings — and the card renders each as a
+ * real heading at one level under the heading it appears inside (group h3 → section h4 in
+ * a singleton group; instance h4 → section h5 in a collection instance; a nest section at
+ * top level renders h3; a deeper intermediate section one level under its own section).
+ * Labels render verbatim — they are the plan author's words, not schema keys to humanize.
+ * The tree is the rendering channel: sections and fields appear in the order the tree
+ * presents them, and inside a section the patch's own subtree structure renders flattened
+ * (plain field rows, no headings of its own), which is how anything nested inside a group
+ * or instance renders today. Without a plan no section node exists anywhere in the tree,
+ * so none of these render branches are reachable and the card is exactly what it always
+ * was. Sections carry no path and no key, so they are located by the uniform
+ * `data-testid="review-section"` on the heading itself — labels are model-authored free
+ * text, so there is nothing stable to slug.
  *
  * ## The gate
  *
@@ -108,27 +134,44 @@ function leafLabel(path: FieldPath): string {
   return humanize(dot === -1 ? path : path.slice(dot + 1));
 }
 
-/** One instance within a collection group: its path and the leaf paths it owns. */
+/** One instance within a collection group: its path, its label, and the tree children it owns. */
 interface InstanceGroup {
   readonly path: string;
   readonly key: string;
   readonly label: string;
-  readonly paths: readonly FieldPath[];
+  readonly children: readonly ReviewNode[];
 }
 
 /** One resource group: singletons have one unnamed instance; collections may have many. */
 interface ResourceGroup {
   readonly name: string | undefined;
+  /**
+   * Whether the group is a collection — the only kind that can gain an
+   * instance. The add affordances exist for it alone: the hook refuses
+   * `addInstance` for any other group, so a button offered there is a dead
+   * control that throws on every click.
+   */
+  readonly isCollection: boolean;
   readonly instances: readonly InstanceGroup[];
   readonly isEmpty: boolean;
   readonly emptyQuote: string | null;
 }
+
+/**
+ * What the card renders below its header, in tree order: a resource group (a
+ * schema group with its instances), or a plan-laid-out top-level section — a
+ * nest's new group, which is no group of the schema's at all.
+ */
+type CardEntry =
+  | { readonly kind: "group"; readonly group: ResourceGroup }
+  | { readonly kind: "section"; readonly label: string; readonly children: readonly ReviewNode[] };
 
 /** Every leaf path under a node, in the order the tree presents them. */
 function leafPathsOf(nodes: readonly ReviewNode[]): FieldPath[] {
   return nodes.flatMap((node) => {
     if (node.kind === "leaf") return [node.path];
     if (node.kind === "object") return leafPathsOf(node.children);
+    if (node.kind === "section") return leafPathsOf(node.children);
     return node.instances.flatMap((instance) => leafPathsOf(instance.children));
   });
 }
@@ -145,44 +188,67 @@ function leafPathsOf(nodes: readonly ReviewNode[]): FieldPath[] {
  * show and no add affordance to offer. `empty` means "there are none of these", which is a
  * claim worth rendering.
  */
-function groupFields(tree: readonly ReviewNode[]): readonly ResourceGroup[] {
-  const result: ResourceGroup[] = [];
+function cardEntries(tree: readonly ReviewNode[]): readonly CardEntry[] {
+  const result: CardEntry[] = [];
   for (const node of tree) {
     if (node.kind === "leaf") {
       result.push({
-        name: node.key,
-        instances: [{ path: node.path, key: "", label: "", paths: [node.path] }],
-        isEmpty: false,
-        emptyQuote: null,
+        kind: "group",
+        group: {
+          name: node.key,
+          isCollection: false,
+          instances: [{ path: node.path, key: "", label: "", children: [node] }],
+          isEmpty: false,
+          emptyQuote: null,
+        },
       });
       continue;
     }
     if (node.kind === "object") {
       result.push({
-        name: node.key,
-        instances: [{ path: node.path, key: "", label: "", paths: leafPathsOf(node.children) }],
-        isEmpty: false,
-        emptyQuote: null,
+        kind: "group",
+        group: {
+          name: node.key,
+          isCollection: false,
+          instances: [{ path: node.path, key: "", label: "", children: node.children }],
+          isEmpty: false,
+          emptyQuote: null,
+        },
       });
+      continue;
+    }
+    // A top-level section is a nest's new group: it renders as its own entry,
+    // not as a resource group — it carries no key and holds no instances.
+    if (node.kind === "section") {
+      result.push({ kind: "section", label: node.label, children: node.children });
       continue;
     }
     if (node.state === "absent") continue;
     result.push({
-      name: node.key,
-      instances: node.instances.map((instance, index) => ({
-        path: instance.path,
-        key: instance.key,
-        label: `${humanize(node.key)} ${index + 1}`,
-        paths: leafPathsOf(instance.children),
-      })),
-      isEmpty: node.state === "empty" || node.state === "statedEmpty",
-      emptyQuote: node.emptyQuote,
+      kind: "group",
+      group: {
+        name: node.key,
+        isCollection: true,
+        instances: node.instances.map((instance, index) => ({
+          path: instance.path,
+          key: instance.key,
+          label: `${humanize(node.key)} ${index + 1}`,
+          children: instance.children,
+        })),
+        isEmpty: node.state === "empty" || node.state === "statedEmpty",
+        emptyQuote: node.emptyQuote,
+      },
     });
   }
   return result;
 }
 
-export function ReviewPanel() {
+export function ReviewPanel({
+  reviewPlan,
+}: {
+  /** The plan the card's tree is laid out by; defaults to the demo plan. */
+  readonly reviewPlan?: ReviewPlan;
+}) {
   const { items: parked, loading, error } = useSessions({ status: "awaiting-review" });
   const onDeviceExtractor = useSyncExternalStore(
     subscribeToOnDeviceExtractor,
@@ -227,7 +293,7 @@ export function ReviewPanel() {
       ) : (
         <ol style={{ listStyle: "none", margin: "1rem 0 0", padding: 0 }}>
           {parked.map((session) => (
-            <ReviewCard key={session.id} session={session} />
+            <ReviewCard key={session.id} session={session} reviewPlan={reviewPlan} />
           ))}
         </ol>
       )}
@@ -376,7 +442,14 @@ function OnDeviceExtractorDownloadProgress({ state }: { state: OnDeviceExtractor
   );
 }
 
-function ReviewCard({ session }: { session: SessionItem }) {
+function ReviewCard({
+  session,
+  reviewPlan = demoReviewPlan,
+}: {
+  readonly session: SessionItem;
+  /** The plan the card's tree is laid out by; defaults to the demo plan. */
+  readonly reviewPlan?: ReviewPlan;
+}) {
   const {
     ready,
     fields,
@@ -396,6 +469,7 @@ function ReviewCard({ session }: { session: SessionItem }) {
   } = useReview(session, {
     valuesSchema: snuggValuesSchema,
     requiredOnCreate: snuggProAdapter.requiredOnCreate,
+    reviewPlan,
   });
 
   const untouchedSet = useMemo(() => new Set(untouched), [untouched]);
@@ -406,7 +480,7 @@ function ReviewCard({ session }: { session: SessionItem }) {
   );
   const blocked = blockedPaths.length > 0;
 
-  const groups = useMemo(() => (tree === undefined ? [] : groupFields(tree)), [tree]);
+  const entries = useMemo(() => (tree === undefined ? [] : cardEntries(tree)), [tree]);
 
   // Re-derived from the envelope itself, not from what a flatten walk happened to
   // find — see the `@file` note. `stated` / `silent` are purely informational: the
@@ -467,21 +541,37 @@ function ReviewCard({ session }: { session: SessionItem }) {
         </span>
       </div>
 
-      {groups.map((group) => (
-        <ResourceGroup
-          key={group.name ?? ""}
-          group={group}
-          fields={fields}
-          decisionOf={decisionOf}
-          untouchedSet={untouchedSet}
-          errors={errors}
-          onAccept={accept}
-          onEdit={edit}
-          onReject={reject}
-          onAddInstance={addInstance}
-          onRemoveInstance={removeInstance}
-        />
-      ))}
+      {entries.map((entry) =>
+        entry.kind === "group" ? (
+          <ResourceGroup
+            key={`group:${entry.group.name ?? ""}`}
+            group={entry.group}
+            fields={fields}
+            decisionOf={decisionOf}
+            untouchedSet={untouchedSet}
+            errors={errors}
+            onAccept={accept}
+            onEdit={edit}
+            onReject={reject}
+            onAddInstance={addInstance}
+            onRemoveInstance={removeInstance}
+          />
+        ) : (
+          <PlanSection
+            key={`section:${entry.label}`}
+            label={entry.label}
+            nodes={entry.children}
+            level={3}
+            fields={fields}
+            decisionOf={decisionOf}
+            untouchedSet={untouchedSet}
+            errors={errors}
+            onAccept={accept}
+            onEdit={edit}
+            onReject={reject}
+          />
+        ),
+      )}
 
       {error !== undefined && <p style={errorBox}>{error.message}</p>}
 
@@ -533,11 +623,11 @@ function ResourceGroup({
   readonly onAddInstance: (group: string) => void;
   readonly onRemoveInstance: (instancePath: string) => void;
 }) {
-  const { name, instances, isEmpty, emptyQuote } = group;
+  const { name, instances, isEmpty, emptyQuote, isCollection } = group;
   return (
     <div style={{ marginTop: "0.75rem" }} data-testid={`review-group-${name ?? "unnamed"}`}>
       {name !== undefined && (
-        <h3 style={{ fontSize: "0.9rem", margin: "0 0 0.35rem" }}>{humanize(name)}</h3>
+        <h3 style={{ fontSize: HEADING_SIZE[3], margin: "0 0 0.35rem" }}>{humanize(name)}</h3>
       )}
       {isEmpty ? (
         <div>
@@ -551,14 +641,16 @@ function ResourceGroup({
           ) : (
             <p style={muted}>none described</p>
           )}
-          <button
-            type="button"
-            style={button}
-            data-testid={`add-instance-${name}`}
-            onClick={() => name !== undefined && onAddInstance(name)}
-          >
-            Add one
-          </button>
+          {isCollection && (
+            <button
+              type="button"
+              style={button}
+              data-testid={`add-instance-${name}`}
+              onClick={() => name !== undefined && onAddInstance(name)}
+            >
+              Add one
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -566,6 +658,10 @@ function ResourceGroup({
             <InstanceSection
               key={instance.path}
               instance={instance}
+              // A section heading nests one level under the heading it appears
+              // inside: one deeper than a singleton group's h3, one deeper than a
+              // collection instance's h4.
+              sectionLevel={instance.key === "" ? 4 : 5}
               fields={fields}
               decisionOf={decisionOf}
               untouchedSet={untouchedSet}
@@ -576,7 +672,7 @@ function ResourceGroup({
               onRemoveInstance={onRemoveInstance}
             />
           ))}
-          {name !== undefined && (
+          {isCollection && name !== undefined && (
             <button
               type="button"
               style={button}
@@ -594,6 +690,7 @@ function ResourceGroup({
 
 function InstanceSection({
   instance,
+  sectionLevel,
   fields,
   decisionOf,
   untouchedSet,
@@ -604,6 +701,8 @@ function InstanceSection({
   onRemoveInstance,
 }: {
   readonly instance: InstanceGroup;
+  /** The heading level a section directly inside this instance renders at. */
+  readonly sectionLevel: number;
   readonly fields: ReviewFields;
   readonly decisionOf: (path: FieldPath) => FieldDecision | undefined;
   readonly untouchedSet: ReadonlySet<FieldPath>;
@@ -618,7 +717,7 @@ function InstanceSection({
       <div
         style={{ alignItems: "center", display: "flex", gap: "0.5rem", marginBottom: "0.35rem" }}
       >
-        <h4 style={{ fontSize: "0.85rem", margin: 0 }}>{instance.label}</h4>
+        <h4 style={{ fontSize: HEADING_SIZE[4], margin: 0 }}>{instance.label}</h4>
         {instance.key !== "" && (
           <button
             type="button"
@@ -630,22 +729,193 @@ function InstanceSection({
           </button>
         )}
       </div>
-      <dl style={{ margin: 0 }}>
-        {instance.paths.map((path) => (
-          <FieldRow
-            key={path}
-            path={path}
-            label={leafLabel(path)}
-            field={fields[path]!}
-            decision={decisionOf(path)}
-            isUntouched={untouchedSet.has(path)}
-            errorMessage={errors[path]}
+      <ChildBlocks
+        nodes={instance.children}
+        level={sectionLevel}
+        fields={fields}
+        decisionOf={decisionOf}
+        untouchedSet={untouchedSet}
+        errors={errors}
+        onAccept={onAccept}
+        onEdit={onEdit}
+        onReject={onReject}
+      />
+    </div>
+  );
+}
+
+/**
+ * The review card's heading type scale, by heading level — one home for every
+ * heading the card renders: a group heading is level 3, an instance heading
+ * level 4, and a section the level the layout gives it (DD-C's nesting), so a
+ * section at group level shares the group heading's size.
+ */
+const HEADING_SIZE: Readonly<Record<number, string>> = {
+  3: "0.9rem",
+  4: "0.85rem",
+  5: "0.8rem",
+  6: "0.75rem",
+};
+
+function SectionHeading({
+  level,
+  label,
+}: {
+  readonly level: number;
+  readonly label: string;
+}): ReactElement {
+  // Native heading elements end at h6; a plan nested deeper than the decided
+  // surface (which tops at h5) still renders a real heading — the deepest there is.
+  const depth = Math.min(level, 6);
+  const Tag = `h${depth}` as "h3" | "h4" | "h5" | "h6";
+  return (
+    <Tag
+      data-testid="review-section"
+      style={{ fontSize: HEADING_SIZE[depth] ?? "0.75rem", margin: "0.5rem 0 0.35rem" }}
+    >
+      {label}
+    </Tag>
+  );
+}
+
+/**
+ * One run of a container's children: the consecutive non-section nodes between
+ * two sections (rendered as one flat run of field rows — which is all a no-plan
+ * container ever holds), or a section node (its own heading plus its content).
+ * Everything a container holds lands in exactly one item, in tree order.
+ */
+type ContentItem =
+  | { readonly kind: "rows"; readonly key: string; readonly nodes: readonly PathedNode[] }
+  | { readonly kind: "section"; readonly node: ReviewSectionNode };
+
+/** The node kinds that carry a `path` — every one but a section. */
+type PathedNode = Exclude<ReviewNode, ReviewSectionNode>;
+
+function contentItemsOf(nodes: readonly ReviewNode[]): readonly ContentItem[] {
+  const items: ContentItem[] = [];
+  let batch: PathedNode[] = [];
+  const flush = (): void => {
+    const [head, ...rest] = batch;
+    if (head === undefined) return;
+    items.push({ kind: "rows", key: `rows:${head.path}`, nodes: [head, ...rest] });
+    batch = [];
+  };
+  for (const node of nodes) {
+    if (node.kind === "section") {
+      flush();
+      items.push({ kind: "section", node });
+    } else {
+      batch.push(node);
+    }
+  }
+  flush();
+  return items;
+}
+
+interface FieldRenderingProps {
+  readonly fields: ReviewFields;
+  readonly decisionOf: (path: FieldPath) => FieldDecision | undefined;
+  readonly untouchedSet: ReadonlySet<FieldPath>;
+  readonly errors: Readonly<Record<FieldPath, string>>;
+  readonly onAccept: (path: FieldPath) => void;
+  readonly onEdit: (path: FieldPath, value: unknown) => void;
+  readonly onReject: (path: FieldPath) => void;
+}
+
+/**
+ * A container's content, in the tree's own order: runs of field rows interleaved
+ * with the sections' headings and content. `level` is the heading level for the
+ * sections directly in `nodes`; a nested section renders one level deeper.
+ *
+ * Inside a section the patch's own subtree structure renders flattened — every
+ * descendant leaf as a plain field row, no headings of its own — which is how
+ * anything nested inside a group or instance renders today.
+ */
+function ChildBlocks({
+  nodes,
+  level,
+  fields,
+  decisionOf,
+  untouchedSet,
+  errors,
+  onAccept,
+  onEdit,
+  onReject,
+}: {
+  readonly nodes: readonly ReviewNode[];
+  readonly level: number;
+} & FieldRenderingProps): ReactElement {
+  return (
+    <>
+      {contentItemsOf(nodes).map((item) =>
+        item.kind === "rows" ? (
+          <dl key={item.key} style={{ margin: 0 }}>
+            {leafPathsOf(item.nodes).map((path) => (
+              <FieldRow
+                key={path}
+                path={path}
+                label={leafLabel(path)}
+                field={fields[path]!}
+                decision={decisionOf(path)}
+                isUntouched={untouchedSet.has(path)}
+                errorMessage={errors[path]}
+                onAccept={onAccept}
+                onEdit={onEdit}
+                onReject={onReject}
+              />
+            ))}
+          </dl>
+        ) : (
+          <PlanSection
+            key={`section:${item.node.label}`}
+            label={item.node.label}
+            nodes={item.node.children}
+            level={level}
+            fields={fields}
+            decisionOf={decisionOf}
+            untouchedSet={untouchedSet}
+            errors={errors}
             onAccept={onAccept}
             onEdit={onEdit}
             onReject={onReject}
           />
-        ))}
-      </dl>
+        ),
+      )}
+    </>
+  );
+}
+
+/** A plan-laid-out section: its label verbatim as a heading, its content beneath. */
+function PlanSection({
+  label,
+  nodes,
+  level,
+  fields,
+  decisionOf,
+  untouchedSet,
+  errors,
+  onAccept,
+  onEdit,
+  onReject,
+}: {
+  readonly label: string;
+  readonly nodes: readonly ReviewNode[];
+  readonly level: number;
+} & FieldRenderingProps): ReactElement {
+  return (
+    <div style={{ marginTop: "0.5rem" }}>
+      <SectionHeading level={level} label={label} />
+      <ChildBlocks
+        nodes={nodes}
+        level={level + 1}
+        fields={fields}
+        decisionOf={decisionOf}
+        untouchedSet={untouchedSet}
+        errors={errors}
+        onAccept={onAccept}
+        onEdit={onEdit}
+        onReject={onReject}
+      />
     </div>
   );
 }

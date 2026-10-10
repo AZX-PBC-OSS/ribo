@@ -1,4 +1,4 @@
-import { createMemoryBackend } from "@azx/ribo-core";
+import { createMemoryBackend, deriveExtractionShape } from "@azx/ribo-core";
 import { describe, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import {
@@ -6,6 +6,8 @@ import {
   ReviewValidationError,
   type ExistingRecord,
   type FieldDecision,
+  type ReviewNode,
+  type ReviewPlan,
   type Storage,
   type RankedCandidate,
   type SessionItem,
@@ -906,6 +908,123 @@ describe("useReview — instance identity: link-or-create decision", () => {
     expect(field.extracted.value).toBe("Burnham");
     expect(field.extracted.sourceSpan).toBe("Boiler by Burnham.");
     expect(field.isGrounded).toBe(true);
+    await storage.close();
+  });
+});
+
+describe("useReview — addInstance refusals", () => {
+  // The review card offers its add-instance affordance only for collection
+  // groups; the hook's own refusal is what makes that more than politeness —
+  // it is the boundary a host UI (and a host that renders its own controls)
+  // actually hits. A call the hook accepted for a non-array group would
+  // replace that group's value with a one-element array in the extraction
+  // snapshot: a corrupted draft the reviewer never asked for.
+  test("a group that cannot gain an instance is refused by name — unknown, leaf, and plain-object groups", async () => {
+    const { storage, session } = await parkedItem();
+    const { seen } = await probe(session, storage);
+
+    expect(() => seen.current!.addInstance("nope")).toThrow(
+      /"nope" is not a group of this review schema/,
+    );
+    expect(() => seen.current!.addInstance("atticRValue")).toThrow(
+      /"atticRValue" is not a collection group/,
+    );
+    expect(() => seen.current!.addInstance("healthSafety")).toThrow(
+      /"healthSafety" is not a collection group/,
+    );
+    await storage.close();
+  });
+
+  test("adding is refused while the review is not ready", async () => {
+    const parked = await parkedItem();
+    const { seen } = await probe(undefined, parked.storage);
+
+    expect(() => seen.current!.addInstance("healthSafety")).toThrow(/not ready/);
+    await parked.storage.close();
+  });
+});
+
+describe("useReview — reviewPlan forwarding", () => {
+  // Derived with the public derivation, the way a host builds one — over this
+  // file's miniature schema, whose top-level `atticRValue` leaf is exactly what
+  // a nest operation moves. The label is the only thing the two plans differ by,
+  // which is what makes the reference-change pin below readable.
+  const atticNestPlan = deriveExtractionShape(valuesSchema, {
+    operations: [{ op: "nest", group: "attic", moves: { atticRValue: "rValue" } }],
+  });
+  const loftNestPlan = deriveExtractionShape(valuesSchema, {
+    operations: [{ op: "nest", group: "loft", moves: { atticRValue: "rValue" } }],
+  });
+
+  const sectionLabelsOf = (nodes: readonly ReviewNode[]): readonly string[] =>
+    nodes.flatMap((node) =>
+      node.kind === "section" ? [node.label, ...sectionLabelsOf(node.children)] : [],
+    );
+
+  test("a reviewPlan lays the request's tree out, and without one no section arises", async () => {
+    const plain = await parkedItem();
+    const { seen } = await probe(plain.session, plain.storage);
+    expect(sectionLabelsOf(seen.current!.tree!)).toEqual([]);
+    await plain.storage.close();
+
+    const planned = await parkedItem();
+    const { seen: plannedSeen } = await probe(planned.session, planned.storage, {
+      reviewPlan: atticNestPlan,
+    });
+    // The nest's new top-level group is a top-level section; the fields are
+    // untouched — only the outline moved.
+    expect(sectionLabelsOf(plannedSeen.current!.tree!)).toEqual(["attic"]);
+    expect(Object.keys(plannedSeen.current!.fields!)).toEqual(Object.keys(seen.current!.fields!));
+    await planned.storage.close();
+  });
+
+  test("a held-still plan does not rebuild the request per render; a changed reference does", async () => {
+    const { storage, session } = await parkedItem();
+    const seen: { current: UseReviewResult | undefined } = { current: undefined };
+    function PlanProbe({ subject, plan }: { subject: SessionItem | undefined; plan: ReviewPlan }) {
+      seen.current = useReview(subject, { valuesSchema, storage, reviewPlan: plan });
+      return null;
+    }
+
+    const screen = await render(<PlanProbe subject={session} plan={atticNestPlan} />);
+    await vi.waitFor(() => expect(seen.current!.ready).toBe(true));
+
+    const before = seen.current!.tree;
+    await screen.rerender(<PlanProbe subject={session} plan={atticNestPlan} />);
+    // Same plan reference — the memo held, so the same request (and tree) object.
+    expect(seen.current!.tree).toBe(before);
+
+    await screen.rerender(<PlanProbe subject={session} plan={loftNestPlan} />);
+    // A new plan reference rebuilt the request, and the tree carries the new plan.
+    expect(seen.current!.tree).not.toBe(before);
+    expect(sectionLabelsOf(seen.current!.tree!)).toEqual(["loft"]);
+    await storage.close();
+  });
+
+  test("a plan core refuses fails the render loudly, naming the offending path — never a quiet unsectioned card", async () => {
+    // The derivation cannot produce a data-time path, but a plan is plain data
+    // and the hook is the pass through which a host's mistake reaches core: the
+    // forwarding contract is verbatim, so the hook must not add a degrade path
+    // of its own — a corrupt plan that rendered as a plain card would be a
+    // wrong answer indistinguishable from "no plan was passed".
+    const { storage, session } = await parkedItem();
+    const corruptPlan: ReviewPlan = {
+      mapping: { leaves: { "attic[k1].rValue": { source: "atticRValue" } }, provenance: {} },
+      partitions: {},
+    };
+    function CorruptPlanProbe(): null {
+      useReview(session, { valuesSchema, storage, reviewPlan: corruptPlan });
+      return null;
+    }
+
+    let thrown: unknown;
+    try {
+      await render(<CorruptPlanProbe />);
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    expect(String(thrown)).toContain('the extraction path "attic[k1].rValue"');
     await storage.close();
   });
 });

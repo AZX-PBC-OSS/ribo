@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import { buildFieldPath, parseFieldPath, stripOptionalNullable } from "../provenance/field-path.js";
 import type { FieldPath, FieldPathSegment } from "../provenance/field-path.js";
+import type { DerivedExtractionShape } from "../extraction/shape/derived-shape.js";
 import type { RequiredOnCreate, RequiredOnCreateMap } from "../write/adapter.js";
+import { layOutTreeByPlan } from "./review-plan.js";
 import { describeLocated, zodIssues } from "./zod-issues.js";
 import { ROW_SOURCE_SPAN_KEY, validateProvenance } from "../provenance/enveloped.js";
 import type { ProvenanceGranularity } from "../provenance/enveloped.js";
@@ -286,7 +288,29 @@ export interface ReviewCollectionNode {
   readonly skipped: boolean;
 }
 
-export type ReviewNode = ReviewLeafNode | ReviewObjectNode | ReviewCollectionNode;
+/**
+ * A labelled grouping laid out by a review plan ({@link BuildReviewRequestOptions.reviewPlan}):
+ * one per part of a partitioned group, one per intermediate group a regroup created (nested for
+ * deeper ones), one per top-level group a nest created, and the catch-all "Other". Without a
+ * plan no section arises.
+ *
+ * A section has no `path` and no `key`: decisions are keyed by leaf paths, never by the
+ * outline, and the nodes inside keep their own paths and identities. The type widens
+ * {@link ReviewNode} for every host, plan or not — an exhaustive switch over it must learn
+ * this member.
+ */
+export interface ReviewSectionNode {
+  readonly kind: "section";
+  /** The plan's part label verbatim, or `"Other"`. */
+  readonly label: string;
+  readonly children: readonly ReviewNode[];
+}
+
+export type ReviewNode =
+  | ReviewLeafNode
+  | ReviewObjectNode
+  | ReviewCollectionNode
+  | ReviewSectionNode;
 
 /** What a human reviewer is shown. */
 export interface ReviewRequest {
@@ -305,8 +329,10 @@ export interface ReviewRequest {
    *
    * **A second view, never a second source.** A leaf lives once, in `fields`; the tree holds
    * the same object. `resolveReview` is still path-keyed, and `fields`' insertion order is
-   * still the contract — the tree is built by the same walk in the same order, so the two
-   * agree by construction rather than by discipline.
+   * still the contract. Without a {@link BuildReviewRequestOptions.reviewPlan} the tree is built
+   * by the same walk in the same order, so the two agree by construction. With one, the walk's
+   * nodes are re-parented into the plan's sections and presented in the plan's order; `fields`
+   * keeps declaration order, and each leaf node is still the object `fields` holds.
    */
   readonly tree: readonly ReviewNode[];
   /**
@@ -777,7 +803,13 @@ export const buildReviewRequest = <T extends z.ZodObject>(
     fields,
     tree,
   );
-  return { transcript, fields, tree, existingRecords: options.existingRecords ?? {} };
+  const plan = options.reviewPlan;
+  return {
+    transcript,
+    fields,
+    tree: plan === undefined ? tree : layOutTreeByPlan(tree, plan),
+    existingRecords: options.existingRecords ?? {},
+  };
 };
 
 /**
@@ -791,7 +823,9 @@ export const buildReviewRequest = <T extends z.ZodObject>(
 const emptyCollectionPaths = (nodes: readonly ReviewNode[]): FieldPath[] =>
   nodes.flatMap((node) => {
     if (node.kind === "leaf") return [];
-    if (node.kind === "object") return emptyCollectionPaths(node.children);
+    if (node.kind === "object" || node.kind === "section") {
+      return emptyCollectionPaths(node.children);
+    }
     return [
       ...(node.state === "empty" || node.state === "statedEmpty" ? [node.path] : []),
       ...node.instances.flatMap((instance) => emptyCollectionPaths(instance.children)),
@@ -808,6 +842,13 @@ const emptyCollectionPaths = (nodes: readonly ReviewNode[]): FieldPath[] =>
 export type ProvenanceMap<T extends z.ZodObject> = {
   readonly [K in keyof z.infer<T> & string]?: ProvenanceGranularity;
 };
+
+/**
+ * The two records of a {@link DerivedExtractionShape} the review layout reads. A whole derived
+ * shape assigns here, so a host passes its shape directly; it need not be the shape the
+ * extraction ran with.
+ */
+export type ReviewPlan = Pick<DerivedExtractionShape, "mapping" | "partitions">;
 
 /**
  * The adapter facts `buildReviewRequest` cannot read off the values schema.
@@ -876,6 +917,25 @@ export interface BuildReviewRequestOptions<T extends z.ZodObject = z.ZodObject> 
    * ungrounded. Groups absent from the map keep today's per-leaf envelope.
    */
   readonly provenance?: ProvenanceMap<T>;
+  /**
+   * A shape plan to lay {@link ReviewRequest.tree} out by. It changes `tree` and nothing else:
+   * `fields`, every `FieldPath`, `resolveReview` and the write are identical with and without
+   * it.
+   *
+   * - A partitioned group shows one section per part, in the plan's label order with each
+   *   part's fields in the plan's order, and an "Other" section last for the `remainder` part,
+   *   unmapped (dropped) leaves and nested subtrees. Every instance of a collection gets the
+   *   same sections.
+   * - A regroup's new intermediate groups show as sections inside their group; a leaf moved
+   *   under an object the patch already declares joins that object instead. A nest's new
+   *   top-level group shows as a top-level section after the patch's own groups.
+   * - Retypes are ignored: the reviewer edits the patch type.
+   *
+   * Empty sections are left out. An entry naming a group or field the values schema lacks is
+   * ignored, so a stale plan degrades to the plain layout; a path that is not schema-time
+   * (empty, or carrying an instance segment) throws, since no derivation produces one.
+   */
+  readonly reviewPlan?: ReviewPlan;
 }
 
 /**

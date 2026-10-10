@@ -249,10 +249,13 @@ A `partition` splits one group's extraction calls by meaning instead of by size:
 proposes labels, each naming the group's direct fields (`heating`, `cooling`), and every call for
 that group covers exactly one part, titled with a line like "This call covers the heating fields
 of hvac." Fields no part names form a `remainder` part, so nothing goes unextracted. A partition
-changes no schema, no mapping and no identity — the group keeps its key, and review and write-back
-never see the cut (ADR 0034). The cut lives on the derived shape, not in its schema, so forward
-`shape.partitions` to the extractor as the example above does; an extractor built from
-`shape.extractionSchema` alone extracts the group unpartitioned.
+changes no schema, no mapping and no identity — the group keeps its key, and the merge and
+write-back never see the cut (ADR 0034). Review is the one consumer that can: handing the shape
+back to `buildReviewRequest` or `useReview` as a `reviewPlan` lays the review tree out by the
+same record — one labelled section per part, fields no part names collected under "Other" (ADR
+0036). Without a plan, review never sees the cut either. The cut lives on the derived shape, not
+in its schema, so forward `shape.partitions` to the extractor as the example above does; an
+extractor built from `shape.extractionSchema` alone extracts the group unpartitioned.
 
 A `nest` buys extraction-side structure only: the extraction schema carries the new group as a
 subject rather than as loose fields, and it becomes its own `splitExtractionSchema` entry — its

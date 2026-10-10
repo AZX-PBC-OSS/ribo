@@ -14,6 +14,7 @@ import type {
   ReviewIssue,
   ReviewNode,
   ReviewOutcome,
+  ReviewPlan,
   ReviewRequest,
   ReviewSubmission,
   SessionItem,
@@ -98,6 +99,19 @@ export interface UseReviewOptions<T extends z.ZodObject = z.ZodObject> {
     instance: Record<string, unknown>,
     existing: readonly ExistingRecord[],
   ) => readonly RankedCandidate[];
+  /**
+   * An optional shape plan to lay {@link UseReviewResult.tree} out by, forwarded
+   * verbatim to `buildReviewRequest`'s `reviewPlan` — see core's
+   * {@link ReviewPlan} for what a plan is and what layout does and does not
+   * change. A whole `DerivedExtractionShape` assigns here.
+   *
+   * **Hold it still, like `valuesSchema`.** It is a `useMemo` dependency: the
+   * request is rebuilt when the plan's reference changes and not rebuilt per
+   * render when it is held still — so an inline plan object in JSX rebuilds
+   * the whole request on every render. A derived shape is a module-level
+   * constant, which is the intended shape of this argument.
+   */
+  readonly reviewPlan?: ReviewPlan;
   /** Bypasses the provider. What the tests inject through. */
   readonly storage?: Storage;
 }
@@ -134,6 +148,9 @@ export interface UseReviewResult {
    * each collection group carrying whether it is `absent`, `empty` or `populated`, and each
    * collection, top-level object and instance node carrying whether a reported-skipped
    * extraction item addressed it (`skipped`).
+   *
+   * With the `reviewPlan` option, the tree also carries section nodes — the plan's
+   * labelled groupings — as the outline to render them at; without a plan none arise.
    *
    * `fields` stays the decision channel — it is what `decide` and `submit` are keyed by, and
    * its order is the contract. This is the rendering channel, and it exists so a host does
@@ -409,7 +426,14 @@ export function useReview<T extends z.ZodObject>(
   session: SessionItem | undefined,
   options: UseReviewOptions<T>,
 ): UseReviewResult {
-  const { valuesSchema, requiredOnCreate, existingRecords, provenance, rankCandidates } = options;
+  const {
+    valuesSchema,
+    requiredOnCreate,
+    existingRecords,
+    provenance,
+    rankCandidates,
+    reviewPlan,
+  } = options;
   const storage = useRiboInstance("storage", options.storage);
 
   // Fetch the session's recordings so the hook can join their transcripts. A
@@ -473,6 +497,7 @@ export function useReview<T extends z.ZodObject>(
       requiredOnCreate,
       existingRecords,
       provenance,
+      reviewPlan,
       statedEmptyGroups: session?.statedEmptyGroups,
       skippedItems: session?.skippedItems,
     });
@@ -486,6 +511,7 @@ export function useReview<T extends z.ZodObject>(
     requiredOnCreate,
     existingRecords,
     provenance,
+    reviewPlan,
   ]);
 
   const paths = useMemo<readonly FieldPath[]>(

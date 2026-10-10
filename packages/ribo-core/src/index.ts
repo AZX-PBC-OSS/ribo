@@ -564,7 +564,9 @@ export type {
   ReviewNode,
   ReviewObjectNode,
   ReviewOutcome,
+  ReviewPlan,
   ReviewRequest,
+  ReviewSectionNode,
   ReviewSubmission,
 } from "./review/review.js";
 
