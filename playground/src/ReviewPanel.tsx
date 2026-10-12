@@ -733,17 +733,10 @@ function InstanceSection({
   );
 }
 
-/**
- * The review card's heading type scale, by heading level — one home for every
- * heading the card renders: a group heading is level 3, an instance heading
- * level 4, and a section one level under its container, so a
- * section at group level shares the group heading's size.
- */
-const HEADING_SIZE: Readonly<Record<number, string>> = {
+/** The card's group (h3) and instance (h4) heading sizes. Sections are styled as bands. */
+const HEADING_SIZE: Readonly<Record<3 | 4, string>> = {
   3: "0.9rem",
   4: "0.85rem",
-  5: "0.8rem",
-  6: "0.75rem",
 };
 
 function SectionHeading({
@@ -758,9 +751,17 @@ function SectionHeading({
   const depth = Math.min(level, 6);
   const Tag = `h${depth}` as "h3" | "h4" | "h5" | "h6";
   return (
+    // A band, not just a size: field labels are bold at body size, so a section heading
+    // set by size alone reads as one more field.
     <Tag
       data-testid="review-section"
-      style={{ fontSize: HEADING_SIZE[depth] ?? "0.75rem", margin: "0.5rem 0 0.35rem" }}
+      style={{
+        fontSize: "1rem",
+        margin: "1rem 0 0.5rem",
+        padding: "0.4rem 0.6rem",
+        borderLeft: "4px solid #2563eb",
+        background: "#eef2ff",
+      }}
     >
       {label}
     </Tag>
