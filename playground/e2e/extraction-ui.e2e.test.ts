@@ -186,6 +186,15 @@ test("a recording drains through extraction and its fields show with provenance"
   // recording's transcript, so they are flagged — the check works, honestly.
   expect(cardText).toMatch(/not in this transcript/);
 
+  // The demo review plan reached the built card: the hvac instance's partition
+  // sections render as headings carrying the plan's labels verbatim. This is the
+  // join proved in the forward direction — plan → useReview → buildReviewRequest
+  // → tree → DOM; the per-field flow below proves the other direction, that the
+  // laid-out card still presents every leaf exactly once and resolves as before.
+  const sectionLabels = await card.locator('[data-testid="review-section"]').allInnerTexts();
+  expect(sectionLabels).toContain("cooling");
+  expect(sectionLabels).toContain("heating");
+
   // The null-heavy reality is collapsed, not rendered as findings.
   await card
     .getByText(/not stated in this recording/)

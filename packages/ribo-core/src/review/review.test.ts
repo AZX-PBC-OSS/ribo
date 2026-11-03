@@ -896,7 +896,7 @@ describe("buildReviewRequest — collections: data counts instances, schema coun
     });
 
     expect(Object.keys(request.fields)).toEqual(["dhw[k1].dhwType2"]);
-    const hvac = request.tree.find((node) => node.key === "hvac");
+    const hvac = groupNamed(request, "hvac");
     expect(hvac?.kind === "collection" && hvac.state).toBe("empty");
   });
 
@@ -982,7 +982,7 @@ describe("buildReviewRequest — statedEmptyGroups: a grounded 'stated empty' gr
       { hvac: "there's no HVAC in this unit" },
     );
 
-    const hvac = request.tree.find((node) => node.key === "hvac");
+    const hvac = groupNamed(request, "hvac");
     expect(hvac?.kind).toBe("collection");
     expect(hvac?.kind === "collection" && hvac.state).toBe("statedEmpty");
     expect(hvac?.kind === "collection" && hvac.emptyQuote).toBe("there's no HVAC in this unit");
@@ -991,7 +991,7 @@ describe("buildReviewRequest — statedEmptyGroups: a grounded 'stated empty' gr
   test("the same empty array with no statedEmptyGroups entry stays state empty with null quote", () => {
     const request = collectionRequestFor({ hvac: [] });
 
-    const hvac = request.tree.find((node) => node.key === "hvac");
+    const hvac = groupNamed(request, "hvac");
     expect(hvac?.kind === "collection" && hvac.state).toBe("empty");
     expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
   });
@@ -1003,7 +1003,7 @@ describe("buildReviewRequest — statedEmptyGroups: a grounded 'stated empty' gr
       { hvac: "there's no HVAC" },
     );
 
-    const hvac = request.tree.find((node) => node.key === "hvac");
+    const hvac = groupNamed(request, "hvac");
     expect(hvac?.kind === "collection" && hvac.state).toBe("absent");
     expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
   });
@@ -1015,7 +1015,7 @@ describe("buildReviewRequest — statedEmptyGroups: a grounded 'stated empty' gr
       { hvac: "there's no HVAC" },
     );
 
-    const hvac = request.tree.find((node) => node.key === "hvac");
+    const hvac = groupNamed(request, "hvac");
     expect(hvac?.kind === "collection" && hvac.state).toBe("absent");
     expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
   });
@@ -1035,7 +1035,7 @@ describe("buildReviewRequest — statedEmptyGroups: a grounded 'stated empty' gr
       { hvac: "there's no HVAC" },
     );
 
-    const hvac = request.tree.find((node) => node.key === "hvac");
+    const hvac = groupNamed(request, "hvac");
     expect(hvac?.kind === "collection" && hvac.state).toBe("populated");
     expect(hvac?.kind === "collection" && hvac.emptyQuote).toBeNull();
   });
@@ -1067,8 +1067,8 @@ describe("buildReviewRequest — skippedItems: the 'we asked and could not get a
       [{ phaseId: "fill", key: "hvac", instance: 2, instances: 2, part: 1, parts: 1 }],
     );
 
-    const hvac = request.tree.find((node) => node.key === "hvac");
-    const dhw = request.tree.find((node) => node.key === "dhw");
+    const hvac = groupNamed(request, "hvac");
+    const dhw = groupNamed(request, "dhw");
     expect(hvac?.kind === "collection" && hvac.skipped).toBe(true);
     expect(dhw?.kind === "collection" && dhw.skipped).toBe(false);
     const hvacInstances = hvac?.kind === "collection" ? hvac.instances : [];
@@ -1082,8 +1082,8 @@ describe("buildReviewRequest — skippedItems: the 'we asked and could not get a
       { phaseId: "span", key: "hvac" },
     ]);
 
-    const hvac = request.tree.find((node) => node.key === "hvac");
-    const dhw = request.tree.find((node) => node.key === "dhw");
+    const hvac = groupNamed(request, "hvac");
+    const dhw = groupNamed(request, "dhw");
     expect(hvac?.kind === "collection" && hvac.skipped).toBe(true);
     expect(dhw?.kind === "collection" && dhw.skipped).toBe(false);
     const hvacInstances = hvac?.kind === "collection" ? hvac.instances : [];
@@ -1109,7 +1109,7 @@ describe("buildReviewRequest — skippedItems: the 'we asked and could not get a
       undefined,
     );
 
-    const hvac = request.tree.find((node) => node.key === "hvac");
+    const hvac = groupNamed(request, "hvac");
     expect(hvac?.kind === "collection" && hvac.skipped).toBe(false);
     const hvacInstances = hvac?.kind === "collection" ? hvac.instances : [];
     expect(hvacInstances.map((i) => i.skipped)).toEqual([false]);
@@ -1118,7 +1118,7 @@ describe("buildReviewRequest — skippedItems: the 'we asked and could not get a
   test("an empty report is also all-false — reported, nothing skipped", () => {
     const request = collectionRequestFor({ hvac: [] }, undefined, undefined, []);
 
-    const hvac = request.tree.find((node) => node.key === "hvac");
+    const hvac = groupNamed(request, "hvac");
     expect(hvac?.kind === "collection" && hvac.skipped).toBe(false);
   });
 
@@ -1131,7 +1131,7 @@ describe("buildReviewRequest — skippedItems: the 'we asked and could not get a
     ]);
 
     for (const node of request.tree) {
-      if (node.kind === "leaf") continue;
+      if (node.kind === "leaf" || node.kind === "section") continue;
       expect(node.skipped).toBe(false);
     }
   });
@@ -1317,7 +1317,7 @@ describe("resolveReview — keyed instance paths reassemble into positional arra
       dhw: [{ dhwType2: { value: "Tank Water Heater", confidence: 1, sourceSpan: "tank" } }],
     });
 
-    const hvac = request.tree.find((node) => node.key === "hvac");
+    const hvac = groupNamed(request, "hvac");
     expect(hvac?.kind === "collection" && hvac.state).toBe("absent");
 
     const paths = Object.keys(request.fields);
@@ -1623,11 +1623,12 @@ const treeLeafPaths = (nodes: readonly ReviewNode[]): string[] =>
   nodes.flatMap((node) => {
     if (node.kind === "leaf") return [node.path];
     if (node.kind === "object") return treeLeafPaths(node.children);
+    if (node.kind === "section") return treeLeafPaths(node.children);
     return node.instances.flatMap((instance) => treeLeafPaths(instance.children));
   });
 
 const groupNamed = (request: ReviewRequest, key: string): ReviewNode | undefined =>
-  request.tree.find((node) => node.key === key);
+  request.tree.find((node) => node.kind !== "section" && node.key === key);
 
 describe("buildReviewRequest — the tree carries the shape the walk already knew", () => {
   test("a collection absent from the extraction reports state absent", () => {
@@ -1736,7 +1737,9 @@ describe("buildReviewRequest — the tree carries the shape the walk already kne
 
     const attic = groupNamed(request, "attic");
     const nested =
-      attic?.kind === "object" ? attic.children.find((n) => n.key === "hvac") : undefined;
+      attic?.kind === "object"
+        ? attic.children.find((n) => n.kind !== "section" && n.key === "hvac")
+        : undefined;
     expect(nested?.kind).toBe("collection");
     expect(nested?.kind === "collection" && nested.skipped).toBe(false);
     expect(nested?.kind === "collection" && nested.instances.map((i) => i.skipped)).toEqual([

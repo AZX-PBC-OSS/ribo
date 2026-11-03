@@ -17,6 +17,7 @@ import { QueuePanel } from "./QueuePanel.js";
 import { getRecorder } from "./recorder-handle.js";
 import { RecordPanel } from "./RecordPanel.js";
 import { RecoveryNotice } from "./RecoveryNotice.js";
+import { demoReviewPlan } from "./demo-review-plan.js";
 import { ReviewPanel } from "./ReviewPanel.js";
 import { StoragePanel } from "./StoragePanel.js";
 import { errorBox, monospace, muted, page } from "./styles.js";
@@ -113,7 +114,7 @@ export function App() {
             <RecordPanel />
             <QueuePanel storage={storage.storage} />
             <TranscribePanel storage={storage.storage} />
-            <ReviewPanel />
+            <ReviewPanel reviewPlan={demoReviewPlan} />
           </>
         )}
 

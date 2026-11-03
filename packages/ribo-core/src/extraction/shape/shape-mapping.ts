@@ -342,7 +342,7 @@ const kindsAgree = (
  * have no instances — brackets belong to data-time instance keys — so a
  * bracketed mapping path addresses nothing either walk produced.
  */
-const assertObjectKeyPath = (path: string, side: "extraction" | "patch"): void => {
+export const assertObjectKeyPath = (path: string, side: "extraction" | "patch"): void => {
   const segments = parseFieldPath(path);
   if (segments.length === 0 || segments.some((segment) => segment.kind !== "objectKey")) {
     throw new Error(
