@@ -1,0 +1,310 @@
+[
+  {
+    "name": "01-attic-r-value-shell",
+    "noul": {
+      "attic": 0.99,
+      "hvac": 0.98,
+      "wall": 0.96,
+      "window": 0.98,
+      "dhw": 0.13
+    },
+    "truth": {
+      "attic": true,
+      "hvac": true,
+      "wall": true,
+      "window": true,
+      "dhw": false
+    },
+    "ms": 471,
+    "usage": {
+      "input_tokens": 906,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "noul": {
+      "attic": 0.98,
+      "hvac": 0.98,
+      "wall": 0.13,
+      "window": 0.15,
+      "dhw": 0.98
+    },
+    "truth": {
+      "attic": true,
+      "hvac": true,
+      "wall": false,
+      "window": false,
+      "dhw": true
+    },
+    "ms": 169,
+    "usage": {
+      "input_tokens": 872,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "noul": {
+      "attic": 0.2,
+      "hvac": 0.57,
+      "wall": 0.19,
+      "window": 0.98,
+      "dhw": 0.16
+    },
+    "truth": {
+      "attic": false,
+      "hvac": false,
+      "wall": false,
+      "window": true,
+      "dhw": false
+    },
+    "ms": 225,
+    "usage": {
+      "input_tokens": 735,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "noul": {
+      "attic": 0.53,
+      "hvac": 0.95,
+      "wall": 0.14,
+      "window": 0.13,
+      "dhw": 0.98
+    },
+    "truth": {
+      "attic": false,
+      "hvac": true,
+      "wall": false,
+      "window": false,
+      "dhw": true
+    },
+    "ms": 208,
+    "usage": {
+      "input_tokens": 860,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "05-full-walkthrough",
+    "noul": {
+      "attic": 0.99,
+      "hvac": 0.99,
+      "wall": 0.96,
+      "window": 0.98,
+      "dhw": 0.98
+    },
+    "truth": {
+      "attic": true,
+      "hvac": true,
+      "wall": true,
+      "window": true,
+      "dhw": true
+    },
+    "ms": 145,
+    "usage": {
+      "input_tokens": 1891,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "noul": {
+      "attic": 0.17,
+      "hvac": 0.97,
+      "wall": 0.24,
+      "window": 0.18,
+      "dhw": 0.96
+    },
+    "truth": {
+      "attic": false,
+      "hvac": true,
+      "wall": false,
+      "window": false,
+      "dhw": true
+    },
+    "ms": 185,
+    "usage": {
+      "input_tokens": 962,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "07-combustion-safety",
+    "noul": {
+      "attic": 0.17,
+      "hvac": 0.78,
+      "wall": 0.15,
+      "window": 0.14,
+      "dhw": 0.91
+    },
+    "truth": {
+      "attic": false,
+      "hvac": true,
+      "wall": false,
+      "window": false,
+      "dhw": true
+    },
+    "ms": 167,
+    "usage": {
+      "input_tokens": 1002,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "noul": {
+      "attic": 0.98,
+      "hvac": 0.99,
+      "wall": 0.55,
+      "window": 0.14,
+      "dhw": 0.16
+    },
+    "truth": {
+      "attic": true,
+      "hvac": true,
+      "wall": true,
+      "window": false,
+      "dhw": false
+    },
+    "ms": 177,
+    "usage": {
+      "input_tokens": 937,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "noul": {
+      "attic": 0.14,
+      "hvac": 0.49,
+      "wall": 0.14,
+      "window": 0.16,
+      "dhw": 0.98
+    },
+    "truth": {
+      "attic": false,
+      "hvac": false,
+      "wall": false,
+      "window": false,
+      "dhw": true
+    },
+    "ms": 275,
+    "usage": {
+      "input_tokens": 893,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "noul": {
+      "attic": 0.18,
+      "hvac": 0.99,
+      "wall": 0.17,
+      "window": 0.16,
+      "dhw": 0.97
+    },
+    "truth": {
+      "attic": false,
+      "hvac": true,
+      "wall": false,
+      "window": false,
+      "dhw": true
+    },
+    "ms": 169,
+    "usage": {
+      "input_tokens": 1000,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "noul": {
+      "attic": 0.99,
+      "hvac": 0.96,
+      "wall": 0.14,
+      "window": 0.15,
+      "dhw": 0.53
+    },
+    "truth": {
+      "attic": true,
+      "hvac": true,
+      "wall": false,
+      "window": false,
+      "dhw": false
+    },
+    "ms": 209,
+    "usage": {
+      "input_tokens": 875,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "noul": {
+      "attic": 0.16,
+      "hvac": 0.97,
+      "wall": 0.16,
+      "window": 0.15,
+      "dhw": 0.94
+    },
+    "truth": {
+      "attic": false,
+      "hvac": true,
+      "wall": false,
+      "window": false,
+      "dhw": true
+    },
+    "ms": 169,
+    "usage": {
+      "input_tokens": 894,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "noul": {
+      "attic": 0.15,
+      "hvac": 0.99,
+      "wall": 0.97,
+      "window": 0.98,
+      "dhw": 0.94
+    },
+    "truth": {
+      "attic": false,
+      "hvac": true,
+      "wall": true,
+      "window": true,
+      "dhw": true
+    },
+    "ms": 218,
+    "usage": {
+      "input_tokens": 1030,
+      "output_tokens": 87
+    }
+  },
+  {
+    "name": "14-rapid-recap",
+    "noul": {
+      "attic": 0.55,
+      "hvac": 0.63,
+      "wall": 0.16,
+      "window": 0.15,
+      "dhw": 0.96
+    },
+    "truth": {
+      "attic": false,
+      "hvac": false,
+      "wall": false,
+      "window": false,
+      "dhw": true
+    },
+    "ms": 214,
+    "usage": {
+      "input_tokens": 752,
+      "output_tokens": 87
+    }
+  }
+]

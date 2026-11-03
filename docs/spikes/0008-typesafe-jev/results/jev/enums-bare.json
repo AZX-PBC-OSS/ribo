@@ -1,0 +1,4156 @@
+[
+  {
+    "name": "01-attic-r-value-shell",
+    "ms": 545,
+    "usage": {
+      "input_tokens": 11694,
+      "output_tokens": 5806
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Furnace with standalone ducts",
+        "confidence": 0.88
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Natural Gas",
+        "confidence": 0.99
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Trane",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Attic (unconditioned)",
+        "confidence": 0.85
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.9
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 0.7
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.85
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.74
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.91
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Natural Gas",
+        "confidence": 0.8
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.9
+      },
+      "attic.atticInsulationType": {
+        "choice": "Fiberglass or Rockwool (batts or blown)",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.95
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 0.41
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.34
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Fiberglass or Rockwool (batts or blown)",
+        "confidence": 0.96
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Blown Fiberglass or Rockwool",
+        "confidence": 0.42
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "Brick Veneer",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 0.9
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Double pane",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Vinyl",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 0.96
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 0.88
+      },
+      "dhw.dhwFuel2": {
+        "choice": "None",
+        "confidence": 0.9
+      },
+      "dhw.dhwAge": {
+        "choice": "6-10",
+        "confidence": 0.63
+      },
+      "dhw.dhwLocation": {
+        "choice": "Don't Know",
+        "confidence": 0.79
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.99
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.88
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.76
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 0.92
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 0.99
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Furnace with standalone ducts",
+        "alts": [
+          "Furnace / Central AC (shared ducts)"
+        ]
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "value": "Natural Gas",
+        "alts": []
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "value": "Trane",
+        "alts": []
+      },
+      "attic.atticInsulationType": {
+        "value": "Fiberglass or Rockwool (batts or blown)",
+        "alts": []
+      },
+      "wall.wallExteriorWallSiding": {
+        "value": "Brick Veneer",
+        "alts": []
+      },
+      "window.windowType": {
+        "value": "Double pane",
+        "alts": []
+      },
+      "window.windowFrame": {
+        "value": "Vinyl",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "ms": 300,
+    "usage": {
+      "input_tokens": 11660,
+      "output_tokens": 5772
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Boiler",
+        "confidence": 1
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Fuel Oil",
+        "confidence": 0.99
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Other",
+        "confidence": 0.97
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Basement (unconditioned)",
+        "confidence": 0.74
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.96
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 0.89
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.7
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.91
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Fuel Oil",
+        "confidence": 0.59
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "4-6",
+        "confidence": 1
+      },
+      "attic.atticInsulationType": {
+        "choice": "Cellulose",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.93
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Cellulose",
+        "confidence": 0.59
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.31
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Cellulose",
+        "confidence": 0.97
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Cellulose",
+        "confidence": 0.58
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.98
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 0.66
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 0.68
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 0.87
+      },
+      "dhw.dhwFuel2": {
+        "choice": "Fuel Oil",
+        "confidence": 0.78
+      },
+      "dhw.dhwAge": {
+        "choice": "6-10",
+        "confidence": 1
+      },
+      "dhw.dhwLocation": {
+        "choice": "Indoors and within heated area",
+        "confidence": 0.43
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Other",
+        "confidence": 0.86
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.77
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.78
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 0.76
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 0.75
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Boiler",
+        "alts": []
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "value": "Fuel Oil",
+        "alts": []
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "value": "Other",
+        "alts": []
+      },
+      "attic.atticInsulationType": {
+        "value": "Cellulose",
+        "alts": []
+      },
+      "attic.atticInsulationDepth": {
+        "value": "4-6",
+        "alts": []
+      },
+      "dhw.dhwType2": {
+        "value": "Sidearm Tank",
+        "alts": []
+      },
+      "dhw.dhwFuel2": {
+        "value": "Fuel Oil",
+        "alts": []
+      },
+      "dhw.dhwAge": {
+        "value": "6-10",
+        "alts": []
+      },
+      "dhw.dhwManufacturer": {
+        "value": "Other",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "ms": 277,
+    "usage": {
+      "input_tokens": 11523,
+      "output_tokens": 5777
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Furnace / Central AC (shared ducts)",
+        "confidence": 0.74
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 0.97
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Don't Know",
+        "confidence": 0.54
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Attic (unconditioned)",
+        "confidence": 0.63
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.91
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 0.93
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.92
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.91
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Don't Know",
+        "confidence": 0.53
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.99
+      },
+      "attic.atticInsulationType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.95
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "White",
+        "confidence": 0.55
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 0.96
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.78
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "2x6 Frame",
+        "confidence": 0.99
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Double pane",
+        "confidence": 0.72
+      },
+      "window.windowFrame": {
+        "choice": "Vinyl",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 0.92
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 0.91
+      },
+      "dhw.dhwFuel2": {
+        "choice": "None",
+        "confidence": 1
+      },
+      "dhw.dhwAge": {
+        "choice": "0-5",
+        "confidence": 0.57
+      },
+      "dhw.dhwLocation": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.89
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.76
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 0.95
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "window.windowType": {
+        "value": "Double pane",
+        "alts": [
+          "Don't Know"
+        ]
+      },
+      "window.windowFrame": {
+        "value": "Vinyl",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "ms": 305,
+    "usage": {
+      "input_tokens": 11648,
+      "output_tokens": 5771
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Boiler",
+        "confidence": 1
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 0.89
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Fuel Oil",
+        "confidence": 0.99
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Other",
+        "confidence": 0.94
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Basement (unconditioned)",
+        "confidence": 0.51
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.95
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.99
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.8
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.91
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Fuel Oil",
+        "confidence": 0.55
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.84
+      },
+      "attic.atticInsulationType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRoofType": {
+        "choice": "Tar and Gravel",
+        "confidence": 0.95
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.18
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.98
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2": {
+        "choice": "Electricity",
+        "confidence": 0.94
+      },
+      "dhw.dhwAge": {
+        "choice": "11-15",
+        "confidence": 1
+      },
+      "dhw.dhwLocation": {
+        "choice": "Don't Know",
+        "confidence": 0.48
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Rheem",
+        "confidence": 1
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.8
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.72
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 0.44
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Boiler",
+        "alts": []
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "value": "Fuel Oil",
+        "alts": []
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "value": "Other",
+        "alts": []
+      },
+      "dhw.dhwType2": {
+        "value": "Tank Water Heater",
+        "alts": []
+      },
+      "dhw.dhwFuel2": {
+        "value": "Electricity",
+        "alts": []
+      },
+      "dhw.dhwManufacturer": {
+        "value": "Rheem",
+        "alts": []
+      },
+      "dhw.dhwAge": {
+        "value": "11-15",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "05-full-walkthrough",
+    "ms": 393,
+    "usage": {
+      "input_tokens": 12679,
+      "output_tokens": 5801
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Central AC with standalone ducts",
+        "confidence": 0.48
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 0.28
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Propane",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Carrier",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Attic (unconditioned)",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.97
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "Fiberglass 1.25 inch",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "Yes",
+        "confidence": 0.94
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.95
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.82
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.86
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Propane",
+        "confidence": 0.44
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "10-12",
+        "confidence": 1
+      },
+      "attic.atticInsulationType": {
+        "choice": "Cellulose",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.96
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 0.7
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.35
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Cellulose",
+        "confidence": 0.93
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 0.76
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "Yes",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.99
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Fiberglass or Rockwool Batt",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 0.99
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 0.99
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Fiberglass or Rockwool Batt",
+        "confidence": 0.98
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 0.99
+      },
+      "window.windowType": {
+        "choice": "Double pane",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Wood or metal clad",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Tankless Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2": {
+        "choice": "Propane",
+        "confidence": 0.73
+      },
+      "dhw.dhwAge": {
+        "choice": "0-5",
+        "confidence": 0.98
+      },
+      "dhw.dhwLocation": {
+        "choice": "Indoors and within heated area",
+        "confidence": 0.89
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Rinnai",
+        "confidence": 1
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 0.84
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.91
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.46
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tankless Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 0.89
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 0.96
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Central AC with standalone ducts",
+        "alts": []
+      },
+      "hvac.hvacUpgradeAction": {
+        "value": "Replace with a newer model",
+        "alts": []
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "value": "Propane",
+        "alts": []
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "value": "Carrier",
+        "alts": []
+      },
+      "hvac.hvacDuctLocation": {
+        "value": "Attic (unconditioned)",
+        "alts": []
+      },
+      "hvac.hvacDuctLeakage": {
+        "value": "Measured (CFM25)",
+        "alts": []
+      },
+      "hvac.hvacDuctInsulation": {
+        "value": "Fiberglass 1.25 inch",
+        "alts": []
+      },
+      "attic.atticInsulationDepth": {
+        "value": "10-12",
+        "alts": []
+      },
+      "attic.atticInsulationType": {
+        "value": "Cellulose",
+        "alts": []
+      },
+      "wall.wallsInsulated": {
+        "value": "Well",
+        "alts": []
+      },
+      "wall.wallCavityInsulationType": {
+        "value": "Fiberglass or Rockwool Batt",
+        "alts": []
+      },
+      "window.windowType": {
+        "value": "Double pane",
+        "alts": []
+      },
+      "window.windowFrame": {
+        "value": "Wood or metal clad",
+        "alts": []
+      },
+      "dhw.dhwType2": {
+        "value": "Tankless Water Heater",
+        "alts": []
+      },
+      "dhw.dhwFuel2": {
+        "value": "Propane",
+        "alts": []
+      },
+      "dhw.dhwLocation": {
+        "value": "Indoors and within heated area",
+        "alts": [
+          "Don't Know"
+        ]
+      },
+      "dhw.dhwManufacturer": {
+        "value": "Rinnai",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "ms": 255,
+    "usage": {
+      "input_tokens": 11750,
+      "output_tokens": 5776
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Furnace with standalone ducts",
+        "confidence": 0.94
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 0.93
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Natural Gas",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Goodman",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Attic (unconditioned)",
+        "confidence": 0.56
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.96
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 0.8
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 0.86
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.91
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.82
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.86
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Natural Gas",
+        "confidence": 0.72
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.98
+      },
+      "attic.atticInsulationType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.91
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.31
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 0.99
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.99
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2": {
+        "choice": "Natural Gas",
+        "confidence": 0.7
+      },
+      "dhw.dhwAge": {
+        "choice": "6-10",
+        "confidence": 0.83
+      },
+      "dhw.dhwLocation": {
+        "choice": "Don't Know",
+        "confidence": 0.69
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.97
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.86
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.82
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 0.85
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Furnace with standalone ducts",
+        "alts": [
+          "Furnace / Central AC (shared ducts)"
+        ]
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "value": "Natural Gas",
+        "alts": []
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "value": "Goodman",
+        "alts": []
+      },
+      "dhw.dhwType2": {
+        "value": "Tank Water Heater",
+        "alts": []
+      },
+      "dhw.dhwFuel2": {
+        "value": "Natural Gas",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "07-combustion-safety",
+    "ms": 217,
+    "usage": {
+      "input_tokens": 11790,
+      "output_tokens": 5774
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Furnace with standalone ducts",
+        "confidence": 0.81
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 0.97
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "None",
+        "confidence": 0.48
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Intentionally Conditioned Space",
+        "confidence": 0.61
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.97
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 0.75
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.88
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.88
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "None",
+        "confidence": 0.82
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.97
+      },
+      "attic.atticInsulationType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.93
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.25
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.99
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2": {
+        "choice": "None",
+        "confidence": 0.75
+      },
+      "dhw.dhwAge": {
+        "choice": "0-5",
+        "confidence": 0.65
+      },
+      "dhw.dhwLocation": {
+        "choice": "Indoors and within heated area",
+        "confidence": 0.56
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.99
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.86
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.66
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 0.98
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Furnace with standalone ducts",
+        "alts": [
+          "Furnace / Central AC (shared ducts)"
+        ]
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "value": "Natural Gas",
+        "alts": []
+      },
+      "dhw.dhwType2": {
+        "value": "Tank Water Heater",
+        "alts": []
+      },
+      "dhw.dhwFuel2": {
+        "value": "Natural Gas",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "ms": 248,
+    "usage": {
+      "input_tokens": 11725,
+      "output_tokens": 5831
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Central AC with standalone ducts",
+        "confidence": 0.62
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Don't Know",
+        "confidence": 0.99
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Lennox",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Attic (unconditioned)",
+        "confidence": 0.99
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "30% - Very leaky",
+        "confidence": 1
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.84
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.88
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.91
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Don't Know",
+        "confidence": 0.97
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.99
+      },
+      "attic.atticInsulationType": {
+        "choice": "Fiberglass or Rockwool (batts or blown)",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.85
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Fiberglass or Rockwool Batt",
+        "confidence": 0.6
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.31
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Fiberglass or Rockwool (batts or blown)",
+        "confidence": 0.91
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Fiberglass or Rockwool Batt",
+        "confidence": 0.46
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "Poorly",
+        "confidence": 0.85
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.89
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Fiberglass or Rockwool Batt",
+        "confidence": 0.96
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Fiberglass or Rockwool Batt",
+        "confidence": 0.66
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 0.91
+      },
+      "dhw.dhwFuel2": {
+        "choice": "None",
+        "confidence": 1
+      },
+      "dhw.dhwAge": {
+        "choice": "36+",
+        "confidence": 0.33
+      },
+      "dhw.dhwLocation": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.99
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.89
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.88
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 0.95
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Central AC with standalone ducts",
+        "alts": []
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "value": "Lennox",
+        "alts": []
+      },
+      "hvac.hvacDuctLocation": {
+        "value": "Attic (unconditioned)",
+        "alts": []
+      },
+      "hvac.hvacDuctLeakage": {
+        "value": "30% - Very leaky",
+        "alts": []
+      },
+      "hvac.hvacDuctInsulation": {
+        "value": "No Insulation",
+        "alts": []
+      },
+      "attic.atticInsulationType": {
+        "value": "Fiberglass or Rockwool (batts or blown)",
+        "alts": []
+      },
+      "wall.wallsInsulated": {
+        "value": "Poorly",
+        "alts": []
+      },
+      "wall.wallCavityInsulationType": {
+        "value": "Fiberglass or Rockwool Batt",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "ms": 209,
+    "usage": {
+      "input_tokens": 11681,
+      "output_tokens": 5784
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Furnace / Central AC (shared ducts)",
+        "confidence": 0.52
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 0.96
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "None",
+        "confidence": 0.52
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.82
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Attic (unconditioned)",
+        "confidence": 0.96
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.95
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 0.76
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 0.94
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.3
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.62
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "None",
+        "confidence": 0.48
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.98
+      },
+      "attic.atticInsulationType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.96
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.35
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 0.99
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Tankless Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2": {
+        "choice": "Natural Gas",
+        "confidence": 0.86
+      },
+      "dhw.dhwAge": {
+        "choice": "0-5",
+        "confidence": 1
+      },
+      "dhw.dhwLocation": {
+        "choice": "Garage or Unconditioned Space",
+        "confidence": 1
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Navien",
+        "confidence": 1
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.31
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.4
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tankless Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "Natural Gas",
+        "confidence": 0.5
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 0.9
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "dhw.dhwType2": {
+        "value": "Tankless Water Heater",
+        "alts": []
+      },
+      "dhw.dhwFuel2": {
+        "value": "Natural Gas",
+        "alts": []
+      },
+      "dhw.dhwManufacturer": {
+        "value": "Navien",
+        "alts": []
+      },
+      "dhw.dhwLocation": {
+        "value": "Garage or Unconditioned Space",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "ms": 258,
+    "usage": {
+      "input_tokens": 11788,
+      "output_tokens": 5787
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Central Heat Pump (shared ducts)",
+        "confidence": 1
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Electricity",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Bosch",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Crawlspace (unconditioned)",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.99
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "Fiberglass 2 inch",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Bosch",
+        "confidence": 0.98
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.77
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.85
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Electricity",
+        "confidence": 0.94
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "0",
+        "confidence": 0.55
+      },
+      "attic.atticInsulationType": {
+        "choice": "Don't Know",
+        "confidence": 0.99
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.87
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.13
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.97
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 0.99
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Heat Pump",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2": {
+        "choice": "Electricity",
+        "confidence": 0.86
+      },
+      "dhw.dhwAge": {
+        "choice": "6-10",
+        "confidence": 1
+      },
+      "dhw.dhwLocation": {
+        "choice": "Garage or Unconditioned Space",
+        "confidence": 0.97
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.98
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 0.76
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.85
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.32
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Heat Pump",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "Electricity",
+        "confidence": 0.5
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 0.48
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacDuctLocation": {
+        "value": "Crawlspace (unconditioned)",
+        "alts": []
+      },
+      "hvac.hvacDuctInsulation": {
+        "value": "Fiberglass 2 inch",
+        "alts": []
+      },
+      "hvac.hvacDuctLeakage": {
+        "value": "Measured (CFM25)",
+        "alts": []
+      },
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Central Heat Pump (shared ducts)",
+        "alts": []
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "value": "Electricity",
+        "alts": []
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "value": "Bosch",
+        "alts": []
+      },
+      "dhw.dhwType2": {
+        "value": "Heat Pump",
+        "alts": []
+      },
+      "dhw.dhwFuel2": {
+        "value": "Electricity",
+        "alts": []
+      },
+      "dhw.dhwAge": {
+        "value": "6-10",
+        "alts": []
+      },
+      "dhw.dhwLocation": {
+        "value": "Garage or Unconditioned Space",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "ms": 239,
+    "usage": {
+      "input_tokens": 11663,
+      "output_tokens": 5810
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Furnace with standalone ducts",
+        "confidence": 0.89
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Natural Gas",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.99
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Attic (unconditioned)",
+        "confidence": 0.89
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.9
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 0.53
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.94
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.92
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Natural Gas",
+        "confidence": 0.91
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.95
+      },
+      "attic.atticInsulationType": {
+        "choice": "Fiberglass or Rockwool (batts or blown)",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.93
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Fiberglass or Rockwool Batt",
+        "confidence": 0.72
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.31
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Fiberglass or Rockwool (batts or blown)",
+        "confidence": 0.99
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Fiberglass or Rockwool Batt",
+        "confidence": 0.62
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 0.99
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.99
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 0.62
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 0.7
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 0.93
+      },
+      "dhw.dhwFuel2": {
+        "choice": "None",
+        "confidence": 0.99
+      },
+      "dhw.dhwAge": {
+        "choice": "0-5",
+        "confidence": 0.7
+      },
+      "dhw.dhwLocation": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.99
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.92
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.78
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 0.95
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Furnace with standalone ducts",
+        "alts": [
+          "Furnace / Central AC (shared ducts)"
+        ]
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "value": "Natural Gas",
+        "alts": []
+      },
+      "attic.atticInsulationType": {
+        "value": "Fiberglass or Rockwool (batts or blown)",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "ms": 252,
+    "usage": {
+      "input_tokens": 11682,
+      "output_tokens": 5775
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Furnace with standalone ducts",
+        "confidence": 0.88
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Replace with a newer model",
+        "confidence": 0.96
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Natural Gas",
+        "confidence": 0.98
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Bryant",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Basement (unconditioned)",
+        "confidence": 0.99
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.95
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 0.9
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "Yes",
+        "confidence": 0.98
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.74
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.76
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.89
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Natural Gas",
+        "confidence": 0.96
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.97
+      },
+      "attic.atticInsulationType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.93
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.25
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 0.99
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.99
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2": {
+        "choice": "Natural Gas",
+        "confidence": 0.49
+      },
+      "dhw.dhwAge": {
+        "choice": "26-30",
+        "confidence": 1
+      },
+      "dhw.dhwLocation": {
+        "choice": "Don't Know",
+        "confidence": 0.24
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.99
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.88
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.86
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 0.81
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Furnace with standalone ducts",
+        "alts": [
+          "Furnace / Central AC (shared ducts)"
+        ]
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "value": "Natural Gas",
+        "alts": []
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "value": "Bryant",
+        "alts": []
+      },
+      "dhw.dhwType2": {
+        "value": "Tank Water Heater",
+        "alts": []
+      },
+      "dhw.dhwFuel2": {
+        "value": "Natural Gas",
+        "alts": []
+      },
+      "dhw.dhwAge": {
+        "value": "26-30",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "ms": 220,
+    "usage": {
+      "input_tokens": 11818,
+      "output_tokens": 5781
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Furnace / Central AC (shared ducts)",
+        "confidence": 1
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "Natural Gas",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Carrier",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Basement (unconditioned)",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "6% - Well sealed",
+        "confidence": 0.95
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "Duct Board 1.5 inch",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.74
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.79
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.83
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "Natural Gas",
+        "confidence": 0.72
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.99
+      },
+      "attic.atticInsulationType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.93
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.31
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 0.93
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "Stucco",
+        "confidence": 0.93
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Concrete Block",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Double pane",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Wood or metal clad",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 0.9
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2": {
+        "choice": "Natural Gas",
+        "confidence": 0.47
+      },
+      "dhw.dhwAge": {
+        "choice": "11-15",
+        "confidence": 0.83
+      },
+      "dhw.dhwLocation": {
+        "choice": "Don't Know",
+        "confidence": 0.75
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Unknown",
+        "confidence": 0.99
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.79
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.84
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "None",
+        "confidence": 0.83
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "hvac.hvacSystemEquipmentType": {
+        "value": "Furnace / Central AC (shared ducts)",
+        "alts": []
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "value": "Natural Gas",
+        "alts": []
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "value": "Carrier",
+        "alts": []
+      },
+      "hvac.hvacDuctLocation": {
+        "value": "Basement (unconditioned)",
+        "alts": []
+      },
+      "hvac.hvacDuctLeakage": {
+        "value": "6% - Well sealed",
+        "alts": []
+      },
+      "hvac.hvacDuctInsulation": {
+        "value": "Duct Board 1.5 inch",
+        "alts": []
+      },
+      "wall.wallExteriorWallSiding": {
+        "value": "Stucco",
+        "alts": []
+      },
+      "window.windowFrame": {
+        "value": "Wood or metal clad",
+        "alts": []
+      },
+      "window.windowType": {
+        "value": "Double pane",
+        "alts": []
+      },
+      "dhw.dhwType2": {
+        "value": "Tank Water Heater",
+        "alts": []
+      },
+      "dhw.dhwFuel2": {
+        "value": "Natural Gas",
+        "alts": []
+      },
+      "dhw.dhwAge": {
+        "value": "11-15",
+        "alts": []
+      }
+    }
+  },
+  {
+    "name": "14-rapid-recap",
+    "ms": 224,
+    "usage": {
+      "input_tokens": 11540,
+      "output_tokens": 5773
+    },
+    "answers": {
+      "hvac.hvacSystemEquipmentType": {
+        "choice": "Electric Resistance",
+        "confidence": 0.97
+      },
+      "hvac.hvacUpgradeAction": {
+        "choice": "Keep an existing system as is",
+        "confidence": 0.96
+      },
+      "hvac.hvacHeatingEnergySource": {
+        "choice": "None",
+        "confidence": 0.66
+      },
+      "hvac.hvacHeatingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "hvac.hvacDuctLocation": {
+        "choice": "Attic (unconditioned)",
+        "confidence": 0.38
+      },
+      "hvac.hvacDuctLeakage": {
+        "choice": "Measured (CFM25)",
+        "confidence": 0.95
+      },
+      "hvac.hvacDuctInsulation": {
+        "choice": "No Insulation",
+        "confidence": 0.87
+      },
+      "hvac.hvacHeatingIsCondensing": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacCoolingSystemManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "hvac.hvacHeatPumpInverter": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "hvac.hvacHeatingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.94
+      },
+      "hvac.hvacCoolingMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.91
+      },
+      "hvac.hvacHeatingEnergySourceImproved": {
+        "choice": "None",
+        "confidence": 0.74
+      },
+      "hvac.hvacHeatPumpInverterImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticInsulationDepth": {
+        "choice": "Don't Know",
+        "confidence": 0.98
+      },
+      "attic.atticInsulationType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWall": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRoofType": {
+        "choice": "Composition Shingles",
+        "confidence": 0.91
+      },
+      "attic.atticRadiantBarrier": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoof": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticRoofColor": {
+        "choice": "Light",
+        "confidence": 0.23
+      },
+      "attic.atticInsulationTypeImproved": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "attic.atticHasKneeWallImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticRadiantBarrierImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticCoolRoofImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "attic.atticKneeWallInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "attic.atticKneeWallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallsInsulated": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallSiding": {
+        "choice": "None",
+        "confidence": 0.92
+      },
+      "wall.wallCavityInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallExteriorWallConstruction": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationType": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallCavityInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "wall.wallContinuousInsulationTypeImproved": {
+        "choice": "Other",
+        "confidence": 1
+      },
+      "window.windowType": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowFrame": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "window.windowEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEast": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouth": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWest": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentNorthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentEastImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentSouthImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowExteriorTreatmentWestImproved": {
+        "choice": "No Treatment",
+        "confidence": 1
+      },
+      "window.windowEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwType2": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2": {
+        "choice": "Electricity",
+        "confidence": 0.94
+      },
+      "dhw.dhwAge": {
+        "choice": "0-5",
+        "confidence": 0.99
+      },
+      "dhw.dhwLocation": {
+        "choice": "Garage or Unconditioned Space",
+        "confidence": 1
+      },
+      "dhw.dhwManufacturer": {
+        "choice": "Unknown",
+        "confidence": 1
+      },
+      "dhw.dhwTemperatureSettings": {
+        "choice": "Don't Know",
+        "confidence": 1
+      },
+      "dhw.dhwEnergyStar": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwTankWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrap": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwMaintenanceStarRating": {
+        "choice": "1",
+        "confidence": 0.89
+      },
+      "dhw.dhwEnergyFactorType": {
+        "choice": "EF",
+        "confidence": 0.7
+      },
+      "dhw.dhwType2Improved": {
+        "choice": "Tank Water Heater",
+        "confidence": 1
+      },
+      "dhw.dhwFuel2Improved": {
+        "choice": "Electricity",
+        "confidence": 0.66
+      },
+      "dhw.dhwEnergyStarImproved": {
+        "choice": "No",
+        "confidence": 0.98
+      },
+      "dhw.dhwTankWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      },
+      "dhw.dhwPipeWrapImproved": {
+        "choice": "No",
+        "confidence": 1
+      }
+    },
+    "truth": {
+      "dhw.dhwType2": {
+        "value": "Tank Water Heater",
+        "alts": []
+      },
+      "dhw.dhwFuel2": {
+        "value": "Electricity",
+        "alts": []
+      },
+      "dhw.dhwLocation": {
+        "value": "Garage or Unconditioned Space",
+        "alts": []
+      }
+    }
+  }
+]

@@ -14,10 +14,10 @@
 // mentioned, which should be nulled).
 import { readFileSync, writeFileSync } from "node:fs";
 import { LEAF_BY_PATH } from "../0001-extraction-snuggpro/schema-leaves.mjs";
-import { ask } from "./env.mjs";
+import { ask, results } from "./env.mjs";
 import { corpus } from "./corpus.mjs";
 
-const cells = JSON.parse(readFileSync(new URL("./results/triage.json", import.meta.url), "utf8"));
+const cells = JSON.parse(readFileSync(results("triage.json"), "utf8"));
 const transcripts = new Map(corpus().map((e) => [e.name, e.transcript]));
 const byName = new Map();
 for (const c of cells) {
@@ -75,7 +75,7 @@ for (const [name, list] of byName) {
   console.log(`${name.padEnd(28)} ${String(ms).padStart(5)}ms  ${list.length} cells`);
 }
 
-writeFileSync(new URL("./results/three-way.json", import.meta.url), JSON.stringify(out, null, 2));
+writeFileSync(results("three-way.json"), JSON.stringify(out, null, 2));
 
 const by = (k) => out.filter((r) => r.kind === k);
 const pc = (n, d) => `${((100 * n) / (d || 1)).toFixed(1)}%`;

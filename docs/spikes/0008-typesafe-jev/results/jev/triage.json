@@ -1,0 +1,7780 @@
+[
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Furnace with standalone ducts",
+    "noul": 0.37
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.01
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Natural Gas",
+    "noul": 0.86
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Trane",
+    "noul": 0.99
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "supported",
+    "path": "attic.atticInsulationType",
+    "value": "Fiberglass or Rockwool (batts or blown)",
+    "noul": 0.98
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "corrupted",
+    "path": "attic.atticInsulationType",
+    "value": "Cellulose",
+    "noul": 0.01
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "supported",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "Brick Veneer",
+    "noul": 0.98
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "corrupted",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "Metal/vinyl siding",
+    "noul": 0.03
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "supported",
+    "path": "window.windowType",
+    "value": "Double pane",
+    "noul": 0.99
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "corrupted",
+    "path": "window.windowType",
+    "value": "Single pane",
+    "noul": 0.01
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "supported",
+    "path": "window.windowFrame",
+    "value": "Vinyl",
+    "noul": 0.99
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "corrupted",
+    "path": "window.windowFrame",
+    "value": "Metal",
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 1,
+    "noul": 0.19
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Attic (unconditioned)",
+    "priorConf": 0.85,
+    "noul": 0.08
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "priorConf": 0.9,
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "priorConf": 0.7,
+    "noul": 0.03
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.44
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.85,
+    "noul": 0.33
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.72
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.74,
+    "noul": 0.03
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.91,
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Natural Gas",
+    "priorConf": 0.8,
+    "noul": 0.77
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.58
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.9,
+    "noul": 0.11
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.16
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.95,
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.16
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 0.41,
+    "noul": 0.05
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.34,
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Fiberglass or Rockwool (batts or blown)",
+    "priorConf": 0.96,
+    "noul": 0.97
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.11
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.19
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.15
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Blown Fiberglass or Rockwool",
+    "priorConf": 0.42,
+    "noul": 0.16
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.17
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 0.9,
+    "noul": 0.47
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 0.96,
+    "noul": 0.17
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "priorConf": 0.88,
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2",
+    "value": "None",
+    "priorConf": 0.9,
+    "noul": 0.11
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwAge",
+    "value": "6-10",
+    "priorConf": 0.63,
+    "noul": 0.03
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwLocation",
+    "value": "Don't Know",
+    "priorConf": 0.79,
+    "noul": 0.2
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.99,
+    "noul": 0.22
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.2
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.88,
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.76,
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 0.92,
+    "noul": 0.02
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 0.99,
+    "noul": 0.15
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.95
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Steam Boiler",
+    "noul": 0.02
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Fuel Oil",
+    "noul": 0.98
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Electricity",
+    "noul": 0.01
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Other",
+    "noul": 0.05
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "supported",
+    "path": "attic.atticInsulationType",
+    "value": "Cellulose",
+    "noul": 0.99
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "corrupted",
+    "path": "attic.atticInsulationType",
+    "value": "Fiberglass or Rockwool (batts or blown)",
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "supported",
+    "path": "attic.atticInsulationDepth",
+    "value": "4-6",
+    "noul": 0.37
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "corrupted",
+    "path": "attic.atticInsulationDepth",
+    "value": "0",
+    "noul": 0.01
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "supported",
+    "path": "dhw.dhwType2",
+    "value": "Sidearm Tank",
+    "noul": 0.06
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "corrupted",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "noul": 0.54
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "supported",
+    "path": "dhw.dhwFuel2",
+    "value": "Fuel Oil",
+    "noul": 0.96
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "corrupted",
+    "path": "dhw.dhwFuel2",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "supported",
+    "path": "dhw.dhwAge",
+    "value": "6-10",
+    "noul": 0.82
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "corrupted",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "supported",
+    "path": "dhw.dhwManufacturer",
+    "value": "Other",
+    "noul": 0.05
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "corrupted",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Basement (unconditioned)",
+    "priorConf": 0.74,
+    "noul": 0.05
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "priorConf": 0.96,
+    "noul": 0.01
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "priorConf": 0.89,
+    "noul": 0.04
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.68
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.23
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.57
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.7,
+    "noul": 0.04
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.91,
+    "noul": 0.02
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Fuel Oil",
+    "priorConf": 0.59,
+    "noul": 0.8
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.33
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.93,
+    "noul": 0.02
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.23
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Cellulose",
+    "priorConf": 0.59,
+    "noul": 0.35
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.31,
+    "noul": 0.02
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Cellulose",
+    "priorConf": 0.97,
+    "noul": 0.88
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.2
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Cellulose",
+    "priorConf": 0.58,
+    "noul": 0.33
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.98,
+    "noul": 0.11
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 0.66,
+    "noul": 0.05
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.24
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 0.68,
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.16
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowFrame",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwLocation",
+    "value": "Indoors and within heated area",
+    "priorConf": 0.43,
+    "noul": 0.57
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.27
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.77,
+    "noul": 0.04
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.78,
+    "noul": 0.04
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 0.76,
+    "noul": 0.42
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 0.75,
+    "noul": 0.24
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.2
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "supported",
+    "path": "window.windowType",
+    "value": "Double pane",
+    "noul": 0.66
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "corrupted",
+    "path": "window.windowType",
+    "value": "Single pane",
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "supported",
+    "path": "window.windowFrame",
+    "value": "Vinyl",
+    "noul": 0.99
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "corrupted",
+    "path": "window.windowFrame",
+    "value": "Metal",
+    "noul": 0.01
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Furnace / Central AC (shared ducts)",
+    "priorConf": 0.74,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 0.97,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Don't Know",
+    "priorConf": 0.54,
+    "noul": 0.81
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.72
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Attic (unconditioned)",
+    "priorConf": 0.63,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "priorConf": 0.91,
+    "noul": 0.01
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "priorConf": 0.93,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.05
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.61
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.92,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.91,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Don't Know",
+    "priorConf": 0.53,
+    "noul": 0.5
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.99,
+    "noul": 0.81
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticInsulationType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.77
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.95,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "White",
+    "priorConf": 0.55,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.47
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 0.96,
+    "noul": 0.05
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.78,
+    "noul": 0.14
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "2x6 Frame",
+    "priorConf": 0.99,
+    "noul": 0.75
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.06
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 0.92,
+    "noul": 0.11
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "priorConf": 0.91,
+    "noul": 0.01
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2",
+    "value": "None",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "priorConf": 0.57,
+    "noul": 0.01
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwLocation",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.54
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.28
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.25
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.89,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.76,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 0.95,
+    "noul": 0.02
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.95
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Steam Boiler",
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Fuel Oil",
+    "noul": 0.98
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Other",
+    "noul": 0.05
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "supported",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "noul": 0.93
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "corrupted",
+    "path": "dhw.dhwType2",
+    "value": "Tankless Water Heater",
+    "noul": 0.01
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "supported",
+    "path": "dhw.dhwFuel2",
+    "value": "Electricity",
+    "noul": 0.96
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "corrupted",
+    "path": "dhw.dhwFuel2",
+    "value": "Natural Gas",
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "supported",
+    "path": "dhw.dhwManufacturer",
+    "value": "Rheem",
+    "noul": 0.98
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "corrupted",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "supported",
+    "path": "dhw.dhwAge",
+    "value": "11-15",
+    "noul": 0.82
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "corrupted",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 0.89,
+    "noul": 0.1
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Basement (unconditioned)",
+    "priorConf": 0.51,
+    "noul": 0.03
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "priorConf": 0.95,
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.57
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.99,
+    "noul": 0.22
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.49
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.8,
+    "noul": 0.04
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.91,
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Fuel Oil",
+    "priorConf": 0.55,
+    "noul": 0.72
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.32
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.84,
+    "noul": 0.85
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticInsulationType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.79
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.29
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Tar and Gravel",
+    "priorConf": 0.95,
+    "noul": 0.08
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.26
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.47
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.18,
+    "noul": 0.03
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.56
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.25
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.38
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.98,
+    "noul": 0.06
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowFrame",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwLocation",
+    "value": "Don't Know",
+    "priorConf": 0.48,
+    "noul": 0.09
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.27
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.18
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.8,
+    "noul": 0.04
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.72,
+    "noul": 0.04
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 1,
+    "noul": 0.87
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 0.44,
+    "noul": 0.31
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.26
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Furnace with standalone ducts",
+    "noul": 0.29
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.02
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Replace with a newer model",
+    "noul": 0.15
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "noul": 0.15
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Propane",
+    "noul": 0.99
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Electricity",
+    "noul": 0.01
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Carrier",
+    "noul": 0.99
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "noul": 0.01
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Central AC with standalone ducts",
+    "noul": 0.68
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.02
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Attic (unconditioned)",
+    "noul": 0.75
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Intentionally Conditioned Space",
+    "noul": 0.06
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "noul": 0.96
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "30% - Very leaky",
+    "noul": 0.12
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "Fiberglass 1.25 inch",
+    "noul": 0.96
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "noul": 0.03
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "attic.atticInsulationDepth",
+    "value": "10-12",
+    "noul": 0.61
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "attic.atticInsulationDepth",
+    "value": "0",
+    "noul": 0.01
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "attic.atticInsulationType",
+    "value": "Cellulose",
+    "noul": 0.99
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "attic.atticInsulationType",
+    "value": "Fiberglass or Rockwool (batts or blown)",
+    "noul": 0.04
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "wall.wallsInsulated",
+    "value": "Well",
+    "noul": 0.5
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "wall.wallsInsulated",
+    "value": "Poorly",
+    "noul": 0.02
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Fiberglass or Rockwool Batt",
+    "noul": 0.95
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Blown Fiberglass or Rockwool",
+    "noul": 0.16
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "window.windowType",
+    "value": "Double pane",
+    "noul": 0.79
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "window.windowType",
+    "value": "Single pane",
+    "noul": 0.05
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "window.windowFrame",
+    "value": "Wood or metal clad",
+    "noul": 0.83
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "window.windowFrame",
+    "value": "Metal",
+    "noul": 0.04
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "dhw.dhwType2",
+    "value": "Tankless Water Heater",
+    "noul": 0.98
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "noul": 0.02
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "dhw.dhwFuel2",
+    "value": "Propane",
+    "noul": 0.97
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "dhw.dhwFuel2",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "dhw.dhwLocation",
+    "value": "Indoors and within heated area",
+    "noul": 0.68
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "dhw.dhwLocation",
+    "value": "Garage or Unconditioned Space",
+    "noul": 0.03
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "supported",
+    "path": "dhw.dhwManufacturer",
+    "value": "Rinnai",
+    "noul": 0.98
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "corrupted",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "noul": 0.02
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "Yes",
+    "priorConf": 0.94,
+    "noul": 0.96
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.95,
+    "noul": 0.26
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.71
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.82,
+    "noul": 0.04
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.86,
+    "noul": 0.03
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Propane",
+    "priorConf": 0.44,
+    "noul": 0.49
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.55
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.18
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.96,
+    "noul": 0.02
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.15
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 0.7,
+    "noul": 0.05
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.35,
+    "noul": 0.02
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Cellulose",
+    "priorConf": 0.93,
+    "noul": 0.88
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.09
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.14
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.16
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 0.76,
+    "noul": 0.04
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.99,
+    "noul": 0.1
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 0.99,
+    "noul": 0.11
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 0.99,
+    "noul": 0.06
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Fiberglass or Rockwool Batt",
+    "priorConf": 0.98,
+    "noul": 0.86
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 0.99,
+    "noul": 0.05
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.23
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "priorConf": 0.98,
+    "noul": 0.1
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.36
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.11
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.45
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 0.84,
+    "noul": 0.1
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.91,
+    "noul": 0.12
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.46,
+    "noul": 0.04
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tankless Water Heater",
+    "priorConf": 1,
+    "noul": 0.86
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 0.89,
+    "noul": 0.23
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 0.96,
+    "noul": 0.22
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.18
+  },
+  {
+    "name": "05-full-walkthrough",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.35
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Furnace with standalone ducts",
+    "noul": 0.07
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Natural Gas",
+    "noul": 0.98
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Electricity",
+    "noul": 0.01
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Goodman",
+    "noul": 0.98
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "noul": 0.03
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "supported",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "noul": 0.96
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "corrupted",
+    "path": "dhw.dhwType2",
+    "value": "Tankless Water Heater",
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "supported",
+    "path": "dhw.dhwFuel2",
+    "value": "Natural Gas",
+    "noul": 0.95
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "corrupted",
+    "path": "dhw.dhwFuel2",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 0.93,
+    "noul": 0.06
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Attic (unconditioned)",
+    "priorConf": 0.56,
+    "noul": 0.04
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "priorConf": 0.96,
+    "noul": 0.01
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "priorConf": 0.8,
+    "noul": 0.03
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 0.86,
+    "noul": 0.44
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.91,
+    "noul": 0.19
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.54
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.82,
+    "noul": 0.03
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.86,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Natural Gas",
+    "priorConf": 0.72,
+    "noul": 0.66
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.38
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.98,
+    "noul": 0.38
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticInsulationType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.42
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.04
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.91,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.31,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.23
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 0.99,
+    "noul": 0.04
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.99,
+    "noul": 0.09
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowFrame",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwAge",
+    "value": "6-10",
+    "priorConf": 0.83,
+    "noul": 0.04
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwLocation",
+    "value": "Don't Know",
+    "priorConf": 0.69,
+    "noul": 0.06
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.97,
+    "noul": 0.33
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.86,
+    "noul": 0.02
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.82,
+    "noul": 0.03
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 1,
+    "noul": 0.72
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 0.85,
+    "noul": 0.19
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.18
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Furnace with standalone ducts",
+    "noul": 0.1
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Natural Gas",
+    "noul": 0.91
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "supported",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "noul": 0.95
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "corrupted",
+    "path": "dhw.dhwType2",
+    "value": "Tankless Water Heater",
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "supported",
+    "path": "dhw.dhwFuel2",
+    "value": "Natural Gas",
+    "noul": 0.84
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "corrupted",
+    "path": "dhw.dhwFuel2",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 0.97,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Intentionally Conditioned Space",
+    "priorConf": 0.61,
+    "noul": 0.03
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "priorConf": 0.97,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "priorConf": 0.75,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.39
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.23
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.88,
+    "noul": 0.07
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.88,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "None",
+    "priorConf": 0.82,
+    "noul": 0.24
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.97,
+    "noul": 0.08
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticInsulationType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.93,
+    "noul": 0.01
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.25,
+    "noul": 0.01
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.99,
+    "noul": 0.09
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowFrame",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "priorConf": 0.65,
+    "noul": 0.02
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwLocation",
+    "value": "Indoors and within heated area",
+    "priorConf": 0.56,
+    "noul": 0.44
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.99,
+    "noul": 0.13
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.86,
+    "noul": 0.05
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.66,
+    "noul": 0.03
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 1,
+    "noul": 0.8
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 0.98,
+    "noul": 0.15
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "07-combustion-safety",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Furnace with standalone ducts",
+    "noul": 0.34
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.01
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Lennox",
+    "noul": 0.98
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "noul": 0.03
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Central AC with standalone ducts",
+    "noul": 0.94
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.01
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "supported",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Attic (unconditioned)",
+    "noul": 0.89
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Intentionally Conditioned Space",
+    "noul": 0.03
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "supported",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "30% - Very leaky",
+    "noul": 0.19
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "15% - Somewhat leaky",
+    "noul": 0.11
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "supported",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "noul": 0.91
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "Duct Board 1 inch",
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "supported",
+    "path": "attic.atticInsulationType",
+    "value": "Fiberglass or Rockwool (batts or blown)",
+    "noul": 0.97
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "corrupted",
+    "path": "attic.atticInsulationType",
+    "value": "Cellulose",
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "supported",
+    "path": "wall.wallsInsulated",
+    "value": "Poorly",
+    "noul": 0.95
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "corrupted",
+    "path": "wall.wallsInsulated",
+    "value": "Well",
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "supported",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Fiberglass or Rockwool Batt",
+    "noul": 0.88
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "corrupted",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Blown Fiberglass or Rockwool",
+    "noul": 0.05
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Don't Know",
+    "priorConf": 0.99,
+    "noul": 0.97
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.65
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.84,
+    "noul": 0.52
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.75
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.88,
+    "noul": 0.05
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.91,
+    "noul": 0.22
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Don't Know",
+    "priorConf": 0.97,
+    "noul": 0.77
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.68
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.99,
+    "noul": 0.64
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.14
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.85,
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.23
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Fiberglass or Rockwool Batt",
+    "priorConf": 0.6,
+    "noul": 0.34
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.31,
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Fiberglass or Rockwool (batts or blown)",
+    "priorConf": 0.91,
+    "noul": 0.95
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.16
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.23
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.15
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Fiberglass or Rockwool Batt",
+    "priorConf": 0.46,
+    "noul": 0.21
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.89,
+    "noul": 0.11
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.35
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.2
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Fiberglass or Rockwool Batt",
+    "priorConf": 0.66,
+    "noul": 0.76
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.16
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowFrame",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "priorConf": 0.91,
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2",
+    "value": "None",
+    "priorConf": 1,
+    "noul": 0.16
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwAge",
+    "value": "36+",
+    "priorConf": 0.33,
+    "noul": 0.01
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwLocation",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.2
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.99,
+    "noul": 0.14
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.89,
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.88,
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 0.95,
+    "noul": 0.02
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "supported",
+    "path": "dhw.dhwType2",
+    "value": "Tankless Water Heater",
+    "noul": 0.98
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "corrupted",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "supported",
+    "path": "dhw.dhwFuel2",
+    "value": "Natural Gas",
+    "noul": 0.98
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "corrupted",
+    "path": "dhw.dhwFuel2",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "supported",
+    "path": "dhw.dhwManufacturer",
+    "value": "Navien",
+    "noul": 0.98
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "corrupted",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "supported",
+    "path": "dhw.dhwLocation",
+    "value": "Garage or Unconditioned Space",
+    "noul": 0.97
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "corrupted",
+    "path": "dhw.dhwLocation",
+    "value": "Indoors and within heated area",
+    "noul": 0.14
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Furnace / Central AC (shared ducts)",
+    "priorConf": 0.52,
+    "noul": 0.08
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 0.96,
+    "noul": 0.25
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "None",
+    "priorConf": 0.52,
+    "noul": 0.04
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.82,
+    "noul": 0.37
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Attic (unconditioned)",
+    "priorConf": 0.96,
+    "noul": 0.08
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "priorConf": 0.95,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "priorConf": 0.76,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 0.94,
+    "noul": 0.17
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.35
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.28
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.3,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.62,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "None",
+    "priorConf": 0.48,
+    "noul": 0.21
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.16
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.98,
+    "noul": 0.19
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticInsulationType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.19
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.05
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.96,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.35,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 0.99,
+    "noul": 0.04
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowFrame",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "priorConf": 1,
+    "noul": 0.79
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.08
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.31,
+    "noul": 0.04
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.4,
+    "noul": 0.04
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tankless Water Heater",
+    "priorConf": 1,
+    "noul": 0.96
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "Natural Gas",
+    "priorConf": 0.5,
+    "noul": 0.79
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 0.9,
+    "noul": 0.12
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "supported",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Crawlspace (unconditioned)",
+    "noul": 0.98
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Intentionally Conditioned Space",
+    "noul": 0.02
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "supported",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "Fiberglass 2 inch",
+    "noul": 0.98
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "noul": 0.02
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "supported",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "noul": 0.92
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "30% - Very leaky",
+    "noul": 0.06
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Central Heat Pump (shared ducts)",
+    "noul": 0.97
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.02
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Electricity",
+    "noul": 0.98
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Natural Gas",
+    "noul": 0.01
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Bosch",
+    "noul": 0.97
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "noul": 0.07
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "supported",
+    "path": "dhw.dhwType2",
+    "value": "Heat Pump",
+    "noul": 0.93
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "corrupted",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "noul": 0.04
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "supported",
+    "path": "dhw.dhwFuel2",
+    "value": "Electricity",
+    "noul": 0.95
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "corrupted",
+    "path": "dhw.dhwFuel2",
+    "value": "Natural Gas",
+    "noul": 0.02
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "supported",
+    "path": "dhw.dhwAge",
+    "value": "6-10",
+    "noul": 0.59
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "corrupted",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "noul": 0.05
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "supported",
+    "path": "dhw.dhwLocation",
+    "value": "Garage or Unconditioned Space",
+    "noul": 0.88
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "corrupted",
+    "path": "dhw.dhwLocation",
+    "value": "Indoors and within heated area",
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.83
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Bosch",
+    "priorConf": 0.98,
+    "noul": 0.9
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.18
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.77,
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.85,
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Electricity",
+    "priorConf": 0.94,
+    "noul": 0.91
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.18
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "0",
+    "priorConf": 0.55,
+    "noul": 0.78
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticInsulationType",
+    "value": "Don't Know",
+    "priorConf": 0.99,
+    "noul": 0.31
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.73
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.87,
+    "noul": 0.02
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.55
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.9
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.13,
+    "noul": 0.01
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.22
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.25
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.57
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.64
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.97,
+    "noul": 0.09
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 0.99,
+    "noul": 0.04
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.24
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.14
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowFrame",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.14
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.98,
+    "noul": 0.45
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.19
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 0.76,
+    "noul": 0.1
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.85,
+    "noul": 0.03
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.32,
+    "noul": 0.08
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Heat Pump",
+    "priorConf": 1,
+    "noul": 0.9
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "Electricity",
+    "priorConf": 0.5,
+    "noul": 0.89
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 0.48,
+    "noul": 0.12
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Furnace with standalone ducts",
+    "noul": 0.4
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Natural Gas",
+    "noul": 0.92
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Electricity",
+    "noul": 0.01
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "supported",
+    "path": "attic.atticInsulationType",
+    "value": "Fiberglass or Rockwool (batts or blown)",
+    "noul": 0.96
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "corrupted",
+    "path": "attic.atticInsulationType",
+    "value": "Cellulose",
+    "noul": 0.01
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.99,
+    "noul": 0.34
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Attic (unconditioned)",
+    "priorConf": 0.89,
+    "noul": 0.11
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "priorConf": 0.9,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "priorConf": 0.53,
+    "noul": 0.04
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.32
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.19
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.55
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.94,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.92,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Natural Gas",
+    "priorConf": 0.91,
+    "noul": 0.78
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.36
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.95,
+    "noul": 0.5
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.1
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.93,
+    "noul": 0.01
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.15
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Fiberglass or Rockwool Batt",
+    "priorConf": 0.72,
+    "noul": 0.42
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.31,
+    "noul": 0.01
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Fiberglass or Rockwool (batts or blown)",
+    "priorConf": 0.99,
+    "noul": 0.94
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.16
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Fiberglass or Rockwool Batt",
+    "priorConf": 0.62,
+    "noul": 0.37
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 0.99,
+    "noul": 0.08
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.99,
+    "noul": 0.07
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 0.62,
+    "noul": 0.04
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 0.7,
+    "noul": 0.03
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowFrame",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "priorConf": 0.93,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2",
+    "value": "None",
+    "priorConf": 0.99,
+    "noul": 0.14
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "priorConf": 0.7,
+    "noul": 0.01
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwLocation",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.47
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.99,
+    "noul": 0.18
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.18
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.92,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.78,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 0.95,
+    "noul": 0.02
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 1,
+    "noul": 0.2
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Furnace with standalone ducts",
+    "noul": 0.15
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Natural Gas",
+    "noul": 0.96
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Bryant",
+    "noul": 0.99
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "supported",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "noul": 0.96
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "corrupted",
+    "path": "dhw.dhwType2",
+    "value": "Tankless Water Heater",
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "supported",
+    "path": "dhw.dhwFuel2",
+    "value": "Natural Gas",
+    "noul": 0.89
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "corrupted",
+    "path": "dhw.dhwFuel2",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "supported",
+    "path": "dhw.dhwAge",
+    "value": "26-30",
+    "noul": 0.76
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "corrupted",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "noul": 0.01
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Replace with a newer model",
+    "priorConf": 0.96,
+    "noul": 0.87
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Basement (unconditioned)",
+    "priorConf": 0.99,
+    "noul": 0.11
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "priorConf": 0.95,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "priorConf": 0.9,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "Yes",
+    "priorConf": 0.98,
+    "noul": 0.97
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.74,
+    "noul": 0.32
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.61
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.76,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.89,
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Natural Gas",
+    "priorConf": 0.96,
+    "noul": 0.82
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.37
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.97,
+    "noul": 0.47
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticInsulationType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.53
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.93,
+    "noul": 0.01
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.25,
+    "noul": 0.01
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.3
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 0.99,
+    "noul": 0.05
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.99,
+    "noul": 0.08
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowFrame",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwLocation",
+    "value": "Don't Know",
+    "priorConf": 0.24,
+    "noul": 0.1
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.99,
+    "noul": 0.23
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.18
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.16
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.88,
+    "noul": 0.08
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.86,
+    "noul": 0.05
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 1,
+    "noul": 0.53
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 0.81,
+    "noul": 0.35
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.38
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Furnace / Central AC (shared ducts)",
+    "noul": 0.97
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Boiler",
+    "noul": 0.01
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Natural Gas",
+    "noul": 0.99
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Carrier",
+    "noul": 0.99
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Basement (unconditioned)",
+    "noul": 0.98
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Intentionally Conditioned Space",
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "6% - Well sealed",
+    "noul": 0.09
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "30% - Very leaky",
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "Duct Board 1.5 inch",
+    "noul": 0.98
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "Stucco",
+    "noul": 0.77
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "Brick Veneer",
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "window.windowFrame",
+    "value": "Wood or metal clad",
+    "noul": 0.83
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "window.windowFrame",
+    "value": "Metal",
+    "noul": 0.03
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "window.windowType",
+    "value": "Double pane",
+    "noul": 0.98
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "window.windowType",
+    "value": "Single pane",
+    "noul": 0.01
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "noul": 0.97
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "dhw.dhwType2",
+    "value": "Tankless Water Heater",
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "dhw.dhwFuel2",
+    "value": "Natural Gas",
+    "noul": 0.94
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "dhw.dhwFuel2",
+    "value": "Electricity",
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "supported",
+    "path": "dhw.dhwAge",
+    "value": "11-15",
+    "noul": 0.78
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "corrupted",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.5
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.74,
+    "noul": 0.37
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.81
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.79,
+    "noul": 0.03
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.83,
+    "noul": 0.03
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "Natural Gas",
+    "priorConf": 0.72,
+    "noul": 0.89
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.65
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.99,
+    "noul": 0.13
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticInsulationType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.06
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.93,
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.31,
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.05
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 0.93,
+    "noul": 0.09
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.18
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Concrete Block",
+    "priorConf": 1,
+    "noul": 0.98
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.06
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 0.9,
+    "noul": 0.18
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwLocation",
+    "value": "Don't Know",
+    "priorConf": 0.75,
+    "noul": 0.11
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "priorConf": 0.99,
+    "noul": 0.43
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.22
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.14
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.79,
+    "noul": 0.05
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.84,
+    "noul": 0.06
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 1,
+    "noul": 0.9
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "None",
+    "priorConf": 0.83,
+    "noul": 0.2
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.19
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.1
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "supported",
+    "path": "dhw.dhwType2",
+    "value": "Tank Water Heater",
+    "noul": 0.93
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "corrupted",
+    "path": "dhw.dhwType2",
+    "value": "Tankless Water Heater",
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "supported",
+    "path": "dhw.dhwFuel2",
+    "value": "Electricity",
+    "noul": 0.95
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "corrupted",
+    "path": "dhw.dhwFuel2",
+    "value": "Natural Gas",
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "supported",
+    "path": "dhw.dhwLocation",
+    "value": "Garage or Unconditioned Space",
+    "noul": 0.92
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "corrupted",
+    "path": "dhw.dhwLocation",
+    "value": "Indoors and within heated area",
+    "noul": 0.16
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacSystemEquipmentType",
+    "value": "Electric Resistance",
+    "priorConf": 0.97,
+    "noul": 0.17
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacUpgradeAction",
+    "value": "Keep an existing system as is",
+    "priorConf": 0.96,
+    "noul": 0.03
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySource",
+    "value": "None",
+    "priorConf": 0.66,
+    "noul": 0.34
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.51
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLocation",
+    "value": "Attic (unconditioned)",
+    "priorConf": 0.38,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacDuctLeakage",
+    "value": "Measured (CFM25)",
+    "priorConf": 0.95,
+    "noul": 0.01
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacDuctInsulation",
+    "value": "No Insulation",
+    "priorConf": 0.87,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingIsCondensing",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.27
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingSystemManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.27
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverter",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.17
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.94,
+    "noul": 0.04
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacCoolingMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.91,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacHeatingEnergySourceImproved",
+    "value": "None",
+    "priorConf": 0.74,
+    "noul": 0.45
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "hvac.hvacHeatPumpInverterImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.18
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticInsulationDepth",
+    "value": "Don't Know",
+    "priorConf": 0.98,
+    "noul": 0.75
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticInsulationType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.72
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWall",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.04
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticRoofType",
+    "value": "Composition Shingles",
+    "priorConf": 0.91,
+    "noul": 0.01
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrier",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.14
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticCoolRoof",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.16
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticRoofColor",
+    "value": "Light",
+    "priorConf": 0.23,
+    "noul": 0.01
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticInsulationTypeImproved",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.32
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticHasKneeWallImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticRadiantBarrierImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.12
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticCoolRoofImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.15
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticKneeWallInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "attic.atticKneeWallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.01
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "wall.wallsInsulated",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.05
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallSiding",
+    "value": "None",
+    "priorConf": 0.92,
+    "noul": 0.2
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "wall.wallExteriorWallConstruction",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.3
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationType",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "wall.wallCavityInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "wall.wallContinuousInsulationTypeImproved",
+    "value": "Other",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowType",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.15
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowFrame",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.15
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEast",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouth",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWest",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.02
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentNorthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentEastImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentSouthImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowExteriorTreatmentWestImproved",
+    "value": "No Treatment",
+    "priorConf": 1,
+    "noul": 0.03
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "window.windowEnergyStarImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.07
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwAge",
+    "value": "0-5",
+    "priorConf": 0.99,
+    "noul": 0.28
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwManufacturer",
+    "value": "Unknown",
+    "priorConf": 1,
+    "noul": 0.43
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwTemperatureSettings",
+    "value": "Don't Know",
+    "priorConf": 1,
+    "noul": 0.48
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStar",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.09
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.13
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrap",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.08
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwMaintenanceStarRating",
+    "value": "1",
+    "priorConf": 0.89,
+    "noul": 0.04
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyFactorType",
+    "value": "EF",
+    "priorConf": 0.7,
+    "noul": 0.17
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwType2Improved",
+    "value": "Tank Water Heater",
+    "priorConf": 1,
+    "noul": 0.78
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwFuel2Improved",
+    "value": "Electricity",
+    "priorConf": 0.66,
+    "noul": 0.8
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwEnergyStarImproved",
+    "value": "No",
+    "priorConf": 0.98,
+    "noul": 0.27
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwTankWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.15
+  },
+  {
+    "name": "14-rapid-recap",
+    "kind": "invented",
+    "path": "dhw.dhwPipeWrapImproved",
+    "value": "No",
+    "priorConf": 1,
+    "noul": 0.11
+  }
+]

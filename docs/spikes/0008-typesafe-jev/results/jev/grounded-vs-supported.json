@@ -1,0 +1,994 @@
+[
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "heatingEquipmentType",
+    "value": "furnace_central_ac",
+    "sourceSpan": "Heat's a gas furnace",
+    "groundedness": "grounded",
+    "unsupported": 0.93
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "heatingFuel",
+    "value": "natural_gas",
+    "sourceSpan": "Heat's a gas furnace",
+    "groundedness": "grounded",
+    "unsupported": 0.67
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "heatingManufacturer",
+    "value": "Trane",
+    "sourceSpan": "it's a Trane",
+    "groundedness": "grounded",
+    "unsupported": 0.12
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "heatingModelNumber",
+    "value": "TUD100",
+    "sourceSpan": "it's a TUD100",
+    "groundedness": "grounded",
+    "unsupported": 0.11
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "heatingModelYear",
+    "value": 2017,
+    "sourceSpan": "the manufacture date stamped is twenty seventeen",
+    "groundedness": "grounded",
+    "unsupported": 0.48
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "heatingOutputCapacityBtuh",
+    "value": 100000,
+    "sourceSpan": "Output's a hundred thousand BTU on the plate",
+    "groundedness": "grounded",
+    "unsupported": 0.13
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "atticInsulationType",
+    "value": "fiberglass",
+    "sourceSpan": "Insulation up here is blown fiberglass",
+    "groundedness": "grounded",
+    "unsupported": 0.11
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "atticInsulationSpokenRValue",
+    "value": 38,
+    "sourceSpan": "R-38",
+    "groundedness": "grounded",
+    "unsupported": 0.09
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "wallConstruction",
+    "value": "other",
+    "sourceSpan": "it's brick veneer",
+    "groundedness": "grounded",
+    "unsupported": 0.82
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "blowerDoorCfm50",
+    "value": 3200,
+    "sourceSpan": "We came in at thirty-two hundred CFM50",
+    "groundedness": "grounded",
+    "unsupported": 0.09
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "windowGlazing",
+    "value": "double_pane",
+    "sourceSpan": "Windows are all double pane",
+    "groundedness": "grounded",
+    "unsupported": 0.1
+  },
+  {
+    "name": "01-attic-r-value-shell",
+    "field": "windowFrame",
+    "value": "vinyl",
+    "sourceSpan": "vinyl frames",
+    "groundedness": "grounded",
+    "unsupported": 0.09
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "field": "heatingEquipmentType",
+    "value": "boiler",
+    "sourceSpan": "it's an oil boiler",
+    "groundedness": "grounded",
+    "unsupported": 0.29
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "field": "heatingFuel",
+    "value": "fuel_oil",
+    "sourceSpan": "it's an oil boiler",
+    "groundedness": "grounded",
+    "unsupported": 0.21
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "field": "heatingManufacturer",
+    "value": "Burnham",
+    "sourceSpan": "Burnham",
+    "groundedness": "grounded",
+    "unsupported": 0.16
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "field": "heatingModelNumber",
+    "value": "V8",
+    "sourceSpan": "Model plate says V8",
+    "groundedness": "grounded",
+    "unsupported": 0.17
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "field": "heatingModelYear",
+    "value": 2004,
+    "sourceSpan": "the tag year is two thousand four",
+    "groundedness": "grounded",
+    "unsupported": 0.28
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "field": "atticInsulationDepthIn",
+    "value": "4-6",
+    "sourceSpan": "about six inches of it across most of the attic",
+    "groundedness": "grounded",
+    "unsupported": 0.5
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "field": "atticInsulationType",
+    "value": "cellulose",
+    "sourceSpan": "it's cellulose",
+    "groundedness": "grounded",
+    "unsupported": 0.1
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "field": "dhwFuel",
+    "value": "fuel_oil",
+    "sourceSpan": "So that runs on the oil too, same as the boiler.",
+    "groundedness": "grounded",
+    "unsupported": 0.24
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "field": "dhwSystemType",
+    "value": "space_heating_boiler_with_tank",
+    "sourceSpan": "Hot water's made right off the boiler, it's an indirect tank",
+    "groundedness": "grounded",
+    "unsupported": 0.54
+  },
+  {
+    "name": "02-oil-boiler-basement",
+    "field": "dhwAgeBand",
+    "value": "6-10",
+    "sourceSpan": "I'd say that tank's about eight years old",
+    "groundedness": "grounded",
+    "unsupported": 0.61
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "field": "wallConstruction",
+    "value": "frame_2x6",
+    "sourceSpan": "looks like a two-by-six frame from the addition framing I could see through the garage window",
+    "groundedness": "grounded",
+    "unsupported": 0.43
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "field": "windowGlazing",
+    "value": "double_pane",
+    "sourceSpan": "Windows from outside look like double pane",
+    "groundedness": "grounded",
+    "unsupported": 0.59
+  },
+  {
+    "name": "03-quick-exterior-short",
+    "field": "windowFrame",
+    "value": "vinyl",
+    "sourceSpan": "Vinyl frames though, that I'm sure of",
+    "groundedness": "grounded",
+    "unsupported": 0.1
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "field": "heatingEquipmentType",
+    "value": "boiler",
+    "sourceSpan": "it's a boiler",
+    "groundedness": "grounded",
+    "unsupported": 0.25
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "field": "heatingFuel",
+    "value": "fuel_oil",
+    "sourceSpan": "it runs on oil",
+    "groundedness": "grounded",
+    "unsupported": 0.15
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "field": "heatingManufacturer",
+    "value": "Weil-McLain",
+    "sourceSpan": "Weil-McLain",
+    "groundedness": "grounded",
+    "unsupported": 0.12
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "field": "heatingModelNumber",
+    "value": "WGO",
+    "sourceSpan": "the model's a WGO",
+    "groundedness": "grounded",
+    "unsupported": 0.17
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "field": "heatingOutputCapacityBtuh",
+    "value": 105000,
+    "sourceSpan": "Hundred and five thousand BTU output",
+    "groundedness": "grounded",
+    "unsupported": 0.12
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "field": "dhwFuel",
+    "value": "electricity",
+    "sourceSpan": "standalone electric tank",
+    "groundedness": "grounded",
+    "unsupported": 0.11
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "field": "dhwSystemType",
+    "value": "storage",
+    "sourceSpan": "standalone electric tank",
+    "groundedness": "grounded",
+    "unsupported": 0.55
+  },
+  {
+    "name": "04-fuel-stated-separately",
+    "field": "dhwAgeBand",
+    "value": "11-15",
+    "sourceSpan": "it's maybe twelve years old",
+    "groundedness": "grounded",
+    "unsupported": 0.62
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "heatingEquipmentType",
+    "value": "furnace_central_ac",
+    "sourceSpan": "The heating system is a propane furnace",
+    "groundedness": "grounded",
+    "unsupported": 0.66
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "heatingFuel",
+    "value": "propane",
+    "sourceSpan": "The heating system is a propane furnace",
+    "groundedness": "grounded",
+    "unsupported": 0.21
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "heatingManufacturer",
+    "value": "Carrier",
+    "sourceSpan": "It's a Carrier",
+    "groundedness": "grounded",
+    "unsupported": 0.1
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "heatingModelNumber",
+    "value": "59TP6",
+    "sourceSpan": "the model number is 59TP6",
+    "groundedness": "grounded",
+    "unsupported": 0.1
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "heatingModelYear",
+    "value": 2019,
+    "sourceSpan": "the data plate year is twenty nineteen",
+    "groundedness": "grounded",
+    "unsupported": 0.26
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "heatingOutputCapacityBtuh",
+    "value": 80000,
+    "sourceSpan": "Output capacity is eighty thousand BTU",
+    "groundedness": "grounded",
+    "unsupported": 0.08
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "coolingEquipmentType",
+    "value": "central_ac_standalone_ducts",
+    "sourceSpan": "central AC, standalone ducts",
+    "groundedness": "grounded",
+    "unsupported": 0.13
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "ductLocation",
+    "value": "attic_unconditioned",
+    "sourceSpan": "standalone air handler up in the attic with its own duct runs",
+    "groundedness": "grounded",
+    "unsupported": 0.38
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "ductSealing",
+    "value": "very_leaky",
+    "sourceSpan": "I'd call it very leaky honestly",
+    "groundedness": "grounded",
+    "unsupported": 0.31
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "ductInsulation",
+    "value": "fiberglass_1_25in",
+    "sourceSpan": "The ducts are wrapped in that thin fiberglass, the inch-and-a-quarter stuff",
+    "groundedness": "grounded",
+    "unsupported": 0.15
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "ductLeakageCfm25",
+    "value": 150,
+    "sourceSpan": "the duct leakage came in at one-fifty CFM25",
+    "groundedness": "grounded",
+    "unsupported": 0.07
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "atticInsulationDepthIn",
+    "value": "10-12",
+    "sourceSpan": "a solid eleven, twelve inches",
+    "groundedness": "grounded",
+    "unsupported": 0.34
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "atticInsulationType",
+    "value": "cellulose",
+    "sourceSpan": "It's cellulose up there, blown gray cellulose",
+    "groundedness": "grounded",
+    "unsupported": 0.08
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "atticInsulationSpokenRValue",
+    "value": 38,
+    "sourceSpan": "roughly R-38",
+    "groundedness": "grounded",
+    "unsupported": 0.58
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "wallInsulated",
+    "value": "yes",
+    "sourceSpan": "I'd call the walls insulated, yes, properly insulated",
+    "groundedness": "grounded",
+    "unsupported": 0.1
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "blowerDoorCfm50",
+    "value": 2800,
+    "sourceSpan": "I got twenty-eight hundred CFM50 on the fan",
+    "groundedness": "grounded",
+    "unsupported": 0.06
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "windowGlazing",
+    "value": "double_pane",
+    "sourceSpan": "Windows are a mix but predominantly double pane",
+    "groundedness": "grounded",
+    "unsupported": 0.26
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "windowFrame",
+    "value": "wood_or_metal_clad",
+    "sourceSpan": "the frames are that wood with the aluminum cladding on the outside",
+    "groundedness": "grounded",
+    "unsupported": 0.33
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "dhwFuel",
+    "value": "propane",
+    "sourceSpan": "it's a propane tankless unit",
+    "groundedness": "grounded",
+    "unsupported": 0.16
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "dhwSystemType",
+    "value": "instantaneous",
+    "sourceSpan": "it's a propane tankless unit",
+    "groundedness": "grounded",
+    "unsupported": 0.27
+  },
+  {
+    "name": "05-full-walkthrough",
+    "field": "combustionVentType",
+    "value": "direct_vented",
+    "sourceSpan": "it's direct-vented, sealed combustion, pulls its air from outside",
+    "groundedness": "grounded",
+    "unsupported": 0.18
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "field": "heatingEquipmentType",
+    "value": "furnace_central_ac",
+    "sourceSpan": "it's a furnace",
+    "groundedness": "grounded",
+    "unsupported": 0.96
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "field": "heatingFuel",
+    "value": "natural_gas",
+    "sourceSpan": "natural gas",
+    "groundedness": "grounded",
+    "unsupported": 0.23
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "field": "heatingManufacturer",
+    "value": "Goodman",
+    "sourceSpan": "It's a Goodman.",
+    "groundedness": "grounded",
+    "unsupported": 0.14
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "field": "dhwFuel",
+    "value": "natural_gas",
+    "sourceSpan": "it's a gas water heater",
+    "groundedness": "grounded",
+    "unsupported": 0.21
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "field": "dhwSystemType",
+    "value": "storage",
+    "sourceSpan": "storage tank",
+    "groundedness": "grounded",
+    "unsupported": 0.26
+  },
+  {
+    "name": "06-homeowner-crosstalk",
+    "field": "combustionVentType",
+    "value": "other",
+    "sourceSpan": "natural draft up the flue",
+    "groundedness": "grounded",
+    "unsupported": 0.86
+  },
+  {
+    "name": "07-combustion-safety",
+    "field": "heatingEquipmentType",
+    "value": "furnace_central_ac",
+    "sourceSpan": "a gas furnace",
+    "groundedness": "grounded",
+    "unsupported": 0.9
+  },
+  {
+    "name": "07-combustion-safety",
+    "field": "heatingFuel",
+    "value": "natural_gas",
+    "sourceSpan": "a gas furnace",
+    "groundedness": "grounded",
+    "unsupported": 0.74
+  },
+  {
+    "name": "07-combustion-safety",
+    "field": "dhwFuel",
+    "value": "natural_gas",
+    "sourceSpan": "a gas storage water heater",
+    "groundedness": "grounded",
+    "unsupported": 0.67
+  },
+  {
+    "name": "07-combustion-safety",
+    "field": "dhwSystemType",
+    "value": "storage",
+    "sourceSpan": "a gas storage water heater",
+    "groundedness": "grounded",
+    "unsupported": 0.48
+  },
+  {
+    "name": "07-combustion-safety",
+    "field": "combustionVentType",
+    "value": "other",
+    "sourceSpan": "both venting into a shared B-vent up through the roof",
+    "groundedness": "grounded",
+    "unsupported": 0.87
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "field": "heatingEquipmentType",
+    "value": "furnace_central_ac",
+    "sourceSpan": "heating is a furnace, forced air",
+    "groundedness": "grounded",
+    "unsupported": 0.55
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "field": "heatingManufacturer",
+    "value": "Lennox",
+    "sourceSpan": "It's a Lennox",
+    "groundedness": "grounded",
+    "unsupported": 0.13
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "field": "heatingModelNumber",
+    "value": "G-something",
+    "sourceSpan": "model G-something",
+    "groundedness": "grounded",
+    "unsupported": 0.4
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "field": "coolingEquipmentType",
+    "value": "central_ac_standalone_ducts",
+    "sourceSpan": "Central AC, standalone ducts",
+    "groundedness": "grounded",
+    "unsupported": 0.2
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "field": "ductLocation",
+    "value": "attic_unconditioned",
+    "sourceSpan": "The AC's got its own ducts up in the attic",
+    "groundedness": "grounded",
+    "unsupported": 0.25
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "field": "ductSealing",
+    "value": "very_leaky",
+    "sourceSpan": "I'd call the sealing very leaky",
+    "groundedness": "grounded",
+    "unsupported": 0.15
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "field": "ductInsulation",
+    "value": "none",
+    "sourceSpan": "the ducts up here have no insulation on them at all",
+    "groundedness": "grounded",
+    "unsupported": 0.13
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "field": "atticInsulationType",
+    "value": "fiberglass",
+    "sourceSpan": "Attic insulation is fiberglass batts",
+    "groundedness": "grounded",
+    "unsupported": 0.1
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "field": "atticInsulationSpokenRValue",
+    "value": 30,
+    "sourceSpan": "R-thirty, R-30",
+    "groundedness": "grounded",
+    "unsupported": 0.1
+  },
+  {
+    "name": "08-no-fuel-silent-drop",
+    "field": "wallInsulated",
+    "value": "poorly",
+    "sourceSpan": "there's some insulation in there but it's really thin, patchy",
+    "groundedness": "grounded",
+    "unsupported": 0.18
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "field": "dhwFuel",
+    "value": "natural_gas",
+    "sourceSpan": "It's tankless, on-demand, natural gas",
+    "groundedness": "grounded",
+    "unsupported": 0.15
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "field": "dhwSystemType",
+    "value": "instantaneous",
+    "sourceSpan": "It's tankless, on-demand, natural gas",
+    "groundedness": "grounded",
+    "unsupported": 0.31
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "field": "dhwAgeBand",
+    "value": "0-5",
+    "sourceSpan": "Yeah, two years",
+    "groundedness": "grounded",
+    "unsupported": 0.78
+  },
+  {
+    "name": "09-chatter-and-scheduling",
+    "field": "combustionVentType",
+    "value": "power_vented_at_unit",
+    "sourceSpan": "power vented right at the unit",
+    "groundedness": "grounded",
+    "unsupported": 0.18
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "heatingEquipmentType",
+    "value": "central_heat_pump",
+    "sourceSpan": "it's a central heat pump on the shared ducts",
+    "groundedness": "grounded",
+    "unsupported": 0.21
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "heatingFuel",
+    "value": "electricity",
+    "sourceSpan": "Electric, obviously, it's a heat pump.",
+    "groundedness": "grounded",
+    "unsupported": 0.25
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "heatingManufacturer",
+    "value": "Bosch",
+    "sourceSpan": "A Bosch",
+    "groundedness": "grounded",
+    "unsupported": 0.18
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "coolingEquipmentType",
+    "value": "central_heat_pump",
+    "sourceSpan": "it's a central heat pump on the shared ducts",
+    "groundedness": "grounded",
+    "unsupported": 0.32
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "ductLocation",
+    "value": "crawlspace_unconditioned",
+    "sourceSpan": "Ducts run in the crawlspace, unconditioned crawl",
+    "groundedness": "grounded",
+    "unsupported": 0.11
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "ductSealing",
+    "value": "somewhat_leaky",
+    "sourceSpan": "somewhat leaky I'd say",
+    "groundedness": "grounded",
+    "unsupported": 0.12
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "ductInsulation",
+    "value": "fiberglass_2in",
+    "sourceSpan": "looks like fiberglass wrap, the two-inch stuff",
+    "groundedness": "grounded",
+    "unsupported": 0.1
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "ductLeakageCfm25",
+    "value": 210,
+    "sourceSpan": "Two-ten CFM25 on the ducts.",
+    "groundedness": "grounded",
+    "unsupported": 0.08
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "blowerDoorCfm50",
+    "value": 3600,
+    "sourceSpan": "the blower door is the thirty-six hundred",
+    "groundedness": "grounded",
+    "unsupported": 0.07
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "dhwFuel",
+    "value": "electricity",
+    "sourceSpan": "Water heater's a heat pump water heater, actually, a hybrid, sitting in the crawl too, electric",
+    "groundedness": "grounded",
+    "unsupported": 0.26
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "dhwSystemType",
+    "value": "heat_pump_water_heater",
+    "sourceSpan": "Water heater's a heat pump water heater",
+    "groundedness": "grounded",
+    "unsupported": 0.21
+  },
+  {
+    "name": "10-crawlspace-loose-units",
+    "field": "dhwAgeBand",
+    "value": "6-10",
+    "sourceSpan": "It's maybe six or seven years old.",
+    "groundedness": "grounded",
+    "unsupported": 0.58
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "field": "heatingEquipmentType",
+    "value": "furnace_central_ac",
+    "sourceSpan": "Forced-air furnace, gas.",
+    "groundedness": "grounded",
+    "unsupported": 0.92
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "field": "heatingFuel",
+    "value": "natural_gas",
+    "sourceSpan": "Forced-air furnace, gas.",
+    "groundedness": "grounded",
+    "unsupported": 0.33
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "field": "atticInsulationType",
+    "value": "fiberglass",
+    "sourceSpan": "fiberglass batts between the joists",
+    "groundedness": "grounded",
+    "unsupported": 0.11
+  },
+  {
+    "name": "11-ambiguous-attic",
+    "field": "atticInsulationSpokenRValue",
+    "value": 13,
+    "sourceSpan": "R-13, final answer.",
+    "groundedness": "grounded",
+    "unsupported": 0.08
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "field": "heatingEquipmentType",
+    "value": "furnace_central_ac",
+    "sourceSpan": "The new one is a gas furnace",
+    "groundedness": "grounded",
+    "unsupported": 0.92
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "field": "heatingFuel",
+    "value": "natural_gas",
+    "sourceSpan": "The new one is a gas furnace",
+    "groundedness": "grounded",
+    "unsupported": 0.35
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "field": "heatingManufacturer",
+    "value": "Bryant",
+    "sourceSpan": "it's a Bryant",
+    "groundedness": "grounded",
+    "unsupported": 0.13
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "field": "heatingModelNumber",
+    "value": "926T",
+    "sourceSpan": "model 926T",
+    "groundedness": "grounded",
+    "unsupported": 0.14
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "field": "heatingModelYear",
+    "value": 2024,
+    "sourceSpan": "the year on it is twenty twenty-four",
+    "groundedness": "grounded",
+    "unsupported": 0.21
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "field": "heatingOutputCapacityBtuh",
+    "value": 60000,
+    "sourceSpan": "Output is sixty thousand BTU",
+    "groundedness": "grounded",
+    "unsupported": 0.13
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "field": "blowerDoorCfm50",
+    "value": 4100,
+    "sourceSpan": "forty-one hundred CFM50",
+    "groundedness": "grounded",
+    "unsupported": 0.08
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "field": "dhwFuel",
+    "value": "natural_gas",
+    "sourceSpan": "a gas storage tank",
+    "groundedness": "grounded",
+    "unsupported": 0.21
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "field": "dhwSystemType",
+    "value": "storage",
+    "sourceSpan": "a gas storage tank",
+    "groundedness": "grounded",
+    "unsupported": 0.35
+  },
+  {
+    "name": "12-wrong-field-old-unit",
+    "field": "dhwAgeBand",
+    "value": "26-30",
+    "sourceSpan": "that's twenty-six, twenty-seven years old",
+    "groundedness": "grounded",
+    "unsupported": 0.55
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "heatingEquipmentType",
+    "value": "furnace_central_ac",
+    "sourceSpan": "Heating is a furnace, natural gas",
+    "groundedness": "grounded",
+    "unsupported": 0.33
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "heatingFuel",
+    "value": "natural_gas",
+    "sourceSpan": "Heating is a furnace, natural gas",
+    "groundedness": "grounded",
+    "unsupported": 0.14
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "heatingManufacturer",
+    "value": "Carrier",
+    "sourceSpan": "a Carrier",
+    "groundedness": "grounded",
+    "unsupported": 0.12
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "heatingModelNumber",
+    "value": "58STA",
+    "sourceSpan": "it's 58STA",
+    "groundedness": "grounded",
+    "unsupported": 0.11
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "heatingModelYear",
+    "value": 2013,
+    "sourceSpan": "the year reads twenty-thirteen",
+    "groundedness": "grounded",
+    "unsupported": 0.19
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "coolingEquipmentType",
+    "value": "other",
+    "sourceSpan": "Central AC on the same ducts as the furnace, shared",
+    "groundedness": "grounded",
+    "unsupported": 0.87
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "ductLocation",
+    "value": "basement_unconditioned",
+    "sourceSpan": "The ducts run through the basement, which is unconditioned down there",
+    "groundedness": "grounded",
+    "unsupported": 0.15
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "ductSealing",
+    "value": "well_sealed",
+    "sourceSpan": "I'd call that well sealed",
+    "groundedness": "grounded",
+    "unsupported": 0.14
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "ductInsulation",
+    "value": "duct_board_1_5in",
+    "sourceSpan": "that rigid duct board, the inch-and-a-half board",
+    "groundedness": "grounded",
+    "unsupported": 0.1
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "wallConstruction",
+    "value": "concrete_block",
+    "sourceSpan": "Exterior walls are concrete block",
+    "groundedness": "grounded",
+    "unsupported": 0.14
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "blowerDoorCfm50",
+    "value": 2900,
+    "sourceSpan": "Blower door came in at twenty-nine hundred CFM50",
+    "groundedness": "grounded",
+    "unsupported": 0.08
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "windowGlazing",
+    "value": "double_pane",
+    "sourceSpan": "they're double pane",
+    "groundedness": "grounded",
+    "unsupported": 0.09
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "windowFrame",
+    "value": "wood_or_metal_clad",
+    "sourceSpan": "wood-frame ones with the metal cladding on the exterior",
+    "groundedness": "grounded",
+    "unsupported": 0.25
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "dhwFuel",
+    "value": "natural_gas",
+    "sourceSpan": "Water heater is a gas storage tank",
+    "groundedness": "grounded",
+    "unsupported": 0.24
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "dhwSystemType",
+    "value": "storage",
+    "sourceSpan": "Water heater is a gas storage tank",
+    "groundedness": "grounded",
+    "unsupported": 0.27
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "dhwAgeBand",
+    "value": "11-15",
+    "sourceSpan": "About fifteen years old",
+    "groundedness": "grounded",
+    "unsupported": 0.64
+  },
+  {
+    "name": "13-enum-paraphrase",
+    "field": "combustionVentType",
+    "value": "power_vented_at_unit",
+    "sourceSpan": "power vented right at the unit",
+    "groundedness": "grounded",
+    "unsupported": 0.16
+  },
+  {
+    "name": "14-rapid-recap",
+    "field": "dhwFuel",
+    "value": "electricity",
+    "sourceSpan": "Electric storage water heater",
+    "groundedness": "grounded",
+    "unsupported": 0.21
+  },
+  {
+    "name": "14-rapid-recap",
+    "field": "dhwSystemType",
+    "value": "storage",
+    "sourceSpan": "Electric storage water heater",
+    "groundedness": "grounded",
+    "unsupported": 0.31
+  }
+]

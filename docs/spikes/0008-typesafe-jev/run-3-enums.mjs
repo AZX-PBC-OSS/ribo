@@ -7,7 +7,7 @@
 //   arm "escape"  — criteria include an explicit "Not stated" option
 //   arm "bare"    — criteria are the real members only; silence must show up as low confidence
 import { writeFileSync } from "node:fs";
-import { ask } from "./env.mjs";
+import { ask, results } from "./env.mjs";
 import { corpus, assertedLeaves } from "./corpus.mjs";
 import { ENUM_LEAVES, NOT_STATED, qid } from "./leaves.mjs";
 
@@ -71,8 +71,5 @@ for (const entry of corpus()) {
   );
 }
 
-writeFileSync(
-  new URL(`./results/enums-${ARM}.json`, import.meta.url),
-  JSON.stringify(rows, null, 2),
-);
+writeFileSync(results(`enums-${ARM}.json`), JSON.stringify(rows, null, 2));
 console.log(`\nwrote results/enums-${ARM}.json`);

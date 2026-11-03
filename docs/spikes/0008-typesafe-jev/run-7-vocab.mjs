@@ -8,12 +8,10 @@
 //
 // Same 124 leaves as probe 6, so the two are directly comparable.
 import { readFileSync, writeFileSync } from "node:fs";
-import { ask } from "./env.mjs";
+import { ask, results } from "./env.mjs";
 import { FIELD_OPTIONS } from "./old-schema.mjs";
 
-const prior = JSON.parse(
-  readFileSync(new URL("./results/grounded-vs-supported.json", import.meta.url), "utf8"),
-);
+const prior = JSON.parse(readFileSync(results("grounded-vs-supported.json"), "utf8"));
 const byName = new Map();
 for (const r of prior) {
   if (!byName.has(r.name)) byName.set(r.name, []);
@@ -75,7 +73,7 @@ for (const [name, leaves] of byName) {
   console.log(`${name.padEnd(28)} ${String(res.ms).padStart(5)}ms  ${leaves.length} leaves`);
 }
 
-writeFileSync(new URL("./results/vocab.json", import.meta.url), JSON.stringify(rows, null, 2));
+writeFileSync(results("vocab.json"), JSON.stringify(rows, null, 2));
 
 const T = 0.6;
 const flagged = (k) => rows.filter((r) => r[k] > T);
