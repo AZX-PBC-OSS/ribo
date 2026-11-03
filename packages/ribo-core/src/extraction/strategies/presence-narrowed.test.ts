@@ -25,7 +25,7 @@ import { presenceNarrowedExtractor } from "./presence-narrowed.js";
  */
 
 const patchSchema = z.strictObject({
-  // A collection group: the fill's singleton projection and the seeded
+  // A collection group: the fill's array projection and the seeded
   // one-element array wrap both get exercised through it.
   hvac: z
     .array(
@@ -110,7 +110,7 @@ function partialPresenceChat(): ReturnType<typeof fakeChat> {
   return fakeChat((name) => {
     if (name === "hvac-presence") return partialMaps.hvac;
     if (name === "site-presence") return partialMaps.site;
-    if (name === "pf-demo-hvac") return { hvac: hvacFill };
+    if (name === "pf-demo-hvac") return { hvac: [hvacFill] };
     throw new Error(`unexpected request ${name}`);
   });
 }
@@ -195,9 +195,9 @@ describe("presenceNarrowedExtractor — the composition", () => {
     // test passes on a run that silently drops the item: the leaves are null
     // either way, and null is also what an honest "nobody said it" looks like.
     //
-    // One entry, keyed by group. This phase plans one item per GROUP — the
-    // projection is singleton, so it has no instance or piece dimension — which
-    // is why `key` alone is the item's whole coordinates here, where
+    // One entry, keyed by group. This phase plans one item per GROUP — one call
+    // returns every instance, so an item has no instance or piece dimension —
+    // which is why `key` alone is the item's whole coordinates here, where
     // `fillPhase` needs (group, instance, piece).
     expect(result.skippedItems).toEqual([{ phaseId: "fill", key: "hvac" }]);
   });

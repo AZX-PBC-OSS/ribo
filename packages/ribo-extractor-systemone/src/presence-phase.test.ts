@@ -112,6 +112,50 @@ describe("systemOnePresencePhase — thresholding", () => {
   });
 });
 
+describe("systemOnePresencePhase — the question", () => {
+  // A bare wire path like "dhw.dhwType2" names nothing a model can match against speech: spike
+  // 0012 measured the shipped question dropping 21 of 21 such leaves below the threshold, and
+  // every one cleared it once the leaf's members were stated.
+  test("an enum leaf's question names its members; a non-enum leaf's does not", async () => {
+    const { calls } = await fold(() => 0.9);
+    const fuel = calls[0]?.questions["hvac.fuel"]?.instructions;
+    expect(fuel).toContain('"Oil"');
+    expect(fuel).toContain('"Gas"');
+    expect(calls[0]?.questions["hvac.efficiency"]?.instructions).not.toContain("one of");
+  });
+
+  // "No safety tests" asserts every test was not done without naming one. A question that only
+  // counts an explicit discussion of the field scored those leaves absent, so the fill was never
+  // asked and the stated "not done" came back null (spike 0012, transcripts 11 and 14).
+  test("the question counts a stated decline, including one covering a set of fields", async () => {
+    const { calls } = await fold(() => 0.9);
+    const question = calls[0]?.questions["hvac.fuel"]?.instructions;
+    expect(question).toMatch(/not done/);
+    expect(question).toMatch(/as part of a set/);
+  });
+
+  test("a collection group's enum leaf names its members too", async () => {
+    // A collection's leaves sit under the array's element schema, so the member lookup has to
+    // step through the element; an object-only walk finds nothing here and asks the bare path.
+    const collection = enveloped(
+      z.strictObject({
+        heaters: z
+          .array(z.strictObject({ kind: z.enum(["Tank", "Tankless"]).nullable().optional() }))
+          .optional(),
+      }),
+    );
+    const { client, calls } = fakeClient(() => 0.9);
+    const phase = systemOnePresencePhase({ client, schema: collection });
+    await phase.with(async (def) => {
+      const draft = emptyDraft();
+      for (const item of def.plan(draft, ctx)) await def.run(item, draft, ctx);
+    });
+    const kind = calls[0]?.questions["heaters.kind"]?.instructions;
+    expect(kind).toContain('"Tank"');
+    expect(kind).toContain('"Tankless"');
+  });
+});
+
 describe("systemOnePresencePhase — the seed", () => {
   // Written FIRST of the suite: the regression the seed exists to prevent is
   // silent — a missing group key surfaces only as the closing trust-boundary

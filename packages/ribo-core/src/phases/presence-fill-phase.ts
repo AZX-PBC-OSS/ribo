@@ -20,17 +20,16 @@
  *   {@link singleShotExtractor} over a {@link projectTarget}-projected target,
  *   narrowed to the active leaf subset. Built in `run` rather than at
  *   construction because the active subset is known only once the presence
- *   note has been read. The projection is singleton: the seed wrapped a
- *   collection group's one instance in a one-element array and the merge
- *   writes into exactly that instance, so the call asks for the element, not
- *   the array — a second instance has nowhere to land, and
- *   `perGroupExtractor` remains the multi-instance strategy.
- * - **`merge` writes the returned leaf envelopes into the group entry the seed
- *   created** — through `writableGroupEntry`, as every merge that writes a
- *   group entry does. Inactive leaves keep the null seed. A failed item nulls
- *   the group's leaves — the seed's floor, restated so the merge stays total —
- *   and `onItemFailure: "skip"` makes that a per-group outcome, never a failed
- *   run.
+ *   note has been read. A collection group is asked for its ARRAY: presence
+ *   decides which leaves, never how many instances, so a singleton call would
+ *   silently drop every appliance after the first (spike 0012).
+ * - **`merge` writes the returned leaf envelopes over the seed.** A flat group's
+ *   envelopes go into the entry the seed created, through `writableGroupEntry`;
+ *   a collection's returned instances replace the seed's one-element array.
+ *   Inactive leaves are null in every instance. An empty array leaves the
+ *   seed's null instance in place. A failed item nulls the group's leaves — the
+ *   seed's floor, restated so the merge stays total — and
+ *   `onItemFailure: "skip"` makes that a per-group outcome, never a failed run.
  *
  * **Transport-agnostic, hence core** (ADR 0010): every import here is the chat
  * seam (`ChatClient`, never `openAiChat`), so this belongs beside
@@ -132,7 +131,7 @@ export function presenceFillPhase<V extends Record<string, unknown>, P = NoProve
     assertWireSafeSchemaName(`${target.name}-${group.key}`, "presenceFillPhase");
   }
 
-  const def: PhaseDef<V, P, PresenceFillItem, LeafEnvelopes> = {
+  const def: PhaseDef<V, P, PresenceFillItem, LeafEnvelopes | readonly LeafEnvelopes[]> = {
     id,
     onItemFailure: "skip",
     // REPLACING, not additive: the option is the complete list, and the default
@@ -164,7 +163,9 @@ export function presenceFillPhase<V extends Record<string, unknown>, P = NoProve
       const projected = projectTarget<V, P, typeof key>(target, key, {
         instructions: withGroupPrompt ? groupInstructions(item.group.key) : undefined,
         leafKeys: item.activeLeaves.map((leaf) => leaf.key),
-        singleton: true,
+        // A collection is asked for its array, so every instance the
+        // transcript describes has somewhere to land.
+        singleton: false,
       });
       // The plan's unpartitioned piece name — and, without group instructions,
       // its unprojected examples: both spellings are `perGroupPlan`'s.
@@ -181,13 +182,13 @@ export function presenceFillPhase<V extends Record<string, unknown>, P = NoProve
         signal: ctx.signal,
       });
 
-      // THE CAST, and why it is sound: under the singleton projection a
-      // collection group's parsed value is the ELEMENT — the leaf-envelope map —
-      // while the projected target's type still names the array; a flat group's
-      // is the map directly. Every envelope the merge writes is validated
-      // against the full extraction schema at the closing parse, so a wrong
-      // shape cannot survive the run.
-      const value = (result.fields as Record<string, unknown>)[item.group.key] as LeafEnvelopes;
+      // THE CAST, and why it is sound: a collection group's parsed value is the
+      // array of leaf-envelope maps, a flat group's is the map directly — the
+      // projection parsed exactly that shape. Every envelope the merge writes is
+      // validated against the full extraction schema at the closing parse, so a
+      // wrong shape cannot survive the run.
+      const value = (result.fields as Record<string, unknown>)[item.group.key] as
+        LeafEnvelopes | readonly LeafEnvelopes[];
       return { value, usage: result.usage };
     },
     merge: (draft, outcomes) => {
@@ -198,10 +199,30 @@ export function presenceFillPhase<V extends Record<string, unknown>, P = NoProve
       // extraction schema, so a wrong shape cannot survive the run.
       const fields = { ...(draft.fields as Record<string, unknown>) };
 
+      /** One instance: every leaf of the group, the active ones from the answer. */
+      const instance = (group: Group, activeLeaves: readonly Leaf[], answer: LeafEnvelopes) => {
+        const out: LeafEnvelopes = {};
+        for (const leaf of group.leaves) out[leaf.key] = nullEnvelope();
+        // The projected schema is strict and requires exactly the active
+        // leaves, so the fallback is a total-write guard, not an expected arm.
+        for (const leaf of activeLeaves) out[leaf.key] = answer[leaf.key] ?? nullEnvelope();
+        return out;
+      };
+
       for (const outcome of outcomes) {
         const { group, activeLeaves } = outcome.item;
-        const entry = writableGroupEntry(group, fields);
 
+        if (outcome.outcome === "result" && Array.isArray(outcome.output.value)) {
+          const answers = outcome.output.value as readonly LeafEnvelopes[];
+          // Presence said this group was discussed, so an empty array is a
+          // model miss, not a stated-none: the seed's one null instance stays.
+          if (answers.length > 0) {
+            fields[group.key] = answers.map((answer) => instance(group, activeLeaves, answer));
+          }
+          continue;
+        }
+
+        const entry = writableGroupEntry(group, fields);
         if (outcome.outcome !== "result") {
           // A failed item nulls that group's leaves — the seed's floor,
           // restated rather than relied on: `writableGroupEntry` creates a
@@ -213,11 +234,7 @@ export function presenceFillPhase<V extends Record<string, unknown>, P = NoProve
           continue;
         }
 
-        for (const leaf of activeLeaves) {
-          // The projected schema is strict and requires exactly the active
-          // leaves, so the fallback is a total-write guard, not an expected arm.
-          entry[leaf.key] = outcome.output.value[leaf.key] ?? nullEnvelope();
-        }
+        Object.assign(entry, instance(group, activeLeaves, outcome.output.value as LeafEnvelopes));
       }
 
       return {
