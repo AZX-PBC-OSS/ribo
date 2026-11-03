@@ -1,0 +1,246 @@
+   excluded from grading: 02-oil-boiler-basement — identical to the few-shot example in examples.ts — grading it measures copying
+
+==================================================================================
+SNUGG PRO EXTRACTION SPIKE — md-1
+==================================================================================
+results dir : docs/spikes/0012-narrowing-end-to-end/results/md-1
+coverage    : 13/13 corpus transcripts scored
+
+VALIDATION WARNINGS (do not block scoring; worth a human's attention):
+  03-quick-exterior-short: disclaimers[2]: scope is "unresolved" (topic: "anything else that required going inside the house (beyond the attic and heating already covered above)") — reaches NO leaf under the current policy. NEEDS RECONCILIATION: a human should confirm this is intentional, not a missed scope.
+
+----------------------------------------------------------------------------------
+1. HALLUCINATION — non-null emitted where GT is null (428 generic leaves)  [HEADLINE]
+----------------------------------------------------------------------------------
+   hard hallucination rate :    0.5%  (24/4635 GT-null slots)
+   sanctioned alternatives : 0  (defensible non-nulls the leaf's own `arguable` sanctions)
+   R-value -> band inventions: 0  (forbidden R->depth-band conversion)
+   !! Read against the miss rate below — an all-null output scores 0% here and is useless.
+
+----------------------------------------------------------------------------------
+2. MISS — null emitted where GT has a value (428 generic leaves)
+----------------------------------------------------------------------------------
+   miss rate :    3.3%  (4/120 stated values left null; 4 excused)
+   miss rate, ALL leaves    :   18.0%  (31/172) <- quote THIS one
+   accuracy on both-non-null :   99.1%  (115/116 correct)
+
+----------------------------------------------------------------------------------
+3. AXIS-SPLIT — equipment vs fuel, per axis pair (hvac, dhw)
+----------------------------------------------------------------------------------
+   both-correct rate :   94.4%  (17/18 stated equipment+fuel split onto both axes)
+   fuel DROPPED (equip right, fuel null when stated) : 1   <- the #1 predicted failure
+   fuel INVENTED where none stated                   : 1
+   eq-wrong / fuel-wrong-member                      : 0 / 0
+   silent-drop respected                             : 2
+
+----------------------------------------------------------------------------------
+4. ENUM-MAPPING — GT is a specific member
+----------------------------------------------------------------------------------
+   member accuracy :   98.9%  (88/89 correct; on model-emitted enums)
+   wrong-member 1   invalid (matches neither vocabulary) 0   dropped-to-null 3
+   sanctioned (schema forced an arbitrary pick; model chose the other lobe) : 0   <- NOT a hallucination; GT is non-null and nothing was invented
+   vocabulary mix on CORRECT matches ONLY (excludes sanctioned/wrong) : api-literal 113   snake_case-slug 0   <- both score identically; this is what lets one ground truth test either vocabulary
+
+----------------------------------------------------------------------------------
+5. BAND-MAPPING — depth/age band ([...BAND_LEAVES])
+----------------------------------------------------------------------------------
+   band accuracy :  100.0%  (5/5 correct band)
+   boundary (off-by-one bucket) 0   flat-wrong 0   dropped-to-null 0
+   R-value -> band inventions (forbidden conversion) : 0
+
+----------------------------------------------------------------------------------
+6. HEALTH-MATRIX STATE — 13 tests x transcripts
+----------------------------------------------------------------------------------
+   state accuracy :   87.0%  (181 correct / 27 wrong; 0 excused)
+   >> HALLUCINATED PASS (Passed where truth is not Passed) : 0   <- the crux
+   >> CLEAN DROPPED TO NULL (Passed lost)                  : 0  of 11 clean results
+      clean correctly kept as Passed : 11/11
+      hallucinated problem (Failed/Warning invented) 0   wrong-state 0   miss 27
+      soft: silence -> "Not Tested" asserted 0   (mild overreach; not counted as a hallucination)
+
+----------------------------------------------------------------------------------
+7. SOURCESPAN VALIDITY — verbatim substring of the transcript
+----------------------------------------------------------------------------------
+   verbatim rate :   99.4%  (164/165 non-null values)
+   near-miss 0   fabricated 1   missing 0
+
+----------------------------------------------------------------------------------
+8. CONFIDENCE SEPARATION — uncalibrated; numbers only, no thresholds
+----------------------------------------------------------------------------------
+   mean confidence  correct 0.992   wrong 1.000   gap -0.008
+   mean confidence  correct-null 0.044   hallucinated 0.991
+   !! gap ~ zero: confidence carries no signal here. Do not flag on it.
+
+   schema conformance : 0/13 outputs had exactly the groups/leaves and clean envelopes
+
+----------------------------------------------------------------------------------
+PER TRANSCRIPT
+----------------------------------------------------------------------------------
+transcript                  halluc    miss      acc       hPass  span    flags
+01-attic-r-value-shell      0.3%      0.0%      100.0%    0      93.3%   HALLUC,SPAN,SCHEMA
+03-quick-exterior-short     0.3%      33.3%     100.0%    0      100.0%  HALLUC,SCHEMA
+04-fuel-stated-separately   0.3%      0.0%      100.0%    0      100.0%  HALLUC,SCHEMA
+05-full-walkthrough         1.4%      0.0%      100.0%    0      100.0%  HALLUC,SCHEMA
+06-homeowner-crosstalk      0.3%      0.0%      100.0%    0      100.0%  HALLUC,SCHEMA
+07-combustion-safety        0.3%      20.0%     100.0%    0      100.0%  HALLUC,SCHEMA
+08-no-fuel-silent-drop      0.3%      11.1%     100.0%    0      100.0%  HALLUC,SCHEMA
+09-chatter-and-scheduling   0.3%      0.0%      100.0%    0      100.0%  HALLUC,SCHEMA
+10-crawlspace-loose-units   0.5%      0.0%      92.3%     0      100.0%  HALLUC,SCHEMA
+11-ambiguous-attic          0.3%      0.0%      100.0%    0      100.0%  HALLUC,SCHEMA
+12-wrong-field-old-unit     0.8%      0.0%      100.0%    0      100.0%  HALLUC,SCHEMA
+13-enum-paraphrase          1.1%      6.7%      100.0%    0      100.0%  HALLUC,FUELDROP,SCHEMA
+14-rapid-recap              0.0%      0.0%      100.0%    0      100.0%  SCHEMA
+
+----------------------------------------------------------------------------------
+HALLUCINATIONS — value emitted where GT is null (24)
+----------------------------------------------------------------------------------
+  01-attic-r-value-shell    utilities.primaryHeatingFuelType= "Natural Gas"  [conf 1]
+      span: "Heat's a gas furnace"
+  03-quick-exterior-short   wall.0.wallExteriorWallConstruction= "2x6 Frame"  [conf 0.8]
+      span: "looks like a two-by-six frame from the addition framing I could see through the garage window"
+  04-fuel-stated-separately utilities.primaryHeatingFuelType= "Fuel Oil"  [conf 1]
+      span: "it runs on oil"
+  05-full-walkthrough       basedata.programmableThermostatInstalled= "Yes"  [conf 1]
+      span: "The thermostat is a smart one, a Nest"
+  05-full-walkthrough       basedata.thermostatModel      = "Nest"  [conf 1]
+      span: "a Nest"
+  05-full-walkthrough       report.safetyOverview         = "Health and safety, this is the part that really matters on this house, so pay attention. Ambient CO throughout the house was zero to two ppm, clean, no CO issue anywhere. But — I ran the natural condition spillage test on the water heater, and it spilled, it backdrafted under natural conditions, flue gases rolling right out the draft diverter, and that is a hard fail, a fail on spillage under natural conditions. There's also some moisture staining on the basement wall, efflorescence and a bit of soft drywall in the one corner, I'd flag that as a moisture concern, worth watching, call it a warning on moisture, not a crisis but keep an eye. And there's old pipe wrap on the basement lines that looks like it could be asbestos — I did not test it, I'm not equipped to sample asbestos, so that one is not tested, defer it to an abatement pro."  [conf 1]
+      span: "Health and safety, this is the part that really matters on this house, so pay attention. Ambient CO throughout the house was zero to two ppm, clean, no CO issue anywhere. But — I ran the natural condition spillage test on the water heater, and it spilled, it backdrafted under natural conditions, flue gases rolling right out the draft diverter, and that is a hard fail, a fail on spillage under natural conditions. There's also some moisture staining on the basement wall, efflorescence and a bit of soft drywall in the one corner, I'd flag that as a moisture concern, worth watching, call it a warning on moisture, not a crisis but keep an eye. And there's old pipe wrap on the basement lines that looks like it could be asbestos — I did not test it, I'm not equipped to sample asbestos, so that one is not tested, defer it to an abatement pro."
+  05-full-walkthrough       utilities.primaryHeatingFuelType= "Propane"  [conf 1]
+      span: "The working system, the one that heats this house today, is the propane Carrier in the closet."
+  05-full-walkthrough       hvac.0.hvacHeatingIsCondensing= "Yes"  [conf 1]
+      span: "condensing, there's the PVC flue going out the side wall"
+  05-full-walkthrough       window.1.windowType           = "Single pane"  [conf 1]
+      span: "that's single-glazed on three sides"
+  05-full-walkthrough       concern.0.concernDetail       = "What about the sunroom, is that going to show up cold?"  [conf 1]
+      span: "What about the sunroom, is that going to show up cold?"
+  06-homeowner-crosstalk    utilities.primaryHeatingFuelType= "Natural Gas"  [conf 1]
+      span: "yeah, it's a furnace, natural gas"
+  07-combustion-safety      utilities.primaryHeatingFuelType= "Natural Gas"  [conf 0.98]
+      span: "a gas furnace"
+  08-no-fuel-silent-drop    hvac.0.hvacHeatingEnergySource= "Don't Know"  [conf 1]
+      span: "I'm not going to guess, so I can't tell you the fuel on this one"
+  09-chatter-and-scheduling dhw.0.dhwAge                  = "0-5"  [conf 1]
+      span: "Yeah, two years"
+  10-crawlspace-loose-units utilities.primaryHeatingFuelType= "Electricity"  [conf 1]
+      span: "Electric, obviously, it's a heat pump."
+  10-crawlspace-loose-units hvac.0.hvacCoolingSystemManufacturer= "Bosch"  [conf 1]
+      span: "A Bosch"
+  11-ambiguous-attic        utilities.primaryHeatingFuelType= "Natural Gas"  [conf 1]
+      span: "Forced-air furnace, gas."
+  12-wrong-field-old-unit   utilities.primaryHeatingFuelType= "Natural Gas"  [conf 1]
+      span: "The new one is a gas furnace"
+  12-wrong-field-old-unit   hvac.0.hvacHeatingIsCondensing= "Yes"  [conf 1]
+      span: "ninety-plus, condensing"
+  12-wrong-field-old-unit   dhw.0.dhwModelYear            = 1998  [conf 1]
+      span: "the sticker says nineteen ninety-eight"
+  13-enum-paraphrase        basedata.blowerDoorTestPerformed= "Tested"  [conf 1]
+      span: "Blower door came in at twenty-nine hundred CFM50"
+  13-enum-paraphrase        utilities.primaryHeatingFuelType= "Natural Gas"  [conf 1]
+      span: "Heating is a furnace, natural gas"
+  13-enum-paraphrase        wall.0.wallExteriorWallConstruction= "Concrete Block"  [conf 1]
+      span: "Exterior walls are concrete block"
+  13-enum-paraphrase        dhw.0.dhwModelYear            = 2010  [conf 1]
+      span: "install tag reads twenty-ten"
+
+----------------------------------------------------------------------------------
+SOFT ALTERNATIVES ON GT-NULL — non-null the leaf's own `arguable` allows (NOT hard hallucinations) (0)
+----------------------------------------------------------------------------------
+  none
+
+----------------------------------------------------------------------------------
+SANCTIONED (schema-forced choice) — GT is NON-NULL; the schema forced an arbitrary pick between equally-fitting members and the model chose the other lobe. NOT a hallucination — see ENUM-MAPPING. (0)
+----------------------------------------------------------------------------------
+  none
+
+----------------------------------------------------------------------------------
+AXIS-SPLIT rows (21)
+----------------------------------------------------------------------------------
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[bothCorrect]  eq "Furnace with standalone ducts"/"Furnace with standalone ducts"  fuel "Natural Gas"/"Natural Gas"
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[bothCorrect]  eq "Boiler"/"Boiler"  fuel "Fuel Oil"/"Fuel Oil"
+  dhw.dhwType2 / dhw.dhwFuel2                   [bothCorrect]  eq "Tank Water Heater"/"Tank Water Heater"  fuel "Electricity"/"Electricity"
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[bothCorrect]  eq "Furnace with standalone ducts"/"Furnace with standalone ducts"  fuel "Propane"/"Propane"
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[silentDropRespected]  eq "Central AC with standalone ducts"/"Central AC with standalone ducts"  fuel null/null
+  dhw.dhwType2 / dhw.dhwFuel2                   [bothCorrect]  eq "Tankless Water Heater"/"Tankless Water Heater"  fuel "Propane"/"Propane"
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[bothCorrect]  eq "Furnace with standalone ducts"/"Furnace with standalone ducts"  fuel "Natural Gas"/"Natural Gas"
+  dhw.dhwType2 / dhw.dhwFuel2                   [bothCorrect]  eq "Tank Water Heater"/"Tank Water Heater"  fuel "Natural Gas"/"Natural Gas"
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[bothCorrect]  eq "Furnace with standalone ducts"/"Furnace with standalone ducts"  fuel "Natural Gas"/"Natural Gas"
+  dhw.dhwType2 / dhw.dhwFuel2                   [bothCorrect]  eq "Tank Water Heater"/"Tank Water Heater"  fuel "Natural Gas"/"Natural Gas"
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[fuelInvented]  eq "Furnace with standalone ducts"/"Furnace with standalone ducts"  fuel "Don't Know"/null
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[silentDropRespected]  eq "Central AC with standalone ducts"/"Central AC with standalone ducts"  fuel null/null
+  dhw.dhwType2 / dhw.dhwFuel2                   [bothCorrect]  eq "Tankless Water Heater"/"Tankless Water Heater"  fuel "Natural Gas"/"Natural Gas"
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[bothCorrect]  eq "Central Heat Pump (shared ducts)"/"Central Heat Pump (shared ducts)"  fuel "Electricity"/"Electricity"
+  dhw.dhwType2 / dhw.dhwFuel2                   [bothCorrect]  eq "Heat Pump"/"Heat Pump"  fuel "Electricity"/"Electricity"
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[bothCorrect]  eq "Furnace with standalone ducts"/"Furnace with standalone ducts"  fuel "Natural Gas"/"Natural Gas"
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[bothCorrect]  eq "Furnace with standalone ducts"/"Furnace with standalone ducts"  fuel "Natural Gas"/"Natural Gas"
+  dhw.dhwType2 / dhw.dhwFuel2                   [bothCorrect]  eq "Tank Water Heater"/"Tank Water Heater"  fuel "Natural Gas"/"Natural Gas"
+  hvac.hvacSystemEquipmentType / hvac.hvacHeatingEnergySource[bothCorrect]  eq "Furnace / Central AC (shared ducts)"/"Furnace / Central AC (shared ducts)"  fuel "Natural Gas"/"Natural Gas"
+  dhw.dhwType2 / dhw.dhwFuel2                   [fuelDropped]  eq "Tank Water Heater"/"Tank Water Heater"  fuel null/"Natural Gas"
+  dhw.dhwType2 / dhw.dhwFuel2                   [bothCorrect]  eq "Tank Water Heater"/"Tank Water Heater"  fuel "Electricity"/"Electricity"
+
+----------------------------------------------------------------------------------
+HEALTH deviations (27)
+----------------------------------------------------------------------------------
+  07-combustion-safety      health.healthMoldMoisture         [miss] gt "Not Tested" got null
+  07-combustion-safety      health.healthLead                 [miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthNaturalConditionSpillage[miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthWorstCaseDepressurization[miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthWorstCaseSpillage    [miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthUndilutedFlueCo      [miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthDraftPressure        [miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthGasLeak              [miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthVenting              [miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthMoldMoisture         [miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthRadon                [miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthAsbestos             [miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthLead                 [miss] gt "Not Tested" got null
+  11-ambiguous-attic        health.healthElectrical           [miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthAmbientCarbonMonoxide[miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthNaturalConditionSpillage[miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthWorstCaseDepressurization[miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthWorstCaseSpillage    [miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthUndilutedFlueCo      [miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthDraftPressure        [miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthGasLeak              [miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthVenting              [miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthMoldMoisture         [miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthRadon                [miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthAsbestos             [miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthLead                 [miss] gt "Not Tested" got null
+  14-rapid-recap            health.healthElectrical           [miss] gt "Not Tested" got null
+
+----------------------------------------------------------------------------------
+WRONG VALUES — both non-null, semantically different (1)
+----------------------------------------------------------------------------------
+  10-crawlspace-loose-units hvac.0.hvacDuctLeakage        [wrong-member] expected "Measured (CFM25)", got "15% - Somewhat leaky"  [conf 1]
+
+----------------------------------------------------------------------------------
+MISSES — null where GT has a value (4)
+----------------------------------------------------------------------------------
+  03-quick-exterior-short   basedata.floorsAboveGrade     expected 1
+  07-combustion-safety      dhw.0.dhwLocation             expected null
+  08-no-fuel-silent-drop    wall.0.wallCavityInsulationTypeexpected "Fiberglass or Rockwool Batt"
+  13-enum-paraphrase        dhw.0.dhwFuel2                expected "Natural Gas"
+
+----------------------------------------------------------------------------------
+UNSCORABLE — GT has no fitting schema member (report only; excluded from accuracy) (0)
+----------------------------------------------------------------------------------
+  none
+
+----------------------------------------------------------------------------------
+INVALID sourceSpans — not a verbatim substring (1)
+----------------------------------------------------------------------------------
+  01-attic-r-value-shell    hvac.0.hvacSystemEquipmentType[fabricated] no substantial fragment found in the transcript
+      value: "Furnace with standalone ducts"   span: "a gas furnace, forced hot air"
+
+----------------------------------------------------------------------------------
+UNSCORED — missing or malformed result files (counted as whole-transcript miss) (0)
+----------------------------------------------------------------------------------
+  none
+
+==================================================================================
+Headline: 0.5% hard hallucination vs 3.3% miss; 0 hallucinated health passes; 1 fuel drops. Neither number stands alone.
+==================================================================================
+
+Wrote docs/spikes/0001-extraction-snuggpro/results/md-1-score.json
+

@@ -1,0 +1,22 @@
+{
+  "baseline": [
+    {
+      "name": "10-crawlspace-loose-units",
+      "ok": true,
+      "ms": 42619,
+      "usage": {
+        "calls": 22,
+        "promptTokens": 133407,
+        "completionTokens": 9985,
+        "cachedPromptTokens": 133341
+      },
+      "chat": {
+        "requests": 22,
+        "failures": 0,
+        "inputTokens": 133407,
+        "outputTokens": 9985
+      },
+      "presence": null
+    }
+  ]
+}

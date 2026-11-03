@@ -1,0 +1,650 @@
+{
+  "md-1": [
+    {
+      "name": "01-attic-r-value-shell",
+      "ok": true,
+      "ms": 1515263,
+      "usage": {
+        "calls": 9,
+        "promptTokens": 27289,
+        "completionTokens": 1257,
+        "cachedPromptTokens": 3294
+      },
+      "chat": {
+        "requests": 12,
+        "failures": 0,
+        "inputTokens": 27289,
+        "outputTokens": 1257
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 34912,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "02-oil-boiler-basement",
+      "ok": true,
+      "ms": 11035,
+      "usage": {
+        "calls": 9,
+        "promptTokens": 28995,
+        "completionTokens": 1552,
+        "cachedPromptTokens": 0
+      },
+      "chat": {
+        "requests": 8,
+        "failures": 0,
+        "inputTokens": 28995,
+        "outputTokens": 1552
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 34742,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "03-quick-exterior-short",
+      "ok": true,
+      "ms": 5431,
+      "usage": {
+        "calls": 3,
+        "promptTokens": 5415,
+        "completionTokens": 273,
+        "cachedPromptTokens": 0
+      },
+      "chat": {
+        "requests": 2,
+        "failures": 0,
+        "inputTokens": 5415,
+        "outputTokens": 273
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 34027,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "04-fuel-stated-separately",
+      "ok": true,
+      "ms": 9017,
+      "usage": {
+        "calls": 7,
+        "promptTokens": 22777,
+        "completionTokens": 1469,
+        "cachedPromptTokens": 5961
+      },
+      "chat": {
+        "requests": 6,
+        "failures": 0,
+        "inputTokens": 22777,
+        "outputTokens": 1469
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 34637,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "05-full-walkthrough",
+      "ok": true,
+      "ms": 15517,
+      "usage": {
+        "calls": 12,
+        "promptTokens": 55268,
+        "completionTokens": 5316,
+        "cachedPromptTokens": 15689
+      },
+      "chat": {
+        "requests": 11,
+        "failures": 0,
+        "inputTokens": 55268,
+        "outputTokens": 5316
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 39762,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "06-homeowner-crosstalk",
+      "ok": true,
+      "ms": 8161,
+      "usage": {
+        "calls": 6,
+        "promptTokens": 18744,
+        "completionTokens": 1050,
+        "cachedPromptTokens": 2172
+      },
+      "chat": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 18744,
+        "outputTokens": 1050
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 35177,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "07-combustion-safety",
+      "ok": true,
+      "ms": 9108,
+      "usage": {
+        "calls": 5,
+        "promptTokens": 16087,
+        "completionTokens": 1261,
+        "cachedPromptTokens": 2172
+      },
+      "chat": {
+        "requests": 4,
+        "failures": 0,
+        "inputTokens": 16087,
+        "outputTokens": 1261
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 35347,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "08-no-fuel-silent-drop",
+      "ok": true,
+      "ms": 11088,
+      "usage": {
+        "calls": 4,
+        "promptTokens": 12843,
+        "completionTokens": 1460,
+        "cachedPromptTokens": 2690
+      },
+      "chat": {
+        "requests": 3,
+        "failures": 0,
+        "inputTokens": 12843,
+        "outputTokens": 1460
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 35037,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "09-chatter-and-scheduling",
+      "ok": true,
+      "ms": 8726,
+      "usage": {
+        "calls": 6,
+        "promptTokens": 17741,
+        "completionTokens": 1068,
+        "cachedPromptTokens": 4873
+      },
+      "chat": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 17741,
+        "outputTokens": 1068
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 34832,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "10-crawlspace-loose-units",
+      "ok": true,
+      "ms": 9433,
+      "usage": {
+        "calls": 5,
+        "promptTokens": 18323,
+        "completionTokens": 1748,
+        "cachedPromptTokens": 2172
+      },
+      "chat": {
+        "requests": 4,
+        "failures": 0,
+        "inputTokens": 18323,
+        "outputTokens": 1748
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 35357,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "11-ambiguous-attic",
+      "ok": true,
+      "ms": 8296,
+      "usage": {
+        "calls": 7,
+        "promptTokens": 20502,
+        "completionTokens": 918,
+        "cachedPromptTokens": 5139
+      },
+      "chat": {
+        "requests": 6,
+        "failures": 0,
+        "inputTokens": 20502,
+        "outputTokens": 918
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 34747,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "12-wrong-field-old-unit",
+      "ok": true,
+      "ms": 9773,
+      "usage": {
+        "calls": 6,
+        "promptTokens": 20577,
+        "completionTokens": 1452,
+        "cachedPromptTokens": 2172
+      },
+      "chat": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 20577,
+        "outputTokens": 1452
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 34837,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "13-enum-paraphrase",
+      "ok": true,
+      "ms": 10297,
+      "usage": {
+        "calls": 8,
+        "promptTokens": 27844,
+        "completionTokens": 1747,
+        "cachedPromptTokens": 6782
+      },
+      "chat": {
+        "requests": 7,
+        "failures": 0,
+        "inputTokens": 27844,
+        "outputTokens": 1747
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 35482,
+        "outputTokens": 441
+      }
+    },
+    {
+      "name": "14-rapid-recap",
+      "ok": true,
+      "ms": 5676,
+      "usage": {
+        "calls": 3,
+        "promptTokens": 6655,
+        "completionTokens": 241,
+        "cachedPromptTokens": 2123
+      },
+      "chat": {
+        "requests": 2,
+        "failures": 0,
+        "inputTokens": 6655,
+        "outputTokens": 241
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 34117,
+        "outputTokens": 441
+      }
+    }
+  ],
+  "jev": [
+    {
+      "name": "01-attic-r-value-shell",
+      "ok": true,
+      "ms": 1917763,
+      "usage": {
+        "calls": 10,
+        "promptTokens": 31738,
+        "completionTokens": 1428,
+        "cachedPromptTokens": 11398
+      },
+      "chat": {
+        "requests": 10,
+        "failures": 0,
+        "inputTokens": 31738,
+        "outputTokens": 1428
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 33069,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "02-oil-boiler-basement",
+      "ok": true,
+      "ms": 7986,
+      "usage": {
+        "calls": 8,
+        "promptTokens": 28420,
+        "completionTokens": 1777,
+        "cachedPromptTokens": 6437
+      },
+      "chat": {
+        "requests": 7,
+        "failures": 0,
+        "inputTokens": 28420,
+        "outputTokens": 1777
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 32899,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "03-quick-exterior-short",
+      "ok": true,
+      "ms": 3476,
+      "usage": {
+        "calls": 4,
+        "promptTokens": 8276,
+        "completionTokens": 294,
+        "cachedPromptTokens": 2685
+      },
+      "chat": {
+        "requests": 3,
+        "failures": 0,
+        "inputTokens": 8276,
+        "outputTokens": 294
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 32214,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "04-fuel-stated-separately",
+      "ok": true,
+      "ms": 8082,
+      "usage": {
+        "calls": 10,
+        "promptTokens": 32662,
+        "completionTokens": 1869,
+        "cachedPromptTokens": 12147
+      },
+      "chat": {
+        "requests": 9,
+        "failures": 0,
+        "inputTokens": 32662,
+        "outputTokens": 1869
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 32839,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "05-full-walkthrough",
+      "ok": true,
+      "ms": 13241,
+      "usage": {
+        "calls": 13,
+        "promptTokens": 60103,
+        "completionTokens": 5020,
+        "cachedPromptTokens": 18581
+      },
+      "chat": {
+        "requests": 12,
+        "failures": 0,
+        "inputTokens": 60103,
+        "outputTokens": 5020
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 37994,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "06-homeowner-crosstalk",
+      "ok": true,
+      "ms": 6443,
+      "usage": {
+        "calls": 7,
+        "promptTokens": 22535,
+        "completionTokens": 1366,
+        "cachedPromptTokens": 5270
+      },
+      "chat": {
+        "requests": 6,
+        "failures": 0,
+        "inputTokens": 22535,
+        "outputTokens": 1366
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 33349,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "07-combustion-safety",
+      "ok": true,
+      "ms": 6282,
+      "usage": {
+        "calls": 6,
+        "promptTokens": 19168,
+        "completionTokens": 1207,
+        "cachedPromptTokens": 2886
+      },
+      "chat": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 19168,
+        "outputTokens": 1207
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 33549,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "08-no-fuel-silent-drop",
+      "ok": true,
+      "ms": 8882,
+      "usage": {
+        "calls": 9,
+        "promptTokens": 30702,
+        "completionTokens": 2291,
+        "cachedPromptTokens": 13849
+      },
+      "chat": {
+        "requests": 8,
+        "failures": 0,
+        "inputTokens": 30702,
+        "outputTokens": 2291
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 33224,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "09-chatter-and-scheduling",
+      "ok": true,
+      "ms": 6749,
+      "usage": {
+        "calls": 8,
+        "promptTokens": 24006,
+        "completionTokens": 972,
+        "cachedPromptTokens": 6036
+      },
+      "chat": {
+        "requests": 7,
+        "failures": 0,
+        "inputTokens": 24006,
+        "outputTokens": 972
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 33004,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "10-crawlspace-loose-units",
+      "ok": true,
+      "ms": 6394,
+      "usage": {
+        "calls": 8,
+        "promptTokens": 27310,
+        "completionTokens": 1628,
+        "cachedPromptTokens": 2877
+      },
+      "chat": {
+        "requests": 7,
+        "failures": 0,
+        "inputTokens": 27310,
+        "outputTokens": 1628
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 33539,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "11-ambiguous-attic",
+      "ok": true,
+      "ms": 6387,
+      "usage": {
+        "calls": 7,
+        "promptTokens": 22154,
+        "completionTokens": 1118,
+        "cachedPromptTokens": 13080
+      },
+      "chat": {
+        "requests": 6,
+        "failures": 0,
+        "inputTokens": 22154,
+        "outputTokens": 1118
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 32914,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "12-wrong-field-old-unit",
+      "ok": true,
+      "ms": 6260,
+      "usage": {
+        "calls": 6,
+        "promptTokens": 20777,
+        "completionTokens": 1262,
+        "cachedPromptTokens": 6891
+      },
+      "chat": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 20777,
+        "outputTokens": 1262
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 33009,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "13-enum-paraphrase",
+      "ok": true,
+      "ms": 9034,
+      "usage": {
+        "calls": 10,
+        "promptTokens": 35581,
+        "completionTokens": 2403,
+        "cachedPromptTokens": 8902
+      },
+      "chat": {
+        "requests": 9,
+        "failures": 0,
+        "inputTokens": 35581,
+        "outputTokens": 2403
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 33689,
+        "outputTokens": 10623
+      }
+    },
+    {
+      "name": "14-rapid-recap",
+      "ok": true,
+      "ms": 3721,
+      "usage": {
+        "calls": 5,
+        "promptTokens": 13315,
+        "completionTokens": 526,
+        "cachedPromptTokens": 9413
+      },
+      "chat": {
+        "requests": 4,
+        "failures": 0,
+        "inputTokens": 13315,
+        "outputTokens": 526
+      },
+      "presence": {
+        "requests": 5,
+        "failures": 0,
+        "inputTokens": 32299,
+        "outputTokens": 10623
+      }
+    }
+  ]
+}
