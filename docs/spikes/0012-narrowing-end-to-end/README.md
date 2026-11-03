@@ -150,6 +150,7 @@ SYSTEMONE=md-1 node docs/spikes/0012-narrowing-end-to-end/reask-described.mjs
 node docs/spikes/0012-narrowing-end-to-end/summarize.mjs
 ```
 
-The per-arm extraction outputs (`results/<arm>/`) are not committed; the metrics, the score
-reports and the diagnosis are. The `-pathonly` and `-singleton` files are the earlier runs in the
-table above, kept so each step's effect stays checkable.
+`results/` is not committed: the numbers above are the record. `run.mjs` writes the per-arm
+outputs and `metrics*.json`. The scorer's reports were saved as `results/score-<arm>.txt`.
+`summarize.mjs` expects the earlier runs too: `metrics-pathonly.json` (the as-shipped run),
+`metrics-singleton.json`, and the re-runs of transcripts 10 and 01.

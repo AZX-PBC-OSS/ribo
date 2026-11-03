@@ -21,6 +21,3 @@ docs/spikes/0008-typesafe-jev/results/**
 
 # kev on-device spike: same reasoning — per-cell model output, regenerable.
 docs/spikes/0010-kev-ondevice/results/**
-
-# End-to-end narrowing spike: same reasoning — run metrics and score reports, regenerable.
-docs/spikes/0012-narrowing-end-to-end/results/**

@@ -361,8 +361,9 @@ deployment, `md-1`, so the "zero deployments" above no longer holds.
 
 Probes 2–7, 10 and 11 were re-run on today's corpus against both models, plus a new probe 12
 (`run-12-stability.mjs`: the same questions asked again, and asked with each option list
-reversed). `SYSTEMONE=jev|md-1` picks the model. A set target writes `results/<target>/`; unset
-still reads and writes the September results above, which are untouched.
+reversed). `SYSTEMONE=jev|md-1` picks the model. A set target writes `results/<target>/`, which is
+not committed; the table below is the record. Unset still reads and writes the September results
+above, which are untouched.
 
 | Use in ribo                                       | Jev                    | Decision-1                    |
 | ------------------------------------------------- | ---------------------- | ----------------------------- |
