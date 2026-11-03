@@ -6,10 +6,10 @@
 //   SILENT  — ground truth asserts nothing. Correct = "Not stated" (escape arm), or, in the
 //             bare arm, whatever confidence threshold we would need to suppress it.
 import { readFileSync } from "node:fs";
+import { results } from "./env.mjs";
 import { ENUM_LEAVES, NOT_STATED } from "./leaves.mjs";
 
-const load = (arm) =>
-  JSON.parse(readFileSync(new URL(`./results/enums-${arm}.json`, import.meta.url), "utf8"));
+const load = (arm) => JSON.parse(readFileSync(results(`enums-${arm}.json`), "utf8"));
 
 for (const arm of ["escape", "bare"]) {
   const rows = load(arm);

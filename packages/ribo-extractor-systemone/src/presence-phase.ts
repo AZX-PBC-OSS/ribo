@@ -49,6 +49,8 @@ import type {
 import { noul } from "@azx/ribo-systemone-managed";
 import type { NoulQuestion, SystemOneClient } from "@azx/ribo-systemone-managed";
 
+import { enumMembersAt } from "./enum-members.js";
+
 /**
  * The default present threshold — deliberately LOW, not the natural 0.5
  * midpoint. The two answer populations (leaves the transcript discusses and
@@ -97,6 +99,8 @@ export interface SystemOnePresencePhaseOptions {
 interface PresenceEntry {
   readonly group: Group;
   readonly leaf: Leaf;
+  /** The leaf's enum members, or `null` for a non-enum leaf. */
+  readonly members: readonly string[] | null;
 }
 
 /** One batch of leaves — the work item `plan` emits and `run` asks in one call. */
@@ -105,13 +109,23 @@ interface PresenceBatch {
 }
 
 /**
- * The presence question for one leaf. The path stands alone — a batch spans
- * groups, so there is no per-group prompt to give the leaf a context.
+ * The presence question for one leaf. A batch spans groups, so there is no
+ * per-group prompt to give the leaf a context — an enum leaf's members are the
+ * context instead. A bare wire path ("dhw.dhwType2") names nothing a model can
+ * match against speech; spike 0012 measured the path-only question dropping
+ * every such leaf it was asked about.
+ *
+ * A stated decline is data the fill must record, so it counts as discussed —
+ * including a blanket one ("didn't do any of the tests") that never names the
+ * field.
  */
-const presenceInstructions = (leaf: Leaf): string =>
-  `Is the field "${leaf.path}" discussed in the transcript? ` +
-  "Answer yes if the transcript explicitly discusses the field, no if it is not " +
-  "mentioned, only implied, or unrelated. A field merely implied is no.";
+const presenceInstructions = (leaf: Leaf, members: readonly string[] | null): string =>
+  `Is the field "${leaf.path}"` +
+  (members === null ? "" : ` (one of: ${members.map((m) => JSON.stringify(m)).join(", ")})`) +
+  " discussed in the transcript? " +
+  "Answer yes if the speaker says something about it: a value, or that it was not done, " +
+  "not checked or not known — about this field alone or as part of a set it belongs to " +
+  '("didn\'t do any of the tests"). Answer no if it never comes up or is only implied.';
 
 /**
  * The System One presence phase: every leaf of every group asked in one
@@ -136,7 +150,11 @@ export function systemOnePresencePhase<V extends Record<string, unknown>, P = No
   // synchronous and pure: it only hands back the batches already built.
   const entries: PresenceEntry[] = [];
   for (const group of groups) {
-    for (const leaf of group.leaves) entries.push({ group, leaf });
+    for (const leaf of group.leaves) {
+      // A collection's leaves live under its element schema; any index addresses it.
+      const path = group.isArray ? [group.key, 0, leaf.key] : [group.key, leaf.key];
+      entries.push({ group, leaf, members: enumMembersAt(options.schema, path) });
+    }
   }
   const size = options.batchSize === undefined ? entries.length : Math.max(1, options.batchSize);
   const batches: PresenceBatch[] = [];
@@ -154,8 +172,8 @@ export function systemOnePresencePhase<V extends Record<string, unknown>, P = No
     plan: () => batches,
     run: async (item, _draft, ctx) => {
       const questions: Record<string, NoulQuestion> = {};
-      for (const { leaf } of item.entries) {
-        questions[leaf.path] = noul(presenceInstructions(leaf));
+      for (const { leaf, members } of item.entries) {
+        questions[leaf.path] = noul(presenceInstructions(leaf, members));
       }
       const answers = await options.client.ask(ctx.transcript.text, questions, {
         // Forwarded, not rebuilt: the context's signal is the caller's

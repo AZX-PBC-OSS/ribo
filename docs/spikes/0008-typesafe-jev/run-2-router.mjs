@@ -2,7 +2,7 @@
 // One request per transcript, five nouls inside it. Scored against the annotated corpus:
 // a group is "present" when the ground truth records any leaf for it at all.
 import { writeFileSync } from "node:fs";
-import { ask } from "./env.mjs";
+import { ask, results } from "./env.mjs";
 import { corpus } from "./corpus.mjs";
 import { GROUPS, GROUP_IDS } from "./groups.mjs";
 
@@ -31,7 +31,7 @@ for (const entry of corpus()) {
   );
 }
 
-writeFileSync(new URL("./results/router.json", import.meta.url), JSON.stringify(rows, null, 2));
+writeFileSync(results("router.json"), JSON.stringify(rows, null, 2));
 
 // Threshold sweep over every (transcript, group) cell.
 console.log("\nthreshold   TP  FP  FN  TN   precision  recall   wrongly-skipped-groups");

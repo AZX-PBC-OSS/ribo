@@ -107,3 +107,10 @@ docs/spikes/0001-extraction-snuggpro/results/managed-*/
 # that vendor Swagger's content plus model responses. The harness IS committed; its output
 # is not. The answers live in the spike README.
 docs/spikes/0009-basedata-proposer/results/
+
+# Spike 0012, and spike 0008's Decision-1 re-run: live, keyed runs, regenerable with the
+# committed harness. The answers live in each spike's README. (0008's September results predate
+# this rule and stay committed.)
+docs/spikes/0012-narrowing-end-to-end/results/
+docs/spikes/0008-typesafe-jev/results/jev/
+docs/spikes/0008-typesafe-jev/results/md-1/

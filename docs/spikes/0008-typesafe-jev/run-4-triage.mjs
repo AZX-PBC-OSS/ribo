@@ -10,13 +10,11 @@
 // Probe 3 showed `choice` confidence is blind to silence. This asks whether a purpose-built
 // verification question sees what the confidence score could not.
 import { readFileSync, writeFileSync } from "node:fs";
-import { ask } from "./env.mjs";
+import { ask, results } from "./env.mjs";
 import { corpus, assertedLeaves } from "./corpus.mjs";
 import { ENUM_LEAVES } from "./leaves.mjs";
 
-const bare = JSON.parse(
-  readFileSync(new URL("./results/enums-bare.json", import.meta.url), "utf8"),
-);
+const bare = JSON.parse(readFileSync(results("enums-bare.json"), "utf8"));
 const bareByName = new Map(bare.map((r) => [r.name, r]));
 const optionsByPath = new Map(ENUM_LEAVES.map((l) => [l.path, l.options]));
 
@@ -70,7 +68,7 @@ for (const entry of corpus()) {
   );
 }
 
-writeFileSync(new URL("./results/triage.json", import.meta.url), JSON.stringify(rows, null, 2));
+writeFileSync(results("triage.json"), JSON.stringify(rows, null, 2));
 
 const by = (k) => rows.filter((r) => r.kind === k);
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);

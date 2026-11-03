@@ -30,7 +30,7 @@ import { presenceFillPhase } from "./presence-fill-phase.js";
  */
 
 const patchSchema = z.strictObject({
-  // A collection group: the fill's singleton projection and the seeded
+  // A collection group: the fill's array projection and the seeded
   // one-element array wrap both get exercised through it.
   hvac: z
     .array(
@@ -170,7 +170,7 @@ describe("presenceFillPhase — plan", () => {
 describe("presenceFillPhase — run", () => {
   test("one call whose projected schema carries exactly the active leaves — not the group's full set", async () => {
     const { chat, requests } = fakeChat((name) => {
-      if (name === "pf-demo-hvac") return { hvac: hvacFill };
+      if (name === "pf-demo-hvac") return { hvac: [hvacFill] };
       throw new Error(`unexpected request ${name}`);
     });
     const phase = presenceFillPhase<Values>({ target, groups, chat, model: "fake-model" });
@@ -184,15 +184,16 @@ describe("presenceFillPhase — run", () => {
       expect(request.response_format.json_schema.name).toBe("pf-demo-hvac");
       const properties = node(node(request.response_format.json_schema.schema)["properties"]);
       // THE narrowing pin, on the actual request: the collection group is asked
-      // for ONE instance (the element object — the singleton projection, not
-      // the array the full schema carries), carrying exactly the active leaves.
+      // for the ARRAY the full schema carries — every instance the transcript
+      // describes — each element carrying exactly the active leaves.
       const hvac = node(properties["hvac"]);
-      expect(hvac["type"]).toBe("object");
-      expect(Object.keys(node(hvac["properties"]))).toEqual(["fuel", "efficiency"]);
-      expect(hvac["required"]).toEqual(["fuel", "efficiency"]);
+      expect(hvac["type"]).toBe("array");
+      const element = node(hvac["items"]);
+      expect(Object.keys(node(element["properties"]))).toEqual(["fuel", "efficiency"]);
+      expect(element["required"]).toEqual(["fuel", "efficiency"]);
       expect(Object.keys(properties)).toEqual(["hvac"]);
 
-      expect(output.value).toEqual(hvacFill);
+      expect(output.value).toEqual([hvacFill]);
       expect(output.usage?.calls).toBe(1);
     });
   });
@@ -221,7 +222,7 @@ describe("presenceFillPhase — run", () => {
     const draft = seededDraft(partialMaps);
 
     const plain = fakeChat((name) => {
-      if (name === "pf-demo-hvac") return { hvac: hvacFill };
+      if (name === "pf-demo-hvac") return { hvac: [hvacFill] };
       throw new Error(`unexpected request ${name}`);
     });
     await presenceFillPhase<Values>({ target, groups, chat: plain.chat, model: "m" }).with(
@@ -236,7 +237,7 @@ describe("presenceFillPhase — run", () => {
     );
 
     const scoped = fakeChat((name) => {
-      if (name === "pf-demo-hvac") return { hvac: hvacFill };
+      if (name === "pf-demo-hvac") return { hvac: [hvacFill] };
       throw new Error(`unexpected request ${name}`);
     });
     await presenceFillPhase<Values>({
@@ -253,6 +254,46 @@ describe("presenceFillPhase — run", () => {
         content: "Fill the hvac group.",
       });
     });
+  });
+});
+
+describe("presenceFillPhase — merge", () => {
+  /** Plan the hvac item over a partially present draft, run it, and fold the result. */
+  async function fillHvac(instances: unknown[]): Promise<Record<string, unknown>> {
+    const { chat } = fakeChat(() => ({ hvac: instances }));
+    const phase = presenceFillPhase<Values>({ target, groups, chat, model: "m" });
+    const draft = seededDraft(partialMaps);
+    return phase.with(async (def) => {
+      const [item] = def.plan(draft, ctx);
+      const output = await def.run(item!, draft, ctx);
+      const merged = def.merge(draft, [{ outcome: "result", item: item!, output }]);
+      return merged.fields;
+    });
+  }
+
+  test("every instance the call returns lands — a second unit is not dropped", async () => {
+    // Spike 0012: under a singleton fill a second appliance had nowhere to
+    // land, so it vanished from the record with nothing reporting the loss.
+    const second = {
+      fuel: envelope("Oil", "the old boiler burns oil"),
+      efficiency: nullEnvelope(),
+    };
+    const fields = await fillHvac([hvacFill, second]);
+    // Each instance carries the full leaf set: the inactive leaf is the null
+    // envelope, as the closing parse's strict element requires.
+    expect(fields["hvac"]).toEqual([
+      { ...hvacFill, notes: nullEnvelope() },
+      { ...second, notes: nullEnvelope() },
+    ]);
+  });
+
+  test("an empty array keeps the seed's one null instance rather than emptying the group", async () => {
+    // Presence said something here was discussed; an empty answer is a model
+    // miss, not a stated-none, so it writes nothing over the seed's floor.
+    const fields = await fillHvac([]);
+    expect(fields["hvac"]).toEqual([
+      { fuel: nullEnvelope(), efficiency: nullEnvelope(), notes: nullEnvelope() },
+    ]);
   });
 });
 

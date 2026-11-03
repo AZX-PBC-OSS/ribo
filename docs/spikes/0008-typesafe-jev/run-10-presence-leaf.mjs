@@ -13,7 +13,7 @@
 // null and no later phase ever plans an item for it. A false positive is one wasted item.
 import { writeFileSync } from "node:fs";
 import { LEAVES } from "../0001-extraction-snuggpro/schema-leaves.mjs";
-import { ask } from "./env.mjs";
+import { ask, results } from "./env.mjs";
 import { corpus } from "./corpus.mjs";
 import { COVERED_GROUPS } from "./leaves.mjs";
 
@@ -45,6 +45,7 @@ for (const entry of corpus()) {
   const truth = mentionedLeaves(entry);
   const answers = {};
   let ms = 0;
+  let inputTokens = 0;
 
   for (let i = 0; i < TARGET.length; i += CHUNK) {
     const slice = TARGET.slice(i, i + CHUNK);
@@ -62,12 +63,14 @@ for (const entry of corpus()) {
     );
     const res = await ask({ state: entry.transcript, questions });
     ms += res.ms;
+    inputTokens += res.usage?.input_tokens ?? 0;
     for (const l of slice) answers[l.path] = res.answers[qid(l.path)].noul;
   }
 
   const row = {
     name: entry.name,
     ms,
+    inputTokens,
     cells: TARGET.map((l) => ({
       path: l.path,
       noul: answers[l.path],
@@ -81,10 +84,7 @@ for (const entry of corpus()) {
   );
 }
 
-writeFileSync(
-  new URL("./results/presence-leaf.json", import.meta.url),
-  JSON.stringify(rows, null, 2),
-);
+writeFileSync(results("presence-leaf.json"), JSON.stringify(rows, null, 2));
 
 const cells = rows.flatMap((r) => r.cells);
 const present = cells.filter((c) => c.truth).length;

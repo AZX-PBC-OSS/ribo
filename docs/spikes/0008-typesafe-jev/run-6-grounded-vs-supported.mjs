@@ -9,7 +9,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { spanGroundedness } from "../../../packages/ribo-core/dist/index.js";
-import { ask } from "./env.mjs";
+import { ask, results } from "./env.mjs";
 
 const RESULTS = process.argv[2] ?? "codex";
 const spikeDir = fileURLToPath(new URL("../0001-extraction-snuggpro/", import.meta.url));
@@ -63,10 +63,7 @@ for (const file of readdirSync(`${spikeDir}results/${RESULTS}`).filter((f) =>
   );
 }
 
-writeFileSync(
-  new URL("./results/grounded-vs-supported.json", import.meta.url),
-  JSON.stringify(rows, null, 2),
-);
+writeFileSync(results("grounded-vs-supported.json"), JSON.stringify(rows, null, 2));
 
 const T = 0.6;
 const cell = (g, unsup) =>

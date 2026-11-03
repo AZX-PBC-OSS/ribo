@@ -349,3 +349,41 @@ cap, or a drip of one transcript per budget window, completes this whenever it i
 Open before implementation: `enumMembersAt` (gap-fill's `leafSchemaAtPath` already walks a leaf's
 schema, so it would move to core). The rejection ratio is deliberately **not** defaulted — see
 ADR 0021.
+
+## Addendum, 2026-10-29 — Microsoft-Decision-1
+
+Microsoft released Decision-1 on 2026-10-09: a 9B model post-trained from Qwen3.5 and served on
+the same System One wire as Jev. On Foundry it is `POST <resource>/providers/microsoft/v1/systemone`,
+so `systemOneClient`'s `endpoint` is `<resource>/providers/microsoft` and `model` is the
+deployment name. It authenticates with an `api-key` header, so the host `fetch` drops the SDK's
+placeholder `Authorization`. No client change was needed. The resource in `.env.local` now has a
+deployment, `md-1`, so the "zero deployments" above no longer holds.
+
+Probes 2–7, 10 and 11 were re-run on today's corpus against both models, plus a new probe 12
+(`run-12-stability.mjs`: the same questions asked again, and asked with each option list
+reversed). `SYSTEMONE=jev|md-1` picks the model. A set target writes `results/<target>/`, which is
+not committed; the table below is the record. Unset still reads and writes the September results
+above, which are untouched.
+
+| Use in ribo                                       | Jev                    | Decision-1                    |
+| ------------------------------------------------- | ---------------------- | ----------------------------- |
+| Leaf presence (probe 10): recall 1.000 up to      | 0.30 (0.941 at 0.50)   | **0.40** (0.985 even at 0.70) |
+| Corroboration (probe 11): wrongly escalated       | **8.1%**               | 10.1%                         |
+| … corrupted caught / invented caught              | 98.0% / 91.2%          | 99.0% / 88.4%                 |
+| Two-question verifier (probe 5, 0.60): escalated  | **19.2%**              | 33.3%                         |
+| Group router (probe 2, 0.50): precision / recall  | 0.872 / 1.000          | 0.810 / 1.000                 |
+| Confidence on spoken vs silent fields (probe 3)   | 0.932 vs 0.932         | 0.978 vs 0.772                |
+| Enum with a "not stated" escape: exact / invented | 85.6% / 2.1%           | 95.9% / 5.6%                  |
+| Flips when asked again: choice / presence         | 0.78% / 0.67%          | 1.56% / 0.90%                 |
+| Flips with options reversed                       | 2.68%                  | 1.00%                         |
+| Latency per request: router / 64 enums / presence | **208 / 255 / 439 ms** | 344 / 737 / 1435 ms           |
+
+Decision-1 is better at leaf presence, where its recall survives a much higher threshold. Jev is
+better at verification and 1.6–3× faster from here, though the Decision-1 deployment is an eastus2
+`GlobalStandard` one. Decision-1's confidence separates spoken fields from silent ones, where
+Jev's does not, but a 0.95 gate still lets 39% of inventions through. So ADR 0021's finding
+stands. Microsoft's launch claim of zero flips under reordered options did not reproduce (1.00%).
+
+[Spike 0012](../0012-narrowing-end-to-end/) runs both as the presence model behind
+`presenceNarrowedExtractor`, end to end. There, after three fixes, the two are level on
+extraction accuracy.

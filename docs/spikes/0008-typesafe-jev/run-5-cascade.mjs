@@ -8,9 +8,9 @@
 //
 // Cells are read from results/triage.json so the two probes are compared like for like.
 import { readFileSync, writeFileSync } from "node:fs";
-import { ask } from "./env.mjs";
+import { ask, results } from "./env.mjs";
 
-const cells = JSON.parse(readFileSync(new URL("./results/triage.json", import.meta.url), "utf8"));
+const cells = JSON.parse(readFileSync(results("triage.json"), "utf8"));
 const byName = new Map();
 for (const c of cells) {
   if (!byName.has(c.name)) byName.set(c.name, []);
@@ -85,7 +85,7 @@ for (const [name, list] of byName) {
   );
 }
 
-writeFileSync(new URL("./results/cascade.json", import.meta.url), JSON.stringify(out, null, 2));
+writeFileSync(results("cascade.json"), JSON.stringify(out, null, 2));
 
 const by = (k) => out.filter((r) => r.kind === k);
 const pc = (n, d) => `${((100 * n) / (d || 1)).toFixed(1)}%`;
