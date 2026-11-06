@@ -59,6 +59,11 @@ jobs:
           echo "docs/.vitepress/dist: ${size} MB"
           test "$size" -lt 200
 
+      # The reference's shape: entry points match every package's exports, the docs tsconfig
+      # includes them, module titles are package names, and the sidebar stays bounded. Node's own
+      # runner, because docs/ matches no vitest project.
+      - run: node --test docs/typedoc-reference.test.mjs
+
       # `changeset status` is CI-only: it needs a git remote and a base ref to diff
       # against, so it does not belong in a local ./check.sh run. Scoped to pull
       # requests because on a push to `main` the base ref IS the current ref, so

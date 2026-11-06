@@ -72,7 +72,7 @@ more spread across roughly two dozen other write endpoints** (HVAC systems, atti
 ducts, water heater, appliances, and more). Why that whole surface can't be handed to a model as one
 schema is [Schema at Scale: Measured](/deep-dives/schema-scale)'s argument. The point here is
 simpler: the writable surface is large, and the adapter's job is to choose a defensible, bounded
-slice of it. See [`SnuggValues`](/reference/@azx/ribo-adapter-snuggpro#snuggvalues) for
+slice of it. See [`SnuggValues`](/reference/@azx/ribo-adapter-snuggpro/type-aliases/SnuggValues) for
 the slice the adapter currently commits to.
 
 ## Other normalization hazards worth naming

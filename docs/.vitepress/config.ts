@@ -62,6 +62,9 @@ export default defineConfig({
   // the home page's markup underneath the sidebar. Keeping the `.html` extension in generated
   // links keeps every direct load an exact match.
   cleanUrls: false,
+  // Without this, VitePress inlines its page-hash map (~78 KB with one page per Reference symbol)
+  // into every page's HTML: ~67 MB of duplication across the site. One shared chunk instead.
+  metaChunk: true,
   // The internal process docs live under docs/ but are not part of the public site. The roadmap
   // (design specs and per-phase plans) stays committed but unpublished; the implementation findings
   // are repackaged into Deep Dives (Task 2), not served raw.

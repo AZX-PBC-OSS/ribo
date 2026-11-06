@@ -10,7 +10,7 @@ Ribo is built as a **reusable engine plus a thin adapter per host tool**, not a 
 The core holds the pipeline — capture, transcribe, session-join, extract, review, write — and knows
 nothing about any particular system of record. An adapter is declarative: a schema, extraction
 instructions, and a `write` function.
-[`ribo-adapter-snuggpro`](/reference/@azx/ribo-adapter-snuggpro) is the one adapter that exists
+[`ribo-adapter-snuggpro`](/reference/@azx/ribo-adapter-snuggpro/) is the one adapter that exists
 today; adding a second host tool means writing a new adapter package, never teaching the core about
 it.
 

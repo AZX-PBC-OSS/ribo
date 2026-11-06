@@ -51,12 +51,6 @@
   "useCodeBlocks": true,
   "expandObjects": true,
   "docsRoot": ".",
-  // One page per module, with every member listed on it. The default ("members") emits a page per
-  // symbol — ~860 pages — and VitePress inlines its per-page hash map (~78 KB) into every one of
-  // them, which alone put the built site at ~67 MB of duplication. Module pages are also what the
-  // sidebar serves (docs/.vitepress/config.ts), so nothing links into the per-symbol pages except
-  // the sidebar JSON this option flattens away.
-  "outputFileStrategy": "modules",
   "blockTags": [
     "@module",
     "@category",
