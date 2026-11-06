@@ -1,5 +1,0 @@
----
-"@azx/ribo-core": minor
----
-
-`scopedInstanceExtractor` (tier 1) now partitions its fill calls the way tiers 2/3 already partition per-group calls: a group whose per-instance leaf count exceeds the cap is split into pieces sharing one key, filled once per (piece, instance), and recombined per instance with the same `mergeGroupPieces` the per-group extractor uses — until now tier 1 sent every group's per-instance schema whole in one call, making it the one strategy that could still exceed the provider response-schema limits on a large real group. The cap is now a caller-supplied `maxLeavesPerGroup` on both `ScopedFillOptions` and `PerGroupOptions`, defaulting to `MAX_ENVELOPED_LEAVES_PER_GROUP`; that default is sized for the Anthropic-family nullable-union limit, while the route this repo ships on is bound by a byte cap, so a host can tune the number to its own platform limit rather than inherit one sized for another provider. The two land together because the tunable cap is what makes tier 1's new default partitioning affordable: a caller on the byte-capped route raises it and pays few-to-no extra fill calls.

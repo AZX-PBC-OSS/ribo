@@ -2,9 +2,9 @@
 
 ## As a consumer
 
-Ribo's packages are not published to npm yet; that's R4, and it's not done. Until it lands,
-install from source (below). The examples on this site import the published package names, as a
-real consumer will once R4 ships.
+Ribo's packages are versioned and released as git tags, but they are not on a registry yet. Until
+they are, install from source (below). The examples on this site import the real package names, as
+a consumer will once a registry exists.
 
 ```bash
 pnpm add @azx/ribo-core
