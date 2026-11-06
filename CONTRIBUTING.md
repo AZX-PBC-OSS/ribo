@@ -73,16 +73,15 @@ you only want to know.
 ## Releasing
 
 Releases are managed with [Changesets](https://github.com/changesets/changesets), configured in
-`.changeset/config.json`. **Publishing infrastructure is not wired yet** — there is no `.npmrc`, the
-private registry is still an open item (`AGENTS.md` §2), and **nothing has been published**. The
-versioning and changelog machinery below is ready; the final `changeset:publish` step is dormant
-until a registry is chosen.
+`.changeset/config.json`, and run by `.github/workflows/release.yml`. Releases are **versioned and
+tagged, not published**: there is no `.npmrc` and no registry yet (`AGENTS.md` §2), so a release is
+a set of `<name>@<version>` git tags and GitHub releases, and nothing reaches npm.
 
 **Independent versioning.** Each publishable package versions on its own line — there are no `fixed`
 or `linked` groups. A change to `@azx/ribo-adapter-snuggpro` bumps only that package (and its
 dependents); it never drags `@azx/ribo-core` along. A release target is any package under
 `packages/*` that doesn't set `"private": true` — check there rather than trusting a count here. As
-of this writing that's thirteen packages, all `@azx/`-scoped and all currently `0.0.0`: `ribo-core`,
+of this writing that's thirteen packages, all `@azx/`-scoped: `ribo-core`,
 `ribo-ui-react`, `ribo-transcriber-ondevice`, `ribo-chat-openai`, `ribo-chat-helix`,
 `ribo-extractor-ondevice`, `ribo-extractor-systemone`, `ribo-adapter-snuggpro`,
 `ribo-transcriber-managed`, `ribo-transcriber-managed-docs`, `ribo-transcriber-pdfjs`,
@@ -99,6 +98,10 @@ minors) and **a PATCH is fixes only** — there is no stability promise below 1.
 contract-stability commitment**: a package's first `1.0.0` is where we start treating its public
 surface as a contract and reserve breaking changes for major bumps. Cutting a `1.0` is a deliberate,
 per-package statement, not a routine bump.
+
+**So a breaking change is a `minor` changeset, not a `major` one.** Changesets takes `major`
+literally: on a `0.x` package it means `1.0.0`. Choose `major` only when you mean to cut that
+package's `1.0`.
 
 **The `ribo-core` peer-range policy.** Only `@azx/ribo-ui-react` takes `@azx/ribo-core` as a
 **peer** dependency — the shared-instance case, where a consumer holds core's runtime objects and
@@ -126,9 +129,15 @@ pnpm changeset:publish    # publish to the registry — DEFERRED: no registry/.n
 ```
 
 Author one changeset per logical change and commit its `.changeset/*.md` file alongside the code it
-describes. At release time `changeset:version` turns the accumulated changesets into version bumps
-and changelogs in a single pass; `changeset:publish` is the last step and stays dormant until
-publishing infra lands. The changelog generator is the built-in, tokenless
+describes.
+
+**Cutting a release.** You don't run `changeset:version` by hand. Each push to `main` with pending
+changesets makes the Release workflow open or refresh a "chore: version packages" PR, which runs
+`changeset:version` for you. Merging that PR is the release: the next run finds nothing pending,
+runs `changeset tag`, and pushes a `<name>@<version>` tag and a GitHub release for each package it
+bumped. The version PR is opened by `GITHUB_TOKEN`, which does not trigger CI, so close and reopen it
+(or push to its branch) to get checks before merging. To publish once a registry exists, swap the
+workflow's `publish-script` for `pnpm changeset:publish`. The changelog generator is the built-in, tokenless
 `@changesets/cli/changelog` — no `GITHUB_TOKEN` required. `access` is `restricted` for now,
 revisitable once the registry is chosen.
 
@@ -137,3 +146,9 @@ revisitable once the registry is chosen.
 The docs site and the generated API reference are **separate** scripts, not part of `check.sh`:
 `pnpm docs:dev` serves the site, `pnpm docs:build` emits the static site, and `pnpm docs:api`
 regenerates the API reference from each package's public barrel via TypeDoc.
+
+The site is hosted on Helix as `ribo-docs` (`https://ribo-docs.azx.helix.azxlabs.io`). Every push to
+`main` builds it and uploads a **preview** (`.github/workflows/helix-deploy.yml`, connected with
+`helix ci init`; it needs no secret). A preview is not live until someone promotes it, in the
+portal or with `helix promote <n>`; Helix refuses to promote from CI. `pnpm docs:deploy` uploads a
+preview from your machine, for checking a change before it merges.

@@ -137,9 +137,11 @@ review hook. R1, R1.5 and R2 are all done; the rest proceed in dependency order:
    run by CI so a vendor change lands in a reviewable diff. **Enum vocabularies are deliberately out of
    the first cut** — see "Open questions" below. The frozen JSON Schema fixture already means a
    regeneration cannot silently change what is sent to the model: it goes red and a human looks.
-3. **R4 — publishing.** Move releases to release-please and publish under the public `@azx` scope.
-   Includes the `.npmrc` registry config, `publishConfig.access` change, and release-workflow
-   activation. Nothing is published today.
+3. **R4 — publishing.** Versioning is live: the Release workflow opens a version PR from pending
+   changesets, and merging it tags each bumped package and creates a GitHub release (first release
+   0.1.0, 2026-11). **What remains is the registry:** choose one and confirm the scope is ours (the
+   `@azx` npm scope is unverified; the Helix CLI publishes as `@azx-pbc`), add the `.npmrc`, settle
+   `publishConfig.access`, and swap the workflow's `publish-script` to `pnpm changeset:publish`.
    **Blocker to clear before the first publish: the nine package READMEs link to the docs with
    repo-relative paths** (`../../docs/guide/*.md`). Those resolve on the forge and are correct
    there today — a deliberate choice, since no deployed docs origin exists to point at yet — but

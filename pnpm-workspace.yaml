@@ -159,8 +159,8 @@ catalog:
   # packages (each versions on its own; the private `playground` and `@azx/tsconfig`
   # are excluded). Pinned EXACT like everything else so a bump is one reviewable line.
   # Config lives in `.changeset/config.json`; the policy is documented in CONTRIBUTING.md
-  # ("Releasing") and docs/design/releasing.md. Publishing infra (registry, `.npmrc`)
-  # is still deferred — `changeset publish` is wired but nothing is published yet.
+  # ("Releasing") and docs/design/releasing.md. Releases are tagged, not published:
+  # there is no registry or `.npmrc` yet.
   "@changesets/cli": "3.0.3"
 # NOTE (pnpm 11 upgrade): when we move to pnpm 11, add here —
 #   dedupePeerDependents: true

@@ -89,18 +89,17 @@ pnpm install                  # bootstrap the workspace
 pnpm --filter playground dev  # dev server on http://localhost:5173
 ```
 
-> **Not yet published to npm.** Every example in this repo imports the real package names
-> (`@azx/ribo-core` and friends) the way a real consumer would, but nothing is on npm yet —
-> `publishConfig.access` is `restricted` workspace-wide. Releases will move to release-please and
-> publish under the public `@azx` scope; until then, consume packages from workspace source the way
-> `playground/` does.
+> **Versioned, not on npm.** Releases are cut as git tags and GitHub releases (see
+> [Releasing](CONTRIBUTING.md#releasing)); there is no registry yet. Every example in this repo
+> imports the real package names (`@azx/ribo-core` and friends) the way a real consumer would; until
+> a registry exists, consume packages from workspace source the way `playground/` does.
 
 The `playground/` app composes all packages from TypeScript source, so editing a package's
 `src/index.ts` hot-updates the page with no build step.
 
 ## Architecture at a glance
 
-Nine publishable packages. Dependencies point **inward, toward `ribo-core`**; every transcriber,
+The publishable packages. Dependencies point **inward, toward `ribo-core`**; every transcriber,
 extractor and adapter package depends on it and never on each other, so adding a second host tool is
 a new adapter package and nothing else.
 
@@ -108,6 +107,7 @@ a new adapter package and nothing else.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@azx/ribo-core`                     | The headless engine: capture, the recording and session state machines (durable storage + relay), transcription and extraction contracts + selection, connectivity, the review contract, work-safety. No React, no DOM rendering.                                               |
 | `@azx/ribo-ui-react`                 | Headless React hook layer over the engine — `RiboProvider` plus recorder, review, storage, connectivity and work-safety hooks. No components beyond `RiboProvider`, no markup.                                                                                                  |
+| `@azx/ribo-storage-rxdb`             | The RxDB implementation of core's storage port — the durable substrate under capture, session and key-value stores. Core owns the contracts and the domain logic; this owns everything RxDB-shaped, including the schema versions.                                              |
 | `@azx/ribo-transcriber-ondevice`     | On-device speech transcription implementing `Transcriber` (Moonshine by default, Whisper models still selectable), running inference in a Web Worker. Separate package because `@huggingface/transformers` pulls heavy native deps no non-transcribing consumer should inherit. |
 | `@azx/ribo-transcriber-managed`      | Managed speech transcription (Azure AI Speech Fast Transcription) proxied through the host's transport. It never holds a credential — it takes an endpoint and an injected `fetch`.                                                                                             |
 | `@azx/ribo-transcriber-pdfjs`        | PDF transcription via pdf.js: extracts a PDF's existing text layer, and refuses a document with no text layer — it cannot OCR.                                                                                                                                                  |
@@ -115,6 +115,8 @@ a new adapter package and nothing else.
 | `@azx/ribo-chat-openai`              | The OpenAI-compatible chat transport (`openAiChat`) over `@azx/ribo-core`'s `ChatClient` seam — POSTs to `${baseUrl}/chat/completions` with an injected key and `fetch`.                                                                                                        |
 | `@azx/ribo-chat-helix`               | The Helix platform's provider-neutral LLM route transport (`helixChat`) over the same seam — a `CapableChatClient` whose capability tracks a live connectivity model.                                                                                                           |
 | `@azx/ribo-extractor-ondevice`       | An on-device extractor over Chrome's built-in language model, running presence, span and classify as three phases against the same `Extractor` contract.                                                                                                                        |
+| `@azx/ribo-extractor-systemone`      | System One-backed extraction strategies (`corroborateExtractor` and friends). System One answers typed questions with calibrated probabilities but cannot fill a schema, so these sit in front of or behind an extractor rather than replacing one.                             |
+| `@azx/ribo-systemone-managed`        | The System One API client (hosted Jev, a self-hosted `kev`, or a fine-tune), classifying its errors as terminal or transient for an arbitration ladder.                                                                                                                         |
 | `@azx/ribo-adapter-snuggpro`         | The **reference adapter and worked example**: Snugg Pro's field schema, the extractor instructions/examples, the deterministic normalization pass, and the write-back contract — the only tool-specific surface in the workspace.                                               |
 
 (`@azx/build-config` and `@azx/tsconfig` are private workspace plumbing — shared build and tsconfig
@@ -131,8 +133,9 @@ consumer.
 - **Docs site** — narrative guide, the comparison against Docling/Mistral/direct structured
   outputs, offline-first, deep dives, and a generated API reference. Run it locally with
   `pnpm docs:dev`, or build the static site with `pnpm docs:build` (`pnpm docs:api` regenerates the
-  API reference from each package's public barrel). The base path is configurable for a subpath
-  deploy: `DOCS_BASE=/ribo/ pnpm docs:build`.
+  API reference from each package's public barrel). Hosted on Helix at
+  `https://ribo-docs.azx.helix.azxlabs.io`; every push to `main` uploads a preview, and a preview
+  goes live when someone promotes it (CONTRIBUTING.md, "Docs").
 - **[AGENTS.md](AGENTS.md)** — commands, the architecture map, and the non-obvious mechanisms that must
   not be "simplified". Read it before changing code.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — setup, the "am I done?" signal, and the conventions that bite.

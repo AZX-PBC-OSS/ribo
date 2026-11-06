@@ -6,10 +6,9 @@ checklist lives in the "Releasing" section of
 [`CONTRIBUTING.md`](https://github.com/AZX-PBC-OSS/ribo/blob/main/CONTRIBUTING.md) at the repo root, and
 the two are kept consistent.
 
-::: warning Nothing is published yet
-Publishing infrastructure is **not wired**: there is no `.npmrc`, the private registry is still an
-open item, and nothing has been published. The versioning and changelog machinery below is ready;
-the final `changeset:publish` step is dormant until a registry is chosen.
+::: warning Versioned and tagged, not published
+A release is a set of `<name>@<version>` git tags and GitHub releases. There is no `.npmrc` and no
+registry yet, so nothing reaches npm; `changeset:publish` stays dormant until a registry is chosen.
 :::
 
 ## Independent versioning
@@ -19,8 +18,7 @@ package bumps only that package and its dependents; it never drags an unrelated 
 
 A release target is any package under `packages/*` whose `package.json` doesn't set
 `"private": true` — check there rather than trusting a count here, since this list grows as packages
-are added. As of this writing that's thirteen packages, all under the `@azx/` scope and all currently
-`0.0.0`: `ribo-core`, `ribo-ui-react`, `ribo-transcriber-ondevice`, `ribo-chat-openai`,
+are added. As of this writing that's thirteen packages, all under the `@azx/` scope: `ribo-core`, `ribo-ui-react`, `ribo-transcriber-ondevice`, `ribo-chat-openai`,
 `ribo-chat-helix`, `ribo-extractor-ondevice`, `ribo-extractor-systemone`, `ribo-adapter-snuggpro`,
 `ribo-transcriber-managed`, `ribo-transcriber-managed-docs`, `ribo-transcriber-pdfjs`,
 `ribo-storage-rxdb` and `ribo-systemone-managed`.
@@ -40,6 +38,9 @@ Every package is `0.x`, and we follow the 0.x reading of semver literally:
 **`1.0` is the contract-stability commitment.** A package's first `1.0.0` is the point at which we
 start treating its public surface as a contract and reserve breaking changes for major bumps. Bumping
 a package to `1.0.0` is a per-package decision, not a routine bump.
+
+So a breaking change is a **`minor`** changeset. Changesets takes `major` literally: on a `0.x`
+package it means `1.0.0`. Choose `major` only when you mean to cut that package's `1.0`.
 
 ## The `ribo-core` peer-range policy
 
@@ -69,7 +70,13 @@ pnpm changeset:publish    # publish — DEFERRED: no registry/.npmrc yet, do not
 ```
 
 Author one changeset per logical change and commit its `.changeset/*.md` file alongside the code it
-describes. At release time `changeset:version` turns the accumulated changesets into version bumps and
-`CHANGELOG.md` entries in a single pass. The changelog generator is the built-in
+describes.
+
+## Cutting a release
+
+Nobody runs `changeset:version` by hand. Each push to `main` with pending changesets makes the
+Release workflow open or refresh a "chore: version packages" PR, which turns the accumulated
+changesets into version bumps and `CHANGELOG.md` entries. Merging that PR is the release: the next
+run tags each bumped package `<name>@<version>` and creates a GitHub release for it. The changelog generator is the built-in
 `@changesets/cli/changelog`, which needs no `GITHUB_TOKEN`. `access` is `restricted` until the
 registry is chosen.
