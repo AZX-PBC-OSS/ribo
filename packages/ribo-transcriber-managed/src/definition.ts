@@ -23,7 +23,11 @@
  * not move to `ribo-core` (plan Task 5, design §6).
  */
 
-/** The `definition` JSON sent as a form part in the transcribe request. */
+/**
+ * The `definition` JSON sent as a form part in the transcribe request.
+ *
+ * @category Transcription
+ */
 export interface TranscriptionDefinition {
   /** Locale(s) driving language selection — always present. */
   readonly locales: readonly string[];
@@ -42,6 +46,7 @@ export interface TranscriptionDefinition {
  * the absence (in tests) guards against a builder that *replaces* the definition
  * instead of extending it — which would pass a naive phrase-list test while
  * silently breaking language selection.
+ * @category Transcription
  */
 export function buildDefinition(vocabulary?: readonly string[]): TranscriptionDefinition {
   const phrases = vocabulary?.map((term) => term.trim()).filter(Boolean) ?? [];

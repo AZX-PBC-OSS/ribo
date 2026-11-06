@@ -26,6 +26,7 @@ interface LeafNode {
   readonly leaf: z.ZodType;
 }
 
+/** @category Extraction */
 export interface ObjectNode {
   readonly kind: "object";
   readonly children: Map<string, ShapeNode>;
@@ -37,6 +38,7 @@ interface ArrayNode {
   readonly element: ObjectNode;
 }
 
+/** @category Extraction */
 export type ShapeNode = LeafNode | ObjectNode | ArrayNode;
 
 /** Is this a supported leaf kind — the kinds `enveloped()`'s allowlist wraps? */
@@ -64,6 +66,7 @@ const strictnessOf = (obj: z.ZodObject): Strictness => {
 /** The patch form of a leaf: `.nullable().optional()`, description kept. */
 const patchLeaf = (inner: z.ZodType): z.ZodType => inner.nullable().optional();
 
+/** @category Extraction */
 export const buildObjectNode = (obj: z.ZodObject, path: string): ObjectNode => {
   const children = new Map<string, ShapeNode>();
   for (const key of Object.keys(obj.shape)) {
@@ -106,13 +109,18 @@ const cloneNode = (node: ShapeNode): ShapeNode => {
   return cloneObjectNode(node);
 };
 
+/** @category Extraction */
 export const cloneObjectNode = (node: ObjectNode): ObjectNode => ({
   kind: "object",
   strictness: node.strictness,
   children: new Map([...node.children].map(([key, child]) => [key, cloneNode(child)])),
 });
 
-/** Resolve a path (arrays transparent, the schema-time convention) to its node. */
+/**
+ * Resolve a path (arrays transparent, the schema-time convention) to its node.
+ *
+ * @category Extraction
+ */
 export const resolveNode = (
   root: ObjectNode,
   segments: readonly string[],
@@ -128,7 +136,11 @@ export const resolveNode = (
   return node;
 };
 
-/** Resolve a path to the object that holds its last segment, arrays transparent. */
+/**
+ * Resolve a path to the object that holds its last segment, arrays transparent.
+ *
+ * @category Extraction
+ */
 export const resolveContainer = (
   root: ObjectNode,
   segments: readonly string[],
@@ -149,6 +161,7 @@ export const resolveContainer = (
  * own element, which the caller has already descended into)? A move that
  * touched an array would make one extraction value fill every element — not
  * data-determined, so refused rather than silently resolved.
+ * @category Extraction
  */
 export const pathTouchesArray = (root: ObjectNode, segments: readonly string[]): boolean => {
   let node: ShapeNode = root;
@@ -162,10 +175,15 @@ export const pathTouchesArray = (root: ObjectNode, segments: readonly string[]):
   return node.kind === "array";
 };
 
+/** @category Extraction */
 export const isPrefixOf = (a: readonly string[], b: readonly string[]): boolean =>
   a.length <= b.length && a.every((segment, i) => segment === b[i]);
 
-/** The message an emptied object is refused with, at either derivation surface. */
+/**
+ * The message an emptied object is refused with, at either derivation surface.
+ *
+ * @category Extraction
+ */
 export const emptyObjectMessage = (path: string): string =>
   `deriveExtractionShape(): the object at "${path === "" ? "<root>" : path}" has no ` +
   "fields left. An empty object serves nothing — drop its parent key instead of its " +
@@ -175,6 +193,7 @@ export const emptyObjectMessage = (path: string): string =>
  * Every object with no children, in the walk order {@link refuseEmptyObjects}
  * throws on them. The partial applier needs the whole set at once — refusing
  * one drop may restore leaves that resolve another.
+ * @category Extraction
  */
 export const findEmptyObjects = (node: ObjectNode, path: string, out: string[]): void => {
   if (node.children.size === 0) {
@@ -188,13 +207,18 @@ export const findEmptyObjects = (node: ObjectNode, path: string, out: string[]):
   }
 };
 
-/** Refuse any object the operations emptied — an empty object hangs nothing. */
+/**
+ * Refuse any object the operations emptied — an empty object hangs nothing.
+ *
+ * @category Extraction
+ */
 export const refuseEmptyObjects = (node: ObjectNode, path: string): void => {
   const emptied: string[] = [];
   findEmptyObjects(node, path, emptied);
   if (emptied.length > 0) throw new Error(emptyObjectMessage(emptied[0]!));
 };
 
+/** @category Extraction */
 export const treeToZod = (node: ObjectNode, isRoot = true): z.ZodObject => {
   const shape: Record<string, z.ZodType> = {};
   for (const [key, child] of node.children) {
@@ -215,7 +239,11 @@ export const treeToZod = (node: ObjectNode, isRoot = true): z.ZodObject => {
       : z.object(shape);
 };
 
-/** Every leaf path of the tree, arrays transparent (element-relative). */
+/**
+ * Every leaf path of the tree, arrays transparent (element-relative).
+ *
+ * @category Extraction
+ */
 export const collectLeafPaths = (node: ObjectNode, path: string, out: string[]): void => {
   for (const [key, child] of node.children) {
     const childPathText = childPath(path, key);

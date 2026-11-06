@@ -60,7 +60,11 @@ import { singleShotExtractor } from "../extraction/single-shot.js";
  */
 type LeafEnvelopes = Record<string, ReturnType<typeof nullEnvelope>>;
 
-/** Options for {@link presenceFillPhase}. */
+/**
+ * Options for {@link presenceFillPhase}.
+ *
+ * @category Extraction
+ */
 export interface PresenceFillPhaseOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /** The field knowledge: each item's projected target is derived from it. */
   readonly target: ExtractionTarget<V, P>;
@@ -115,6 +119,7 @@ interface PresenceFillItem {
  * The presence-narrowed fill phase: one value-extraction call per group with
  * present leaves, over the group's projected target narrowed to those leaves.
  * See the file header for the seeding that makes the narrowing sound.
+ * @category Extraction
  */
 export function presenceFillPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: PresenceFillPhaseOptions<V, P>,

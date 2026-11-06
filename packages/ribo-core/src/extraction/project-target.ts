@@ -57,6 +57,7 @@ function narrowGroupValueToLeaves(value: z.ZodType, leafKeys: readonly string[])
 
 /**
  * Options for {@link projectTarget}.
+ * @category Extraction
  */
 export interface ProjectTargetOptions {
   /**
@@ -95,6 +96,7 @@ export interface ProjectTargetOptions {
  * @typeParam V - the plain field values of the original target.
  * @typeParam P - the original target's per-group provenance granularity map.
  * @typeParam K - the top-level group key being projected.
+ * @category Extraction
  */
 export function projectTarget<
   V extends Record<string, unknown>,

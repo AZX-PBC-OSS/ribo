@@ -10,7 +10,11 @@ import type { OnnxDtype } from "./protocol.js";
  * `index.ts OnDeviceTranscriber.capability` answer honestly (plan Task 2, item 5).
  */
 
-/** The `CacheStorage` bucket transformers.js writes model files into. */
+/**
+ * The `CacheStorage` bucket transformers.js writes model files into.
+ *
+ * @category Transcription
+ */
 export const TRANSFORMERS_CACHE_NAME = "transformers-cache";
 
 /**

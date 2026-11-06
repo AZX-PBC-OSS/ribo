@@ -14,8 +14,10 @@
 import type { ShapeUpgrade } from "./rung.js";
 import { captureV5ToV6Upgrade } from "./v5-to-v6.js";
 
+/** @category Offline & Storage */
 export const CAPTURE_DOCUMENT_VERSION = 7;
 
+/** @category Offline & Storage */
 export const CAPTURE_DOCUMENT_UPGRADES: readonly ShapeUpgrade[] = [
   {
     reason: "Added the optional `reviewOutcome` field — the review gate.",

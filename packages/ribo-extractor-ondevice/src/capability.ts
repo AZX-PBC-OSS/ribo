@@ -1,13 +1,16 @@
 import type { ChatCapability } from "@azx/ribo-core";
 
+/** @category Extraction */
 export type LanguageModelAvailability =
   "unavailable" | "downloadable" | "downloading" | "available";
 
+/** @category Extraction */
 export interface DownloadProgressEvent {
   readonly loaded: number;
   readonly total: 1;
 }
 
+/** @category Extraction */
 export interface LanguageModelMonitor {
   addEventListener: (
     type: "downloadprogress",
@@ -15,12 +18,17 @@ export interface LanguageModelMonitor {
   ) => void;
 }
 
-/** One role-tagged turn of the session's standing context. */
+/**
+ * One role-tagged turn of the session's standing context.
+ *
+ * @category Extraction
+ */
 export interface LanguageModelPrompt {
   readonly role: "system" | "user" | "assistant";
   readonly content: string;
 }
 
+/** @category Extraction */
 export interface LanguageModelCreateOptions {
   /**
    * **Optional**, because most `create()` calls are not downloads. Only `prime()` — the one
@@ -36,7 +44,11 @@ export interface LanguageModelCreateOptions {
   signal?: AbortSignal;
 }
 
-/** Per-prompt options. `responseConstraint` is what makes the output a schema-shaped JSON. */
+/**
+ * Per-prompt options. `responseConstraint` is what makes the output a schema-shaped JSON.
+ *
+ * @category Extraction
+ */
 export interface LanguageModelPromptOptions {
   responseConstraint?: Record<string, unknown>;
   omitResponseConstraintInput?: boolean;
@@ -47,6 +59,7 @@ export interface LanguageModelPromptOptions {
  * One session. Sessions are the unit of context: a base session carries the standing prompt,
  * and each call runs on a {@link LanguageModelSession.clone} of it so one group's answer never
  * sits in another group's context.
+ * @category Extraction
  */
 export interface LanguageModelSession {
   /** Total tokens this session can hold, input and output together. Measured at 9,216. */
@@ -68,11 +81,13 @@ export interface LanguageModelSession {
   destroy: () => void;
 }
 
+/** @category Extraction */
 export interface LanguageModel {
   availability: () => Promise<LanguageModelAvailability>;
   create: (options?: LanguageModelCreateOptions) => Promise<LanguageModelSession>;
 }
 
+/** @category Extraction */
 export type PrimeProgressListener = (progress: DownloadProgressEvent) => void;
 
 /**

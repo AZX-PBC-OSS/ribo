@@ -22,6 +22,7 @@ import type { StorageBackend } from "./port.js";
  * stores over it, and closes it again. That is deliberate: the domain logic
  * belongs to the store that owns the concept, and a container with behaviour of
  * its own would be a fourth place to look.
+ * @category Offline & Storage
  */
 
 export interface OpenStorageOptions {
@@ -48,7 +49,11 @@ export async function openStorage(options: OpenStorageOptions): Promise<Storage>
   return Promise.resolve(new Storage(options.backend, options));
 }
 
-/** The three stores, and the backend they share. */
+/**
+ * The three stores, and the backend they share.
+ *
+ * @category Offline & Storage
+ */
 export class Storage {
   /** Recordings and documents a device has captured, and their audio. */
   readonly captures: CaptureStore;

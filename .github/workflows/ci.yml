@@ -49,6 +49,16 @@ jobs:
       # `./check.sh` stage so docs stay out of the local loop, as with pack-and-consume.
       - run: pnpm docs:build
 
+      # The Reference used to inline every generated symbol into the sidebar of every page,
+      # inflating docs/.vitepress/dist to ~379 MB — past Helix's 250 MB deploy limit. The sidebar
+      # now lists only module and category entries per package (docs/.vitepress/config.ts), so the
+      # built site is bounded; this step fails CI if that ever regresses. 200 MB leaves headroom
+      # over the ~fixed site content while still failing any per-symbol sidebar regression.
+      - run: |
+          size=$(du -sm docs/.vitepress/dist | cut -f1)
+          echo "docs/.vitepress/dist: ${size} MB"
+          test "$size" -lt 200
+
       # `changeset status` is CI-only: it needs a git remote and a base ref to diff
       # against, so it does not belong in a local ./check.sh run. Scoped to pull
       # requests because on a push to `main` the base ref IS the current ref, so

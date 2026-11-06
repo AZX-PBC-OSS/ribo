@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-core/worklet
+ *
  * @file The `AudioWorkletProcessor` for live sample tapping, published as the
  * `./worklet` subpath of `@azx/ribo-core`.
  *

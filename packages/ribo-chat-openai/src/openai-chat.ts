@@ -20,7 +20,11 @@ import {
   type ChatUsage,
 } from "@azx/ribo-core";
 
-/** Config for {@link openAiChat}. */
+/**
+ * Config for {@link openAiChat}.
+ *
+ * @category Chat Transports
+ */
 export interface OpenAiChatOptions {
   /** Bearer token. Injected by the host — never read from a bundled constant. */
   readonly apiKey: string;
@@ -68,6 +72,7 @@ const MAX_TOKENS_WIRE_FIELD = "max_tokens";
  * missing, non-string, or not one of the three known members is a
  * `malformed-response`, never a completion with the field omitted — see the
  * guarantee on {@link ChatCompletion}.
+ * @category Chat Transports
  */
 export function openAiChat({ apiKey, baseUrl, fetchImpl }: OpenAiChatOptions): ChatClient {
   const doFetch = fetchImpl ?? fetch;

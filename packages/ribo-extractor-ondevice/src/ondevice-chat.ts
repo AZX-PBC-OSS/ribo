@@ -23,12 +23,18 @@ import { SessionHolder } from "./session.js";
  *
  * Mirrors `ONDEVICE_WHISPER_ENGINE` (`@azx/ribo-transcriber-ondevice`): short, opaque, and stamped into
  * provenance so the storage can distinguish a managed from an on-device run.
+ * @category Extraction
  */
 export const ONDEVICE_CHAT_ENGINE = "ondevice-chat";
 
-/** How long one `complete()` call may stream before the client aborts it itself. */
+/**
+ * How long one `complete()` call may stream before the client aborts it itself.
+ *
+ * @category Extraction
+ */
 export const DEFAULT_DEVICE_PROMPT_DEADLINE_MS = 15_000;
 
+/** @category Extraction */
 export interface OnDeviceChatOptions {
   /** The Chrome Prompt API `LanguageModel` object, usually `globalThis.ai.languageModel`. */
   readonly languageModel: LanguageModel;
@@ -48,6 +54,7 @@ export interface OnDeviceChatOptions {
  * the only thing passed to `promptStreaming`, and the JSON Schema is the
  * `responseConstraint`. Streams internally so it can kill Nano's trailing-
  * whitespace loop early and enforces its own per-call deadline.
+ * @category Extraction
  */
 export class OnDeviceChat implements CapableChatClient {
   readonly engine = ONDEVICE_CHAT_ENGINE;

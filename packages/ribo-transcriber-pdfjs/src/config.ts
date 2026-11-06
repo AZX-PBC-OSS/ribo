@@ -11,6 +11,7 @@
  * `Transcriber.engine` this implementation stamps onto every `Transcript` it
  * produces. Short and stable across versions — it is persisted data, readable
  * straight off `storage.captures.list()`. See D8 in the document-transcription plan.
+ * @category Transcription
  */
 export const PDFJS_ENGINE = "pdfjs";
 
@@ -24,6 +25,7 @@ export const PDFJS_ENGINE = "pdfjs";
  * module has always had it — which is why cancellation could not be wired here
  * before. Real pdf.js's task carries many more members; anything else stays
  * undeclared.
+ * @category Transcription
  */
 export interface PdfLoadingTask {
   /** Resolves to the document proxy, or rejects when destroyed or invalid. */
@@ -39,6 +41,7 @@ export interface PdfLoadingTask {
  * `import()` in Task 6 can be typed without pulling the full type tree into
  * the options interface. The real module has many more exports; we use only
  * `getDocument` and `GlobalWorkerOptions`.
+ * @category Transcription
  */
 export interface PdfjsModule {
   getDocument: (params: Record<string, unknown>) => PdfLoadingTask;
@@ -48,6 +51,7 @@ export interface PdfjsModule {
 /**
  * The handle `pdfjs.getDocument().promise` resolves to. Only the two members
  * this package uses are declared; the real proxy has many more.
+ * @category Transcription
  */
 export interface PdfDocumentProxy {
   numPages: number;
@@ -56,6 +60,7 @@ export interface PdfDocumentProxy {
 
 /**
  * The handle `doc.getPage(n)` resolves to. Only `getTextContent` is used.
+ * @category Transcription
  */
 export interface PdfPageProxy {
   getTextContent: () => Promise<{ items: readonly PdfContentItem[] }>;
@@ -85,6 +90,7 @@ export interface PdfPageProxy {
  * fire. A fixed-length tuple has known indices, so `transform[4]` is plainly
  * `number`, and passing five numbers is a compile error. Both verified against
  * TypeScript 6.0.3 with this repo's flags.
+ * @category Transcription
  */
 export type PdfTransformMatrix = readonly [
   scaleX: number,
@@ -112,6 +118,7 @@ export type PdfTransformMatrix = readonly [
  * it stays on the interface because pdf.js returns it, and omitting a field the
  * runtime provides would make this a lie about the shape rather than a subset
  * of it.
+ * @category Transcription
  */
 export interface PdfTextItem {
   str: string;
@@ -124,6 +131,7 @@ export interface PdfTextItem {
 /**
  * The other thing `getTextContent().items` yields: a structure-tag boundary,
  * carrying no text and no geometry.
+ * @category Transcription
  */
 export interface PdfMarkedContentItem {
   type: string;
@@ -140,6 +148,7 @@ export interface PdfMarkedContentItem {
  * fabricated item at the page origin that survived only because a later
  * whitespace filter happened to drop it. Discriminating instead means the
  * defaults disappear and nothing invents coordinates it does not have.
+ * @category Transcription
  */
 export type PdfContentItem = PdfTextItem | PdfMarkedContentItem;
 
@@ -150,6 +159,7 @@ export type PdfContentItem = PdfTextItem | PdfMarkedContentItem;
  * on the marked-content branch — testing for its **absence** would make every
  * future pdf.js item shape default to "this is text", which is the failure
  * direction that hurts.
+ * @category Transcription
  */
 export function isPdfTextItem(item: PdfContentItem): item is PdfTextItem {
   return typeof (item as PdfTextItem).str === "string";
@@ -164,6 +174,7 @@ export function isPdfTextItem(item: PdfContentItem): item is PdfTextItem {
  * field exists for — a scanned insert in an otherwise text-layer PDF shows up
  * as a run of **zero**-character pages, worth surfacing before the
  * whole-document `no-text-layer` threshold decides.
+ * @category Transcription
  */
 export interface PageRead {
   /** The 1-based page number just read. */
@@ -185,6 +196,7 @@ export interface PageRead {
  *
  * `capability()` answers only from the environment — no pdf.js load — per the
  * contract's "called often and expected to be cheap" requirement.
+ * @category Transcription
  */
 export interface PdfjsTranscriberOptions {
   /**
@@ -233,5 +245,6 @@ export interface PdfjsTranscriberOptions {
  * outcomes. Exposed as a named constant and an option so the threshold can be
  * tuned without a code change, following the repo's precedent for shipping
  * provisional defaults with knobs.
+ * @category Transcription
  */
 export const DEFAULT_NO_TEXT_LAYER_THRESHOLD = 50;

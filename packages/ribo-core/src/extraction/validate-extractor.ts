@@ -33,7 +33,11 @@ import { TerminalError } from "../storage/backoff.js";
  *   census keeps them apart and the default policy acts only on the second.
  */
 
-/** What a {@link ValidationPolicy} returns: accept the census, or reject with a reason. */
+/**
+ * What a {@link ValidationPolicy} returns: accept the census, or reject with a reason.
+ *
+ * @category Arbitration & Fallback
+ */
 export type ValidationVerdict = { readonly ok: true } | { readonly reject: string };
 
 /**
@@ -43,6 +47,7 @@ export type ValidationVerdict = { readonly ok: true } | { readonly reject: strin
  * A policy that wants something the census's counts do not offer walks `leaves` —
  * the three facts per leaf (committed / cited / groundedness) are the complete
  * measurement, and the counts are a convenience over them.
+ * @category Arbitration & Fallback
  */
 export type ValidationPolicy = (census: GroundingCensus) => ValidationVerdict;
 
@@ -53,6 +58,7 @@ export type ValidationPolicy = (census: GroundingCensus) => ValidationVerdict;
  * opposite classification produces the opposite of the intended behaviour plus a
  * relay retry loop. Under the shipped default arbiter this error makes a ladder
  * fall through to the next rung, which is the entire point.
+ * @category Arbitration & Fallback
  */
 export class ValidationRejectedError extends TerminalError {
   override readonly name = "ValidationRejectedError";
@@ -93,6 +99,7 @@ const formatLeafPath = (path: LeafPath): string => path.map(String).join(".");
  *
  * The reason names how many leaves failed and the path of the first, so a log
  * line identifies the result without the reader re-deriving it.
+ * @category Arbitration & Fallback
  */
 export const rejectUngroundedCommitments = (census: GroundingCensus): ValidationVerdict => {
   const rejectedLeaves = census.leaves.filter(
@@ -117,7 +124,11 @@ export const rejectUngroundedCommitments = (census: GroundingCensus): Validation
   return { reject: `validation rejected: ${parts.join("; ")}` };
 };
 
-/** What a caller supplies to {@link validateExtractor}. */
+/**
+ * What a caller supplies to {@link validateExtractor}.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface ValidateExtractorOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /**
    * The field knowledge the inner extractor was built against. Only
@@ -155,6 +166,7 @@ export interface ValidateExtractorOptions<V extends Record<string, unknown>, P =
  * host wiring both would double-count. A wrapper that delegates and judges stays
  * silent; a combinator that runs candidates of its own reports them. The absence
  * is pinned in the test file, not merely described here.
+ * @category Arbitration & Fallback
  */
 export function validateExtractor<F, V extends Record<string, unknown>, P = NoProvenance>(
   extractor: Extractor<F>,

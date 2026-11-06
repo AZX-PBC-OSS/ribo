@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { queryFromKey, queryKey } from "./query-key.js";
 import { useRiboInstance } from "./use-ribo-instance.js";
 
+/** @category React Hooks */
 export interface UseCapturesResult {
   readonly items: readonly Capture[];
   /** No emission has arrived yet. Distinct from an empty queue. */
@@ -30,6 +31,7 @@ export interface UseCapturesResult {
  * Does not consume `useSubscribed`: `storage.captures.watch` is an rxjs `Observable`, not
  * core's callback-subscribe shape, so this hook subscribes directly and tears the
  * subscription down itself on cleanup.
+ * @category React Hooks
  */
 export function useCaptures(query: CaptureQuery = {}, storage?: Storage): UseCapturesResult {
   const instance = useRiboInstance("storage", storage);

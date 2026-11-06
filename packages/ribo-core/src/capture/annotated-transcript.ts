@@ -1,4 +1,8 @@
-/** The capture metadata annotations written by the relay. */
+/**
+ * The capture metadata annotations written by the relay.
+ *
+ * @category Captures & Sources
+ */
 export type CaptureAnnotations = Readonly<{
   readonly "capture.seq": number;
   readonly "capture.kind": "audio" | "document";
@@ -34,6 +38,7 @@ export type CaptureAnnotations = Readonly<{
  *
  * @typeParam P - the shape of the annotations bag. Defaults to
  * `Readonly<Record<string, unknown>>` for backward compatibility.
+ * @category Captures & Sources
  */
 export interface AnnotatedTranscript<P = Readonly<Record<string, unknown>>> {
   /**

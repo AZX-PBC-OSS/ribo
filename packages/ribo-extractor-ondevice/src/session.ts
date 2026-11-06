@@ -11,9 +11,11 @@ import { probeLanguageModel } from "./capability.js";
  * holding a model in memory forever is worse for a queue drain that may run
  * once and then idle for hours. 30s is long enough to absorb the seven-group
  * burst, short enough not to pin weights needlessly.
+ * @category Extraction
  */
 export const DEFAULT_SESSION_IDLE_MS = 30_000;
 
+/** @category Extraction */
 export interface SessionHolderOptions {
   readonly languageModel: LanguageModel;
   /** Standing context: the system prompt and any few-shot turns. */
@@ -33,6 +35,7 @@ const defaultScheduleTimer: ScheduleTimer = (fn, delayMs) => {
  * Thrown when the holder cannot build a base session because the model is not
  * `available`. This is a capability failure, not a transport failure: the caller
  * should surface it as a `ChatCapability` rather than retrying blindly.
+ * @category Extraction
  */
 export class SessionCapabilityError extends Error {
   override readonly name = "SessionCapabilityError";
@@ -55,6 +58,7 @@ export class SessionCapabilityError extends Error {
  * throws `NotAllowedError` from a background queue drain when availability is
  * `"downloadable"` or `"downloading"`, and surfacing that as a raw error would
  * hide the real reason: the model was never primed.
+ * @category Extraction
  */
 export class SessionHolder {
   readonly #languageModel: LanguageModel;

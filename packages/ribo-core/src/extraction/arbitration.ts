@@ -20,6 +20,7 @@ import { SchemaParseError } from "./schema-parse-error.js";
  * The two branches are mutually exclusive at the type level: the `outcome` tag
  * is the primary discriminant, and `error`/`result` are `never` on the opposite
  * branch as belt-and-braces. A constructed outcome cannot silently carry both.
+ * @category Arbitration & Fallback
  */
 export type ExtractionOutcome<F> =
   | {
@@ -35,9 +36,17 @@ export type ExtractionOutcome<F> =
       readonly result?: never;
     };
 
-/** The success branch of {@link ExtractionOutcome}. */
+/**
+ * The success branch of {@link ExtractionOutcome}.
+ *
+ * @category Arbitration & Fallback
+ */
 export type ResultOutcome<F> = Extract<ExtractionOutcome<F>, { outcome: "result" }>;
-/** The failure branch of {@link ExtractionOutcome}. */
+/**
+ * The failure branch of {@link ExtractionOutcome}.
+ *
+ * @category Arbitration & Fallback
+ */
 export type ErrorOutcome<F> = Extract<ExtractionOutcome<F>, { outcome: "error" }>;
 
 /**
@@ -47,6 +56,7 @@ export type ErrorOutcome<F> = Extract<ExtractionOutcome<F>, { outcome: "error" }
  * Returns the narrowed branch rather than the union: a caller that builds one
  * of these knows which branch it built, and widening here would throw that away
  * at the point it is cheapest to keep.
+ * @category Arbitration & Fallback
  */
 export function resultOutcome<F>(candidate: string, result: ExtractionResult<F>): ResultOutcome<F> {
   return { outcome: "result", candidate, result };
@@ -55,6 +65,7 @@ export function resultOutcome<F>(candidate: string, result: ExtractionResult<F>)
 /**
  * Construct an error outcome. Prefer this over inline objects so the union
  * stays genuinely exclusive.
+ * @category Arbitration & Fallback
  */
 export function errorOutcome<F>(candidate: string, error: unknown): ErrorOutcome<F> {
   return { outcome: "error", candidate, error };
@@ -67,6 +78,7 @@ export function errorOutcome<F>(candidate: string, error: unknown): ErrorOutcome
  * candidate started may be the first to settle. `exhausted` means every candidate
  * has settled, not merely that none is left to start — the two readings coincide
  * under sequential scheduling and diverge under a race.
+ * @category Arbitration & Fallback
  */
 export interface ArbiterInput<F> {
   /** Every outcome so far, in the order they settled. */
@@ -85,12 +97,14 @@ export interface ArbiterInput<F> {
  * required key names (`accept`, `continue`, `giveUp`), narrow correctly under
  * `in`, and have no bug history. Retagging would rewrite every arbiter in the
  * repo and every consumer arbiter for no new safety — see design §0.8.
+ * @category Arbitration & Fallback
  */
 export type ArbiterVerdict<F> =
   | { readonly accept: ExtractionResult<F> }
   | { readonly continue: true }
   | { readonly giveUp: unknown };
 
+/** @category Arbitration & Fallback */
 export type ExtractionArbiter<F> = (input: ArbiterInput<F>) => ArbiterVerdict<F>;
 
 /**
@@ -140,6 +154,7 @@ function isErrorOutcome<F>(outcome: ExtractionOutcome<F>): outcome is ErrorOutco
  * zod on re-send), so `isTransientFailure` still classifies it as retryable and
  * the queue keeps retrying. But it is also a shape mismatch, so a different
  * strategy might succeed where this one keeps sampling badly; we continue.
+ * @category Arbitration & Fallback
  */
 export function terminalFallsThrough<F>(input: ArbiterInput<F>): ArbiterVerdict<F> {
   const firstResult = input.outcomes.find(isResultOutcome);
@@ -193,6 +208,7 @@ export function terminalFallsThrough<F>(input: ArbiterInput<F>): ArbiterVerdict<
  *
  * Naming this separately from `terminalFallsThrough` is how a deployment opts into
  * degradation deliberately rather than by omission.
+ * @category Arbitration & Fallback
  */
 export function acceptAnySuccess<F>(input: ArbiterInput<F>): ArbiterVerdict<F> {
   const firstResult = input.outcomes.find(isResultOutcome);
@@ -220,7 +236,11 @@ export function acceptAnySuccess<F>(input: ArbiterInput<F>): ArbiterVerdict<F> {
 // public guarantees structural: no scheduling flag, no capability vocabulary, no admission
 // semantics leak across constructors.
 
-/** A candidate the engine can run: an identifier, an extractor, and an optional admission probe. */
+/**
+ * A candidate the engine can run: an identifier, an extractor, and an optional admission probe.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface ExtractorEngineCandidate<F> {
   readonly id: string;
   readonly extractor: Extractor<F>;
@@ -244,6 +264,7 @@ export interface ExtractorEngineCandidate<F> {
  * probe was silently dropped (this engine never reads it). A field that LOOKS refused and is not is
  * worse than an absent one: an absent field invites you to check, a fake guard invites you to trust
  * it.
+ * @category Arbitration & Fallback
  */
 export interface ConcurrentExtractorCandidate<F> {
   readonly id: string;
@@ -251,7 +272,11 @@ export interface ConcurrentExtractorCandidate<F> {
   readonly probe?: never;
 }
 
-/** Two-state admission answer: admitted, or refused with an opaque detail for the caller. */
+/**
+ * Two-state admission answer: admitted, or refused with an opaque detail for the caller.
+ *
+ * @category Arbitration & Fallback
+ */
 export type AdmissionVerdict =
   { readonly admitted: true } | { readonly admitted: false; readonly detail: unknown };
 
@@ -312,7 +337,11 @@ function applyVerdict<F>(
   return "continue";
 }
 
-/** What the caller supplies to {@link createSequentialExtractor}. */
+/**
+ * What the caller supplies to {@link createSequentialExtractor}.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface SequentialExtractorOptions<F> {
   readonly candidates: readonly ExtractorEngineCandidate<F>[];
   readonly arbiter: ExtractionArbiter<F>;
@@ -336,6 +365,7 @@ export interface SequentialExtractorOptions<F> {
  *
  * This is the engine only: no scheduling mode parameter, no capability vocabulary, no
  * admission semantics. Those are pinned by each public combinator that uses it.
+ * @category Arbitration & Fallback
  */
 export function createSequentialExtractor<F>(options: SequentialExtractorOptions<F>): Extractor<F> {
   const { candidates, arbiter, stampKey, buildNoAdmissionError } = options;
@@ -396,7 +426,11 @@ export function createSequentialExtractor<F>(options: SequentialExtractorOptions
   };
 }
 
-/** What the caller supplies to {@link createConcurrentExtractor}. */
+/**
+ * What the caller supplies to {@link createConcurrentExtractor}.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface ConcurrentExtractorOptions<F> {
   readonly candidates: readonly ConcurrentExtractorCandidate<F>[];
   readonly arbiter: ExtractionArbiter<F>;
@@ -418,6 +452,7 @@ export interface ConcurrentExtractorOptions<F> {
  *
  * This is the engine only: no scheduling mode parameter, no admission semantics. Those are pinned
  * by the public `raceExtractor` constructor that uses it.
+ * @category Arbitration & Fallback
  */
 export function createConcurrentExtractor<F>(options: ConcurrentExtractorOptions<F>): Extractor<F> {
   const { candidates, arbiter, stampKey } = options;

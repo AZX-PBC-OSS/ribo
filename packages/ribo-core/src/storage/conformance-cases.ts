@@ -61,14 +61,22 @@ import type { EntryScopeKind, StorageBackend, StoredDocument } from "./port.js";
  * catch an asynchronous one. It would; that was checked by breaking each one.
  */
 
-/** The subset of a matcher API this kit uses. Structural, so any runner's `expect` satisfies it. */
+/**
+ * The subset of a matcher API this kit uses. Structural, so any runner's `expect` satisfies it.
+ *
+ * @category Offline & Storage
+ */
 export interface Expectation {
   toBe: (expected: unknown) => void;
   toEqual: (expected: unknown) => void;
   toBeUndefined: () => void;
 }
 
-/** The assertion seam: the kit's cases call this instead of reaching for a runner's. */
+/**
+ * The assertion seam: the kit's cases call this instead of reaching for a runner's.
+ *
+ * @category Offline & Storage
+ */
 export type Expect = (actual: unknown) => Expectation;
 
 /**
@@ -78,6 +86,7 @@ export type Expect = (actual: unknown) => Expectation;
  * validating against a JSON schema with required fields the kit has never heard
  * of. Each factory takes the fields the kit needs to *control* (the ones the
  * finders filter and order on) and fills in whatever else its storage demands.
+ * @category Offline & Storage
  */
 export interface ConformanceDocuments {
   makeCapture: (fields: {
@@ -112,7 +121,11 @@ export interface ConformanceDocuments {
   }) => StoredDocument;
 }
 
-/** Everything the kit needs from the backend under test — no runner vocabulary. */
+/**
+ * Everything the kit needs from the backend under test — no runner vocabulary.
+ *
+ * @category Offline & Storage
+ */
 export interface ConformanceSubject extends ConformanceDocuments {
   /**
    * Open a backend on a given database name. Called more than once with the same
@@ -123,7 +136,11 @@ export interface ConformanceSubject extends ConformanceDocuments {
   createBackend: (databaseName: string) => Promise<StorageBackend>;
 }
 
-/** One conformance case: a name for test output, and the behaviour that either holds or throws. */
+/**
+ * One conformance case: a name for test output, and the behaviour that either holds or throws.
+ *
+ * @category Offline & Storage
+ */
 export interface ConformanceCase {
   name: string;
   run: () => Promise<void> | void;
@@ -156,6 +173,7 @@ async function until(predicate: () => boolean, label: string, timeoutMs = 2000):
  * The returned cases are inert: nothing has been registered or run anywhere. The
  * case bodies close over the subject and the `expect`, so the list is bound to
  * one backend under test and one assertion style — build it again for another.
+ * @category Offline & Storage
  */
 export function defineStorageConformanceCases(
   subject: ConformanceSubject,

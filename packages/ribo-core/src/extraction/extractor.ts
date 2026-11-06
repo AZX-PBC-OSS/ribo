@@ -37,6 +37,7 @@ import type { PhaseUnit } from "./extraction-observer.js";
  * is being hit at all. The transports have reported them for a while;
  * `helixChat` parsed the cache counts and discarded them for want of somewhere
  * to put them, which is this type.
+ * @category Extraction
  */
 export interface ExtractionUsage {
   /** Model calls made, including retries. */
@@ -61,6 +62,7 @@ export interface ExtractionUsage {
   readonly cacheCreationPromptTokens?: number;
 }
 
+/** @category Extraction */
 export interface ExtractionResult<F> {
   /** The structured fields, already parsed to `F` at the trust boundary. */
   readonly fields: F;
@@ -124,6 +126,7 @@ export interface ExtractionResult<F> {
  * persisted report and the live stream name an item the same way. A fill item
  * is one `(group, piece, instance)`, which is why a collection group with one
  * failed instance of two reports that one, not the whole group.
+ * @category Extraction
  */
 export type SkippedItem = Pick<
   PhaseUnit,
@@ -137,6 +140,7 @@ export type SkippedItem = Pick<
  * runtime device variance; strategy choice here is configuration). One method: hand it the
  * annotated transcript, get back parsed fields plus provenance. Network-bound, which is why the
  * relay runs it as a queued step — see {@link toSessionExtractStep}.
+ * @category Extraction
  */
 export interface ExtractOptions {
   readonly signal?: AbortSignal;
@@ -163,6 +167,7 @@ export interface ExtractOptions {
   readonly deadline?: number;
 }
 
+/** @category Extraction */
 export interface Extractor<F> {
   extract: (
     transcript: AnnotatedTranscript,
@@ -189,6 +194,7 @@ export interface Extractor<F> {
  * `extractionSchema` and `examples` are both `Enveloped<V, P>`, so a target that dropped it would
  * only be able to describe an all-`"leaf"` adapter. It defaults to none, so `ExtractionTarget<V>`
  * still means what it always meant.
+ * @category Extraction
  */
 export type ExtractionTarget<V extends Record<string, unknown>, P = NoProvenance> = Pick<
   ToolAdapter<V, unknown, P>,
@@ -216,6 +222,7 @@ export type ExtractionTarget<V extends Record<string, unknown>, P = NoProvenance
  * `extract` takes, and it is forwarded whole — not unwrapped. The relay passes
  * a signal it aborts when the step timeout fires; a bag that dropped members
  * here would strand them silently, so the forward stays a pure hand-through.
+ * @category Extraction
  */
 export function toSessionExtractStep<F extends Record<string, unknown>>(
   extractor: Extractor<F>,
@@ -235,7 +242,11 @@ export function toSessionExtractStep<F extends Record<string, unknown>>(
   };
 }
 
-/** Options for a {@link FakeExtractor} beyond its fixed fields. */
+/**
+ * Options for a {@link FakeExtractor} beyond its fixed fields.
+ *
+ * @category Extraction
+ */
 export interface FakeExtractorOptions {
   /** Raw payload to echo back on the result. Omitted from the result when unset. */
   readonly raw?: unknown;
@@ -249,6 +260,7 @@ export interface FakeExtractorOptions {
  * The parallel of `FakeTranscriber`: a shipped test double, not scaffolding. It lets the relay,
  * the tests and the playground drive capture → transcribe → **extract** → review → write with no
  * network and no key. Substitute it into the queue with `toSessionExtractStep(new FakeExtractor(...))`.
+ * @category Extraction
  */
 export class FakeExtractor<F> implements Extractor<F> {
   readonly #fields: F;

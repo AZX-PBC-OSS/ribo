@@ -9,6 +9,7 @@ import { useSessions } from "./use-sessions.js";
 import { useStoragePersistence } from "./use-storage-persistence.js";
 import { useSubscribed } from "./use-subscribed.js";
 
+/** @category React Hooks */
 export interface UseWorkSafetyResult {
   /**
    * The verdict — **`undefined` when it cannot be computed honestly**, which is
@@ -49,6 +50,7 @@ export interface UseWorkSafetyResult {
  * than taking their instances as parameters, so there is nothing here for a caller
  * to override — which means this hook can only be used under a `RiboProvider`
  * (see its own doc comment), never bypassed the way a test can bypass the others.
+ * @category React Hooks
  */
 export function useWorkSafety(): UseWorkSafetyResult {
   const { items: recordings, loading: recordingsLoading, error: recordingsError } = useCaptures();

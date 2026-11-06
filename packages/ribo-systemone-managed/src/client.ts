@@ -81,24 +81,41 @@ const PLACEHOLDER_API_KEY = "no-secret-the-host-fetch-authenticates";
  */
 const NO_DEADLINE_TIMEOUT_MS = 2 ** 31 - 1;
 
-/** A question this package can ask — yes/no or named-choice; the SDK's score questions are not supported. */
+/**
+ * A question this package can ask — yes/no or named-choice; the SDK's score questions are not supported.
+ *
+ * @category Transcription
+ */
 export type SystemOneQuestion = NoulQuestion | ChoiceQuestion;
 
-/** An answer the wire returns for a {@link SystemOneQuestion}, discriminated on `type`. */
+/**
+ * An answer the wire returns for a {@link SystemOneQuestion}, discriminated on `type`.
+ *
+ * @category Transcription
+ */
 export type SystemOneAnswer = NoulResponse | ChoiceResponse;
 
-/** Questions keyed by id. */
+/**
+ * Questions keyed by id.
+ *
+ * @category Transcription
+ */
 export type SystemOneQuestions = { readonly [id: string]: SystemOneQuestion };
 
 /**
  * Answers keyed by the question ids, each typed by its question — noul answers
  * carry `noul`, choice answers carry `choice`, `confidence` and `probabilities`.
+ * @category Transcription
  */
 export type SystemOneAnswers<Q extends SystemOneQuestions> = {
   readonly [K in keyof Q]: ResultFor<Q[K]>;
 };
 
-/** Per-call options for {@link SystemOneClient.ask}. */
+/**
+ * Per-call options for {@link SystemOneClient.ask}.
+ *
+ * @category Transcription
+ */
 export interface SystemOneAskOptions {
   /**
    * Forwards into the request — an abort tears down the in-flight HTTP request
@@ -120,6 +137,7 @@ export interface SystemOneAskOptions {
  * syntax is checked bivariantly even under `strict`, so a too-narrow
  * implementation would satisfy the interface; a property is checked
  * contravariantly and rejects it.
+ * @category Transcription
  */
 export interface SystemOneClient {
   ask: <Q extends SystemOneQuestions>(
@@ -129,7 +147,11 @@ export interface SystemOneClient {
   ) => Promise<SystemOneAnswers<Q>>;
 }
 
-/** Options for {@link systemOneClient}. */
+/**
+ * Options for {@link systemOneClient}.
+ *
+ * @category Transcription
+ */
 export interface SystemOneClientOptions {
   /**
    * The API root the SDK appends `/v1/systemone` to — the host's own proxy when
@@ -214,7 +236,11 @@ function timeoutMs(askOptions: SystemOneAskOptions | undefined, endpoint: string
   return remaining;
 }
 
-/** Build a {@link SystemOneClient} over the host's endpoint and transport. */
+/**
+ * Build a {@link SystemOneClient} over the host's endpoint and transport.
+ *
+ * @category Transcription
+ */
 export function systemOneClient(options: SystemOneClientOptions): SystemOneClient {
   const {
     endpoint,

@@ -29,6 +29,7 @@ import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js
  * **outer** `retryExtractor` retries it — a per-attempt deadline with retries around it,
  * which is the composition worth having. A cancellation-branded timeout would make that
  * composition silently do nothing.
+ * @category Arbitration & Fallback
  */
 export class ExtractionTimeoutError extends Error {
   override readonly name = "ExtractionTimeoutError";
@@ -44,6 +45,7 @@ export class ExtractionTimeoutError extends Error {
   }
 }
 
+/** @category Arbitration & Fallback */
 export interface TimeoutExtractorOptions {
   /**
    * The deadline, in milliseconds. Required — a timeout combinator with a default
@@ -102,6 +104,7 @@ const defaultScheduleTimer: ScheduleTimer = (fn, delayMs) => {
  * caller's signal is aborted and the timer's rejection won the race, the caller's own
  * abort reason is thrown — the inner error never surfaced, and the caller's cancellation
  * is the honest error.
+ * @category Arbitration & Fallback
  */
 export function timeoutExtractor<F>(
   extractor: Extractor<F>,

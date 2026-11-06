@@ -30,6 +30,7 @@ import {
  * Parameterised by `CaptureDocument` — what is *stored* — not by `Capture`,
  * which is the projection consumers see and carries two fields derived from the
  * attachment store rather than from the document.
+ * @category Offline & Storage
  */
 export type OutboxCollection = RxCollection<CaptureDocument>;
 
@@ -39,6 +40,7 @@ export type OutboxCollection = RxCollection<CaptureDocument>;
  * Parameterised by `SessionDocument` — the persisted shape, not `SessionItem`
  * (which is the same today, but the split mirrors the recording's
  * document/item pair so a future derived field has a place to land).
+ * @category Offline & Storage
  */
 export type SessionCollection = RxCollection<SessionDocument>;
 
@@ -46,10 +48,15 @@ export type SessionCollection = RxCollection<SessionDocument>;
  * The RxDB collection holding plugin-scoped storage entries — key-value pairs
  * namespaced by plugin id and capture id. Core sweeps entries for a capture
  * when it is dropped or discarded; see `storage.scopedStore`.
+ * @category Offline & Storage
  */
 export type PluginStorageCollection = RxCollection<PluginStorageDocument>;
 
-/** The RxDB database this package owns. Three collections: recordings, sessions and plugin storage. */
+/**
+ * The RxDB database this package owns. Three collections: recordings, sessions and plugin storage.
+ *
+ * @category Offline & Storage
+ */
 export type OutboxDatabase = RxDatabase<{
   outbox: OutboxCollection;
   sessions: SessionCollection;
@@ -149,6 +156,7 @@ export type OutboxDatabase = RxDatabase<{
  *
  * Exported (rather than inlined into `addCollections`) so a test can exercise
  * the strategy function directly, independent of a real migration run.
+ * @category Offline & Storage
  */
 export const CAPTURE_MIGRATION_STRATEGIES = toMigrationStrategies(CAPTURE_DOCUMENT_UPGRADES);
 
@@ -157,6 +165,7 @@ export const CAPTURE_MIGRATION_STRATEGIES = toMigrationStrategies(CAPTURE_DOCUME
  *
  * Namespaced because the host app owns the origin and we are a library living in
  * it — an unprefixed `storage` would be a genuine collision risk.
+ * @category Offline & Storage
  */
 export const DEFAULT_OUTBOX_DATABASE_NAME = "ribo-outbox";
 

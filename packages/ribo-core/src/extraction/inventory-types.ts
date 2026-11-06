@@ -13,7 +13,11 @@
  * narrower types structurally satisfy the generic interfaces here.
  */
 
-/** One candidate returned by the inventory pass. */
+/**
+ * One candidate returned by the inventory pass.
+ *
+ * @category Extraction
+ */
 export interface RosterCandidate {
   readonly mentionSpan: string;
   readonly discriminator: string;
@@ -22,7 +26,11 @@ export interface RosterCandidate {
   readonly eligibilitySpan: string | null;
 }
 
-/** The house-wide inventory roster: one ordered list per collection group. */
+/**
+ * The house-wide inventory roster: one ordered list per collection group.
+ *
+ * @category Extraction
+ */
 export interface Roster {
   readonly [groupKey: string]:
     | readonly RosterCandidate[]
@@ -32,7 +40,11 @@ export interface Roster {
       };
 }
 
-/** The scope block passed to `buildFillInstructions` for each per-instance fill. */
+/**
+ * The scope block passed to `buildFillInstructions` for each per-instance fill.
+ *
+ * @category Extraction
+ */
 export interface FillScope {
   /** The group being filled, e.g. `"hvac"`. */
   readonly groupKey: string;

@@ -168,6 +168,7 @@ class OnDeviceLiveSession implements LiveSession {
  * Options for {@link OnDeviceLiveTranscriber}. A subset of `OnDeviceTranscriberOptions` —
  * live has no hints (Moonshine cannot be primed) and no batch-timeout concerns. The same
  * `wasmPaths` and `createWorker` constraints apply: see {@link OnDeviceTranscriberOptions}.
+ * @category Transcription
  */
 export interface OnDeviceLiveTranscriberOptions {
   /** Required — same-origin ORT runtime path. See `OnDeviceTranscriberOptions.wasmPaths`. */
@@ -208,9 +209,11 @@ export interface OnDeviceLiveTranscriberOptions {
  * bounds transcribing a long recording; this bounds loading a 2.14 MB VAD model, measured at ~2.4 s
  * cold in the spike. A minute is generous for a slow uplink and still short enough that a stalled
  * open fails while the auditor is on their first sentence rather than their last.
+ * @category Transcription
  */
 export const DEFAULT_LIVE_OPEN_TIMEOUT_MS = 60_000;
 
+/** @category Transcription */
 export class OnDeviceLiveTranscriber implements LiveTranscriber {
   readonly #modelId: string;
   readonly #wasmPaths: string;

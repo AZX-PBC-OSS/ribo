@@ -39,6 +39,7 @@ import type { Notes } from "./phase-notes.js";
  * answered null" (`null`) are different claims, and keeping them apart is exactly what
  * `provenance.ts`'s anti-hallucination rule is for — the first merge helper anyone writes
  * must not collapse them with `?? null`.
+ * @category Extraction
  */
 export type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> };
 
@@ -56,6 +57,7 @@ export type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> };
  * @typeParam V - the writable patch's value type, as for `Enveloped<V, P>`.
  * @typeParam P - the per-group provenance granularity the enveloped shape was derived
  * with, defaulting to none.
+ * @category Extraction
  */
 export interface PhaseDraft<V, P = NoProvenance> {
   /**
@@ -99,6 +101,7 @@ export interface PhaseDraft<V, P = NoProvenance> {
  * default `void`, where the value position is unwritable without a cast — there is
  * nothing to hand it. A fold must leave the draft completable by the phases after it;
  * the closing parse is where that is checked.
+ * @category Extraction
  */
 export type PhaseFold<V, P = NoProvenance, T = void> = (
   draft: PhaseDraft<V, P>,
@@ -108,6 +111,7 @@ export type PhaseFold<V, P = NoProvenance, T = void> = (
 /**
  * The draft a phased run starts from: empty fields, an empty stated-empty record, no raw
  * output, and an empty bag of notes.
+ * @category Extraction
  */
 export function emptyDraft<V, P = NoProvenance>(): PhaseDraft<V, P> {
   return { fields: {}, statedEmptyGroups: {}, notes: emptyNotes() };

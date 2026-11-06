@@ -42,6 +42,7 @@ import { validatePhases } from "./validate-phases.js";
  * retry, the failure policies, the running deadline and the per-phase retry budget land
  * in the tasks after this one; the spine validates at construction, runs phases in
  * order, fans items out, merges, normalizes once and parses once.
+ * @category Extraction
  */
 
 export interface PhasedExtractorOptions<V extends Record<string, unknown>, P = NoProvenance>
@@ -184,6 +185,7 @@ function describeUnit<V extends Record<string, unknown>, P, I, C>(
  *      `statedEmptyGroups` omitted entirely when empty, because `extractor.ts`
  *      documents its absence as meaning "this extractor ran no roster pass". And
  *      `skippedItems`, always — every item a skip policy gave up on, empty when none.
+ * @category Extraction
  */
 export function phasedExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   options: PhasedExtractorOptions<V, P>,

@@ -60,6 +60,7 @@ const ONE_QUESTION = null;
  * goes, which is the {@link AskPhaseSink} union. `T`'s default is nominal — a required
  * type parameter may not follow an optional one (TS2706) — and it is always inferred at
  * the inner call of the curried {@link askPhase}, from the schema and the sink together.
+ * @category Extraction
  */
 export interface AskPhaseBase<V extends Record<string, unknown>, P = NoProvenance, T = unknown> {
   /**
@@ -99,11 +100,13 @@ export interface AskPhaseBase<V extends Record<string, unknown>, P = NoProvenanc
  * it back at `T` through {@link demandNote} or a plain `get`), or folded into the draft
  * by the caller at the answer's own type. Exactly one — the `never` partner in each arm
  * makes both-or-neither a compile error at the call site.
+ * @category Extraction
  */
 export type AskPhaseSink<V extends Record<string, unknown>, P = NoProvenance, T = unknown> =
   | { readonly noteKey: NoteKey<T>; readonly fold?: never }
   | { readonly fold: PhaseFold<V, P, T>; readonly noteKey?: never };
 
+/** @category Extraction */
 export type AskPhaseOptions<
   V extends Record<string, unknown>,
   P = NoProvenance,
@@ -121,6 +124,7 @@ export type AskPhaseOptions<
  * `NoteKey<unknown>`. Currying fixes `V` and `P` at the outer call and infers `T` at the
  * inner one — `askPhase<V>()({ schema, noteKey })` — where the schema is written once
  * and the key, the fold and the later read all follow its type.
+ * @category Extraction
  */
 export function askPhase<V extends Record<string, unknown>, P = NoProvenance>(): <T>(
   options: AskPhaseOptions<V, P, T>,

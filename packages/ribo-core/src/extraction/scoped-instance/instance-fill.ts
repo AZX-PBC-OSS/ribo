@@ -65,6 +65,7 @@ import { toJsonSchemaForWire } from "../schema/wire-schema.js";
 // Re-export the generic inventory/fill vocabulary from `inventory-types.ts`,
 // where both the adapter and the extractor strategy can reach it without a
 // package cycle.
+/** @category Extraction */
 export type { FillScope, Roster, RosterCandidate } from "../inventory-types.js";
 
 /**
@@ -78,6 +79,7 @@ export type { FillScope, Roster, RosterCandidate } from "../inventory-types.js";
  * `TerminalError` from `extract()`, not at construction — no retry
  * fixes a configuration error, and the queue should reach `dead` rather than
  * burn its attempt budget rediscovering that.
+ * @category Extraction
  */
 export interface ScopedFillOptions<V extends Record<string, unknown>, P = NoProvenance>
   extends BackoffOptions, ExtractionObserver<PhaseUnit>, RetryBudgetObserver {
@@ -202,7 +204,11 @@ const DEFAULT_INSTANCE_CAP = 10;
 const defaultDelay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-/** A prepared group, with its per-instance fill schema and error context. */
+/**
+ * A prepared group, with its per-instance fill schema and error context.
+ *
+ * @category Extraction
+ */
 export interface PreparedGroup {
   /** The top-level group key. Empty for the non-grouped fallback. */
   readonly key: string;
@@ -259,7 +265,11 @@ export interface PreparedGroup {
   readonly elsewhere?: readonly string[];
 }
 
-/** The options bag {@link buildFillMessages} takes beside its positional inputs. */
+/**
+ * The options bag {@link buildFillMessages} takes beside its positional inputs.
+ *
+ * @category Extraction
+ */
 export interface FillMessageOptions extends FieldGuidanceOptions {
   /**
    * The piece's partition label, when the piece was cut along a part — the
@@ -285,6 +295,7 @@ export interface FillMessageOptions extends FieldGuidanceOptions {
  * {@link buildGroupMessages} applies for the per-group extractor, so the
  * example's assistant turn never carries fields the piece's `response_format`
  * rejects.
+ * @category Extraction
  */
 export function projectFillExample<F extends Record<string, unknown>>(
   example: { readonly transcript: string; readonly fields: F },
@@ -324,6 +335,7 @@ export function projectFillExample<F extends Record<string, unknown>>(
  * carries that piece's descriptions as the field-guidance block; the fill phase
  * passes the mode `prepareGroups` recorded on the group, so it always matches
  * the wire schema. Omitted, no block is appended.
+ * @category Extraction
  */
 export function buildFillMessages<V extends Record<string, unknown>, P = NoProvenance>(
   target: ExtractionTarget<V, P>,
@@ -360,7 +372,11 @@ export function buildFillMessages<V extends Record<string, unknown>, P = NoProve
   return messages;
 }
 
-/** Build the {@link FillScope} for a collection group's current candidate. */
+/**
+ * Build the {@link FillScope} for a collection group's current candidate.
+ *
+ * @category Extraction
+ */
 export function buildFillScope(
   groupKey: string,
   rosterGroup: readonly RosterCandidate[],
@@ -377,7 +393,11 @@ export function buildFillScope(
   };
 }
 
-/** A placeholder scope for singleton groups that have no roster candidates. */
+/**
+ * A placeholder scope for singleton groups that have no roster candidates.
+ *
+ * @category Extraction
+ */
 export function singletonFillScope(groupKey: string): FillScope {
   return {
     groupKey,
@@ -420,6 +440,7 @@ export function singletonFillScope(groupKey: string): FillScope {
  * The `fieldDescriptions` mode (default `"schema"`) is decided here and only
  * here: under `"prompt"` the rendered `jsonSchema` is stripped, and the mode is
  * recorded on each group so the fill phase emits the same text into the prompt.
+ * @category Extraction
  */
 export function prepareGroups<V extends Record<string, unknown>, P = NoProvenance>(
   target: ExtractionTarget<V, P>,
@@ -517,6 +538,7 @@ export function prepareGroups<V extends Record<string, unknown>, P = NoProvenanc
  *   4. The engine runs the second trust-boundary parse against the full
  *      `extractionSchema`; `normalize` then applies to the parsed fields —
  *      AFTER the parse, exactly as today (see below).
+ * @category Extraction
  */
 export function scopedInstanceExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   options: ScopedFillOptions<V, P>,

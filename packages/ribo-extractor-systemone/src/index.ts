@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-extractor-systemone
+ *
  * @file System One-backed extraction strategies: a judging combinator that
  * corroborates a result before anyone acts on it, and a presence phase that
  * decides what the phases after it look at.

@@ -52,15 +52,21 @@ import type { DeepPartial } from "./phase-draft.js";
 import type { Phase, PhaseDef } from "./phase.js";
 import { phaseBuilder } from "./phase.js";
 
-/** Loose JSON Schema node — enough to walk the zod-generated schema and build sub-schemas. */
+/**
+ * Loose JSON Schema node — enough to walk the zod-generated schema and build sub-schemas.
+ *
+ * @category Extraction
+ */
 export type JsonSchema = Record<string, unknown>;
 
+/** @category Extraction */
 export interface Leaf {
   readonly key: string;
   readonly path: string;
   readonly valueSchema: JsonSchema;
 }
 
+/** @category Extraction */
 export interface Group {
   readonly key: string;
   readonly leaves: readonly Leaf[];
@@ -76,14 +82,22 @@ export interface Group {
   readonly isArray: boolean;
 }
 
-/** The leaf-envelope shape every merge of this strategy writes. */
+/**
+ * The leaf-envelope shape every merge of this strategy writes.
+ *
+ * @category Extraction
+ */
 export interface LeafEnvelope {
   value: unknown;
   confidence: number;
   sourceSpan: string | null;
 }
 
-/** The floor every leaf starts at — presence's seed, and every null's shape. */
+/**
+ * The floor every leaf starts at — presence's seed, and every null's shape.
+ *
+ * @category Extraction
+ */
 export function nullEnvelope(): LeafEnvelope {
   return { value: null, confidence: 0, sourceSpan: null };
 }
@@ -92,6 +106,7 @@ export function nullEnvelope(): LeafEnvelope {
  * THE shared array wrap: a collection group's entry is the leaf-envelope map
  * wrapped in a one-element array; a flat group's is the map itself. Every merge
  * that writes a group entry applies this — none builds the wrap inline.
+ * @category Extraction
  */
 export function wrapGroupEntry(group: Group, entry: Record<string, LeafEnvelope>): unknown {
   return group.isArray ? [entry] : entry;
@@ -103,6 +118,7 @@ export function wrapGroupEntry(group: Group, entry: Record<string, LeafEnvelope>
  * seed created. Creates the entry when it is somehow absent, so a merge stays
  * total — through a valid phase list the seed is always there, and this is the
  * guard that keeps a future composition honest rather than a `TypeError`.
+ * @category Extraction
  */
 export function writableGroupEntry(
   group: Group,
@@ -126,6 +142,7 @@ function isEnvelopeMap(value: unknown): value is Record<string, LeafEnvelope> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** @category Extraction */
 export function isSchemaNode(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -135,6 +152,7 @@ export function isSchemaNode(value: unknown): value is Record<string, unknown> {
  * that cannot support one verbatim span per leaf. Moved from the monolith
  * unchanged, refusal message included — the caller sees it at construction,
  * before the first call.
+ * @category Extraction
  */
 export function extractGroups(schema: JsonSchema): Group[] {
   const groups: Group[] = [];
@@ -196,7 +214,11 @@ export function extractGroups(schema: JsonSchema): Group[] {
   return groups;
 }
 
-/** The chat request every phase of this strategy builds — today's `chatRequest`, moved. */
+/**
+ * The chat request every phase of this strategy builds — today's `chatRequest`, moved.
+ *
+ * @category Extraction
+ */
 export function chatRequest(
   model: string,
   messages: readonly ChatMessage[],
@@ -217,13 +239,22 @@ export function chatRequest(
  * Which leaves each group's presence call marked discussed: group key → leaf
  * key → present. The span phase reads it to narrow its calls; a group with no
  * entry (its presence item failed) plans nothing downstream.
+ * @category Extraction
  */
 export type PresenceMaps = Record<string, Record<string, boolean>>;
 
-/** The note key {@link presencePhase}'s merge writes and the span phase's plan reads. */
+/**
+ * The note key {@link presencePhase}'s merge writes and the span phase's plan reads.
+ *
+ * @category Extraction
+ */
 export const presenceNoteKey: NoteKey<PresenceMaps> = noteKey("three-phase-presence");
 
-/** Options for {@link presencePhase}. */
+/**
+ * Options for {@link presencePhase}.
+ *
+ * @category Extraction
+ */
 export interface PresencePhaseOptions {
   /** The walked groups — the preset walks the schema once, at its construction. */
   readonly groups: readonly Group[];
@@ -251,6 +282,7 @@ interface PresenceItem {
  * The presence phase: one call per group asking which leaves are discussed at
  * all. See the file header for the seed and the refusal — the two details that
  * make this the strategy's floor.
+ * @category Extraction
  */
 export function presencePhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: PresencePhaseOptions,

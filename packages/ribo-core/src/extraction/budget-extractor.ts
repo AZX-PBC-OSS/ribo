@@ -30,7 +30,11 @@ import { TerminalError } from "../storage/backoff.js";
  *   around each rung — not around the ladder.
  */
 
-/** What a caller supplies to {@link budgetExtractor}. */
+/**
+ * What a caller supplies to {@link budgetExtractor}.
+ *
+ * @category Extraction
+ */
 export interface BudgetExtractorOptions {
   /**
    * The ceiling on `ExtractionUsage.calls`, which is the usage's one REQUIRED
@@ -81,6 +85,7 @@ export interface BudgetExtractorOptions {
  * this error makes a ladder fall through to the next rung, which is the entire
  * point: the next run is a cheaper one. A transient classification would instead
  * make the ladder give up and the relay re-run the expensive rung, on backoff.
+ * @category Extraction
  */
 export class BudgetExceededError extends TerminalError {
   override readonly name = "BudgetExceededError";
@@ -118,6 +123,7 @@ export class BudgetExceededError extends TerminalError {
  *
  * The forward-and-read order is the point, and it is the reason this combinator
  * is a detector: see the file header for what that does and does not buy.
+ * @category Extraction
  */
 export function budgetExtractor<F>(
   extractor: Extractor<F>,

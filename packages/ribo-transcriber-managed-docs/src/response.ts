@@ -29,12 +29,20 @@ const PAGE_MARKER = "\n===== PAGE ";
 /** Matches `COLUMN_SEPARATOR` in `ribo-transcriber-pdfjs/src/page-layout.ts`. */
 const COLUMN_SEPARATOR = " | ";
 
-/** The subset of a document analysis response body this module reads. */
+/**
+ * The subset of a document analysis response body this module reads.
+ *
+ * @category Transcription
+ */
 export interface DocumentAnalysisResponse {
   pages?: ReadonlyArray<DocumentAnalysisPage>;
 }
 
-/** One page from the response. */
+/**
+ * One page from the response.
+ *
+ * @category Transcription
+ */
 export interface DocumentAnalysisPage {
   /** 1-based page number. Falls back to array index + 1 if absent. */
   readonly pageNumber?: number;
@@ -44,19 +52,31 @@ export interface DocumentAnalysisPage {
   readonly tables?: ReadonlyArray<DocumentAnalysisTable>;
 }
 
-/** A table in the response. */
+/**
+ * A table in the response.
+ *
+ * @category Transcription
+ */
 export interface DocumentAnalysisTable {
   /** Rows of cells, top to bottom. */
   readonly rows?: ReadonlyArray<ReadonlyArray<DocumentAnalysisCell>>;
 }
 
-/** One cell in a table row. */
+/**
+ * One cell in a table row.
+ *
+ * @category Transcription
+ */
 export interface DocumentAnalysisCell {
   /** The cell's text content. */
   readonly text?: string;
 }
 
-/** The subset of an error response body this module reads. */
+/**
+ * The subset of an error response body this module reads.
+ *
+ * @category Transcription
+ */
 export interface DocumentAnalysisErrorBody {
   error?: {
     code?: string;
@@ -72,6 +92,7 @@ export interface DocumentAnalysisErrorBody {
  * page, text `content` is emitted first (if present), then each table: rows
  * joined by newlines, cells in a row joined by `" | "`. A trailing newline
  * follows each page's content, matching `pdf-text.ts`'s per-page format.
+ * @category Transcription
  */
 export function flattenDocumentAnalysisResponse(body: DocumentAnalysisResponse): string {
   const pages = body.pages ?? [];
@@ -100,6 +121,7 @@ export function flattenDocumentAnalysisResponse(body: DocumentAnalysisResponse):
  * Used by the no-text-layer guard: if what remains is empty, the document
  * yielded no extractable text. Mirrors `pdf-text.ts`'s stripping logic, adapted
  * to the same page-marker format.
+ * @category Transcription
  */
 export function stripMarkersAndWhitespace(text: string): string {
   return text.replace(/===== PAGE \d+ =====/g, "").replace(/\s/g, "");
@@ -115,6 +137,7 @@ export function stripMarkersAndWhitespace(text: string): string {
  * `UnsupportedItemError("encrypted")`. This is deliberately conservative —
  * mapping an ambiguous 422 to `encrypted` would let a transient service bug
  * permanently kill an item that pdf.js might read fine.
+ * @category Transcription
  */
 export function isEncryptedError(body: DocumentAnalysisErrorBody): boolean {
   const code = body.error?.code?.toLowerCase() ?? "";

@@ -60,6 +60,7 @@ import { gapFillPhase } from "../../phases/gap-fill-phase.js";
  * else. This is a widening from the pre-port events (which carried their own unit
  * type, retired in Wave 6): a handler written against the old type will now
  * receive events its type did not name.
+ * @category Extraction
  */
 export interface GapFillOptions<
   V extends Record<string, unknown>,
@@ -123,6 +124,7 @@ export interface GapFillOptions<
 /**
  * One "abstained-with-evidence" leaf: the base extraction found a verbatim quote
  * but committed to no value.
+ * @category Extraction
  */
 export interface AbstainedLeaf {
   /**
@@ -146,7 +148,11 @@ export interface AbstainedLeaf {
   readonly kind: GapFillTarget;
 }
 
-/** Which kind of gap a follow-up call is for. See {@link AbstainedLeaf.kind}. */
+/**
+ * Which kind of gap a follow-up call is for. See {@link AbstainedLeaf.kind}.
+ *
+ * @category Extraction
+ */
 export type GapFillTarget = "abstained" | "ungrounded";
 
 /**
@@ -154,6 +160,7 @@ export type GapFillTarget = "abstained" | "ungrounded";
  * leaves where the model found its evidence and still did not commit. A null
  * with a null span is a plain, honest abstention and is NOT collected: there is
  * nothing to hand back for a second look.
+ * @category Extraction
  */
 export function findAbstainedLeaves<V extends Record<string, unknown>, P = NoProvenance>(
   fields: Enveloped<V, P>,
@@ -190,6 +197,7 @@ export function findAbstainedLeaves<V extends Record<string, unknown>, P = NoPro
  * Measured motivation: on a 126-leaf Manual J, a one-call extraction returned 15-18 ungrounded
  * spans per run and re-asking converted about half of them to verbatim quotes. The values were
  * usually right; the citations had been reformatted or synthesised.
+ * @category Extraction
  */
 export function findUngroundedLeaves<V extends Record<string, unknown>, P = NoProvenance>(
   fields: Enveloped<V, P>,
@@ -209,6 +217,7 @@ export function findUngroundedLeaves<V extends Record<string, unknown>, P = NoPr
   return found;
 }
 
+/** @category Extraction */
 export function formatLeafPath(path: readonly (string | number)[]): string {
   let out = "";
   for (const segment of path) {
@@ -222,6 +231,7 @@ export function formatLeafPath(path: readonly (string | number)[]): string {
  * formatted path is a key of `followUp` is replaced by that entry, everything
  * else keeps its identity. Returns a fresh structure whenever anything changed;
  * the base result is never mutated.
+ * @category Extraction
  */
 export function mergeGapFilledLeaves<V extends Record<string, unknown>, P = NoProvenance>(
   fields: Enveloped<V, P>,
@@ -246,6 +256,7 @@ export function mergeGapFilledLeaves<V extends Record<string, unknown>, P = NoPr
  *
  * Exported for the follow-up phase (`gap-fill-phase.ts`), which builds the same
  * scoped response schema; not part of the package barrel.
+ * @category Extraction
  */
 export const leafSchemaAtPath = (schema: z.ZodType, path: LeafPath): z.ZodType => {
   let current = schema;
@@ -312,6 +323,7 @@ Setting null is a fully valid answer and is the right one whenever the transcrip
  *
  * Exported for the follow-up phase (`gap-fill-phase.ts`), which sends exactly
  * these messages; not part of the package barrel.
+ * @category Extraction
  */
 export const buildGapFillMessages = <V extends Record<string, unknown>, P = NoProvenance>(
   target: ExtractionTarget<V, P>,
@@ -365,6 +377,7 @@ export const buildGapFillMessages = <V extends Record<string, unknown>, P = NoPr
  *
  * Exported for the follow-up phase (`gap-fill-phase.ts`), whose merge applies it;
  * not part of the package barrel.
+ * @category Extraction
  */
 export const acceptImprovements = (
   followUp: Readonly<Record<string, Extracted<unknown>>>,
@@ -416,6 +429,7 @@ export const acceptImprovements = (
  * merge, the message assembly with its two directives, and the improvement
  * filter — are what the phase is built from; they are kept here, unchanged,
  * because their doc comments are the reasoning this strategy exists to keep.
+ * @category Extraction
  */
 export function gapFillExtractor<V extends Record<string, unknown>, P = NoProvenance>({
   base,

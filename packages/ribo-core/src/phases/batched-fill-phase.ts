@@ -53,13 +53,18 @@ import type { PreparedGroup } from "../extraction/scoped-instance/instance-fill.
  * One instance a batched fill covers: the roster id its element carries
  * (`"<groupKey>-<n>"`, 1-based over the current candidates in roster order)
  * and the candidate the inventory described.
+ * @category Extraction
  */
 export interface BatchedIdentity {
   readonly id: string;
   readonly candidate: RosterCandidate;
 }
 
-/** Options for {@link batchedFillPhase} — the scoped-instance port's batched fill. */
+/**
+ * Options for {@link batchedFillPhase} — the scoped-instance port's batched fill.
+ *
+ * @category Extraction
+ */
 export interface BatchedFillPhaseOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /** The field knowledge: name, extraction schema, instructions, and examples. */
   readonly target: ExtractionTarget<V, P>;
@@ -240,6 +245,7 @@ const assertExactlyOnce = (job: BatchedFillJob, parsed: Record<string, unknown>)
 /**
  * The batched fill phase: one call per `(group, piece)` covering every current
  * instance, merged by roster id. See the file header for the contract.
+ * @category Extraction
  */
 export function batchedFillPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: BatchedFillPhaseOptions<V, P>,

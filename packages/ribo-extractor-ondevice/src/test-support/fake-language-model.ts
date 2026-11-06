@@ -27,9 +27,11 @@ import type {
  * One scripted response for a single `promptStreaming` call: either the chunks to
  * yield, or an error to throw at the start of the stream. Used by tests that need
  * the fake to behave differently on each attempt, especially the retry path.
+ * @category Extraction
  */
 export type FakeResponseSequence = readonly (readonly string[] | Error)[];
 
+/** @category Extraction */
 export class FakeLanguageModel implements LanguageModel {
   availabilityValue: LanguageModelAvailability = "unavailable";
   availabilityError?: Error;
@@ -80,6 +82,7 @@ export class FakeLanguageModel implements LanguageModel {
   }
 }
 
+/** @category Extraction */
 export class FakeLanguageModelSession implements LanguageModelSession {
   readonly #model: FakeLanguageModel;
 
@@ -155,7 +158,11 @@ function createMonitor(sequence: readonly DownloadProgressEvent[]): LanguageMode
   };
 }
 
-/** A response shaped like a real successful extraction, for no-false-positive assertions. */
+/**
+ * A response shaped like a real successful extraction, for no-false-positive assertions.
+ *
+ * @category Extraction
+ */
 export function wellFormedResponse(): string {
   return JSON.stringify(
     {
@@ -169,7 +176,11 @@ export function wellFormedResponse(): string {
   );
 }
 
-/** Content, then the unbounded whitespace run that is the real degeneration. */
+/**
+ * Content, then the unbounded whitespace run that is the real degeneration.
+ *
+ * @category Extraction
+ */
 export function degenerateResponse(): string[] {
   return [
     '{"hvac": {"fuel": {"value": "Oil", "confidence": 1, "sourceSpan": "oil-fired"}',

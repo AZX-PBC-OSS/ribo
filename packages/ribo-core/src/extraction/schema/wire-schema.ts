@@ -60,6 +60,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  *
  * Only schema positions are descended into — see the file header for why a
  * key-name filter over the whole tree is wrong.
+ * @category Extraction
  */
 export function stripJsonSchemaDescriptions(node: unknown): unknown {
   if (!isRecord(node)) return node;
@@ -98,6 +99,7 @@ export function stripJsonSchemaDescriptions(node: unknown): unknown {
  * rendering as a conservative upper bound of the wire size (the split is a
  * pinned, working mechanism this change does not touch), so a stripped wire
  * schema only ever lands further under the cap than the split measured.
+ * @category Extraction
  */
 export function toJsonSchemaForWire(
   schema: z.ZodType,

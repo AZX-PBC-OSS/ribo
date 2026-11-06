@@ -44,6 +44,7 @@ import type { OnnxDtype } from "./protocol.js";
  *
  * See `worker.ts` for how the assembled text becomes a `decoder_input_ids` prefix on the
  * models that do support it (transformers.js 4.2.0's `prompt_ids` field is inert — a Task 3 finding).
+ * @category Transcription
  */
 export interface TranscribeHints {
   /** Domain jargon to bias decoding toward, e.g. `["R-value", "CFM50", "AFUE", "backdrafting"]`. */
@@ -56,6 +57,7 @@ export interface TranscribeHints {
  * Assemble hint text into the single priming string the worker tokenizes. Pure and exported so the
  * hint → prompt logic is unit-testable in node without a model. Returns `undefined` when there is
  * nothing to prime with, which the worker reads as "no `decoder_input_ids` prefix".
+ * @category Transcription
  */
 export function buildHintPrompt(hints: TranscribeHints | undefined): string | undefined {
   if (!hints) return undefined;
@@ -83,6 +85,7 @@ export function buildHintPrompt(hints: TranscribeHints | undefined): string | un
  * arrives after a 250 MB fetch and mid-recording. A prefix substring is a coarse test that fails in
  * the safe direction: an unknown model is treated as unable to prime, so the worst case is hints
  * being refused for a model that could have used them, never applied to one that cannot.
+ * @category Transcription
  */
 export function modelSupportsHints(modelId: string): boolean {
   return /whisper/i.test(modelId);
@@ -104,6 +107,7 @@ export function modelSupportsHints(modelId: string): boolean {
  *
  * Overridable via {@link OnDeviceTranscriberOptions.modelId}, and any `whisper-*` id restores the
  * previous behaviour including hints.
+ * @category Transcription
  */
 export const DEFAULT_MODEL_ID = "onnx-community/moonshine-base-ONNX";
 
@@ -161,6 +165,7 @@ export const DEFAULT_MODEL_ID = "onnx-community/moonshine-base-ONNX";
  *
  * The byte figures below are still fp32 and have not been re-measured per dtype. See the Surface
  * Go 3 sizing task on the board.
+ * @category Transcription
  */
 export const MODEL_DOWNLOAD_BYTES: Readonly<Record<string, number>> = {
   "Xenova/whisper-tiny.en": 175_000_000, // estimate (fp32)
@@ -174,7 +179,11 @@ export const MODEL_DOWNLOAD_BYTES: Readonly<Record<string, number>> = {
   "onnx-community/moonshine-tiny-ONNX": 109_000_000,
 };
 
-/** Fallback total for an unrecognized model id — base.en-ish, so the bar is never absurdly wrong. */
+/**
+ * Fallback total for an unrecognized model id — base.en-ish, so the bar is never absurdly wrong.
+ *
+ * @category Transcription
+ */
 export const FALLBACK_DOWNLOAD_BYTES = 314_000_000;
 
 /**
@@ -185,6 +194,7 @@ export const FALLBACK_DOWNLOAD_BYTES = 314_000_000;
  * bucket, the same download-progress relay, the same same-origin ORT config and the same worker,
  * where Silero's stateful RNN would need a second loading path through raw `onnxruntime-web`. It is
  * also what WhisperX uses.
+ * @category Transcription
  */
 export const VAD_MODEL_ID = "onnx-community/pyannote-segmentation-3.0";
 
@@ -202,10 +212,15 @@ export const VAD_MODEL_ID = "onnx-community/pyannote-segmentation-3.0";
  * Measured in the spike: 2.14 MB fp32 weights, 0.20 ms per frame inference. See
  * `docs/roadmap/design/live-spike-findings.md` for the input/output contract and the
  * state-carrying evidence.
+ * @category Transcription
  */
 export const STREAMING_VAD_MODEL_ID = "onnx-community/silero-vad";
 
-/** fp32 weights for {@link STREAMING_VAD_MODEL_ID} — measured in the spike: 2.14 MB. */
+/**
+ * fp32 weights for {@link STREAMING_VAD_MODEL_ID} — measured in the spike: 2.14 MB.
+ *
+ * @category Transcription
+ */
 export const STREAMING_VAD_DOWNLOAD_BYTES = 2_200_000;
 
 /**
@@ -215,10 +230,15 @@ export const STREAMING_VAD_DOWNLOAD_BYTES = 2_200_000;
  * recording is ~5 minutes of inference, and a cold fp32 load adds to that. A tighter
  * default would fail real work on a slow phone; the purpose here is to bound the
  * unbounded, not to be precise.
+ * @category Transcription
  */
 export const DEFAULT_WORKER_TIMEOUT_MS = 600_000;
 
-/** fp32 weights for {@link VAD_MODEL_ID} — 1.9% of the ASR download it rides alongside. */
+/**
+ * fp32 weights for {@link VAD_MODEL_ID} — 1.9% of the ASR download it rides alongside.
+ *
+ * @category Transcription
+ */
 export const VAD_DOWNLOAD_BYTES = 6_000_000;
 
 /**
@@ -228,6 +248,7 @@ export const VAD_DOWNLOAD_BYTES = 6_000_000;
  * needs the full figure; `capability()` needs only what is actually **missing**, since telling a
  * user with Whisper already cached that they need another ~314 MB — when they need 6 MB — is a
  * false prompt that would talk them out of a trivial download.
+ * @category Transcription
  */
 export function estimateDownloadBytes(modelId: string, includeVad = true): number {
   const asr = MODEL_DOWNLOAD_BYTES[modelId] ?? FALLBACK_DOWNLOAD_BYTES;
@@ -236,6 +257,7 @@ export function estimateDownloadBytes(modelId: string, includeVad = true): numbe
 
 /**
  * Options for `index.ts OnDeviceTranscriber`.
+ * @category Transcription
  */
 export interface OnDeviceTranscriberOptions {
   /**
@@ -320,6 +342,7 @@ export interface OnDeviceTranscriberOptions {
  * `new Worker(new URL(...), { type: "module" })` form — **not** a `?worker` import — and rethrows
  * any failure with a message that names `createWorker`, because the common failure (a host bundler
  * that cannot resolve the published `./worker` entry from a bare `new URL`) is otherwise opaque.
+ * @category Transcription
  */
 export function defaultCreateWorker(): Worker {
   try {

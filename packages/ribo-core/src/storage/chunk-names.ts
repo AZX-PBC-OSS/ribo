@@ -4,13 +4,17 @@
  * Chunks are named from the recording's IMMUTABLE `capture.sourceId`. Recovery
  * must find every chunk of a recording, and `sourceId` never changes — so naming
  * by `sourceId` means recovery always finds them.
+ * @category Offline & Storage
  */
 
 export const MAX_CHUNK_INDEX = 999_999;
+/** @category Offline & Storage */
 export const MAX_SLICE_INDEX = 99;
 
+/** @category Offline & Storage */
 export const chunkPrefix = (sourceId: string): string => `audio-${sourceId}-`;
 
+/** @category Offline & Storage */
 export function chunkName(sourceId: string, chunkIndex: number, sliceIndex: number): string {
   if (chunkIndex > MAX_CHUNK_INDEX)
     throw new Error(
@@ -23,6 +27,7 @@ export function chunkName(sourceId: string, chunkIndex: number, sliceIndex: numb
   return `${chunkPrefix(sourceId)}${String(chunkIndex).padStart(6, "0")}-${String(sliceIndex).padStart(2, "0")}`;
 }
 
+/** @category Offline & Storage */
 export const isChunkOf = (id: string, sourceId: string): boolean =>
   id.startsWith(chunkPrefix(sourceId));
 
@@ -34,6 +39,7 @@ export const isChunkOf = (id: string, sourceId: string): boolean =>
  * the parts in order reproduces the original exactly — but each slice must carry
  * the negotiated MIME type explicitly, because `Blob.slice()` returns an empty
  * `type` and RxDB rejects an empty attachment content type.
+ * @category Offline & Storage
  */
 export function sliceOversized(blob: Blob, mimeType: string, max: number): Blob[] {
   if (blob.size <= max) return [blob.type ? blob : blob.slice(0, blob.size, mimeType)];

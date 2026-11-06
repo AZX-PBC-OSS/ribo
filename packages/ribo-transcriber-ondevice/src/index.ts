@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-transcriber-ondevice
+ *
  * @file The public surface of `@azx/ribo-transcriber-ondevice`.
  *
  * On-device Whisper, implementing `@azx/ribo-core`'s {@link Transcriber} so it is substitutable for

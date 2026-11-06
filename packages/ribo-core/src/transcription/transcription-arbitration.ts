@@ -34,6 +34,7 @@ import { UnsupportedItemError } from "./unsupported-item.js";
  * The two branches are mutually exclusive at the type level (`error` and
  * `result` are `never` on the opposite branch) so a constructed outcome cannot
  * silently carry both.
+ * @category Arbitration & Fallback
  */
 export type TranscriptionOutcome =
   | { readonly candidate: string; readonly result: Transcript; readonly error?: never }
@@ -51,6 +52,7 @@ type TranscriptionErrorOutcome = Extract<TranscriptionOutcome, { error: unknown 
  * divergence between settlement and dispatch order, but the contract says
  * settlement order so a future concurrent combinator would not need to change
  * the vocabulary.
+ * @category Arbitration & Fallback
  */
 export interface TranscriptionArbiterInput {
   /** Every outcome so far, in the order they settled. */
@@ -63,10 +65,12 @@ export interface TranscriptionArbiterInput {
  * The arbiter's verdict: accept a transcript, try the next candidate, or stop
  * and throw an error. The three discriminants are named so a mistyped verdict
  * is a compile-time error rather than a silent `continue`.
+ * @category Arbitration & Fallback
  */
 export type TranscriptionArbiterVerdict =
   { readonly accept: Transcript } | { readonly continue: true } | { readonly giveUp: unknown };
 
+/** @category Arbitration & Fallback */
 export type TranscriptionArbiter = (
   input: TranscriptionArbiterInput,
 ) => TranscriptionArbiterVerdict;
@@ -116,6 +120,7 @@ function isErrorOutcome(outcome: TranscriptionOutcome): outcome is Transcription
  * load-bearing — `arbitration.ts` carries a comment about the version that got
  * this backwards and died with a `TypeError` instead of the real error on the
  * primary case it existed for. Do not reorder.
+ * @category Arbitration & Fallback
  */
 export function unsupportedFallsThrough(
   input: TranscriptionArbiterInput,
@@ -211,6 +216,7 @@ export function unsupportedFallsThrough(
  *    engine that could rank above anything, and each of those has settled — so
  *    no unsettled candidate can arrive and win.
  * 4. Otherwise → **continue**, while a better-ranked candidate is unsettled.
+ * @category Arbitration & Fallback
  */
 export function preferEngineOrder(ranking: readonly string[]): TranscriptionArbiter {
   const rankOf = (engine: string): number => {
@@ -294,6 +300,7 @@ function bestRankedSuccess(
  * No result stamping: `Transcript.engine` is already required and set by the
  * implementation that ran, so "which engine produced this?" is answerable off
  * `storage.captures.list()` for free. A second copy of that truth is a defect.
+ * @category Arbitration & Fallback
  */
 export function applyTranscriptionVerdict(
   verdict: TranscriptionArbiterVerdict,

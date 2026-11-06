@@ -12,7 +12,11 @@
  * so we match the exact conventions the Whisper feature extractor assumes (doc 11 §3).
  */
 
-/** Whisper's input sampling rate. `decodeAudioData` at a context of this rate resamples for us. */
+/**
+ * Whisper's input sampling rate. `decodeAudioData` at a context of this rate resamples for us.
+ *
+ * @category Transcription
+ */
 export const WHISPER_SAMPLE_RATE = 16_000;
 
 /**

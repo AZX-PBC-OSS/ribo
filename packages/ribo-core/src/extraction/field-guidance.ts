@@ -48,16 +48,25 @@ import { renderLeafInventory, walkLeafInventory } from "./shape/leaf-inventory.j
  * from the wire schema (`toJsonSchemaForWire`) and renders them into the system
  * message. Opt-in because it changes every prompt, and no accuracy comparison
  * between the two placements has been run (ADR 0030).
+ * @category Extraction
  */
 export type FieldDescriptionsMode = "prompt" | "schema";
 
-/** The options bag every prompt builder and extractor forwards. */
+/**
+ * The options bag every prompt builder and extractor forwards.
+ *
+ * @category Extraction
+ */
 export interface FieldGuidanceOptions {
   /** Where the schema's field descriptions travel. Defaults to `"schema"`. */
   readonly fieldDescriptions?: FieldDescriptionsMode;
 }
 
-/** The mode a builder should apply: the option's value, or the default. */
+/**
+ * The mode a builder should apply: the option's value, or the default.
+ *
+ * @category Extraction
+ */
 export const fieldDescriptionsMode = (options?: FieldGuidanceOptions): FieldDescriptionsMode =>
   options?.fieldDescriptions ?? "schema";
 
@@ -75,6 +84,7 @@ const GUIDANCE_FOOTER =
  * inventory's format. Returns `null` when the schema carries no descriptions
  * (so a description-less schema's prompts stay byte-identical to what they
  * were) or when the walk refuses the schema (see the file header).
+ * @category Extraction
  */
 export function renderFieldGuidance(schema: z.ZodType): string | null {
   let entries;
@@ -107,6 +117,7 @@ export function renderFieldGuidance(schema: z.ZodType): string | null {
  * transcript is the final MESSAGE, never part of the system text) is unchanged;
  * the placement matches the gap-fill directives, the precedent for core text
  * appended after adapter instructions.
+ * @category Extraction
  */
 export function withFieldGuidance(instructions: string, schema: z.ZodType): string {
   const guidance = renderFieldGuidance(schema);

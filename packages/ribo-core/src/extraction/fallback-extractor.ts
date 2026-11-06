@@ -19,7 +19,11 @@ import {
  * (the composite's concern). See `docs/roadmap/design/extractor-arbitration-design.md` §4.4.
  */
 
-/** One rung on the strategy ladder: a strategy id and the extractor that implements it. */
+/**
+ * One rung on the strategy ladder: a strategy id and the extractor that implements it.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface FallbackCandidate<F> {
   readonly strategy: string;
   readonly extractor: Extractor<F>;
@@ -32,6 +36,7 @@ export interface FallbackCandidate<F> {
  * The accepted result's `usage.strategy` is set to the winning strategy id, preserving all other
  * usage fields. The duplicate-identifier and empty-list guards live in the shared engine, so
  * every combinator built over it inherits them.
+ * @category Arbitration & Fallback
  */
 export function fallbackExtractor<F>(
   candidates: readonly FallbackCandidate<F>[],

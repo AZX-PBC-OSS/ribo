@@ -20,13 +20,21 @@ import { defineStorageConformanceCases } from "./conformance-cases.js";
  * `conformance-cases.ts`.
  */
 
-/** The subset of a runner's registration API this kit uses. Structural, so any runner satisfies it. */
+/**
+ * The subset of a runner's registration API this kit uses. Structural, so any runner satisfies it.
+ *
+ * @category Offline & Storage
+ */
 export interface ConformanceRunner {
   describe: (name: string, body: () => void) => void;
   it: (name: string, body: () => Promise<void> | void) => void;
 }
 
-/** The fused input `runStorageConformance` takes: the subject, the assertion, the registration. */
+/**
+ * The fused input `runStorageConformance` takes: the subject, the assertion, the registration.
+ *
+ * @category Offline & Storage
+ */
 export interface ConformanceHarness extends ConformanceRunner, ConformanceSubject {
   expect: Expect;
 }
@@ -36,6 +44,7 @@ export interface ConformanceHarness extends ConformanceRunner, ConformanceSubjec
  *
  * The kit's single `describe`/`it` touchpoint. A third party mapping the case
  * list onto a runner of their own can call this, or inline its body.
+ * @category Offline & Storage
  */
 export function registerStorageConformanceCases(
   label: string,
@@ -54,6 +63,7 @@ export function registerStorageConformanceCases(
  *
  * `label` names the backend in test output, so a repo running this against two
  * backends gets two distinguishable suites.
+ * @category Offline & Storage
  */
 export function runStorageConformance(label: string, harness: ConformanceHarness): void {
   const { describe, it, expect, createBackend, makeCapture, makeSession, makeEntry } = harness;

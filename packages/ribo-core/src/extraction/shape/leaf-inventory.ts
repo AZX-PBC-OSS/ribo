@@ -24,7 +24,11 @@ import { childPath, stripOptionalNullable } from "../../provenance/field-path.js
 import type { DerivedExtractionShape } from "./derived-shape.js";
 import type { DeriveExtractionShapeOptions } from "./shape-operations.js";
 
-/** The caller's declarations the inventory tags — the derive options minus the operations. */
+/**
+ * The caller's declarations the inventory tags — the derive options minus the operations.
+ *
+ * @category Extraction
+ */
 export type InventoryDeclarations = Omit<DeriveExtractionShapeOptions, "operations">;
 
 /**
@@ -35,10 +39,18 @@ export type InventoryDeclarations = Omit<DeriveExtractionShapeOptions, "operatio
  */
 type LeafKind = "string" | "number" | "boolean" | "enum" | "literal";
 
-/** A member of an enum or literal leaf — whatever zod lets either declare. */
+/**
+ * A member of an enum or literal leaf — whatever zod lets either declare.
+ *
+ * @category Extraction
+ */
 export type LeafValue = string | number | bigint | boolean | null | undefined;
 
-/** A single leaf as the model sees it: its dot-path, kind, and any description. */
+/**
+ * A single leaf as the model sees it: its dot-path, kind, and any description.
+ *
+ * @category Extraction
+ */
 export interface LeafInventoryEntry {
   readonly path: string;
   readonly kind: LeafKind;
@@ -60,6 +72,7 @@ export interface LeafInventoryEntry {
  * Unsupported shapes — a scalar under an array, unions, records — are refused
  * with the same path-named error a derivation would produce, naming those
  * shapes which the inventory only exists to feed the proposal of.
+ * @category Extraction
  */
 export function walkLeafInventory(schema: z.ZodObject): LeafInventoryEntry[] {
   const out: LeafInventoryEntry[] = [];
@@ -134,6 +147,7 @@ const readLeafValues = (schema: z.ZodType): readonly LeafValue[] | undefined => 
  * its fields `[part: <label>]`, read from the shape's `partitions` record —
  * partition and regroup cannot share a group, so a part's extraction-space
  * paths are the caller's own.
+ * @category Extraction
  */
 export function appliedTags(
   schema: z.ZodObject,
@@ -193,6 +207,7 @@ export function appliedTags(
  * asserted the leaf is an object and produced a nameless leaf line, neither
  * of which is true. Such leaves appear at the inventory's top level alongside
  * their kind and description.
+ * @category Extraction
  */
 export function renderLeafInventory(
   entries: readonly LeafInventoryEntry[],

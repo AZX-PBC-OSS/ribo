@@ -23,6 +23,7 @@ import type { Extractor } from "../extractor.js";
 import type { Phase } from "../../phases/phase.js";
 import type { PresenceFillPhaseOptions } from "../../phases/presence-fill-phase.js";
 
+/** @category Extraction */
 export function presenceNarrowedExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   presence: Phase<V, P>,
   options: PresenceFillPhaseOptions<V, P>,

@@ -3,7 +3,11 @@ import { z } from "zod";
 import { basePayloadSchema } from "../capture/capture-item.js";
 import { transcriptSchema } from "../capture/transcript.js";
 
-/** The RxDB collection name. One collection for storage items (audio or document); sessions have their own. */
+/**
+ * The RxDB collection name. One collection for storage items (audio or document); sessions have their own.
+ *
+ * @category Offline & Storage
+ */
 export const CAPTURES_COLLECTION_NAME = "outbox";
 
 /**
@@ -14,6 +18,7 @@ export const CAPTURES_COLLECTION_NAME = "outbox";
  * document would be re-read, re-parsed and re-emitted by every query that so
  * much as lists the queue — including the UI's live `items$` subscription.
  * Attachments are fetched only when something actually asks for the bytes.
+ * @category Offline & Storage
  */
 export const AUDIO_ATTACHMENT_ID = "audio";
 
@@ -41,6 +46,7 @@ export const AUDIO_ATTACHMENT_ID = "audio";
  * `discarded` means the auditor threw that capture away. Its words should
  * not return through a later extraction — `session-extract.ts` excludes
  * `discarded` items from the joined transcript.
+ * @category Offline & Storage
  */
 export const CAPTURE_STATUSES = [
   "recording",
@@ -52,6 +58,7 @@ export const CAPTURE_STATUSES = [
   "discarded",
 ] as const;
 
+/** @category Offline & Storage */
 export type CaptureStatus = (typeof CAPTURE_STATUSES)[number];
 
 /**
@@ -60,6 +67,7 @@ export type CaptureStatus = (typeof CAPTURE_STATUSES)[number];
  * `queued` (waiting to transcribe), `transcribing` (in flight), and `failed`
  * (resting, retryable after backoff). **`transcribed` is NOT active** — the
  * relay is done with the item; the session owns the next steps.
+ * @category Offline & Storage
  */
 export const ACTIVE_CAPTURE_STATUSES = [
   "queued",
@@ -72,6 +80,7 @@ export const ACTIVE_CAPTURE_STATUSES = [
  *
  * Exported so a caller re-reading an item can ask the same question `nextPending()` asked, rather
  * than re-listing the statuses and drifting from them.
+ * @category Offline & Storage
  */
 export function isActiveStatus(status: CaptureStatus): boolean {
   return (ACTIVE_CAPTURE_STATUSES as readonly CaptureStatus[]).includes(status);
@@ -81,6 +90,7 @@ export function isActiveStatus(status: CaptureStatus): boolean {
  * Statuses the relay will not act on again unattended. `transcribed` is here
  * because the relay is done with the item — the session owns extraction
  * and write. `dead` is terminal; `discarded` is a human decision.
+ * @category Offline & Storage
  */
 export const FINISHED_CAPTURE_STATUSES = [
   "transcribed",
@@ -91,6 +101,7 @@ export const FINISHED_CAPTURE_STATUSES = [
 /**
  * In-flight capture. Its own category because it is neither: the relay must not
  * act on it (there is no committed audio yet), and it is plainly not finished.
+ * @category Offline & Storage
  */
 export const RECORDING_CAPTURE_STATUSES = ["recording"] as const;
 
@@ -104,13 +115,14 @@ export const RECORDING_CAPTURE_STATUSES = ["recording"] as const;
  * documents going in are parsed too, so a bug surfaces at the write rather than
  * three reloads later.
  *
- * Pinned field-for-field against {@link captureRxSchema} by `schema.test.ts`.
+ * Pinned field-for-field against `captureRxSchema` by `schema.test.ts`.
  * Anything added here must be added there, and vice versa.
  *
  * **Session-level fields moved to `session-schema.ts` in v6** (extracted,
  * extractedBy, reviewOutcome, writeResult, writtenInstances, idempotencyKey).
  * The item keeps capture and transcription; the session owns everything
  * downstream.
+ * @category Offline & Storage
  */
 export const captureDocumentSchema = z
   .strictObject({
@@ -160,7 +172,7 @@ export const captureDocumentSchema = z
     /**
      * Step output — present once transcription has succeeded.
      *
-     * **Write it with {@link storage.captures.writeTranscript}, never with `patch`.** `transcript` is still
+     * **Write it with {@link @azx/ribo-core!CaptureStore.writeTranscript}, never with `patch`.** `transcript` is still
      * reachable through {@link CapturePatch} — it has to be, because the relay's retry path patches
      * other fields on the same rows — so nothing stops a future caller setting it directly. Doing
      * so would leave `preview` behind on a committed row, where nothing removes it again: `patch`
@@ -205,7 +217,11 @@ export const captureDocumentSchema = z
     }
   });
 
-/** Inferred from {@link captureDocumentSchema} — never hand-declared alongside it. */
+/**
+ * Inferred from {@link captureDocumentSchema} — never hand-declared alongside it.
+ *
+ * @category Offline & Storage
+ */
 export type CaptureDocument = z.infer<typeof captureDocumentSchema>;
 
 /**
@@ -213,16 +229,18 @@ export type CaptureDocument = z.infer<typeof captureDocumentSchema>;
  * rather than read out of the document.
  *
  * Named as a constant because two tests depend on the exact set: the drift
- * guard that pins {@link captureDocumentSchema} against {@link captureRxSchema}
+ * guard that pins {@link captureDocumentSchema} against `captureRxSchema`
  * (these keys must be absent from the RxDB schema — they are never persisted)
  * and the one that pins {@link captureSchema} against the document schema
  * (these keys, and only these, are the difference).
+ * @category Offline & Storage
  */
 export const DERIVED_CAPTURE_KEYS = ["audioBytes", "audioReady"] as const;
 
 /**
  * What a *consumer* sees: the persisted document plus the attachment facts.
  * Same projection as before the split — the recording still carries audio.
+ * @category Offline & Storage
  */
 export const captureSchema = captureDocumentSchema.extend({
   /** Whether the `AUDIO_ATTACHMENT_ID` attachment exists **right now**. */
@@ -232,7 +250,11 @@ export const captureSchema = captureDocumentSchema.extend({
   audioBytes: z.number().int().nonnegative(),
 });
 
-/** Inferred from {@link captureSchema} — never hand-declared alongside it. */
+/**
+ * Inferred from {@link captureSchema} — never hand-declared alongside it.
+ *
+ * @category Offline & Storage
+ */
 export type Capture = z.infer<typeof captureSchema>;
 
 /**
@@ -245,6 +267,7 @@ export type Capture = z.infer<typeof captureSchema>;
  * `preview` is absent because it is written only through
  * `Storage.writePreviewTail` / `Storage.commitPreview` and deleted only in the
  * same `incrementalModify` that writes `transcript`.
+ * @category Offline & Storage
  */
 export type CapturePatch = Partial<
   Omit<

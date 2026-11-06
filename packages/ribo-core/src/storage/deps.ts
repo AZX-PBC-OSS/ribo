@@ -5,6 +5,7 @@ import type { StorageBackend } from "./port.js";
  *
  * Passed rather than re-derived so that a `Storage` opened with a test clock has
  * one clock, not two that can disagree about what "now" is.
+ * @category Offline & Storage
  */
 export interface StoreDeps {
   readonly backend: StorageBackend;

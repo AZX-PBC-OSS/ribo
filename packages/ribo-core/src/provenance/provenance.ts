@@ -54,6 +54,7 @@ import { decodeEntities } from "../capture/decode-entities.js";
  * transcript is a fact we can check ourselves without trusting the model's self-report, and it
  * discriminates: in the same spike run every one of the 77 spans checked was verbatim, so a
  * non-grounded span is genuinely anomalous and worth surfacing to a reviewer.
+ * @category Provenance
  */
 export const extractedSchema = <T extends z.ZodType>(inner: T) =>
   z.strictObject({
@@ -79,6 +80,7 @@ export const extractedSchema = <T extends z.ZodType>(inner: T) =>
  * kinds is what tells an envelope from an impostor. It lives here rather than in the split because
  * `extractedSchema` above is the shape being recognised — the predicate and the constructor have
  * to change together, so they sit together.
+ * @category Provenance
  */
 export const isExtractedSchema = (schema: z.ZodType): boolean => {
   if (!(schema instanceof z.ZodObject)) return false;
@@ -98,6 +100,7 @@ export const isExtractedSchema = (schema: z.ZodType): boolean => {
  * Inferred from {@link extractedSchema} rather than hand-declared, so the schema stays the
  * single source of truth: `Extracted<number>` is `{ value: number | null; confidence: number;
  * sourceSpan: string | null }`.
+ * @category Provenance
  */
 export type Extracted<T> = z.infer<ReturnType<typeof extractedSchema<z.ZodType<T>>>>;
 
@@ -117,6 +120,7 @@ export type Extracted<T> = z.infer<ReturnType<typeof extractedSchema<z.ZodType<T
  *
  * A `null` span is not grounded, and neither is an empty one: every string contains `""`, so
  * accepting it would make the check vacuously true.
+ * @category Provenance
  */
 export const isSpanGrounded = (span: string | null, transcript: string): boolean => {
   if (span === null) return false;
@@ -149,6 +153,7 @@ export const isSpanGrounded = (span: string | null, transcript: string): boolean
  *
  * A `null` or blank span is `"ungrounded"`, never near: every string contains `""`, so a
  * normalized `.includes` would call an empty span a near miss of everything.
+ * @category Provenance
  */
 export type SpanGroundedness = "grounded" | "near-miss" | "ungrounded";
 
@@ -166,6 +171,7 @@ const loosen = (text: string): string =>
     .replace(/\s+/gu, " ")
     .trim();
 
+/** @category Provenance */
 export const spanGroundedness = (span: string | null, transcript: string): SpanGroundedness => {
   if (isSpanGrounded(span, transcript)) return "grounded";
   if (span === null) return "ungrounded";

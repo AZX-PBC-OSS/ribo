@@ -54,6 +54,7 @@ import type { CaptureSession } from "./storage/capture-session.js";
  * `audio/mp4` true, `audio/webm` true — and a recorder asked for `audio/webm;codecs=opus` reports
  * exactly that back. The Ogg entry earns its place on Firefox, not here; it is listed second so a
  * browser without WebM still gets Opus.
+ * @category Captures & Sources
  */
 export const DEFAULT_MIME_TYPE_PREFERENCES: readonly string[] = [
   "audio/webm;codecs=opus",
@@ -63,7 +64,11 @@ export const DEFAULT_MIME_TYPE_PREFERENCES: readonly string[] = [
   "audio/webm",
 ];
 
-/** Why capture failed. Stable strings — a UI may switch on these. */
+/**
+ * Why capture failed. Stable strings — a UI may switch on these.
+ *
+ * @category Captures & Sources
+ */
 export type RecorderErrorCode =
   /** No entry in the preference list is supported by this browser. */
   | "unsupported-mime-type"
@@ -85,6 +90,7 @@ export type RecorderErrorCode =
  *
  * The original `DOMException` is kept as `cause` — the code is for branching, the cause is for
  * diagnosing.
+ * @category Captures & Sources
  */
 export class RecorderError extends Error {
   override readonly name = "RecorderError";
@@ -102,6 +108,7 @@ export class RecorderError extends Error {
  * @throws {RecorderError} `unsupported-mime-type` if none is supported. Deliberately louder than
  * falling back to the browser default: a `Recording` whose `mimeType` does not describe its bytes
  * is worse than a capture that refused to start, because it fails later and somewhere else.
+ * @category Captures & Sources
  */
 export const negotiateMimeType = (
   preferences: readonly string[] = DEFAULT_MIME_TYPE_PREFERENCES,
@@ -135,6 +142,7 @@ export const negotiateMimeType = (
  * same stream, so pause cannot stop the tracks, and the browser's recording
  * indicator stays lit. That is consumer-visible and documented rather than
  * discovered — see the note on {@link Recorder.pause}.
+ * @category Captures & Sources
  */
 export type RecorderPhase = "idle" | "recording" | "paused" | "stopping" | "failed";
 
@@ -143,6 +151,7 @@ export type RecorderPhase = "idle" | "recording" | "paused" | "stopping" | "fail
  *
  * Phase 5 draws an elapsed-time readout and a level meter; those are the two values that change
  * many times a second, so they are pushed rather than polled.
+ * @category Captures & Sources
  */
 export interface RecorderState {
   readonly phase: RecorderPhase;
@@ -163,10 +172,18 @@ export interface RecorderState {
   readonly error: RecorderError | undefined;
 }
 
-/** Drops a {@link Recorder.subscribe} listener. Safe to call more than once. */
+/**
+ * Drops a {@link Recorder.subscribe} listener. Safe to call more than once.
+ *
+ * @category Captures & Sources
+ */
 export type Unsubscribe = () => void;
 
-/** The metadata record plus the bytes it describes. */
+/**
+ * The metadata record plus the bytes it describes.
+ *
+ * @category Captures & Sources
+ */
 export interface RecorderCapture<C = EmptyContext> {
   readonly recording: Omit<Recording, "ctx"> & { ctx: C };
   readonly audio: Blob;
@@ -183,9 +200,14 @@ export interface RecorderCapture<C = EmptyContext> {
   readonly itemId?: string;
 }
 
-/** The honest shape of "this host has no context to attach" — an empty object, not `undefined`. */
+/**
+ * The honest shape of "this host has no context to attach" — an empty object, not `undefined`.
+ *
+ * @category Captures & Sources
+ */
 export type EmptyContext = Record<string, never>;
 
+/** @category Captures & Sources */
 export interface RecorderOptions<C = EmptyContext> {
   /**
    * Host association copied onto every `Recording` this recorder produces (see `recording.ts`).
@@ -246,13 +268,21 @@ export interface RecorderOptions<C = EmptyContext> {
   readonly createSampleTap?: (opts: SampleTapOptions) => Promise<SampleTapTeardown>;
 }
 
-/** Options passed to {@link RecorderOptions.createSampleTap}. */
+/**
+ * Options passed to {@link RecorderOptions.createSampleTap}.
+ *
+ * @category Captures & Sources
+ */
 export interface SampleTapOptions {
   readonly stream: MediaStream;
   readonly onSamples: (frame: Float32Array) => void;
 }
 
-/** Teardown function returned by {@link RecorderOptions.createSampleTap}. */
+/**
+ * Teardown function returned by {@link RecorderOptions.createSampleTap}.
+ *
+ * @category Captures & Sources
+ */
 export type SampleTapTeardown = () => void;
 
 /** Everything that exists only for the duration of one capture. */
@@ -316,6 +346,7 @@ const GET_USER_MEDIA_MESSAGES: Record<GetUserMediaErrorCode, string> = {
  *
  * Reusable: after `stop()` resolves the instance is idle and can `start()` again, producing a new
  * id each time.
+ * @category Captures & Sources
  */
 export class Recorder<C = EmptyContext> {
   readonly #ctx: C;

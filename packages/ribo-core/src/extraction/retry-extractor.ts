@@ -37,6 +37,7 @@ import { retryAsync } from "../async/retry-async.js";
  * ENTRIES that each resolve; that is a different axis. Closing the gap needs failed
  * attempts to carry usage, i.e. an error that transports it, which is a change to the
  * seam rather than something a wrapper can paper over.
+ * @category Arbitration & Fallback
  */
 
 export interface RetryExtractorOptions extends BackoffOptions {
@@ -67,6 +68,7 @@ export interface RetryExtractorOptions extends BackoffOptions {
  * returns `true` for it. See the usage-undercount note in the file header: the
  * accepted attempt's result is returned by identity, and its `usage.calls` is what
  * the result reports.
+ * @category Arbitration & Fallback
  */
 export function retryExtractor<F>(
   extractor: Extractor<F>,

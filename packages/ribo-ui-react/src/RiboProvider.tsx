@@ -19,6 +19,7 @@ import { RiboContext, type RiboInstances } from "./context.js";
  * the object's identity, and a provider that memoized it would silently keep a
  * stale instance after a host swapped one out. Hold it in a stable place (a module
  * singleton, or `useMemo` in the host) rather than building it inline in render.
+ * @category React Hooks
  */
 export function RiboProvider({
   value,

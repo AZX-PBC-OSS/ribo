@@ -29,6 +29,7 @@ import type { ZodObject, ZodType } from "zod";
  * discriminator with no bump, and `transcript` gained an `annotations` field
  * with one. Neither would move this string. Interior changes still need the
  * judgement a rung's `reason` is there to record.
+ * @category Offline & Storage
  */
 export function shapeSignature(schema: ZodObject): string {
   // `ZodObject`'s shape is loosely typed without a type parameter, and naming one

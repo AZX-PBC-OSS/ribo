@@ -44,7 +44,11 @@ import { phaseBuilder } from "./phase.js";
  */
 const WHOLE_DOCUMENT = null;
 
-/** Options for {@link extractorPhase}. */
+/**
+ * Options for {@link extractorPhase}.
+ *
+ * @category Extraction
+ */
 export interface ExtractorPhaseOptions {
   /**
    * Ids of the phases this one must follow. The lift declares none of its
@@ -54,6 +58,7 @@ export interface ExtractorPhaseOptions {
   readonly requires?: readonly string[];
 }
 
+/** @category Extraction */
 export function extractorPhase<V extends Record<string, unknown>, P = NoProvenance>(
   id: string,
   extractor: Extractor<Enveloped<V, P>>,

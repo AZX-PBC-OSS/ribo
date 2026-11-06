@@ -89,5 +89,6 @@ const abstainedAt = (field: z.ZodType, path: string): unknown => {
  *
  * The result is guaranteed to parse against the schema it was derived from —
  * that guarantee is the helper's whole point and what its tests pin.
+ * @category Provenance
  */
 export const abstainedValue = (schema: z.ZodType): unknown => abstainedAt(schema, "");

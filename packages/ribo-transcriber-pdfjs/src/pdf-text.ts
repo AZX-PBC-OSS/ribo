@@ -23,6 +23,7 @@ import type { PageRead, PdfDocumentProxy, PdfjsModule } from "./config.js";
  *
  * A downstream prompt is written against this exact form. Do not change it
  * without updating every consumer.
+ * @category Transcription
  */
 export const PAGE_MARKER = "\n===== PAGE ";
 
@@ -60,6 +61,7 @@ function loadPdfjs(workerSrc: string, loadFn: () => Promise<PdfjsModule>): Promi
  * load to re-invoke the loader.
  *
  * @internal Not part of the stable public API.
+ * @category Transcription
  */
 export function resetPdfjsCache(): void {
   pdfjsPromise = undefined;
@@ -172,6 +174,7 @@ function withAbort<T>(
  * `QueuePanel` reads `durationMs` today. It is required rather than optional
  * for the same reason — an absent count and a count of zero must stay
  * distinguishable.
+ * @category Transcription
  */
 export interface OpenDocumentHandle {
   /** The number of pages in the document, from `doc.numPages`. Free once open. */
@@ -180,6 +183,7 @@ export interface OpenDocumentHandle {
   readonly readText: () => Promise<string>;
 }
 
+/** @category Transcription */
 export interface OpenDocumentOptions {
   /** The pdf.js worker URL — injected by the consumer (AGENTS.md §5.2). */
   readonly workerSrc: string;
@@ -206,7 +210,7 @@ export interface OpenDocumentOptions {
    * at two points: the document open (an abort destroys the pdf.js loading
    * task) and the top of every page in the sweep (work already loaded stops at
    * the next page boundary). A cancellation rejects with `TerminalError`;
-   * see {@link cancellationError}.
+   * see `cancellationError`.
    */
   readonly signal?: AbortSignal;
 }
@@ -325,6 +329,7 @@ export async function openDocument(
 // Full text read with no-text-layer guard
 // ---------------------------------------------------------------------------
 
+/** @category Transcription */
 export interface ReadDocumentTextOptions extends OpenDocumentOptions {
   /** Minimum non-whitespace characters for the no-text-layer guard. */
   readonly noTextLayerThreshold: number;

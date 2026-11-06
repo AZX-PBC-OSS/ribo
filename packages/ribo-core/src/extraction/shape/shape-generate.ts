@@ -26,7 +26,11 @@ import { isExtractedSchema } from "../../provenance/provenance.js";
 /** `shape[key]` for a key that came from `Object.keys(shape)` — narrowed once. */
 const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
 
-/** Options for {@link generateShapedValue}. */
+/**
+ * Options for {@link generateShapedValue}.
+ *
+ * @category Extraction
+ */
 export interface GenerateOptions {
   /**
    * The number emitted at every number leaf, one property run per pool member.
@@ -46,6 +50,7 @@ export interface GenerateOptions {
  * Generate a value the schema admits, walking its shape. Arrays produce two
  * elements so the property exercises element alignment, and the element index
  * varies the boolean leaves so the two elements are not the same value.
+ * @category Extraction
  */
 export function generateShapedValue(
   schema: z.ZodType,

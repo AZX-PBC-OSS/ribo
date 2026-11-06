@@ -18,6 +18,7 @@ import type { CaptureStorageScope } from "../storage/plugin-storage.js";
  * A closed set on purpose: a UI has to branch on this, and free-text reasons make that
  * impossible. The human-readable part lives in `detail`, which is required precisely so a
  * reason code never has to carry nuance it cannot express.
+ * @category Transcription
  */
 export const TRANSCRIBER_UNAVAILABLE_REASONS = [
   /** The device or browser cannot run this engine at all — no WebGPU, ORT will not init. */
@@ -34,6 +35,7 @@ export const TRANSCRIBER_UNAVAILABLE_REASONS = [
   "unknown",
 ] as const;
 
+/** @category Transcription */
 export type TranscriberUnavailableReason = (typeof TRANSCRIBER_UNAVAILABLE_REASONS)[number];
 
 /**
@@ -45,6 +47,7 @@ export type TranscriberUnavailableReason = (typeof TRANSCRIBER_UNAVAILABLE_REASO
  *
  * This drives two things: how long `firstCapable` caches an `unavailable` verdict, and whether
  * "nothing is capable" is worth retrying at all.
+ * @category Transcription
  */
 export const PERMANENT_TRANSCRIBER_UNAVAILABLE_REASONS = [
   "unsupported-platform",
@@ -62,6 +65,7 @@ export const PERMANENT_TRANSCRIBER_UNAVAILABLE_REASONS = [
  * Availability is dynamic in **both** directions: on-device becomes `ready` after a download
  * finishes, and the managed path becomes `unavailable` the moment the uplink drops. Nothing may
  * treat this as a value read once at init.
+ * @category Transcription
  */
 export type TranscriberCapability =
   | {
@@ -95,7 +99,11 @@ export type TranscriberCapability =
       readonly detail: string;
     };
 
-/** Is this a verdict that will not change for the life of the page? */
+/**
+ * Is this a verdict that will not change for the life of the page?
+ *
+ * @category Transcription
+ */
 export function isPermanentlyUnavailable(capability: TranscriberCapability): boolean {
   return (
     capability.status === "unavailable" &&
@@ -111,6 +119,7 @@ export function isPermanentlyUnavailable(capability: TranscriberCapability): boo
  * An implementation that cannot honour a member must not pretend otherwise: a signal that is
  * accepted and not forwarded looks like cancellation and is not. Each transport states what it
  * does with the signal in its own doc comment.
+ * @category Transcription
  */
 export interface TranscribeOptions {
   /**
@@ -183,6 +192,7 @@ export interface TranscribeOptions {
  *   response is to try the next engine, not to retry this one. The error is
  *   terminal for the queue (so it does not burn the retry budget) but not for
  *   the item (a composition layer routes to the next engine).
+ * @category Transcription
  */
 export interface Transcriber<S extends CapturePayload = Recording> {
   /**
@@ -220,6 +230,7 @@ export interface Transcriber<S extends CapturePayload = Recording> {
   transcribe: (item: S, bytes: Blob, options?: TranscribeOptions) => Promise<Transcript>;
 }
 
+/** @category Transcription */
 export interface TranscriberUnavailableInit {
   /** The engine that cannot run — `Transcriber.engine`. */
   engine: string;
@@ -244,6 +255,7 @@ export interface TranscriberUnavailableInit {
  *
  * The exception is a roster on which *every* engine is permanently unavailable; only
  * `firstCapable` can know that, and it throws a `TerminalError` instead.
+ * @category Transcription
  */
 export class TranscriberUnavailableError extends Error {
   override readonly name = "TranscriberUnavailableError";

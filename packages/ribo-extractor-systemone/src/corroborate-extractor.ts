@@ -52,6 +52,7 @@ import type { CorroborationCensus } from "./corroboration-census.js";
  * opposite classification produces the opposite of the intended behaviour plus
  * a relay retry loop. Under the shipped default arbiter this error makes a
  * ladder fall through to the next rung, which is the entire point.
+ * @category Arbitration & Fallback
  */
 export class CorroborationRejectedError extends TerminalError {
   override readonly name = "CorroborationRejectedError";
@@ -77,6 +78,7 @@ export class CorroborationRejectedError extends TerminalError {
  * sibling combinator rather than an option on `validateExtractor`), so by the
  * time the policy runs, every verdict is already in hand. It owns the
  * judgement; the combinator owns the asking and the throw.
+ * @category Arbitration & Fallback
  */
 export type CorroborationPolicy = (census: CorroborationCensus) => ValidationVerdict;
 
@@ -92,6 +94,7 @@ export type CorroborationPolicy = (census: CorroborationCensus) => ValidationVer
  *
  * The reason names the uncorroborated count and the ratio, so a log line
  * identifies the result without the reader re-deriving it.
+ * @category Arbitration & Fallback
  */
 export const rejectUncorroboratedCommitments = (ratio: number): CorroborationPolicy => {
   return (census) => {
@@ -110,7 +113,11 @@ export const rejectUncorroboratedCommitments = (ratio: number): CorroborationPol
   };
 };
 
-/** What a caller supplies to {@link corroborateExtractor}. */
+/**
+ * What a caller supplies to {@link corroborateExtractor}.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface CorroborateExtractorOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /**
    * The field knowledge the inner extractor was built against. Only
@@ -161,6 +168,7 @@ export interface CorroborateExtractorOptions<V extends Record<string, unknown>, 
  * ARE work of its own, and ADR 0021 records whether it should report progress
  * units as an open question it does not settle. None are emitted until that
  * question is settled with a design, not by accident.
+ * @category Arbitration & Fallback
  */
 export function corroborateExtractor<F, V extends Record<string, unknown>, P = NoProvenance>(
   extractor: Extractor<F>,

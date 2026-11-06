@@ -24,7 +24,11 @@
  * costs one wasted inference pass, a missed one costs content.
  */
 
-/** A half-open `[start, end)` range, in samples. */
+/**
+ * A half-open `[start, end)` range, in samples.
+ *
+ * @category Transcription
+ */
 export interface SampleRange {
   readonly start: number;
   readonly end: number;
@@ -44,6 +48,7 @@ interface FrameRange {
  * counts as `(samples - offset) / step`. Every threshold, timestamp and cut position below is
  * expressed in frames and converted through these numbers, so a wrong `step` silently rescales the
  * entire algorithm by a constant factor while every test that shares the bad constant still passes.
+ * @category Transcription
  */
 export interface FrameGeometry {
   readonly step: number;
@@ -51,7 +56,11 @@ export interface FrameGeometry {
   readonly sampleRate: number;
 }
 
-/** Tuning for {@link planVadChunks}. Defaults are the values this module was reasoned about with. */
+/**
+ * Tuning for {@link planVadChunks}. Defaults are the values this module was reasoned about with.
+ *
+ * @category Transcription
+ */
 export interface SegmentationOptions {
   /** Probability at which a frame ENTERS speech. */
   readonly onset?: number;
@@ -76,7 +85,11 @@ const DEFAULTS = {
   maxChunkSeconds: 30,
 } as const;
 
-/** Whisper's receptive field in seconds — architectural, not a tunable. */
+/**
+ * Whisper's receptive field in seconds — architectural, not a tunable.
+ *
+ * @category Transcription
+ */
 export const WHISPER_WINDOW_SECONDS = 30;
 
 /**
@@ -89,6 +102,7 @@ export const WHISPER_WINDOW_SECONDS = 30;
  * So `P(speech)` is one minus the silence probability, equivalently the sum of the six non-empty
  * classes. A hard `argmax !== 0` decision would be cheaper and is **not** usable: the hysteresis,
  * the cross-window averaging and the minimum-probability cut all need a continuous value.
+ * @category Transcription
  */
 export function speechProbabilities(
   logits: Float32Array,
@@ -117,7 +131,11 @@ export function speechProbabilities(
   return out;
 }
 
-/** Frame index to sample index, inverting the extractor's `frames = (samples - offset) / step`. */
+/**
+ * Frame index to sample index, inverting the extractor's `frames = (samples - offset) / step`.
+ *
+ * @category Transcription
+ */
 export function frameToSample(frame: number, geometry: FrameGeometry): number {
   return frame * geometry.step + geometry.offset;
 }
@@ -134,6 +152,7 @@ function msToFrames(ms: number, geometry: FrameGeometry): number {
  * because a probability hovering around a single boundary — which is what the model produces through
  * a quiet syllable — would otherwise shred one utterance into dozens of fragments, each of which the
  * min-duration filter then discards. The gap between the thresholds is the whole mechanism.
+ * @category Transcription
  */
 export function binarizeSpeech(pSpeech: Float32Array, onset: number, leave: number): SampleRange[] {
   const regions: FrameRange[] = [];
@@ -161,6 +180,7 @@ export function binarizeSpeech(pSpeech: Float32Array, onset: number, leave: numb
  * min-speech filter; dropping first destroys both and leaves the fill nothing to join. In a module
  * whose purpose is to stop speech being silently deleted, that ordering is the difference between
  * working and not.
+ * @category Transcription
  */
 export function fillShortSilences(
   regions: readonly SampleRange[],
@@ -178,7 +198,11 @@ export function fillShortSilences(
   return filled;
 }
 
-/** Drop regions shorter than `minSpeech` — noise, not an utterance. Runs AFTER the silence fill. */
+/**
+ * Drop regions shorter than `minSpeech` — noise, not an utterance. Runs AFTER the silence fill.
+ *
+ * @category Transcription
+ */
 export function dropShortSpeech(regions: readonly SampleRange[], minSpeech: number): SampleRange[] {
   return regions.filter((region) => region.end - region.start >= minSpeech);
 }
@@ -190,6 +214,7 @@ export function dropShortSpeech(regions: readonly SampleRange[], minSpeech: numb
  * deterministic shared boundary. Clamping each side independently to its neighbour does not actually
  * guarantee non-overlap, and overlapping chunks would reintroduce duplicated audio, which is the
  * thing this whole approach exists to avoid.
+ * @category Transcription
  */
 export function padRegions(
   regions: readonly SampleRange[],
@@ -212,7 +237,11 @@ export function padRegions(
   return padded;
 }
 
-/** Greedily merge consecutive regions while the combined span stays within `maxSpan`. */
+/**
+ * Greedily merge consecutive regions while the combined span stays within `maxSpan`.
+ *
+ * @category Transcription
+ */
 export function mergeRegions(regions: readonly SampleRange[], maxSpan: number): SampleRange[] {
   const merged: FrameRange[] = [];
   for (const region of regions) {
@@ -236,6 +265,7 @@ export function mergeRegions(regions: readonly SampleRange[], maxSpan: number): 
  *
  * A region this long is continuous speech, so unlike every other chunk boundary this one necessarily
  * falls *inside* speech. Cutting at the local probability minimum is the least-bad place for it.
+ * @category Transcription
  */
 export function cutLongRegions(
   regions: readonly SampleRange[],
@@ -276,6 +306,7 @@ export function cutLongRegions(
  * not treat it as one: on genuinely silent audio the right answer is an empty transcript, whereas
  * running fixed windows of padded silence through a decoder primed with domain jargon is a way to
  * manufacture content out of nothing.
+ * @category Transcription
  */
 export function planVadChunks(
   pSpeech: Float32Array,
@@ -323,6 +354,7 @@ export function planVadChunks(
  * the fallback knowingly trades some duplicated text for never losing speech. That is the correct
  * direction: a reader and the downstream extraction both absorb a repeated phrase harmlessly, and
  * neither can recover a deleted one.
+ * @category Transcription
  */
 export function planFallbackChunks(totalSamples: number, sampleRate: number): SampleRange[] {
   if (totalSamples <= 0) return [];
@@ -347,6 +379,7 @@ export function planFallbackChunks(totalSamples: number, sampleRate: number): Sa
  * When segmentation returns no chunks, the caller cannot tell "this recording is silent" from "the
  * voice-activity model failed on audible speech" — and the two want opposite responses. Energy
  * distinguishes them without loading anything.
+ * @category Transcription
  */
 export function rootMeanSquare(samples: Float32Array): number {
   if (samples.length === 0) return 0;

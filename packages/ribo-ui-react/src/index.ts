@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-ui-react
+ *
  * @file The public surface of `@azx/ribo-ui-react`.
  *
  * Re-exports only, like `@azx/ribo-core`'s barrel. This package is a **headless

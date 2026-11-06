@@ -21,7 +21,11 @@ import { createRxdbBackend as wrap, type RxdbStorageBackend } from "./backend.js
 
 export { createRxdbBackend, type RxdbStorageBackend } from "./backend.js";
 
-/** Options for {@link openRxdbBackend}. */
+/**
+ * Options for {@link openRxdbBackend}.
+ *
+ * @category Offline & Storage
+ */
 export interface OpenRxdbBackendOptions {
   /** Database name. Defaults to `ribo-storage` — the name already on disk. */
   name?: string;

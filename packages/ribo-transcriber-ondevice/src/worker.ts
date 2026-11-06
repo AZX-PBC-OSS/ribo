@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-transcriber-ondevice/worker
+ *
  * @file Worker entry for the `@azx/ribo-transcriber-ondevice/worker` subpath.
  *
  * The inference half of the package: it runs Whisper via `@huggingface/transformers` inside a Web
@@ -778,7 +780,7 @@ export function clearLiveSessions(): void {
  * `handleMessage` for `liveOpen` dynamic-imports `@huggingface/transformers` via
  * `createSileroDetector`, which pulls `onnxruntime-node` (unbuilt native addon) in node.
  * Tests that need to exercise `feedLiveFrame`'s error handling inject a session with a
- * `RegionVad` backed by a fake {@link ProbabilityDetector} and a fake `transcribe`
+ * `RegionVad` backed by a fake `ProbabilityDetector` and a fake `transcribe`
  * function — no model loads, no browser.
  */
 export function injectLiveSession(sessionId: string, session: LiveWorkerSession): void {

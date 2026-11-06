@@ -22,6 +22,7 @@ import type { Phase } from "./phase.js";
  * clearly wrong (its merge writes `fields[key] = []` for stated-none collection groups),
  * and such a rule would reject every `phasedExtractor` fixture whose phases declare no
  * requirements — ADR 0008, and the test that pins it.
+ * @category Extraction
  */
 export function validatePhases<V extends Record<string, unknown>, P = NoProvenance>(
   phases: readonly Phase<V, P>[],

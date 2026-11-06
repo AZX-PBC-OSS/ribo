@@ -4,7 +4,7 @@ import { captureFields } from "./capture-fields.js";
 
 /**
  * The metadata record for one captured **audio** dictation — the audio branch
- * of the {@link CapturePayload} union.
+ * of the {@link @azx/ribo-core!CapturePayload} union.
  *
  * **The audio bytes are not here.** A `Recording` is metadata only; the `Blob` lives in the
  * capture queue (Phase 2), keyed by `id`, and is handed to a {@link Transcriber} alongside the
@@ -42,11 +42,12 @@ import { captureFields } from "./capture-fields.js";
  * inferred back off it — there is no hand-written `Recording` interface to drift. `Recording`
  * with no type argument defaults to `ctx: unknown`, which is the right shape for core-internal
  * code that carries the slot through without ever reading it.
+ * @category Captures & Sources
  */
 export const recordingSchema = <C extends z.ZodType>(ctx: C) =>
   z.strictObject({
     ...captureFields(ctx),
-    /** Discriminant: this is the audio branch of {@link CapturePayload}. */
+    /** Discriminant: this is the audio branch of {@link @azx/ribo-core!CapturePayload}. */
     kind: z.literal("audio").default("audio"),
     /** Length of the audio in milliseconds. Zero is legal: a recording can be empty. */
     durationMs: z.number().int().nonnegative(),
@@ -57,10 +58,15 @@ export const recordingSchema = <C extends z.ZodType>(ctx: C) =>
  *
  * For core-internal code and tests that must parse a record without knowing the host's context
  * shape. Still strict about every field it does own, and still requires the `ctx` key to exist.
+ * @category Captures & Sources
  */
 export const baseRecordingSchema = recordingSchema(z.unknown());
 
-/** Inferred from {@link recordingSchema} — never hand-declared alongside it. */
+/**
+ * Inferred from {@link recordingSchema} — never hand-declared alongside it.
+ *
+ * @category Captures & Sources
+ */
 export type Recording<C extends z.ZodType = z.ZodUnknown> = z.infer<
   ReturnType<typeof recordingSchema<C>>
 >;

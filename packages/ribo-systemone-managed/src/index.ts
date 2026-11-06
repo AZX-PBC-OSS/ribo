@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-systemone-managed
+ *
  * @file The public surface of `@azx/ribo-systemone-managed`.
  *
  * One client for the System One API — hosted TypeSafe ("Jev"), a self-hosted

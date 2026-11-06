@@ -92,6 +92,7 @@ import type { Extracted } from "../provenance/provenance.js";
  *   `terminalFallsThrough` gives up on transient: continuing would burn the
  *   next rung against the same downed transport, and retrying the whole
  *   extraction later, on backoff, is the right answer.
+ * @category Extraction
  */
 export class ConsensusFailedError extends Error {
   override readonly name = "ConsensusFailedError";
@@ -128,10 +129,15 @@ export class ConsensusFailedError extends Error {
  * adding one is a seam change deliberately not made. Like every observer it
  * must not change behaviour: a throwing handler is swallowed and the run
  * continues with that leaf still contested.
+ * @category Extraction
  */
 export type OnContested = (path: LeafPath, samples: readonly Extracted<unknown>[]) => void;
 
-/** What a caller supplies to {@link consensusExtractor}. */
+/**
+ * What a caller supplies to {@link consensusExtractor}.
+ *
+ * @category Extraction
+ */
 export interface ConsensusExtractorOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /**
    * The field knowledge the candidates were built against. Read ONCE, at
@@ -190,6 +196,7 @@ export interface ConsensusExtractorOptions<V extends Record<string, unknown>, P 
  * below quorum the run throws {@link ConsensusFailedError} — transient, so a
  * ladder gives up rather than trying the next rung on the same downed
  * transport.
+ * @category Extraction
  */
 export function consensusExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   candidates: readonly Extractor<Enveloped<V, P>>[],

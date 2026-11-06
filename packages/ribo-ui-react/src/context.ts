@@ -24,6 +24,7 @@ import type { CaptureCoordinator } from "./capture-coordinator.js";
  * so a narrower recorder is assignable here covariantly. The cost is that
  * `stop()` resolved through context loses the host's `ctx` type; a host that needs
  * it passes its recorder to the hook explicitly. See the plan's open questions.
+ * @category React Hooks
  */
 export type AnyRecorder = Recorder<Record<string, unknown>>;
 
@@ -32,6 +33,7 @@ export type AnyRecorder = Recorder<Record<string, unknown>>;
  *
  * Every field optional: a host using only capture must not be forced to open a
  * database. Each hook resolves the one it needs and throws if it is absent.
+ * @category React Hooks
  */
 export interface RiboInstances {
   readonly recorder?: AnyRecorder;
@@ -40,7 +42,7 @@ export interface RiboInstances {
   readonly captureCoordinator?: CaptureCoordinator;
   /**
    * Optional live transcription engine. When supplied and ready, recording
-   * opens a {@link LiveSession} whose `segments$` carries tail/commit
+   * opens a {@link @azx/ribo-core!LiveSession} whose `segments$` carries tail/commit
    * distinctions to the storage row — tails via `writePreviewTail`
    * (provisional, replaced wholesale), commits via `commitPreview`
    * (permanent, appended). The host owns the instance — the provider never
@@ -51,5 +53,9 @@ export interface RiboInstances {
   readonly liveTranscriber?: LiveTranscriber;
 }
 
-/** Empty rather than `undefined`, so "no provider" and "empty provider" fail identically. */
+/**
+ * Empty rather than `undefined`, so "no provider" and "empty provider" fail identically.
+ *
+ * @category React Hooks
+ */
 export const RiboContext = createContext<RiboInstances>({});

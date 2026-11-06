@@ -51,16 +51,32 @@ import { STREAMING_VAD_MODEL_ID } from "./config.js";
 // (`transformers.js-examples/moonshine-web`). They are adopted, not derived — do not tune them
 // without a measured reason, and read the design's frame-loop section before changing any.
 
-/** Silero's frame size — 512 samples at 16 kHz = 32 ms per frame. */
+/**
+ * Silero's frame size — 512 samples at 16 kHz = 32 ms per frame.
+ *
+ * @category Transcription
+ */
 export const VAD_FRAME_SIZE = 512;
 
-/** The sample rate Silero expects. Matches Whisper's (`decode.ts`). */
+/**
+ * The sample rate Silero expects. Matches Whisper's (`decode.ts`).
+ *
+ * @category Transcription
+ */
 export const VAD_SAMPLE_RATE = 16_000;
 
-/** Probability at which a frame ENTERS speech. */
+/**
+ * Probability at which a frame ENTERS speech.
+ *
+ * @category Transcription
+ */
 export const VAD_ENTER_THRESHOLD = 0.3;
 
-/** Probability below which a frame LEAVES speech. Lower than the enter threshold — that gap is the hysteresis. */
+/**
+ * Probability below which a frame LEAVES speech. Lower than the enter threshold — that gap is the hysteresis.
+ *
+ * @category Transcription
+ */
 export const VAD_EXIT_THRESHOLD = 0.1;
 
 /**
@@ -72,6 +88,7 @@ export const VAD_EXIT_THRESHOLD = 0.1;
  * _flickering_ is a UI question no measurement here answers. This value is a placeholder until
  * that measurement exists, and is injectable through the constructor so tests can pin their own
  * threshold.
+ * @category Transcription
  */
 export const VAD_REFRESH_SILENCE_MS = 400;
 
@@ -95,6 +112,7 @@ export const VAD_REFRESH_SILENCE_MS = 400;
  * speaking rather than ~0.4 s. Longer regions also carry more context into each call, so quality
  * improves twice over — but a threshold long enough to catch a whole paragraph would make the preview
  * useless as feedback, which is the other end of this trade.
+ * @category Transcription
  */
 export const VAD_COMMIT_SILENCE_MS = 800;
 
@@ -106,6 +124,7 @@ export const VAD_COMMIT_SILENCE_MS = 800;
  * for longer before it settles. 15 s and 30 s were both measured on the TTS fixture; neither has
  * been measured on the stuttering, pause-heavy delivery that motivated revision 7. This value is
  * a placeholder until that measurement exists.
+ * @category Transcription
  */
 export const VAD_REGION_CAP_SECONDS = 30;
 
@@ -134,6 +153,7 @@ export const VAD_REGION_CAP_SECONDS = 30;
  * **15 s is a placeholder pending measurement on real speech.** The design lists the region cap
  * and refresh cadence as open questions; this belongs with them. Injectable through the
  * constructor so tests pin their own.
+ * @category Transcription
  */
 export const VAD_MIN_REGION_SECONDS = 15;
 
@@ -144,6 +164,7 @@ export const VAD_MIN_REGION_SECONDS = 15;
  * now it is a guard that suppresses refreshes and pause-commits on regions containing no speech
  * at all, while never removing audio from the region buffer. A region that never accumulates
  * 250 ms of speech simply waits — the cap will eventually force a commit regardless.
+ * @category Transcription
  */
 export const VAD_MIN_SPEECH_MS = 250;
 
@@ -155,6 +176,7 @@ export const VAD_MIN_SPEECH_MS = 250;
  * batch path pads every VAD-cut region; the live path must do the same for the same reason, or
  * the two paths would clip different onsets and produce different text from the same audio.
  * Injectable through the constructor so tests pin their own.
+ * @category Transcription
  */
 export const VAD_PAD_MS = 200;
 
@@ -176,6 +198,7 @@ const MIN_SPEECH_FRAMES = Math.ceil(VAD_MIN_SPEECH_MS / FRAME_DURATION_MS);
  * before the detector runs, so the pause logic sees a fresh region and cannot fire. A pause-driven
  * commit requires the region to have reached the minimum duration; below that, the pause produces
  * a refresh (fired earlier at the refresh threshold) and the region keeps growing.
+ * @category Transcription
  */
 export interface RegionFrameResult {
   /** A refresh is due: a pause occurred. Re-transcribe the region; the buffer has NOT advanced. */
@@ -217,6 +240,7 @@ export interface RegionFrameResult {
  * The state tensor is an opaque `Float32Array` at this seam — its shape and semantics are the
  * model's concern. The frame loop's only responsibility is to **carry it forward**: feed the
  * state returned by call N into call N+1, never the initial zero state twice.
+ * @category Transcription
  */
 export interface ProbabilityDetector {
   /** The initial recurrent state — zero-filled, shaped by the model. The frame loop starts here. */
@@ -266,6 +290,7 @@ function concatenateFrames(frames: readonly Float32Array[]): Float32Array {
  * `drain` returns and clears the current region — the close-time safety net. In the new
  * model this is not "rescuing discarded audio" (nothing is discarded); it is simply
  * returning the region that never saw a commit boundary.
+ * @category Transcription
  */
 export class RegionVad {
   readonly #detector: ProbabilityDetector;

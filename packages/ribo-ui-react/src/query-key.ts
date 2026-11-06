@@ -18,7 +18,11 @@
  * omitted one agree.
  */
 
-/** A canonical string for a query object — equal queries produce equal strings. */
+/**
+ * A canonical string for a query object — equal queries produce equal strings.
+ *
+ * @category React Hooks
+ */
 export function queryKey(query: object): string {
   const entries = Object.entries(query)
     .filter(([, value]) => value !== undefined)
@@ -26,7 +30,11 @@ export function queryKey(query: object): string {
   return JSON.stringify(entries);
 }
 
-/** Rebuild the query a {@link queryKey} was made from. */
+/**
+ * Rebuild the query a {@link queryKey} was made from.
+ *
+ * @category React Hooks
+ */
 export function queryFromKey<T>(key: string): T {
   return Object.fromEntries(JSON.parse(key) as [string, unknown][]) as T;
 }

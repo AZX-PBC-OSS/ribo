@@ -29,6 +29,7 @@ import type { LeafPath } from "@azx/ribo-core";
  *   - **The enum is read off the envelope's `value` member** (after stripping its nullability),
  *     recognised by core's own `isExtractedSchema` so this walk cannot drift from what an
  *     extraction leaf actually is.
+ * @category Arbitration & Fallback
  */
 export const enumMembersAt = (schema: z.ZodType, path: LeafPath): readonly string[] | null => {
   let current = schema;

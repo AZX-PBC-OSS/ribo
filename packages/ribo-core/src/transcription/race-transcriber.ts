@@ -46,6 +46,7 @@ import {
  * The capability cache is Task 1's extracted module — the third copy of the
  * shape would have been one too many (`capability-cache.ts`'s header records
  * the migration's state).
+ * @category Arbitration & Fallback
  */
 
 export interface RaceTranscriberOptions {
@@ -99,6 +100,7 @@ export interface RaceTranscriberOptions {
  * Returns a {@link CompositeTranscriber} so it is drop-in interchangeable with
  * `firstCapable` and `hedged`: a host's download screen renders from
  * `capabilities()`.
+ * @category Arbitration & Fallback
  */
 export function raceTranscriber(
   transcribers: readonly Transcriber[],

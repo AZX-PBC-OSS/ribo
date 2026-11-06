@@ -36,10 +36,15 @@ import {
  * It is a backstop, not the mechanism. The events that actually matter — a finished model
  * download, an `online` event — are expected to call {@link CompositeTranscriber.invalidate}
  * rather than wait this out.
+ * @category Arbitration & Fallback
  */
 export const DEFAULT_CAPABILITY_TTL_MS = 30_000;
 
-/** One engine's answer, tagged with whose answer it is. */
+/**
+ * One engine's answer, tagged with whose answer it is.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface EngineCapability {
   readonly engine: string;
   readonly capability: TranscriberCapability;
@@ -52,6 +57,7 @@ export interface EngineCapability {
  * still quiet on the happy path — and loud on exactly the failure that is otherwise invisible:
  * every recording silently going to cloud STT while everyone believes the fleet is
  * offline-capable.
+ * @category Arbitration & Fallback
  */
 export interface TranscriberFallback {
   /** The recording being transcribed when the fallback happened. */
@@ -62,6 +68,7 @@ export interface TranscriberFallback {
   readonly selected: string;
 }
 
+/** @category Arbitration & Fallback */
 export interface FirstCapableOptions {
   /** `Transcriber.engine` for the composite itself. Defaults to `"first-capable"`. */
   engine?: string;
@@ -73,7 +80,11 @@ export interface FirstCapableOptions {
   onFallback?: (event: TranscriberFallback) => void;
 }
 
-/** What `firstCapable` returns: a `Transcriber` plus the roster it is made of. */
+/**
+ * What `firstCapable` returns: a `Transcriber` plus the roster it is made of.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface CompositeTranscriber extends Transcriber {
   /**
    * Every delegate's current capability, in preference order — the roster a download screen
@@ -112,6 +123,7 @@ interface CacheEntry {
  * 5. **Any other error propagates untouched.** That is an attempt failure and the queue already
  *    owns it. Falling through on it would let one OOMed clip permanently demote a device to the
  *    cloud, which is the exact bug this contract exists to prevent.
+ * @category Arbitration & Fallback
  */
 export function firstCapable(
   transcribers: readonly Transcriber[],

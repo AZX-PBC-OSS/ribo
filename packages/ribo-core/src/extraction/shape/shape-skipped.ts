@@ -52,6 +52,7 @@ const reverseOne = (item: SkippedItem, mapping: ShapeMapping): SkippedItem[] => 
 /**
  * The inner extractor's skip report in the derived patch's keys — see the file
  * header. Items that reverse to the same patch-space item are named once.
+ * @category Extraction
  */
 export function reverseSkippedItems(
   items: readonly SkippedItem[],

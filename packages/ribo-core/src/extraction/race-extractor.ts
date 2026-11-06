@@ -19,7 +19,11 @@ import {
  * somebody can flip. See `docs/roadmap/design/extractor-arbitration-design.md` §3.1 and §4.5.
  */
 
-/** One lane in the race: a strategy id and the extractor that implements it. */
+/**
+ * One lane in the race: a strategy id and the extractor that implements it.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface RaceCandidate<F> {
   readonly strategy: string;
   readonly extractor: Extractor<F>;
@@ -33,6 +37,7 @@ export interface RaceCandidate<F> {
  * usage fields. `outcomes` reaches the arbiter in settlement order, and `exhausted` is true only
  * once every candidate has settled. The duplicate-identifier and empty-list guards live in the
  * shared engine, so every combinator built over it inherits them.
+ * @category Arbitration & Fallback
  */
 export function raceExtractor<F>(
   candidates: readonly RaceCandidate<F>[],

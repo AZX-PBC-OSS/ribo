@@ -10,6 +10,7 @@
  * terminal) exactly as it would have without the wrapper.
  *
  * Throw it only when the receipt names a record that really exists.
+ * @category Write-back
  */
 export class ReceiptedWriteError extends Error {
   override readonly name: string = "ReceiptedWriteError";

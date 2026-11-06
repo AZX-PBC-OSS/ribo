@@ -636,6 +636,7 @@ const fields: SnuggExtraction = {
   },
 };
 
+/** @category Tool Adapters */
 export const snuggExamples: readonly ToolAdapterExample<SnuggExtraction>[] = [
   { transcript, fields },
 ];

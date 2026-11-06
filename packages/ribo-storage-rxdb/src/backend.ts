@@ -172,13 +172,18 @@ function withSelector(
  * on core and made RxDB part of core's public surface for everyone; the escape
  * hatch now lives in the package that already owns RxDB, so a host reaches for it
  * knowingly and nobody else inherits the dependency.
+ * @category Offline & Storage
  */
 export interface RxdbStorageBackend extends StorageBackend {
   /** The database this backend reads and writes, for hosts adding their own collections. */
   readonly database: OutboxDatabase;
 }
 
-/** Create a backend over an already-open RxDB database. */
+/**
+ * Create a backend over an already-open RxDB database.
+ *
+ * @category Offline & Storage
+ */
 export function createRxdbBackend(database: OutboxDatabase, name: string): RxdbStorageBackend {
   return new RxdbBackend(database, name);
 }

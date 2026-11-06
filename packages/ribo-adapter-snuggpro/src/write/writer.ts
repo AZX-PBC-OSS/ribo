@@ -21,7 +21,11 @@ import type {
 import { buildWriteBody, type SnuggWriteOperationName } from "./body.js";
 import { helixErrorEnvelopeSchema, snuggRecordSchema } from "./response.js";
 
-/** Options for the Snugg Pro HTTP writer. */
+/**
+ * Options for the Snugg Pro HTTP writer.
+ *
+ * @category Tool Adapters
+ */
 export interface SnuggHttpWriterOptions {
   /**
    * Override `fetch` — inject a double for tests, or the host's
@@ -38,6 +42,7 @@ export interface SnuggHttpWriterOptions {
  * Writes one group's reviewed patch to Snugg Pro and resolves with the record's
  * identifier — the write receipt `toInstanceWriteStep` records and a retry
  * hands back as `meta.linkTarget`.
+ * @category Tool Adapters
  */
 export type SnuggHttpWriter = (
   group: string,
@@ -244,6 +249,7 @@ const followUpValues = (
   return Object.keys(stated).length > 0 ? stated : undefined;
 };
 
+/** @category Tool Adapters */
 export const createSnuggHttpWriter = (options: SnuggHttpWriterOptions = {}): SnuggHttpWriter => {
   const doFetch = options.fetchImpl ?? fetch;
 

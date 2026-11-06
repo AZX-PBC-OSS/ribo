@@ -15,6 +15,7 @@ import type { Extracted } from "./provenance.js";
  * testing them hard-codes nothing adapter-specific; the load-bearing check is
  * `confidence` being a number — a group's members are themselves envelopes or
  * groups, never bare numbers.
+ * @category Provenance
  */
 export const isExtractedLeaf = (node: unknown): node is Extracted<unknown> => {
   if (node === null || typeof node !== "object" || Array.isArray(node)) return false;
@@ -22,7 +23,11 @@ export const isExtractedLeaf = (node: unknown): node is Extracted<unknown> => {
   return "value" in record && "sourceSpan" in record && typeof record.confidence === "number";
 };
 
-/** A path through `Enveloped<V>` data: object keys and array indices. */
+/**
+ * A path through `Enveloped<V>` data: object keys and array indices.
+ *
+ * @category Provenance
+ */
 export type LeafPath = readonly (string | number)[];
 
 /**
@@ -34,6 +39,7 @@ export type LeafPath = readonly (string | number)[];
  * base (`gapFillExtractor`'s). That identity property is load-bearing: a
  * rewrite that returns fresh objects everywhere would pass a deep-equality test
  * and still break the merge's contract.
+ * @category Provenance
  */
 export const mapExtractedLeaves = (
   node: unknown,

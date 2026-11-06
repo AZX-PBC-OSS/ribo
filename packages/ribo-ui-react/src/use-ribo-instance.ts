@@ -23,6 +23,7 @@ const HOW_TO_SUPPLY: Record<keyof RiboInstances, string> = {
  *
  * `override` is how tests inject an instance without a provider, and how a host
  * with two recorders points a subtree at the second one.
+ * @category React Hooks
  */
 export function useRiboInstance<K extends keyof RiboInstances>(
   key: K,
@@ -45,6 +46,7 @@ export function useRiboInstance<K extends keyof RiboInstances>(
  * no use for storage. A conditional `useRiboInstance` call would break the rules
  * of hooks, so the resolution stays unconditional and the *requirement* becomes a
  * plain check at the call site.
+ * @category React Hooks
  */
 export function useOptionalRiboInstance<K extends keyof RiboInstances>(
   key: K,

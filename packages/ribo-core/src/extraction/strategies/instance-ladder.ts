@@ -29,7 +29,11 @@ import type { PerGroupOptions } from "./per-group.js";
 import { scopedInstanceExtractor } from "../scoped-instance/instance-fill.js";
 import type { ScopedFillOptions } from "../scoped-instance/instance-fill.js";
 
-/** Options for {@link instanceLadder}. */
+/**
+ * Options for {@link instanceLadder}.
+ *
+ * @category Extraction
+ */
 export interface InstanceLadderOptions<
   V extends Record<string, unknown>,
   P = NoProvenance,
@@ -75,6 +79,7 @@ function mergeTierObserver<U extends ExtractionUnit>(
  * "tier2" | "tier3"` and is attributable without the consumer tracking state.
  * A tier's own `onUnit` is not dropped — both fire, and the ladder's copy is
  * the stamped one.
+ * @category Extraction
  */
 export function instanceLadder<V extends Record<string, unknown>, P = NoProvenance>(
   options: InstanceLadderOptions<V, P>,

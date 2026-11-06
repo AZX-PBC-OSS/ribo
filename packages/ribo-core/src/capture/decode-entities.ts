@@ -44,6 +44,7 @@ const fromCodePoint = (code: number, match: string): string =>
  * Named lookups are case-insensitive: HTML5 defines `&AMP;` alongside `&amp;`, and a document
  * that used the uppercase form would otherwise keep an entity the rest of the pipeline expects
  * to be gone.
+ * @category Captures & Sources
  */
 export function decodeEntities(text: string): string {
   return text.replace(/&(#[xX][0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, (match, entity: string) => {

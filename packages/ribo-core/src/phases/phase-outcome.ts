@@ -22,6 +22,7 @@ import type { ExtractionUsage } from "../extraction/extractor.js";
  * `usage` is **optional** precisely because a phase that computes rather than calls has
  * none to report — a plan-only or normalization phase makes no model calls, and forcing it
  * to invent `{ calls: 0 }` would blur "no calls" with "did not look".
+ * @category Extraction
  */
 export interface PhaseOutput<C> {
   /** The contribution the item's work produced. */
@@ -47,6 +48,7 @@ export interface PhaseOutput<C> {
  *
  * The error arm is reachable only for skip-policy phases; an abort-policy phase's failure
  * rejects before `merge` runs.
+ * @category Extraction
  */
 export type PhaseItemOutcome<I, C> =
   | { outcome: "result"; item: I; output: PhaseOutput<C>; error?: never }

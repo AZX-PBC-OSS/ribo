@@ -3,21 +3,46 @@
   "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
   "entryPoints": [
     "../packages/ribo-core/src/index.ts",
+    "../packages/ribo-core/src/testing.ts",
+    "../packages/ribo-core/src/worklet.ts",
     "../packages/ribo-adapter-snuggpro/src/index.ts",
     "../packages/ribo-chat-helix/src/index.ts",
     "../packages/ribo-chat-openai/src/index.ts",
     "../packages/ribo-extractor-ondevice/src/index.ts",
     "../packages/ribo-extractor-systemone/src/index.ts",
     "../packages/ribo-systemone-managed/src/index.ts",
+    "../packages/ribo-storage-rxdb/src/index.ts",
     "../packages/ribo-transcriber-managed/src/index.ts",
     "../packages/ribo-transcriber-managed-docs/src/index.ts",
     "../packages/ribo-transcriber-ondevice/src/index.ts",
-    "../packages/ribo-transcriber-pdfjs/src/index.ts"
+    "../packages/ribo-transcriber-ondevice/src/worker.ts",
+    "../packages/ribo-transcriber-pdfjs/src/index.ts",
+    "../packages/ribo-ui-react/src/index.ts"
   ],
   "tsconfig": "./typedoc.tsconfig.json",
   "out": "./reference",
   "name": "API Reference",
   "readme": "none",
+  "treatWarningsAsErrors": true,
+  "defaultCategory": "Other",
+  "categoryOrder": [
+    "Captures & Sources",
+    "Transcription",
+    "Extraction",
+    "Arbitration & Fallback",
+    "Sessions",
+    "Provenance",
+    "Review",
+    "Write-back",
+    "Offline & Storage",
+    "Plugin Storage",
+    "Connectivity",
+    "React Hooks",
+    "Chat Transports",
+    "Tool Adapters",
+    "Errors",
+    "Other"
+  ],
   "hideGenerator": true,
   "excludeInternal": true,
   "excludePrivate": true,
@@ -26,7 +51,15 @@
   "useCodeBlocks": true,
   "expandObjects": true,
   "docsRoot": ".",
+  // One page per module, with every member listed on it. The default ("members") emits a page per
+  // symbol — ~860 pages — and VitePress inlines its per-page hash map (~78 KB) into every one of
+  // them, which alone put the built site at ~67 MB of duplication. Module pages are also what the
+  // sidebar serves (docs/.vitepress/config.ts), so nothing links into the per-symbol pages except
+  // the sidebar JSON this option flattens away.
+  "outputFileStrategy": "modules",
   "blockTags": [
+    "@module",
+    "@category",
     "@file",
     "@param",
     "@returns",

@@ -93,6 +93,7 @@ const isSupportedLeaf = (field: z.ZodType): boolean =>
  * on a Manual J; per-row citations on a separate report's 15-leaf, 14-row table came back 14 of
  * 14 verbatim). The two are different documents and only the per-cell run names a model — the
  * unit of citation was fighting the model, not only the token budget.
+ * @category Provenance
  */
 export type ProvenanceGranularity = "leaf" | "row" | "none";
 
@@ -102,6 +103,7 @@ const GRANULARITIES: readonly ProvenanceGranularity[] = ["leaf", "row", "none"];
 /**
  * The key a row's citation is written under. Fixed rather than configurable: the split, review and
  * every consumer have to agree on it, and one name for one thing beats a knob nobody would turn.
+ * @category Provenance
  */
 export const ROW_SOURCE_SPAN_KEY = "sourceSpan";
 
@@ -112,12 +114,17 @@ export const ROW_SOURCE_SPAN_KEY = "sourceSpan";
  * Keyed by TOP-LEVEL group key only. That is the unit `splitExtractionSchema` partitions on and
  * the unit review presents, so a granularity is a fact about a group rather than a third
  * addressing scheme nothing else speaks.
+ * @category Provenance
  */
 export type ProvenanceMap<T extends z.ZodObject> = Partial<
   Record<keyof T["shape"] & string, ProvenanceGranularity>
 >;
 
-/** `enveloped`'s options. */
+/**
+ * `enveloped`'s options.
+ *
+ * @category Provenance
+ */
 export interface EnvelopedOptions<P> {
   /** Per-group provenance granularity — see {@link ProvenanceGranularity}. */
   readonly provenance?: P;
@@ -225,6 +232,7 @@ const envelopeObject = (
  * `"leaf"` — a schema several times the size the caller asked for, and hundreds of citations
  * nobody wanted, with nothing to say so. `"row"` on a top-level leaf has no row object to hang the
  * span on, so the granularity would simply not happen.
+ * @category Provenance
  */
 export const validateProvenance = (
   values: z.ZodObject,
@@ -339,6 +347,7 @@ type EnvelopedShape<S extends RawShape, P> = {
  * `Record<never, ProvenanceGranularity>` rather than `Record<string, never>`, which looks
  * equivalent and is not: the latter's `keyof` is `string`, so every key would match and resolve to
  * `never`, which extends `ProvenanceGranularity` and would make the default granularity `never`.
+ * @category Provenance
  */
 export type NoProvenance = Record<never, ProvenanceGranularity>;
 
@@ -354,6 +363,7 @@ export type NoProvenance = Record<never, ProvenanceGranularity>;
  * fix. `ribo-adapter-snuggpro`'s `snuggExtractionSchema` is the real instance, and its derivation is
  * pinned byte-for-byte against a frozen JSON Schema fixture by that package's
  * `extraction-shape.test.ts`.
+ * @category Provenance
  */
 export const enveloped = <T extends z.ZodObject, const P extends ProvenanceMap<T> = NoProvenance>(
   values: T,
@@ -423,6 +433,7 @@ export const enveloped = <T extends z.ZodObject, const P extends ProvenanceMap<T
 /** The element type of a readonly or mutable array, used by {@link Enveloped}. */
 type ArrayElement<A> = A extends readonly (infer E)[] ? E : never;
 
+/** @category Provenance */
 export type Enveloped<V, P = NoProvenance> = {
   readonly [K in keyof V]-?: EnvelopedValue<NonNullable<V[K]>, GranularityOf<P, K>, true>;
 };

@@ -35,7 +35,11 @@ type DropOperation = Extract<ShapeOperation, { op: "drop" }>;
 type RegroupOperation = Extract<ShapeOperation, { op: "regroup" }>;
 type NestOperation = Extract<ShapeOperation, { op: "nest" }>;
 
-/** A drop that survived every filter and was applied to the trees. */
+/**
+ * A drop that survived every filter and was applied to the trees.
+ *
+ * @category Extraction
+ */
 export interface AppliedDrop {
   readonly path: string;
   readonly segments: readonly string[];
@@ -43,7 +47,11 @@ export interface AppliedDrop {
   readonly index: number;
 }
 
-/** The first defect a move operation carries, classified, with its culprit when consequential. */
+/**
+ * The first defect a move operation carries, classified, with its culprit when consequential.
+ *
+ * @category Extraction
+ */
 export interface MoveFailure {
   readonly class: ShapeRefusalClass;
   readonly reason: string;
@@ -63,6 +71,7 @@ const operationCause = (drop: AppliedDrop): ShapeRefusalCause => ({
  * The applied drop whose path covers `segments` (a prefix, or the path
  * itself), if one exists. Applied drops are never nested — a nested drop is a
  * consequential refusal — so at most one covers.
+ * @category Extraction
  */
 export const coveringDrop = (
   drops: readonly AppliedDrop[],
@@ -74,6 +83,7 @@ export const coveringDrop = (
  * carries the message the throwing applier would raise — either the
  * plain-object-path refusal or `parseFieldPath`'s own (a key the path grammar
  * itself rejects) — verbatim.
+ * @category Extraction
  */
 export const tryOpSegments = (
   path: string,
@@ -101,7 +111,11 @@ export const tryOpSegments = (
   };
 };
 
-/** Validate and, when valid, commit one regroup to the shaped tree. */
+/**
+ * Validate and, when valid, commit one regroup to the shaped tree.
+ *
+ * @category Extraction
+ */
 export const applyRegroupOrRefuse = (
   shapedTree: ObjectNode,
   drops: readonly AppliedDrop[],
@@ -276,7 +290,11 @@ export const applyRegroupOrRefuse = (
   return undefined;
 };
 
-/** The context a nest validates against — see the fixed point in the applier. */
+/**
+ * The context a nest validates against — see the fixed point in the applier.
+ *
+ * @category Extraction
+ */
 export interface NestValidationContext {
   /** The shaped tree with drops, retypes and regroups applied; nests not yet. */
   readonly shapedTree: ObjectNode;
@@ -296,6 +314,7 @@ export interface NestValidationContext {
  * Validate one nest against the current candidate set. Writes nothing. The
  * checks run in the throwing applier's order; the group-name checks depend on
  * the candidate set, so the applier re-runs this as the set shrinks.
+ * @category Extraction
  */
 export const validateNest = (
   operation: NestOperation,
@@ -449,6 +468,7 @@ export const validateNest = (
  * on order — a nest group may take a name another nest frees — so the applier
  * owns the ordering and no caller can observe it. Pre-validated; a parse
  * failure here is an internal invariant breach.
+ * @category Extraction
  */
 export const applyNestOperations = (
   shapedTree: ObjectNode,
@@ -481,7 +501,11 @@ export const applyNestOperations = (
   }
 };
 
-/** Remove and return the subtree at `segments` from its container. */
+/**
+ * Remove and return the subtree at `segments` from its container.
+ *
+ * @category Extraction
+ */
 export const removeSubtree = (root: ObjectNode, segments: readonly string[]): ShapeNode => {
   const resolved = resolveContainer(root, segments);
   const node = resolved?.container.children.get(resolved.key);
@@ -492,7 +516,11 @@ export const removeSubtree = (root: ObjectNode, segments: readonly string[]): Sh
   return node;
 };
 
-/** Insert `node` at `segments`, creating intermediate objects as needed. */
+/**
+ * Insert `node` at `segments`, creating intermediate objects as needed.
+ *
+ * @category Extraction
+ */
 export const insertAt = (root: ObjectNode, segments: readonly string[], node: ShapeNode): void => {
   let current: ShapeNode = root;
   for (const segment of segments.slice(0, -1)) {

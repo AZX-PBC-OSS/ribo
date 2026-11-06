@@ -44,6 +44,7 @@ import type { TranscriberCapability } from "./transcriber.js";
  * - `"commit"` — permanent text for a committed region. Appended to the
  *   committed list; never revised. The host renders it as settled and stores it
  *   via `Storage.commitPreview`.
+ * @category Transcription
  */
 export type LiveSegmentKind = "tail" | "commit";
 
@@ -83,6 +84,7 @@ export type LiveSegmentKind = "tail" | "commit";
  * `errors$` stays a separate observable for a *different* reason — erroring the
  * segment `Subject` would terminate it permanently — and that reasoning is about
  * a different kind of channel, not about the tail/commit distinction.
+ * @category Transcription
  */
 export type LiveSegment =
   | { readonly kind: "tail"; readonly text: string }
@@ -98,6 +100,7 @@ export type LiveSegment =
  * capture session and closed by it — if capture ends (stop, abort, failure, tab
  * losing the capture lock), the session closes and further `feed()` calls are
  * no-ops.
+ * @category Transcription
  */
 export interface LiveSession {
   /**
@@ -183,6 +186,7 @@ export interface LiveSession {
  *
  * Implemented by `@azx/ribo-transcriber-ondevice`; held directly by the live
  * orchestrator, never composed through `firstCapable`.
+ * @category Transcription
  */
 export interface LiveTranscriber {
   /**

@@ -353,6 +353,7 @@ const layOutCollectionMoves = (node: ReviewNode, moved: readonly MovedEntry[]): 
  * schema-time (empty, or carrying an instance segment) is not plan data any derivation
  * produces, so it throws rather than degrading. Entries naming nothing in the walked schema
  * are ignored.
+ * @category Review
  */
 export const layOutTreeByPlan = (
   tree: readonly ReviewNode[],

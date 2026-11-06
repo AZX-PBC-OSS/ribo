@@ -12,6 +12,7 @@
  * produces. Short and stable across versions — it is persisted data, readable
  * straight off `storage.captures.list()` to see the on-device/managed engine mix. Matches
  * `docs/roadmap/design/managed-transcription-plan.md` Task 3 and `transcript.ts`.
+ * @category Transcription
  */
 export const MANAGED_AZURE_SPEECH_ENGINE = "managed-azure-speech";
 
@@ -28,6 +29,7 @@ export const MANAGED_AZURE_SPEECH_ENGINE = "managed-azure-speech";
  * Connectivity is injected too, as a predicate: the package does not call
  * `navigator.onLine` and does not duplicate `ribo-core`'s three-state connectivity
  * model.
+ * @category Transcription
  */
 export interface ManagedTranscriberOptions {
   /**

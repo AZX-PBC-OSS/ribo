@@ -15,6 +15,7 @@ import { TerminalError } from "@azx/ribo-core";
  * detector becomes a full-price retry loop against the same dead request (see
  * `validate-extractor.ts`'s file header for the sibling case). 429, 5xx and
  * network-level failures are thrown as plain transient errors instead.
+ * @category Transcription
  */
 export class SystemOneError extends TerminalError {
   override readonly name = "SystemOneError";

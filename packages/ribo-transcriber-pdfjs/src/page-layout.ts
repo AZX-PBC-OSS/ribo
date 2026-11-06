@@ -27,7 +27,11 @@
  * rather than a Chromium launch.
  */
 
-/** One text item with the geometry pdf.js already provides. */
+/**
+ * One text item with the geometry pdf.js already provides.
+ *
+ * @category Transcription
+ */
 export interface PositionedTextItem {
   readonly str: string;
   /** Device-space x of the item's origin — `transform[4]`. */
@@ -46,6 +50,7 @@ export interface PositionedTextItem {
  * keeps "these were separate columns" recoverable downstream — which matters
  * because a row can pair genuinely unrelated content (see
  * {@link DEFAULT_COLUMN_GAP_PT}).
+ * @category Transcription
  */
 export const COLUMN_SEPARATOR = " | ";
 
@@ -58,6 +63,7 @@ export const COLUMN_SEPARATOR = " | ";
  * distribution of within-row baseline spread against between-row leading. A
  * value that is too large merges adjacent table rows; too small splits a row
  * whose cells use different font sizes.
+ * @category Transcription
  */
 export const DEFAULT_ROW_TOLERANCE_PT = 3;
 
@@ -77,6 +83,7 @@ export const DEFAULT_ROW_TOLERANCE_PT = 3;
  * the same line as the totals box at x=396. Joining those with a plain space
  * invents an adjacency the document does not have. Emitting a separator instead
  * keeps the distinction visible to whatever reads the text next.
+ * @category Transcription
  */
 export const DEFAULT_COLUMN_GAP_PT = 12;
 
@@ -86,16 +93,22 @@ export const DEFAULT_COLUMN_GAP_PT = 12;
  * Below this, items are concatenated with nothing between them: pdf.js splits
  * words at kerning pairs, so inserting a space here would corrupt them
  * ("Invo" + "ice" must not become "Invo ice").
+ * @category Transcription
  */
 export const DEFAULT_WORD_GAP_PT = 0.8;
 
+/** @category Transcription */
 export interface PageLayoutOptions {
   readonly rowTolerancePt?: number;
   readonly columnGapPt?: number;
   readonly wordGapPt?: number;
 }
 
-/** Rebuild one page's text in visual reading order. */
+/**
+ * Rebuild one page's text in visual reading order.
+ *
+ * @category Transcription
+ */
 export function layoutPageText(
   items: readonly PositionedTextItem[],
   options: PageLayoutOptions = {},

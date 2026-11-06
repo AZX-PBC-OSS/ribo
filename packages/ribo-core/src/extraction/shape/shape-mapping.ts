@@ -52,6 +52,7 @@ import type { ProvenanceGranularity } from "../../provenance/enveloped.js";
  * name them. `enum` and `literal` are distinct from `"string"` on purpose: a
  * retype that widened an enum to a plain string would discard the vocabulary
  * that makes the leaf extractable, and no canonical inverse exists for it.
+ * @category Extraction
  */
 export type LeafKind = "string" | "number" | "boolean" | "enum" | "literal";
 
@@ -80,6 +81,7 @@ export type LeafKind = "string" | "number" | "boolean" | "enum" | "literal";
  * `boolean` is excluded on the same ground: no canonical string encoding exists
  * that both directions agree on (`"true"`/`"false"` versus `"yes"`/`"no"` is a
  * vocabulary choice, and a vocabulary choice is not invertible-in-canonical-form).
+ * @category Extraction
  */
 export interface Retype {
   /** The extraction leaf's kind — what the model is constrained to emit. */
@@ -93,11 +95,16 @@ export interface Retype {
  * the canonical encoding written down above. `null` passes through — a patch
  * leaf is `.nullable()`, and "not stated" reverses to "not stated", never to
  * the string `"null"`.
+ * @category Extraction
  */
 export const retypeToPatchValue = (value: number | null): string | null =>
   value === null ? null : String(value);
 
-/** Where one extraction leaf came from, and how to get back. */
+/**
+ * Where one extraction leaf came from, and how to get back.
+ *
+ * @category Extraction
+ */
 export interface LeafMapping {
   /**
    * The leaf's dotted path in the derived patch — where reversal writes it.
@@ -121,6 +128,7 @@ export interface LeafMapping {
  * `nest` group exists only in the extraction space, and the derivation refuses
  * a granularity naming one — so one map still serves both: every key here
  * names a top-level key of both schemas.
+ * @category Extraction
  */
 export interface ShapeMapping {
   /** Extraction leaf path → where it came from. Exhaustive over both schemas. */
@@ -341,6 +349,7 @@ const kindsAgree = (
  * Refuse a mapping path that is not a pure object-key path. Schema-time paths
  * have no instances — brackets belong to data-time instance keys — so a
  * bracketed mapping path addresses nothing either walk produced.
+ * @category Extraction
  */
 export const assertObjectKeyPath = (path: string, side: "extraction" | "patch"): void => {
   const segments = parseFieldPath(path);
@@ -386,6 +395,7 @@ export const assertObjectKeyPath = (path: string, side: "extraction" | "patch"):
  *     pattern on both sides. A difference means the entry crosses a
  *     collection boundary on one side and not the other, and reversal would
  *     write data to an array the patch never declares.
+ * @category Extraction
  */
 export const assertShapeMapping = (
   mapping: ShapeMapping,

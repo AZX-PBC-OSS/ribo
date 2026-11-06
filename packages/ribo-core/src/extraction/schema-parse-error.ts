@@ -9,6 +9,7 @@ import type { ZodError } from "zod";
  * re-send, so the queue must still retry it. But the failure is also recognisable
  * so an extraction strategy ladder can fall through to the next strategy instead
  * of burning the same request shape repeatedly.
+ * @category Extraction
  */
 export class SchemaParseError extends Error {
   override readonly name = "SchemaParseError";

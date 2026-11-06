@@ -32,6 +32,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useCaptures } from "./use-captures.js";
 import { useRiboInstance } from "./use-ribo-instance.js";
 
+/** @category React Hooks */
 export interface UseReviewOptions<T extends z.ZodObject = z.ZodObject> {
   /**
    * The adapter's **patch** schema (`ToolAdapter.schema`) — what decides which
@@ -116,6 +117,7 @@ export interface UseReviewOptions<T extends z.ZodObject = z.ZodObject> {
   readonly storage?: Storage;
 }
 
+/** @category React Hooks */
 export interface UseReviewResult {
   /** The session has both a joined transcript and an extraction, so review can proceed. */
   readonly ready: boolean;
@@ -421,6 +423,7 @@ const remapAfterInstanceRemove = <T>(
  * failure or an in-flight write belongs to the session that caused it, and must stop
  * being visible the moment the card shows a different one, not linger because it
  * happened to be stored in a `useState` with no notion of "whose" it was.
+ * @category React Hooks
  */
 export function useReview<T extends z.ZodObject>(
   session: SessionItem | undefined,

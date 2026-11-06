@@ -114,6 +114,7 @@ interface SchemaExtractorShared<V extends Record<string, unknown>>
  * Options for {@link schemaExtractor} when the caller brings the PLAIN patch
  * schema — the newcomer's shape. `enveloped()` runs here, with the caller's
  * `provenance` map deciding the granularity per group; the return type is exact.
+ * @category Extraction
  */
 export interface RawSchemaExtractorOptions<
   S extends z.ZodObject,
@@ -136,6 +137,7 @@ export interface RawSchemaExtractorOptions<
  * extraction schema. Used as-is — no second derivation runs, because enveloping
  * an enveloped schema double-wraps it. The type parameter `V` is the caller's
  * plain-values type — the patch the schema was derived from.
+ * @category Extraction
  */
 export interface EnvelopedSchemaExtractorOptions<
   V extends Record<string, unknown>,
@@ -200,14 +202,17 @@ type SchemaExtractorResult = Extractor<Enveloped<Record<string, unknown>, NoProv
  * built; past them a `perGroupExtractor` over the split. The selection is static
  * per construction — the schema and the caps are — which is what keeps this
  * library's construction synchronous.
+ * @category Extraction
  */
 export function schemaExtractor<
   S extends z.ZodObject,
   const P extends ProvenanceMap<S> = NoProvenance,
 >(options: RawSchemaExtractorOptions<S, P>): Extractor<Enveloped<z.infer<S>, P>>;
+/** @category Extraction */
 export function schemaExtractor<V extends Record<string, unknown>>(
   options: EnvelopedSchemaExtractorOptions<V>,
 ): Extractor<Enveloped<V, NoProvenance>>;
+/** @category Extraction */
 export function schemaExtractor(options: SchemaExtractorImplOptions): SchemaExtractorResult {
   // Exactly one of the two shapes is filled; the keys name which the caller
   // brought, so there is nothing to detect and no wrong detection to have. The

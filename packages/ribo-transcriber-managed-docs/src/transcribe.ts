@@ -83,7 +83,11 @@ import {
   type DocumentAnalysisResponse,
 } from "./response.js";
 
-/** Inputs for {@link transcribeViaManagedDocs} — supplied by the class. */
+/**
+ * Inputs for {@link transcribeViaManagedDocs} — supplied by the class.
+ *
+ * @category Transcription
+ */
 export interface TranscribeViaManagedDocsOptions {
   /** The document analysis endpoint URL. */
   readonly endpoint: string;

@@ -20,7 +20,11 @@ import {
 } from "../../phases/chat-parse.js";
 import { parseWithSchema } from "../parse-with-schema.js";
 
-/** Options for {@link extractInventory}. */
+/**
+ * Options for {@link extractInventory}.
+ *
+ * @category Extraction
+ */
 export interface InventoryOptions<R> {
   /** Identifies the call in error messages and the structured-output schema name. */
   readonly name: string;

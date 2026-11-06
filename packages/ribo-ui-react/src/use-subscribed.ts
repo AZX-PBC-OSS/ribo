@@ -48,6 +48,7 @@ import { useEffect, useState } from "react";
  * that is never `Object.is`-equal to the last one, `setValue` schedules another
  * render, and the cycle repeats. See `use-subscribed.browser.test.tsx`'s
  * unmemoized-`subscribe` test for this reproduced end to end.
+ * @category React Hooks
  */
 export function useSubscribed<T>(
   subscribe: (listener: (value: T) => void) => Unsubscribe,
