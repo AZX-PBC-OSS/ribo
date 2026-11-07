@@ -26,9 +26,9 @@ source, so editing a package's `src/index.ts` hot-updates the page with no build
 ./check.sh
 ```
 
-`check.sh` runs every gate in order — **typecheck → lint → format:check → build → test** — and prints a
-PASS/FAIL summary. CI runs the same script, so there is no second bar to clear. Run it before you claim a
-task is finished, and paste the summary line rather than asserting success.
+`check.sh` runs every gate in order — **typecheck → lint → format:check → build → docs → test** — and
+prints a PASS/FAIL summary. CI runs the same script, so there is no second bar to clear. Run it before
+you claim a task is finished, and paste the summary line rather than asserting success.
 
 Two things it does **not** do: the `build` stage compiles the playground but never executes it (there is
 no runtime smoke test), and the browser test binary is a separate install
@@ -143,9 +143,10 @@ revisitable once the registry is chosen.
 
 ## Docs
 
-The docs site and the generated API reference are **separate** scripts, not part of `check.sh`:
-`pnpm docs:dev` serves the site, `pnpm docs:build` emits the static site, and `pnpm docs:api`
-regenerates the API reference from each package's public barrel via TypeDoc.
+The docs site and the generated API reference: `pnpm docs:dev` serves the site, `pnpm docs:build`
+emits the static site, and `pnpm docs:api` regenerates the API reference from each package's public
+barrel via TypeDoc. `docs:build` is a `check.sh` stage, so a dead doc link fails the everyday gate —
+no separate CI step builds the docs.
 
 The site is hosted on Helix as `ribo-docs` (`https://ribo-docs.azx.helix.azxlabs.io`). Every push to
 `main` builds it and uploads a **preview** (`.github/workflows/helix-deploy.yml`, connected with

@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   check:
-    name: typecheck, lint, format:check, build:packages, resolve, build:app, pkg gates, test # keep in sync with check.sh's stages
+    name: typecheck, lint, format:check, build:packages, resolve, build:app, docs:build, pkg gates, test # keep in sync with check.sh's stages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -43,11 +43,9 @@ jobs:
 
       - run: ./check.sh
 
-      # VitePress fails the build on a dead internal link (`ignoreDeadLinks` is unset) —
-      # nothing was running that check until now. Also covers TypeDoc and the generated
-      # accuracy page, since `docs:build` chains all three. A CI step rather than a
-      # `./check.sh` stage so docs stay out of the local loop, as with pack-and-consume.
-      - run: pnpm docs:build
+      # `./check.sh`'s docs:build stage covers the docs (VitePress dead-link check,
+      # TypeDoc, the generated accuracy page) — no separate step, so CI never builds
+      # the docs twice.
 
       # The Reference used to inline every generated symbol into the sidebar of every page,
       # inflating docs/.vitepress/dist to ~379 MB — past Helix's 250 MB deploy limit. The sidebar

@@ -11,11 +11,13 @@ seam, so this package exists to name the dialect and nothing else (ADR 0028). It
 from `@azx/ribo-chat-openai` because the two are already separable and a merged package would
 have no honest second segment — "chat" is the seam, not an implementation.
 
-Everything is injected — the token, the base URL, the registered `Origin`, and (for tests)
-the `fetch` implementation. No secret is hardcoded, and the package has no capacity to
-authenticate on a consumer's behalf: the credential lives in the host's transport. Capability
-can be derived from a live `ConnectivitySource` subscription, so a dead uplink is recognised
-as soon as the model reports it.
+Everything is injected — the optional bearer token, the base URL, the registered `Origin`, and (for
+tests) the `fetch` implementation. No secret is hardcoded, and the package has no capacity to
+authenticate on a consumer's behalf: the credential lives in the host's transport. A deployed app
+authenticating with the session cookie passes no `token` at all, and the client then sends no
+`authorization` header; a dev-gateway app passes a token and gets `Bearer` auth. Capability can be
+derived from a live `ConnectivitySource` subscription, so a dead uplink is recognised as soon as the
+model reports it.
 
 ## Composing it
 
@@ -23,6 +25,8 @@ as soon as the model reports it.
 import { singleShotExtractor } from "@azx/ribo-core";
 import { helixChat } from "@azx/ribo-chat-helix";
 
+// Dev gateway: bearer token. A deployed app passes no token — the session
+// cookie authenticates — and no authorization header is sent.
 const chat = helixChat({ token, baseUrl: "https://dev-api.azx.helix.azxlabs.io/my-app" });
 const extractor = singleShotExtractor({ target, chat, model: "claude-haiku-4-5" });
 ```

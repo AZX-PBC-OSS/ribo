@@ -601,3 +601,30 @@ describe("helixChat — capability", () => {
     expect(chat.engine.length).toBeGreaterThan(0);
   });
 });
+
+describe("helixChat — token optionality", () => {
+  test("a deployed app with no token sends no authorization header", async () => {
+    // A deployed Helix app authenticates to its same-origin gateway with the
+    // session cookie — it has no token to pass. `token` must be optional, and
+    // when absent the request must carry no `authorization` header at all (a
+    // placeholder `Bearer undefined` is exactly what a host must not send).
+    const { fetchImpl, calls } = fakeFetch(Response.json(okBody("{}")));
+    const chat = helixChat({ baseUrl: "https://h", fetchImpl });
+
+    await chat.complete(sampleRequest);
+
+    const headers = calls[0]!.init.headers as Record<string, string>;
+    expect(headers.authorization).toBeUndefined();
+    expect(headers["content-type"]).toBe("application/json");
+  });
+
+  test("a token is still sent as Bearer auth", async () => {
+    const { fetchImpl, calls } = fakeFetch(Response.json(okBody("{}")));
+    const chat = helixChat({ token: "dev-token", baseUrl: "https://h", fetchImpl });
+
+    await chat.complete(sampleRequest);
+
+    const headers = calls[0]!.init.headers as Record<string, string>;
+    expect(headers.authorization).toBe("Bearer dev-token");
+  });
+});

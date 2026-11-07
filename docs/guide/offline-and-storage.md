@@ -42,20 +42,20 @@ extraction, without deleting the row itself.
 ### The session machine
 
 ```
-open → extracting → awaiting-review → writing → done ⇄ awaiting-review (reopenSessionForReview)
+open → extracting → awaiting-review → writing → done ⇄ awaiting-review (storage.sessions.reopenForReview)
                         ↘ (transient) → failed → (backoff) → retry
-                        ↘ (terminal)  → dead   ⇄ awaiting-review (reopenSessionForReview)
+                        ↘ (terminal)  → dead   ⇄ awaiting-review (storage.sessions.reopenForReview)
 ```
 
 `SESSION_STATUSES` is `open`, `extracting`, `awaiting-review`, `writing`, `done`, `failed`, `dead`.
 `ACTIVE_SESSION_STATUSES` is `extracting`, `writing`, `failed` — and two statuses are excluded on
 purpose, for two different reasons. **`open`** is the host's phase: recordings are still being
 captured and transcribed, and the relay transcribes them as they arrive but does not touch the
-session itself until `closeSession` says the capture set is final. Starting extraction against a
+session itself until `storage.sessions.close` says the capture set is final. Starting extraction against a
 partially-assembled session would be extracting the wrong set. **`awaiting-review`** is parked the
-way `transcribed` is on the recording side: it is the review gate, and `submitSessionReview` is the
+way `transcribed` is on the recording side: it is the review gate, and `storage.sessions.submitReview` is the
 only way out — nothing about the pipeline advances a parked session on its own. `done` and `dead`
-both have a human-driven way back in, through `reopenSessionForReview`, which the recording machine
+both have a human-driven way back in, through `storage.sessions.reopenForReview`, which the recording machine
 has no equivalent of: there is no path back from a recording's `dead` or `discarded`.
 
 ### Why the split exists

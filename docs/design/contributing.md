@@ -17,23 +17,22 @@ before your first pull request. This page covers the one thing the links don't: 
 ./check.sh
 ```
 
-`check.sh` is the everyday signal: typecheck, lint, format check, build, and test, printed as a
+`check.sh` is the everyday signal: typecheck, lint, format check, build, docs, and test, printed as a
 single PASS/FAIL summary. Run it before claiming a task finished, and paste the summary line rather
 than asserting success.
 
-**`./check.sh` is the everyday bar, but it is not the whole CI bar.** CI runs three further steps
+**`./check.sh` is the everyday bar, but it is not the whole CI bar.** CI runs two further steps
 that `check.sh` does not:
 
-| CI step                                     | What it catches                                                           |
-| ------------------------------------------- | ------------------------------------------------------------------------- |
-| `pnpm docs:build`                           | broken doc links, generated-reference failures, a VitePress build failure |
-| `pnpm changeset status --since=origin/main` | a changed publishable package with no changeset                           |
-| `pnpm test:pack-and-consume`                | real tarballs, packed and installed into an app outside this repo         |
+| CI step                                     | What it catches                                                   |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| `pnpm changeset status --since=origin/main` | a changed publishable package with no changeset                   |
+| `pnpm test:pack-and-consume`                | real tarballs, packed and installed into an app outside this repo |
 
-For an ordinary change, `./check.sh` really is enough, and the other three pass by construction. The
+For an ordinary change, `./check.sh` really is enough, and the other two pass by construction. The
 case where they do not is **adding, renaming, or removing a publishable package** — the
 pack-and-consume tier keeps its own scratch app that has to list the package by name, and the
-changeset tooling has to know a new or removed package exists. Run all four before pushing that kind
+changeset tooling has to know a new or removed package exists. Run all three before pushing that kind
 of change.
 
 Getting this wrong once already cost a red CI: the working notes used to read "CI runs the same

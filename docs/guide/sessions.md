@@ -145,7 +145,7 @@ const closed = await storage.sessions.close(session.id);
 // closed.status === "extracting" — the relay picks it up on its next drain.
 ```
 
-`closeSession` is the host's explicit signal that the capture set is final — the relay transcribes a
+`storage.sessions.close` is the host's explicit signal that the capture set is final — the relay transcribes a
 session's recordings as they arrive, but **does not act on the session itself until the host closes
 it**. `open` is not an active status for that reason: the relay has no way to know an auditor is done
 adding captures except being told, and starting extraction on a partially-assembled session would be
@@ -154,14 +154,14 @@ extracting the wrong set.
 Once closed, the relay runs session-level extraction against the joined transcript and lands the
 session at `awaiting-review` — parked, same as the recording side, until a human looks. The only way
 out is a review submission
-([`submitSessionReview`](/guide/review#the-gate-is-a-session-status-not-a-callback)); nothing about
+([`storage.sessions.submitReview`](/guide/review#the-gate-is-a-session-status-not-a-callback)); nothing about
 the pipeline advances a parked session on its own. Review is where the reviewer sees every field from
 all three captures at once, each still traceable to whichever capture actually said it. Once a
 decision is submitted, the session moves to `writing` and, eventually, `done` — or, if a step fails
 along the way, to `failed`, which the relay retries on its own once its backoff elapses. `dead` is
 the only status with no automatic way out — reached once retries are exhausted — and even from there
 (or from `done`) a human can bring the session back to `awaiting-review` with
-[`reopenSessionForReview`](/guide/review#the-gate-is-a-session-status-not-a-callback) if something
+[`storage.sessions.reopenForReview`](/guide/review#the-gate-is-a-session-status-not-a-callback) if something
 needs correcting later.
 
 Watch sessions live rather than poll them:
