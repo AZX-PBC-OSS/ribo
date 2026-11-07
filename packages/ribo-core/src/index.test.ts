@@ -222,6 +222,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "schemaExtractor",
     "schemaRetryExtractor",
     "scopedInstanceExtractor",
+    "scriptedChat",
     "serializedNestingDepth",
     "sessionDocumentSchema",
     "sessionItemSchema",
