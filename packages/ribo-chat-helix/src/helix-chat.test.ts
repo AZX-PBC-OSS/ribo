@@ -627,4 +627,14 @@ describe("helixChat — token optionality", () => {
     const headers = calls[0]!.init.headers as Record<string, string>;
     expect(headers.authorization).toBe("Bearer dev-token");
   });
+
+  test("an empty token, the placeholder hosts used to pass, also sends no authorization header", async () => {
+    const { fetchImpl, calls } = fakeFetch(Response.json(okBody("{}")));
+    const chat = helixChat({ token: "", baseUrl: "https://h", fetchImpl });
+
+    await chat.complete(sampleRequest);
+
+    const headers = calls[0]!.init.headers as Record<string, string>;
+    expect(headers.authorization).toBeUndefined();
+  });
 });

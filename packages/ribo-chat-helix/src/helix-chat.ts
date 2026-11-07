@@ -200,7 +200,9 @@ export function helixChat({
       const headers: Record<string, string> = {
         "content-type": "application/json",
       };
-      if (token !== undefined) {
+      // Truthiness, not `!== undefined`: an empty string is the placeholder hosts passed before
+      // `token` was optional, and it must not become a bare `Bearer ` header.
+      if (token) {
         headers.authorization = `Bearer ${token}`;
       }
       if (origin !== undefined) {
