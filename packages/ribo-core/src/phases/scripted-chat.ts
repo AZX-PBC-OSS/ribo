@@ -136,7 +136,7 @@ export interface ScriptedChatClient extends CapableChatClient {
  * latency with `delay`. Every request is recorded on `calls`, in order, before the reply is
  * produced — failed and aborted calls included.
  *
- * @example Drive `singleShotExtractor` end to end with no model, then assert on what was sent
+ * @example Drive singleShotExtractor end to end with no model, then assert on what was sent
  *
  * ```ts
  * import { scriptedChat, singleShotExtractor } from "@azx/ribo-core";
