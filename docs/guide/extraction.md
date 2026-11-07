@@ -97,6 +97,44 @@ relay, the test suite, and the playground drive capture → transcribe → extra
 to end with no network and no API key; [Quick Start](/guide/quick-start) builds that pipeline from
 scratch with it.
 
+## `scriptedChat`: driving the chat-based extractors with no model
+
+`FakeExtractor` replaces the whole extractor. When what you want to exercise is a chat-based
+extractor itself — the prompt it assembles, the schema it pins, its parse of the reply — you need a
+`ChatClient` instead. `scriptedChat` is that client, the transport-side double:
+
+```ts
+import { scriptedChat, singleShotExtractor } from "@azx/ribo-core";
+
+const chat = scriptedChat((request) => {
+  // Matching is plain caller code — there is no rule list. The extraction
+  // target's name is what `singleShotExtractor` puts in `json_schema.name`.
+  if (request.response_format.json_schema.name !== "contact") {
+    throw new Error(`unexpected schema: ${request.response_format.json_schema.name}`);
+  }
+  // Objects are serialised for you; strings pass through as-is.
+  return {
+    content: { company: { value: "Acme", confidence: 0.9, sourceSpan: "Acme" } },
+  };
+});
+
+const extractor = singleShotExtractor({ target: contactTarget, chat, model: "fake" });
+const result = await extractor.extract(transcript, {});
+
+// Every request as sent, in order — failed and aborted calls included.
+expect(chat.calls).toHaveLength(1);
+expect(chat.calls[0].messages[0].role).toBe("system");
+```
+
+`respond` is either one fixed reply for every call or a per-call callback receiving the request and
+a context (the zero-based call number and the call's `AbortSignal`). To fail a call, throw: a
+thrown `ChatError` reaches arbitration unchanged, exactly as a real transport's would, so
+`fallbackExtractor` ladders and retry logic can be driven with no network. A reply may carry a
+`delay` in milliseconds (aborting the call's signal cuts the wait short with the standard
+`ChatError.aborted`), and the client's `capability()` is controllable at runtime via
+`setCapability` for demonstrating routing and fallback. `chat.reset()` clears the recorded `calls`
+and restores the constructed capability between tests.
+
 ## The two real extractors
 
 ### The managed-LLM strategies (`@azx/ribo-core`) and their transports

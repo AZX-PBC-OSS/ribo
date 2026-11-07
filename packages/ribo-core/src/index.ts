@@ -673,6 +673,18 @@ export type {
   ChatUnavailableReason,
   ChatUsage,
 } from "./phases/chat-client.js";
+// The scripted chat client — the ChatClient counterpart to FakeExtractor and FakeTranscriber:
+// a shipped, documented double that drives the chat-based extractors deterministically (a fixed
+// reply or a per-call callback) and records every request it was sent. Lives beside the seam it
+// implements; no new transport package, because there is no wire concern to isolate.
+export { scriptedChat } from "./phases/scripted-chat.js";
+export type {
+  ScriptedChatClient,
+  ScriptedChatContext,
+  ScriptedChatOptions,
+  ScriptedChatReply,
+  ScriptedChatResponder,
+} from "./phases/scripted-chat.js";
 // The managed-completion call-and-parse chain, moved from the extractor package's
 // `extraction-common` (which re-exports it) so `askPhase` composes the chain its managed
 // cousins do — one copy of the terminal/transient classification semantics, beside the
