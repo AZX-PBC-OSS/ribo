@@ -14,6 +14,7 @@ import type { CaptureHealth, CaptureSession } from "@azx/ribo-core";
  * **The host constructs it**, like every other instance, rather than the provider
  * creating one silently. It is OPTIONAL: absent, there is no capture health and
  * `useWorkSafety` behaves as it does today.
+ * @category React Hooks
  */
 export interface CaptureCoordinator {
   register: (session: CaptureSession) => () => void;
@@ -21,6 +22,7 @@ export interface CaptureCoordinator {
   readonly health$: Observable<CaptureHealth | undefined>;
 }
 
+/** @category React Hooks */
 export function createCaptureCoordinator(): CaptureCoordinator {
   const health$ = new BehaviorSubject<CaptureHealth | undefined>(undefined);
   let session: CaptureSession | undefined;

@@ -80,6 +80,7 @@ import { describeLocated, zodIssues } from "../review/zod-issues.js";
  * **`write`'s own rejection is passed through untouched**, and the `await` is deliberately
  * not wrapped. A network failure from a real adapter is the single most common thing this
  * step will ever see, and it is exactly what must be retried.
+ * @category Write-back
  */
 export function toWriteStep<V extends Record<string, unknown>, C>(
   adapter: ToolAdapter<V, C>,

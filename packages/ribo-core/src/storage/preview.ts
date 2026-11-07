@@ -21,6 +21,7 @@ import type { CaptureDocument, CapturePatch } from "./capture-schema.js";
  *
  * Returns the (possibly unchanged) document and whether the tail was written,
  * so the caller can return `undefined` on refusal without a second read.
+ * @category Offline & Storage
  */
 export function writeTail<T extends CaptureDocument>(data: T, text: string): readonly [T, boolean] {
   if (data.status !== "recording" || data.transcript !== undefined) {
@@ -49,6 +50,7 @@ export function writeTail<T extends CaptureDocument>(data: T, text: string): rea
  * so the commit must carry its own text rather than depend on a tail being
  * present. In the normal flow the two match: the last refresh wrote the tail,
  * and the commit finalises the same region.
+ * @category Offline & Storage
  */
 export function commitRegion<T extends CaptureDocument>(
   data: T,
@@ -76,6 +78,7 @@ export function commitRegion<T extends CaptureDocument>(
  * stale provisional text; delete-then-transcript shows a row with neither,
  * which looks like a failed transcription. A single `incrementalModify` is one
  * committed revision, so no subscriber observes half of it.
+ * @category Offline & Storage
  */
 export function handoffTranscript<T extends CaptureDocument>(
   data: T,

@@ -56,7 +56,11 @@ import type {
 
 import { DEFAULT_DEVICE_PROMPT_DEADLINE_MS } from "./ondevice-chat.js";
 
-/** Default retry budget for a single call, matching the spike. */
+/**
+ * Default retry budget for a single call, matching the spike.
+ *
+ * @category Extraction
+ */
 export const DEFAULT_MAX_RETRIES = 3;
 
 /**
@@ -66,6 +70,7 @@ export const DEFAULT_MAX_RETRIES = 3;
  */
 const immediateDelay = (): Promise<void> => Promise.resolve();
 
+/** @category Extraction */
 export interface ThreePhaseExtractorOptions<
   V extends Record<string, unknown>,
   P = NoProvenance,
@@ -90,6 +95,7 @@ export interface ThreePhaseExtractorOptions<
  * verbatim substring of the transcript are dropped unconditionally. Phase 3
  * re-asks the leaves the transport reported `unsupported` for, over a wrapped
  * schema.
+ * @category Extraction
  */
 export function threePhaseExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   options: ThreePhaseExtractorOptions<V, P>,

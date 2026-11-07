@@ -98,6 +98,7 @@ import type { CommitRefusal } from "./proposal-commit.js";
  * naturally serve the eventual extractor. `context` labels this call in error
  * messages, NOT the wire-schema name (the proposer pins its own wire name so
  * renaming the target does not invalidate the response schema).
+ * @category Extraction
  */
 export interface ProposeOptions {
   /** The injected chat transport. A fake in tests; `openAiChat` / `helixChat` in production. */

@@ -42,6 +42,7 @@ import { toMigrationStrategies } from "./migration-strategies.js";
  * and the `maxLength`/`minimum`/`maximum`/`multipleOf` bounds it uses to build
  * fixed-width index keys. `schema.test.ts` pins the two descriptions of the same
  * document against each other so they cannot drift apart unnoticed.
+ * @category Offline & Storage
  */
 export const captureRxSchema: RxJsonSchema<CaptureDocument> = {
   version: CAPTURE_DOCUMENT_VERSION,
@@ -119,9 +120,11 @@ export const captureRxSchema: RxJsonSchema<CaptureDocument> = {
  * reasoning `CAPTURE_MIGRATION_STRATEGIES` records for its own identity steps
  * (v1→v2, v2→v3, v3→v4 `extractedBy`, v4→v5): declared and exercised rather
  * than skipped, so the migration path exists and is proven to run.
+ * @category Offline & Storage
  */
 export const SESSION_MIGRATION_STRATEGIES = toMigrationStrategies(SESSION_DOCUMENT_UPGRADES);
 
+/** @category Offline & Storage */
 export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
   version: SESSION_DOCUMENT_VERSION,
   primaryKey: "id",
@@ -173,7 +176,11 @@ export const sessionRxSchema: RxJsonSchema<SessionDocument> = {
   attachments: {},
 };
 
-/** Schema-migration strategies for the key-value collection. */
+/**
+ * Schema-migration strategies for the key-value collection.
+ *
+ * @category Offline & Storage
+ */
 export const PLUGIN_STORAGE_MIGRATION_STRATEGIES = toMigrationStrategies(
   PLUGIN_STORAGE_DOCUMENT_UPGRADES,
 );
@@ -189,6 +196,7 @@ export const PLUGIN_STORAGE_MIGRATION_STRATEGIES = toMigrationStrategies(
  * `scopeKind`/`scopeId`/`owner`, so an entry can belong to a session as well as
  * a capture. See `PLUGIN_STORAGE_MIGRATION_STRATEGIES` above for why the bump
  * was required even with nothing on disk depending on it.
+ * @category Offline & Storage
  */
 export const pluginStorageRxSchema: RxJsonSchema<PluginStorageDocument> = {
   version: PLUGIN_STORAGE_DOCUMENT_VERSION,

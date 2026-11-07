@@ -1,4 +1,5 @@
 /**
+ * @module @azx/ribo-transcriber-pdfjs
  * @file The public surface of `@azx/ribo-transcriber-pdfjs`.
  *
  * PDF document transcription via pdf.js, implementing `@azx/ribo-core`'s

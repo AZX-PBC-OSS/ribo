@@ -17,6 +17,7 @@ import type { ExistingRecord, InstanceLinkDecision, LinkTargets } from "./instan
 // `FieldPath` moved to `field-path.js` so `adapter.ts` can use it without the
 // adapter contract depending on the review contract. Re-exported here so the
 // package surface is unchanged.
+/** @category Review */
 export type { FieldPath } from "../provenance/field-path.js";
 
 /**
@@ -114,6 +115,7 @@ export type { FieldPath } from "../provenance/field-path.js";
 /**
  * One leaf as the human sees it: the model's answer, its justification, whether
  * that justification checks out, and what a legal value for it looks like.
+ * @category Review
  */
 export interface ReviewField {
   /** The full envelope — `value`, `confidence` and the `sourceSpan` to display. */
@@ -190,6 +192,7 @@ export interface ReviewField {
  * sorted: sorting would discard the grouping the schema author chose, and 51 fields in
  * an order nobody picked is worse than 51 fields in theirs. `field-path.ts` refuses the
  * one key shape that would break the guarantee.
+ * @category Review
  */
 export type ReviewFields = Readonly<Record<FieldPath, ReviewField>>;
 
@@ -206,10 +209,15 @@ export type ReviewFields = Readonly<Record<FieldPath, ReviewField>>;
  * {@link ReviewRequest.fields} against a separate list of empty groups, which is a
  * three-state fact split across two collections and a bug every host got to write
  * independently. It is one field now.
+ * @category Review
  */
 export type ReviewGroupState = "absent" | "empty" | "statedEmpty" | "populated";
 
-/** A reviewable leaf, in the position the schema declared it. */
+/**
+ * A reviewable leaf, in the position the schema declared it.
+ *
+ * @category Review
+ */
 export interface ReviewLeafNode {
   readonly kind: "leaf";
   /** The schema key at this level — `"rValue"`, not the full path. */
@@ -222,7 +230,11 @@ export interface ReviewLeafNode {
   readonly field: ReviewField;
 }
 
-/** A nested object group — `healthSafety` and its tests, in one place. */
+/**
+ * A nested object group — `healthSafety` and its tests, in one place.
+ *
+ * @category Review
+ */
 export interface ReviewObjectNode {
   readonly kind: "object";
   readonly key: string;
@@ -242,7 +254,11 @@ export interface ReviewObjectNode {
   readonly skipped: boolean;
 }
 
-/** One instance of a collection group, addressed by the key review already assigns it. */
+/**
+ * One instance of a collection group, addressed by the key review already assigns it.
+ *
+ * @category Review
+ */
 export interface ReviewInstanceNode {
   /** `k1`, `k2`, … — the same instance keys the flat paths carry. */
   readonly key: string;
@@ -261,7 +277,11 @@ export interface ReviewInstanceNode {
   readonly skipped: boolean;
 }
 
-/** A collection group — a house with two HVAC systems has two instances here. */
+/**
+ * A collection group — a house with two HVAC systems has two instances here.
+ *
+ * @category Review
+ */
 export interface ReviewCollectionNode {
   readonly kind: "collection";
   readonly key: string;
@@ -298,6 +318,7 @@ export interface ReviewCollectionNode {
  * outline, and the nodes inside keep their own paths and identities. The type widens
  * {@link ReviewNode} for every host, plan or not — an exhaustive switch over it must learn
  * this member.
+ * @category Review
  */
 export interface ReviewSectionNode {
   readonly kind: "section";
@@ -306,10 +327,15 @@ export interface ReviewSectionNode {
   readonly children: readonly ReviewNode[];
 }
 
+/** @category Review */
 export type ReviewNode =
   ReviewLeafNode | ReviewObjectNode | ReviewCollectionNode | ReviewSectionNode;
 
-/** What a human reviewer is shown. */
+/**
+ * What a human reviewer is shown.
+ *
+ * @category Review
+ */
 export interface ReviewRequest {
   /** The transcript the draft came from — the auditor's own words, for context. */
   readonly transcript: Transcript;
@@ -357,6 +383,7 @@ export interface ReviewRequest {
  * typed leaves — so the check that an edit is legal moved from the compiler to
  * {@link ReviewField.schema}, applied by {@link resolveReview}. That is a real
  * trade and it is why validation-at-submit exists rather than being optional.
+ * @category Review
  */
 export type FieldDecision =
   | { readonly status: "accepted" }
@@ -371,10 +398,15 @@ export type FieldDecision =
  * "I did not look at it" must not silently mean "accepted". A string-keyed record
  * cannot carry that — it accepts `{}` — so {@link resolveReview} enforces it at
  * runtime instead, by comparing this key set against the request's.
+ * @category Review
  */
 export type FieldDecisions = Readonly<Record<FieldPath, FieldDecision>>;
 
-/** What a human reviewer reports back. */
+/**
+ * What a human reviewer reports back.
+ *
+ * @category Review
+ */
 export type ReviewSubmission =
   | {
       readonly status: "submitted";
@@ -408,6 +440,7 @@ export type ReviewSubmission =
  * that is the trust boundary. Carrying a `V` through review would mean either
  * trusting a UI's `unknown` edit as a `V[K]`, or a recursive mapped type whose
  * mismatch anywhere reports against the whole tree.
+ * @category Review
  */
 export type ReviewOutcome =
   | {
@@ -447,7 +480,11 @@ export type ReviewOutcome =
     }
   | { readonly status: "discarded"; readonly reason?: string };
 
-/** One thing wrong with a submission, addressed to the leaf it is wrong at. */
+/**
+ * One thing wrong with a submission, addressed to the leaf it is wrong at.
+ *
+ * @category Review
+ */
 export interface ReviewIssue {
   /** The leaf path this is about. */
   readonly path: FieldPath;
@@ -470,6 +507,7 @@ export interface ReviewIssue {
  * {@link issues} is the actionable half: a UI shows each message beside the leaf its
  * `path` names, while the auditor is still looking at it. That is the whole reason
  * validation happens here instead of only at write time.
+ * @category Review
  */
 export class ReviewValidationError extends Error {
   /** Every problem found, not just the first — a UI can flag them all at once. */
@@ -771,6 +809,7 @@ const collectFields = (
  * many instances exist and the schema determines every leaf within each instance;
  * empty-but-present collections are marked on {@link ReviewRequest.tree}'s group state
  * so the submit path can still distinguish "there are none" from "touch nothing".
+ * @category Review
  */
 export const buildReviewRequest = <T extends z.ZodObject>(
   extracted: Record<string, unknown>,
@@ -835,6 +874,7 @@ const emptyCollectionPaths = (nodes: readonly ReviewNode[]): FieldPath[] =>
  * The keys are constrained to real top-level keys of `T`, so a typo in a group
  * name is a compile error. The runtime validation in {@link buildReviewRequest}
  * catches the same mistake for callers building the options in JavaScript.
+ * @category Review
  */
 export type ProvenanceMap<T extends z.ZodObject> = {
   readonly [K in keyof z.infer<T> & string]?: ProvenanceGranularity;
@@ -844,6 +884,7 @@ export type ProvenanceMap<T extends z.ZodObject> = {
  * The two records of a {@link DerivedExtractionShape} the review layout reads. A whole derived
  * shape assigns here, so a host passes its shape directly; it need not be the shape the
  * extraction ran with.
+ * @category Review
  */
 export type ReviewPlan = Pick<DerivedExtractionShape, "mapping" | "partitions">;
 
@@ -854,6 +895,7 @@ export type ReviewPlan = Pick<DerivedExtractionShape, "mapping" | "partitions">;
  * per-leaf adapter metadata will accumulate (requiredness today; the API's
  * field descriptions are the obvious next one), and each addition should not
  * be another signature change for every caller.
+ * @category Review
  */
 export interface BuildReviewRequestOptions<T extends z.ZodObject = z.ZodObject> {
   /**
@@ -1268,6 +1310,7 @@ const setAtPath = (
  *
  * Iteration follows the request's leaf order, which is schema-declaration order
  * ({@link ReviewFields}), so `editedFields` and `rejectedFields` are stable.
+ * @category Review
  */
 export const resolveReview = (
   request: ReviewRequest,
@@ -1422,6 +1465,7 @@ export const resolveReview = (
  * Strict objects on each branch: an `edited` outcome that lost `editedFields` is
  * indistinguishable from `accepted`, and silently under-reporting review effort is
  * exactly the failure `resolveReview`'s doc comment refuses.
+ * @category Review
  */
 export const reviewOutcomeSchema = z
   .discriminatedUnion("status", [
@@ -1460,5 +1504,9 @@ export const reviewOutcomeSchema = z
     }
   });
 
-/** The persisted, field-set-agnostic outcome. `ReviewOutcome` is the typed form. */
+/**
+ * The persisted, field-set-agnostic outcome. `ReviewOutcome` is the typed form.
+ *
+ * @category Review
+ */
 export type PersistedReviewOutcome = z.infer<typeof reviewOutcomeSchema>;

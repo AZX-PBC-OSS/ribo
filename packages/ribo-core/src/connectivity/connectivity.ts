@@ -49,10 +49,18 @@
 
 import type { ScheduleTimer } from "../async/schedule-timer.js";
 
-/** The three states. `probing` is deliberately not collapsible to a boolean. */
+/**
+ * The three states. `probing` is deliberately not collapsible to a boolean.
+ *
+ * @category Connectivity
+ */
 export type ConnectivityStatus = "offline" | "probing" | "online";
 
-/** What a subscriber is pushed. An object, not a bare string, so it can grow. */
+/**
+ * What a subscriber is pushed. An object, not a bare string, so it can grow.
+ *
+ * @category Connectivity
+ */
 export interface ConnectivityState {
   readonly status: ConnectivityStatus;
 }
@@ -66,6 +74,7 @@ export interface ConnectivityState {
  * path is the intended shape — a few bytes, no body to read. It is handed an
  * `AbortSignal` that fires when the hard timeout elapses; a well-behaved
  * probe passes it to `fetch` so the socket is torn down rather than left hanging.
+ * @category Connectivity
  */
 export type ConnectivityProbe = (signal: AbortSignal) => Promise<Response>;
 
@@ -78,12 +87,18 @@ export type ConnectivityProbe = (signal: AbortSignal) => Promise<Response>;
  * `document`'s `visibilitychange`, so returning to a backgrounded tab re-checks
  * — each firing the same `onChange`. `onChange` reads {@link ConnectivityOptions.isOnline} itself;
  * the callback carries no payload.
+ * @category Connectivity
  */
 export type ConnectivityEventBinder = (onChange: () => void) => () => void;
 
-/** Detaches a {@link Connectivity.subscribe} listener. Safe to call twice. */
+/**
+ * Detaches a {@link Connectivity.subscribe} listener. Safe to call twice.
+ *
+ * @category Connectivity
+ */
 export type Unsubscribe = () => void;
 
+/** @category Connectivity */
 export interface ConnectivityOptions {
   /** Source of raw online/offline transitions. See {@link ConnectivityEventBinder}. */
   bindEvents: ConnectivityEventBinder;
@@ -114,6 +129,7 @@ export interface ConnectivityOptions {
  * before it can wedge the serial queue. The whole reason the probe is abortable
  * is this number: without it a hung socket would keep the model in `probing`
  * indefinitely.
+ * @category Connectivity
  */
 export const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
 
@@ -128,10 +144,15 @@ export const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
  * a marginal signal reconnecting, short enough that a genuine return to coverage
  * feels immediate. It pairs with instant offline detection: we are patient about
  * declaring success and never patient about declaring failure.
+ * @category Connectivity
  */
 export const DEFAULT_STABILITY_WINDOW_MS = 3_000;
 
-/** A live connectivity model. Create with {@link createConnectivity}. */
+/**
+ * A live connectivity model. Create with {@link createConnectivity}.
+ *
+ * @category Connectivity
+ */
 export interface Connectivity {
   /** The current state. Cheap; the model holds it. */
   readonly state: ConnectivityState;
@@ -149,6 +170,7 @@ export interface Connectivity {
   stop: () => void;
 }
 
+/** @category Connectivity */
 export function createConnectivity(options: ConnectivityOptions): Connectivity {
   return new ConnectivityModel(options);
 }

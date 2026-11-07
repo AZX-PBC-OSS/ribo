@@ -129,6 +129,7 @@ const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[k
  * each chat call with it and merges responses by shallow `Object.assign` rather
  * than re-keying: each parsed response has one top-level key, so assigning them
  * in sequence produces the whole without any re-keying step.
+ * @category Extraction
  */
 export interface ExtractionGroup {
   /** The top-level key this group covers, or `""` for the unwrapped portion. */
@@ -193,6 +194,7 @@ export interface ExtractionGroup {
  * Nothing moves for an all-enveloped schema: 8 leaves x 2 unions is exactly 16,
  * so every partition boundary this module produced before is the boundary it
  * produces now.
+ * @category Extraction
  */
 export const MAX_NULLABLE_UNIONS_PER_CALL = 16;
 
@@ -210,6 +212,7 @@ export const MAX_NULLABLE_UNIONS_PER_CALL = 16;
  * `scopedInstanceExtractor` default the union cap to
  * {@link MAX_NULLABLE_UNIONS_PER_CALL}; the byte cap reaches them as a
  * pass-through option where their caller knows the route.
+ * @category Extraction
  */
 export interface SplitOptions {
   /**
@@ -265,6 +268,7 @@ function normalizeOptions(options?: number | SplitOptions): SplitOptions {
  * about. The part is the unit of every call shape (spec §4); the line is the
  * prompt's only trace of it. Exported because the phase presets build their own
  * requests and reuse it verbatim.
+ * @category Extraction
  */
 export function partitionLabelLine(
   groupKey: string,
@@ -290,6 +294,7 @@ export function partitionLabelLine(
  * upper bound of the wire size. Under `fieldDescriptions: "prompt"` the
  * wire schema is stripped at the render sites, so it only ever lands further
  * under a byte cap than this count reports; the split packs exactly as before.
+ * @category Extraction
  */
 export function serializedCharCount(schema: z.ZodType): number {
   return JSON.stringify(z.toJSONSchema(schema, { target: "draft-2020-12" })).length;
@@ -297,7 +302,7 @@ export function serializedCharCount(schema: z.ZodType): number {
 
 /**
  * The nesting depth of a schema's serialized JSON Schema rendering — the same
- * rendering {@link serializedCharCount} measures — as the structured-output
+ * rendering `serializedCharCount` measures — as the structured-output
  * route counts it: raw JSON nesting, a scalar counting 1 and every object or
  * array adding 1. `anyOf` arms and array indices are levels, so every
  * `.nullable()` costs two. Probed against the live route on 2026-09-22: 12
@@ -311,6 +316,7 @@ export function serializedCharCount(schema: z.ZodType): number {
  * compare against their own route's cap — the adapter's
  * `SCHEMA_NESTING_DEPTH_CAP` suite is the worked example. Descriptions are
  * scalars beside `type`, so stripping them never changes it.
+ * @category Extraction
  */
 export function serializedNestingDepth(schema: z.ZodType): number {
   return jsonNestingDepth(z.toJSONSchema(schema, { target: "draft-2020-12" }));
@@ -326,8 +332,9 @@ function jsonNestingDepth(node: unknown): number {
 /**
  * How many nullable unions a whole schema costs the response schema — the
  * per-call unit {@link MAX_NULLABLE_UNIONS_PER_CALL} counts in. Exported beside
- * {@link serializedCharCount} for the same reason: a strategy deciding between
+ * `serializedCharCount` for the same reason: a strategy deciding between
  * one call and a split asks this of the whole schema.
+ * @category Extraction
  */
 export function nullableUnionCount(schema: z.ZodType): number {
   return nullableUnions(schema);
@@ -762,10 +769,18 @@ function partitionFlatTwoCaps(
 const isGroupObject = (obj: z.ZodObject): boolean =>
   Object.keys(obj.shape).length > 0 && !isExtractedSchema(obj);
 
-/** How the split sees one top-level key: a group it can split per key, or a loose leaf. */
+/**
+ * How the split sees one top-level key: a group it can split per key, or a loose leaf.
+ *
+ * @category Extraction
+ */
 export type TopLevelKeyKind = "group" | "loose";
 
-/** One top-level key of an extraction schema, with the kind the split's gate assigns it. */
+/**
+ * One top-level key of an extraction schema, with the kind the split's gate assigns it.
+ *
+ * @category Extraction
+ */
 export interface TopLevelKey {
   readonly key: string;
   readonly kind: TopLevelKeyKind;
@@ -780,6 +795,7 @@ export interface TopLevelKey {
  * split — and only code sharing its walk — reads the same keys and values the
  * verdict was computed from, with no second `instanceof` narrowing to drift
  * from.
+ * @category Extraction
  */
 export type TopLevelKeyKinds =
   | { readonly form: "not-an-object" }
@@ -806,6 +822,7 @@ export type TopLevelKeyKinds =
  * fallback. Exported so a diagnostic (`describeExtraction`) reports the split's
  * own verdict rather than a parallel walk that agrees today and drifts
  * tomorrow.
+ * @category Extraction
  */
 export function topLevelKeyKinds(schema: z.ZodType): TopLevelKeyKinds {
   if (!(schema instanceof z.ZodObject)) {
@@ -888,6 +905,7 @@ export function topLevelKeyKinds(schema: z.ZodType): TopLevelKeyKinds {
  *   `maxNullableUnionsPerGroup`. Absent members mean those caps are off; see the
  *   interface for both defaults and why the byte cap carries no provider's
  *   number.
+ * @category Extraction
  */
 export function splitExtractionSchema(
   schema: z.ZodType,

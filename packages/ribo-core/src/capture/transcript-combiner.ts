@@ -22,6 +22,7 @@ import type { AnnotatedTranscript } from "./annotated-transcript.js";
  * Two type parameters, not one: the combined transcript's annotations are not any input's. The
  * default returns an empty bag, so a single parameter would make it claim a shape it never
  * produces.
+ * @category Captures & Sources
  */
 export type TranscriptCombiner<
   In = Readonly<Record<string, unknown>>,
@@ -30,6 +31,7 @@ export type TranscriptCombiner<
 
 /**
  * Options for {@link createDefaultTranscriptCombiner}.
+ * @category Captures & Sources
  */
 export interface DefaultTranscriptCombinerOptions {
   /**
@@ -107,6 +109,7 @@ function captureMarker(part: AnnotatedTranscript, index: number): string {
  * Zero parts produce empty text; a single part produces just that text (with a
  * marker when `markCaptures` is true). Both fall out of the join naturally —
  * there is no special case.
+ * @category Captures & Sources
  */
 export function createDefaultTranscriptCombiner(
   options?: DefaultTranscriptCombinerOptions,

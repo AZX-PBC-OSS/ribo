@@ -14,6 +14,7 @@ import { chunkName, sliceOversized } from "./chunk-names.js";
  *   state of a live recording, not a warning.
  * - `"stalled"` — a chunk write failed, or no `dataavailable` has fired past a
  *   threshold. The recording is still in memory, but nothing new has reached disk.
+ * @category Offline & Storage
  */
 export type CaptureHealth = "flushing" | "stalled";
 
@@ -23,6 +24,7 @@ const STALL_AFTER_MS = 30_000;
 /** Max bytes per chunk attachment before byte-slicing kicks in. */
 const MAX_CHUNK_BYTES = 10_000_000;
 
+/** @category Offline & Storage */
 export interface CaptureSessionOptions {
   storage: Storage;
   recording: Recording;
@@ -40,6 +42,7 @@ export interface CaptureSessionOptions {
   decode?: (blob: Blob) => Promise<number>;
 }
 
+/** @category Offline & Storage */
 export interface CaptureSession {
   /** Synchronous ingestion — appends to an ordered buffer and returns. */
   ingest: (blob: Blob) => void;

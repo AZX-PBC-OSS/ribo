@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-transcriber-managed-docs
+ *
  * @file The public surface of `@azx/ribo-transcriber-managed-docs`.
  *
  * Managed document transcription: a hosted document understanding API behind the

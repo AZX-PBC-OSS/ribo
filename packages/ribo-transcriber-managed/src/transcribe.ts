@@ -49,7 +49,11 @@ interface FastTranscriptionResponse {
   readonly combinedPhrases?: ReadonlyArray<{ readonly text?: unknown }>;
 }
 
-/** Inputs for {@link transcribeViaManagedAzure} — supplied by the class. */
+/**
+ * Inputs for {@link transcribeViaManagedAzure} — supplied by the class.
+ *
+ * @category Transcription
+ */
 export interface TranscribeViaManagedAzureOptions {
   /** The Azure transcribe endpoint URL, already carrying `?api-version=...`. */
   readonly endpoint: string;

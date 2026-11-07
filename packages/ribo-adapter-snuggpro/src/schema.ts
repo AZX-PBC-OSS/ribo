@@ -158,7 +158,11 @@ import { VENDOR_DESCRIPTIONS } from "./descriptions.generated.js";
 
 // == basedata ================================================================
 
-/** `typeOfHome` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `typeOfHome` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const TypeOfHome = z.enum([
   "Apartment",
   "Condominium",
@@ -173,10 +177,15 @@ export const TypeOfHome = z.enum([
  * `blowerDoorTestPerformed` — whether `blowerDoorReading` is a measurement or a
  * guess. Auditors distinguish these out loud ("I'll estimate it at three
  * thousand"), so it is a genuine capture field, not bookkeeping.
+ * @category Tool Adapters
  */
 export const BlowerDoorTestPerformed = z.enum(["Tested", "Estimate"]);
 
-/** `frontOfBuildingOrientation` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `frontOfBuildingOrientation` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const FrontOfBuildingOrientation = z.enum([
   "North",
   "North East",
@@ -188,10 +197,18 @@ export const FrontOfBuildingOrientation = z.enum([
   "North West",
 ]);
 
-/** `garageSize` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `garageSize` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const GarageSize = z.enum(["1-car", "2-car", "3-car", "4-car", "5-car"]);
 
-/** `basementWallInsulation` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `basementWallInsulation` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const BasementWallInsulation = z.enum([
   "None or Bare Walls",
   "Fiberglass blanket",
@@ -201,7 +218,11 @@ export const BasementWallInsulation = z.enum([
   "Don't Know",
 ]);
 
-/** `crawlspaceInsulation` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `crawlspaceInsulation` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const CrawlspaceInsulation = z.enum([
   "Crawlspace has insulation installed on the exterior wall area",
   "Crawlspace has insulation installed under only the living space floor",
@@ -209,7 +230,11 @@ export const CrawlspaceInsulation = z.enum([
   "Don't Know",
 ]);
 
-/** `percentCflsOrLeds` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `percentCflsOrLeds` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const PercentCflsOrLeds = z.enum([
   "0%",
   "1-25%",
@@ -220,7 +245,11 @@ export const PercentCflsOrLeds = z.enum([
   "Don't Know",
 ]);
 
-/** `crawlspaceType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `crawlspaceType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const CrawlspaceType = z.enum([
   "Unvented - Unconditioned Crawl",
   "Vented - Year Round",
@@ -228,12 +257,17 @@ export const CrawlspaceType = z.enum([
   "Conditioned Crawl",
 ]);
 
-/** `clothesWasherType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `clothesWasherType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const ClothesWasherType = z.enum(["Front Load", "Top Load", "No Clothes Washer"]);
 
 /**
  * `clothesWasherManufacturer` — `POST /jobs/{jobId}/basedata`. The vendor list
  * carries both "Frigidaire" and its own "Fridgidaire" typo — both stay verbatim.
+ * @category Tool Adapters
  */
 export const ClothesWasherManufacturer = z.enum([
   "Unknown",
@@ -256,15 +290,21 @@ export const ClothesWasherManufacturer = z.enum([
 /**
  * `windZone` — `POST /jobs/{jobId}/basedata`. The wire members are numeric STRINGS —
  * they stay strings, not numbers.
+ * @category Tool Adapters
  */
 export const WindZone = z.enum(["1", "2", "3", "4"]);
 
-/** `shielding` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `shielding` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const Shielding = z.enum(["Well-Shielded", "Normal", "Exposed"]);
 
 /**
  * `dishwasherManufacturer` — `POST /jobs/{jobId}/basedata`. The vendor list
  * carries both "Frigidaire" and its own "Fridgidaire" typo — both stay verbatim.
+ * @category Tool Adapters
  */
 export const DishwasherManufacturer = z.enum([
   "Unknown",
@@ -289,16 +329,22 @@ export const DishwasherManufacturer = z.enum([
  * `poolPumpType` — `POST /jobs/{jobId}/basedata`. The spec's list leads with a
  * literal `null` member; that empty state is the leaf's `.nullable()`, not an
  * enum member — the rule `WallCavityInsulationType` records.
+ * @category Tool Adapters
  */
 export const PoolPumpType = z.enum(["Single Speed", "Two Speed", "Variable Speed", "No Pool Pump"]);
 
 /**
  * `poolPumpHorsepower` — `POST /jobs/{jobId}/basedata`. The wire members are numeric
  * STRINGS — they stay strings, not numbers.
+ * @category Tool Adapters
  */
 export const PoolPumpHorsepower = z.enum(["0.5", "0.75", "1", "1.5", "2", "3"]);
 
-/** `basementHeating` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `basementHeating` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const BasementHeating = z.enum([
   "Intentional",
   "Intentional w/ continuous circulation",
@@ -306,7 +352,11 @@ export const BasementHeating = z.enum([
   "None or Undesired Incidental",
 ]);
 
-/** `basementCooling` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `basementCooling` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const BasementCooling = z.enum([
   "Intentional",
   "Intentional w/ continuous circulation",
@@ -314,22 +364,39 @@ export const BasementCooling = z.enum([
   "None or Undesired Incidental",
 ]);
 
-/** `poolPumpManufacturer` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `poolPumpManufacturer` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const PoolPumpManufacturer = z.enum(["Pentair", "Other"]);
 
-/** `crawlspaceRimJoistTreatment` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `crawlspaceRimJoistTreatment` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const CrawlspaceRimJoistTreatment = z.enum(["Same as Crawl Wall", "Separately"]);
 
-/** `basementRimJoistTreatment` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `basementRimJoistTreatment` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const BasementRimJoistTreatment = z.enum(["Same as Basement Wall", "Separately"]);
 
 /**
  * `ashraeNumberOfBathrooms` — `POST /jobs/{jobId}/basedata`. The wire members are
  * numeric STRINGS — they stay strings, not numbers.
+ * @category Tool Adapters
  */
 export const AshraeNumberOfBathrooms = z.enum(["1", "2", "3", "4"]);
 
-/** `floorCavityInsulationType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `floorCavityInsulationType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const FloorCavityInsulationType = z.enum([
   "Fiberglass or Rockwool Batt",
   "Blown Fiberglass or Rockwool",
@@ -342,7 +409,11 @@ export const FloorCavityInsulationType = z.enum([
   "Other",
 ]);
 
-/** `floorContinuousInsulationType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `floorContinuousInsulationType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const FloorContinuousInsulationType = z.enum([
   "Fiberglass or Rockwool Batt",
   "Blown Fiberglass or Rockwool",
@@ -355,7 +426,11 @@ export const FloorContinuousInsulationType = z.enum([
   "Other",
 ]);
 
-/** `floorWingInsulationCondition` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `floorWingInsulationCondition` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const FloorWingInsulationCondition = z.enum([
   "Perfect",
   "Good",
@@ -364,7 +439,11 @@ export const FloorWingInsulationCondition = z.enum([
   "Critical",
 ]);
 
-/** `floorBellyInsulationCondition` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `floorBellyInsulationCondition` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const FloorBellyInsulationCondition = z.enum([
   "Perfect",
   "Good",
@@ -376,13 +455,22 @@ export const FloorBellyInsulationCondition = z.enum([
 /**
  * `floorFrameFloorType` — `POST /jobs/{jobId}/basedata`. The spec publishes a
  * lone member for this list.
+ * @category Tool Adapters
  */
 export const FloorFrameFloorType = z.enum(["Manufactured Home Belly"]);
 
-/** `floorInsulationLocation` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `floorInsulationLocation` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const FloorInsulationLocation = z.enum(["Insulation above ducts", "Insulation below ducts"]);
 
-/** `crawlCavityInsulationType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `crawlCavityInsulationType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const CrawlCavityInsulationType = z.enum([
   "Fiberglass or Rockwool Batt",
   "Blown Fiberglass or Rockwool",
@@ -392,7 +480,11 @@ export const CrawlCavityInsulationType = z.enum([
   "Other",
 ]);
 
-/** `crawlWallInsulationType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `crawlWallInsulationType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const CrawlWallInsulationType = z.enum([
   "Fiberglass Drape",
   "Rigid XPS",
@@ -403,7 +495,11 @@ export const CrawlWallInsulationType = z.enum([
   "Other",
 ]);
 
-/** `crawlspaceRimJoistInsulationType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `crawlspaceRimJoistInsulationType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const CrawlspaceRimJoistInsulationType = z.enum([
   "Fiberglass or Rockwool Batt",
   "Blown Fiberglass or Rockwool",
@@ -421,6 +517,7 @@ export const CrawlspaceRimJoistInsulationType = z.enum([
  * list leads with a literal `null` member; that empty state is the leaf's
  * `.nullable()`, not an enum member — the rule `WallCavityInsulationType`
  * records.
+ * @category Tool Adapters
  */
 export const BasementCavityInsulationType = z.enum([
   "Fiberglass or Rockwool Batt",
@@ -431,7 +528,11 @@ export const BasementCavityInsulationType = z.enum([
   "Other",
 ]);
 
-/** `basementContinuousInsulationType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `basementContinuousInsulationType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const BasementContinuousInsulationType = z.enum([
   "Fiberglass Drape",
   "Rigid XPS",
@@ -442,7 +543,11 @@ export const BasementContinuousInsulationType = z.enum([
   "Other",
 ]);
 
-/** `basementRimJoistInsulationType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `basementRimJoistInsulationType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const BasementRimJoistInsulationType = z.enum([
   "Fiberglass or Rockwool Batt",
   "Blown Fiberglass or Rockwool",
@@ -455,10 +560,18 @@ export const BasementRimJoistInsulationType = z.enum([
   "Other",
 ]);
 
-/** `evCalculationMethod` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `evCalculationMethod` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const EvCalculationMethod = z.enum(["Detailed", "Simple"]);
 
-/** `basementCeilingCavityInsulationType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `basementCeilingCavityInsulationType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const BasementCeilingCavityInsulationType = z.enum([
   "Fiberglass or Rockwool Batt",
   "Blown Fiberglass or Rockwool",
@@ -473,6 +586,7 @@ export const BasementCeilingCavityInsulationType = z.enum([
  * The spec's list leads with a literal `null` member; that empty state is the
  * leaf's `.nullable()`, not an enum member — the rule
  * `WallCavityInsulationType` records.
+ * @category Tool Adapters
  */
 export const BasementCeilingContinuousInsulationType = z.enum([
   "Fiberglass Drape",
@@ -484,7 +598,11 @@ export const BasementCeilingContinuousInsulationType = z.enum([
   "Other",
 ]);
 
-/** `ventilationType` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `ventilationType` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const VentilationType = z.enum([
   "None",
   "Exhaust",
@@ -493,7 +611,11 @@ export const VentilationType = z.enum([
   "Energy Recovery Ventilator",
 ]);
 
-/** `ventilationSchedule` — `POST /jobs/{jobId}/basedata`. */
+/**
+ * `ventilationSchedule` — `POST /jobs/{jobId}/basedata`.
+ *
+ * @category Tool Adapters
+ */
 export const VentilationSchedule = z.enum(["Continuous", "Intermittent"]);
 
 // == hvac ====================================================================
@@ -508,6 +630,7 @@ export const VentilationSchedule = z.enum(["Continuous", "Intermittent"]);
  *
  * Fuel is a separate axis (`hvacHeatingEnergySource`): "oil boiler" is `"Boiler"`
  * here and `"Fuel Oil"` there, never one fused token.
+ * @category Tool Adapters
  */
 export const HvacSystemEquipmentType = z
   .enum([
@@ -540,6 +663,7 @@ export const HvacSystemEquipmentType = z
  * job and they narrate it: "there's an oil boiler here, we should get rid of it"
  * carries `"Remove a system permanently"` as plainly as `"Boiler"` (doc 17,
  * owner correction of 2026-08-06).
+ * @category Tool Adapters
  */
 export const HvacUpgradeAction = z.enum([
   "Replace with a newer model",
@@ -557,6 +681,7 @@ export const HvacUpgradeAction = z.enum([
  * and all turned out legal; the last three are the ones the borrowed list lacked.
  * `hvacHeatingEnergySourceImproved` enforces the same list. The vendor's `""` is
  * left out, as for `HvacDuctLocation`.
+ * @category Tool Adapters
  */
 export const HvacHeatingEnergySource = z
   .enum([
@@ -580,6 +705,7 @@ export const HvacHeatingEnergySource = z
  * `hvacHeatingSystemManufacturer` (`hvac`) — a CLOSED enum in the spec, not free
  * text: a real make that is not on Snugg's list (e.g. "Burnham") maps to
  * `"Other"`, a real answer, instead of failing at write.
+ * @category Tool Adapters
  */
 export const HvacHeatingSystemManufacturer = z
   .enum([
@@ -627,6 +753,7 @@ export const HvacHeatingSystemManufacturer = z
  * closed enum from the heating one: the two lists genuinely differ (cooling
  * has `Coolerado` and `Comfort Maker` where heating has `Comfort Master`), and
  * both carry the vendor's `Frigidaire`/`Fridgidaire` typo pair verbatim.
+ * @category Tool Adapters
  */
 export const HvacCoolingSystemManufacturer = z
   .enum([
@@ -674,6 +801,7 @@ export const HvacCoolingSystemManufacturer = z
  * percentage. The auditor says "pretty leaky" / "well sealed"; the model maps to
  * the member. `"Measured (CFM25)"` is the escape hatch that pairs with
  * `hvacDuctLeakageValue`: pick it when the auditor read a duct-blaster number.
+ * @category Tool Adapters
  */
 export const HvacDuctLeakage = z
   .enum([
@@ -698,6 +826,7 @@ export const HvacDuctLeakage = z
  * `DUCT_INSULATION_VENDOR_LITERALS` maps each alias back to the vendor's literal
  * for write-back. Members that never carried a quote need no translation and
  * appear in neither the alias set nor the lookup table.
+ * @category Tool Adapters
  */
 export const HvacDuctInsulation = z.enum([
   "No Insulation",
@@ -723,6 +852,7 @@ export const HvacDuctInsulation = z.enum([
  * usually names only the place. The description tells the model to abstain
  * then — `null` value, the words kept as `sourceSpan` — so the auditor picks
  * the member at review instead of the model guessing it.
+ * @category Tool Adapters
  */
 export const HvacDuctLocation = z
   .enum([
@@ -750,6 +880,7 @@ export const HvacDuctLocation = z
  * goes in `atticInsulation` instead and this stays `null`. Nothing converts
  * between them — the conversion is climate- and material-dependent, and with
  * both fields real, unnecessary.
+ * @category Tool Adapters
  */
 export const AtticInsulationDepth = z
   .enum(["0", "1-3", "4-6", "7-9", "10-12", "13-15", "16+", "Don't Know"])
@@ -761,6 +892,7 @@ export const AtticInsulationDepth = z
  * HAZARD 2b — `atticInsulationType` (`attic`), the material, separate from depth.
  * Snugg merges fiberglass and rockwool into one member and has no "None": an
  * uninsulated attic is `atticInsulationDepth: "0"`, not a material.
+ * @category Tool Adapters
  */
 export const AtticInsulationType = z
   .enum(["Fiberglass or Rockwool (batts or blown)", "Cellulose", "Spray Foam", "Don't Know"])
@@ -768,7 +900,11 @@ export const AtticInsulationType = z
     'Insulation material — there is no "None" member; an uninsulated attic is atticInsulationDepth: "0", not a material here.',
   );
 
-/** `atticRoofType` (`attic`). `vaultRoofType` publishes the same list — one export. */
+/**
+ * `atticRoofType` (`attic`). `vaultRoofType` publishes the same list — one export.
+ *
+ * @category Tool Adapters
+ */
 export const AtticRoofType = z.enum([
   "Composition Shingles",
   "Concrete Tile",
@@ -779,6 +915,7 @@ export const AtticRoofType = z.enum([
 /**
  * `atticKneeWallInsulationType` (`attic`). The cavity-insulation vocabulary of doc 20
  * §5.0, copied verbatim; `largest-area wins` when several materials are installed.
+ * @category Tool Adapters
  */
 export const AtticKneeWallInsulationType = z.enum([
   "Fiberglass or Rockwool Batt",
@@ -792,6 +929,7 @@ export const AtticKneeWallInsulationType = z.enum([
 /**
  * `atticKneeWallContinuousInsulationType` (`attic`). The rigid-insulation vocabulary of
  * doc 20 §5.0, copied verbatim; largest-area wins.
+ * @category Tool Adapters
  */
 export const AtticKneeWallContinuousInsulationType = z.enum([
   "Rigid XPS",
@@ -806,6 +944,7 @@ export const AtticKneeWallContinuousInsulationType = z.enum([
  * `atticRoofColor` (`attic`). The vendor's list stops at `Medium` — there is no Dark
  * member, so a dictated dark roof has no member and stays `null` (rule 11).
  * `vaultRoofColor` publishes the same list — one export.
+ * @category Tool Adapters
  */
 export const AtticRoofColor = z.enum(["White", "Light", "Medium"]);
 
@@ -819,6 +958,7 @@ export const AtticRoofColor = z.enum(["White", "Light", "Medium"]);
  * `Well` · `Poorly` · `Yes` · `No`). The two lists are therefore declared separately
  * and never shared — anything treating enum position as ordinal would silently swap
  * `Poorly` and `Yes` (doc 20 §5.5 cross-cutting notes).
+ * @category Tool Adapters
  */
 export const VaultInsulationQuality = z
   .enum(["Well", "Yes", "Poorly", "No"])
@@ -829,6 +969,7 @@ export const VaultInsulationQuality = z
 /**
  * `vaultCavityInsulationType` (`vault`). The cavity-insulation vocabulary of doc 20
  * §5.0, copied verbatim; largest-area wins.
+ * @category Tool Adapters
  */
 export const VaultCavityInsulationType = z.enum([
   "Fiberglass or Rockwool Batt",
@@ -842,6 +983,7 @@ export const VaultCavityInsulationType = z.enum([
 /**
  * `vaultContinuousInsulationType` (`vault`). The rigid-insulation vocabulary of doc 20
  * §5.0, copied verbatim; largest-area wins.
+ * @category Tool Adapters
  */
 export const VaultContinuousInsulationType = z.enum([
   "Rigid XPS",
@@ -858,6 +1000,7 @@ export const VaultContinuousInsulationType = z.enum([
  * `wallsInsulated` (`POST /jobs/{jobId}/wall`) — graded states, not a boolean.
  * `"Well"` is distinct from a bare `"Yes"`: "insulated, and done properly"
  * versus "there is something in there". "Some but thin" is `"Poorly"`.
+ * @category Tool Adapters
  */
 export const WallsInsulated = z
   .enum(["Well", "Poorly", "Yes", "No"])
@@ -865,7 +1008,11 @@ export const WallsInsulated = z
     'Four states, not boolean: "Well" means insulated and done properly, "Poorly" means some but thin, and "Yes" means there is insulation of unknown quality — they are not interchangeable.',
   );
 
-/** `wallExteriorWallSiding` (`wall`). */
+/**
+ * `wallExteriorWallSiding` (`wall`).
+ *
+ * @category Tool Adapters
+ */
 export const WallExteriorWallSiding = z.enum([
   "Brick Veneer",
   "Metal/vinyl siding",
@@ -883,6 +1030,7 @@ export const WallExteriorWallSiding = z.enum([
  * `null` member; that empty state is the leaf's `.nullable()`, not an enum
  * member — a `null` in an enum would emit a mixed-type `enum` array that strict
  * structured-output mode rejects. Several other lists record the same rule.
+ * @category Tool Adapters
  */
 export const WallCavityInsulationType = z.enum([
   "Fiberglass or Rockwool Batt",
@@ -897,6 +1045,7 @@ export const WallCavityInsulationType = z.enum([
  * `wallContinuousInsulationType` (`wall`). The rigid-insulation vocabulary of doc 20
  * §5.0, copied verbatim; largest-area wins. The spec publishes the identical list on
  * the `*Improved` twin — one export.
+ * @category Tool Adapters
  */
 export const WallContinuousInsulationType = z.enum([
   "Rigid XPS",
@@ -913,6 +1062,7 @@ export const WallContinuousInsulationType = z.enum([
  * whose body enumerates the members — harvested from staging 2026-09-30 by
  * POSTing a bogus value. The vendor also accepts `""`, left out for the reason
  * `HvacDuctLocation` gives.
+ * @category Tool Adapters
  */
 export const WallExteriorWallConstruction = z
   .enum([
@@ -935,6 +1085,7 @@ export const WallExteriorWallConstruction = z
 /**
  * `windowType` (`POST /jobs/{jobId}/window`) — glazing, including the
  * triple-pane, storm and low-e variants an auditor actually calls out.
+ * @category Tool Adapters
  */
 export const WindowType = z.enum([
   "Single pane",
@@ -945,7 +1096,11 @@ export const WindowType = z.enum([
   "Don't Know",
 ]);
 
-/** `windowFrame` (`window`). "Clad" -> `"Wood or metal clad"`. */
+/**
+ * `windowFrame` (`window`). "Clad" -> `"Wood or metal clad"`.
+ *
+ * @category Tool Adapters
+ */
 export const WindowFrame = z.enum(["Metal", "Vinyl", "Wood or metal clad", "Don't Know"]);
 
 /**
@@ -954,6 +1109,7 @@ export const WindowFrame = z.enum(["Metal", "Vinyl", "Wood or metal clad", "Don'
  * intents (doc 20 §5.0 WINDOW-EXTERIOR-TREATMENT); the spec publishes the
  * identical member set on all eight fields. The treatment is what the SHGC
  * fields must NOT be adjusted for — see `windowSolarHeatGainCoefficient`.
+ * @category Tool Adapters
  */
 export const WindowExteriorTreatment = z.enum([
   "Insect Screen (full)",
@@ -977,6 +1133,7 @@ export const WindowExteriorTreatment = z.enum([
  * the member folds them back together. Note the vendor's own inconsistent storm
  * casing ("Steel, hollow with storm" vs. "Steel, insulated with Storm") — every
  * member stays verbatim.
+ * @category Tool Adapters
  */
 export const DoorType = z
   .enum([
@@ -1001,14 +1158,22 @@ export const DoorType = z
 
 // == dhw =====================================================================
 
-/** `dhwType2` (`POST /jobs/{jobId}/dhw`). "Indirect off the boiler" -> `"Sidearm Tank"`. */
+/**
+ * `dhwType2` (`POST /jobs/{jobId}/dhw`). "Indirect off the boiler" -> `"Sidearm Tank"`.
+ *
+ * @category Tool Adapters
+ */
 export const DhwType = z
   .enum(["Tank Water Heater", "Tankless Water Heater", "Heat Pump", "Sidearm Tank"])
   .describe(
     'Water heater type — an indirect tank off the boiler is "Sidearm Tank", and fuel is a separate field, so "gas water heater" decomposes into a type here and "Natural Gas" in dhwFuel2.',
   );
 
-/** `dhwFuel2` (`dhw`) — the DHW fuel axis, independent of the DHW type. */
+/**
+ * `dhwFuel2` (`dhw`) — the DHW fuel axis, independent of the DHW type.
+ *
+ * @category Tool Adapters
+ */
 export const DhwFuel = z.enum([
   "Electricity",
   "Natural Gas",
@@ -1020,7 +1185,11 @@ export const DhwFuel = z.enum([
   "None",
 ]);
 
-/** `dhwAge` (`dhw`) — a banded age in years. "About twelve years" -> `"11-15"`. */
+/**
+ * `dhwAge` (`dhw`) — a banded age in years. "About twelve years" -> `"11-15"`.
+ *
+ * @category Tool Adapters
+ */
 export const DhwAgeBand = z.enum([
   "0-5",
   "6-10",
@@ -1032,7 +1201,11 @@ export const DhwAgeBand = z.enum([
   "36+",
 ]);
 
-/** `dhwLocation` (`dhw`) — where the tank lives, which drives its standby losses. */
+/**
+ * `dhwLocation` (`dhw`) — where the tank lives, which drives its standby losses.
+ *
+ * @category Tool Adapters
+ */
 export const DhwLocation = z.enum([
   "Indoors and within heated area",
   "Garage or Unconditioned Space",
@@ -1044,6 +1217,7 @@ export const DhwLocation = z.enum([
  * `dhwTemperatureSettings` (`dhw`) — the water heater's dial setting as a
  * temperature BAND. The numeric twin is `dhwTemp`: a stated exact temperature
  * is a number there, a stated setting word is a member here.
+ * @category Tool Adapters
  */
 export const DhwTemperatureSettings = z.enum([
   "Low (120-130 F)",
@@ -1057,10 +1231,15 @@ export const DhwTemperatureSettings = z.enum([
  * `dhwEnergyFactorType` (`dhw`) — which energy-factor scale the water heater's
  * rated efficiency is expressed in; the number itself is `dhwEnergyFactor` or
  * `dhwUnifiedEnergyFactor`.
+ * @category Tool Adapters
  */
 export const DhwEnergyFactorType = z.enum(["EF", "UEF"]);
 
-/** `dhwManufacturer` (`dhw`) — closed enum, like the HVAC one. */
+/**
+ * `dhwManufacturer` (`dhw`) — closed enum, like the HVAC one.
+ *
+ * @category Tool Adapters
+ */
 export const DhwManufacturer = z
   .enum([
     "Unknown",
@@ -1103,6 +1282,7 @@ export const DhwManufacturer = z
  * renders BOTH as Snugg's `"Not Tested"` (the API has no null). This is why the
  * patch leaf is `.nullable()` and not merely `.optional()`: `null` means WRITE
  * `"Not Tested"`, while an absent key means "rejected — do not touch it".
+ * @category Tool Adapters
  */
 export const HealthTestState = z
   .enum(["Passed", "Failed", "Warning", "Not Tested"])
@@ -1115,6 +1295,7 @@ export const HealthTestState = z
  * health endpoint's condition-judgement fields, on one shared enum: the roof's
  * condition, and whether gutters and grading ("the drainage system") look fine
  * — both said out loud from the driveway.
+ * @category Tool Adapters
  */
 export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
 
@@ -1126,6 +1307,7 @@ export const HealthCondition = z.enum(["Good", "Potential Issues", "NA"]);
  * `job.propertyOwnerState`; the spec's `company.state` carries the same list
  * but is outside the capture surface). Spoken as a full state name ("the home
  * is in Massachusetts"); the wire member is the two-letter code.
+ * @category Tool Adapters
  */
 export const UsState = z.enum([
   "AL",
@@ -1185,6 +1367,7 @@ export const UsState = z.enum([
  * `householdIncomeTier` (`job`) — the doc 20 §5.0 **INCOME-TIERS** vocabulary.
  * The members carry `%` signs, spaces and a spaced hyphen (`LMI 80 - 120`) —
  * verbatim, like every wire string.
+ * @category Tool Adapters
  */
 export const HouseholdIncomeTier = z.enum([
   "Any",
@@ -1203,6 +1386,7 @@ export const HouseholdIncomeTier = z.enum([
  * mutually-exclusive bill-entry families is live. A CONTROL field, not a fact
  * about the home: doc 20 §5.2 3.1 verdicts it `capture?` precisely because an
  * auditor never utters it — the note on the leaf says when it may be set.
+ * @category Tool Adapters
  */
 export const BillEntryType = z.enum(["Detailed", "Simple", "No Bills"]);
 
@@ -1210,12 +1394,14 @@ export const BillEntryType = z.enum(["Detailed", "Simple", "No Bills"]);
  * `detailedElectricDataSource` / `detailedFuelDataSource` (`utilities`) — the
  * provenance of a detailed-bill import, one list shared by both streams. Only
  * meaningful when `billEntryType` is `"Detailed"`.
+ * @category Tool Adapters
  */
 export const DetailedBillDataSource = z.enum(["Manual", "Green Button"]);
 
 /**
  * `simpleFuelUnits` (`utilities`) — whether the simple-mode fuel total is
  * counted in delivered gallons or in dollars spent.
+ * @category Tool Adapters
  */
 export const SimpleFuelUnits = z.enum(["Gallons", "Dollars"]);
 
@@ -1224,6 +1410,7 @@ export const SimpleFuelUnits = z.enum(["Gallons", "Dollars"]);
  * field that tells the endpoint's generic "fuel" stream which fuel it describes.
  * A wider list than the hvac/dhw fuel axes: it adds `Coal` and `Kerosene` and
  * drops `None`, so it is declared on its own rather than shared.
+ * @category Tool Adapters
  */
 export const PrimaryHeatingFuelType = z.enum([
   "Natural Gas",
@@ -1237,7 +1424,11 @@ export const PrimaryHeatingFuelType = z.enum([
   "Kerosene",
 ]);
 
-/** `electricBillUnits` (`utilities`) — the unit the electric bill figures are entered in. */
+/**
+ * `electricBillUnits` (`utilities`) — the unit the electric bill figures are entered in.
+ *
+ * @category Tool Adapters
+ */
 export const ElectricBillUnits = z.enum(["kWh", "Dollars"]);
 
 /**
@@ -1245,6 +1436,7 @@ export const ElectricBillUnits = z.enum(["kWh", "Dollars"]);
  * The vendor's own description for this field is a copy-paste bug (it tells the
  * reader to "utilize the kWh option"; `kWh` is not a member — doc 20 §4.7). The
  * members above are the whole vocabulary.
+ * @category Tool Adapters
  */
 export const FuelBillUnits = z.enum([
   "Therms",
@@ -1271,6 +1463,7 @@ export const FuelBillUnits = z.enum([
  * `clothesDryerFuelType` / `rangeFuelType` — one vendor list shared by the
  * dryer and the range: identical member sets, so one exported enum, declared
  * once and reused. On the range it covers the oven too (see `RangeFields`).
+ * @category Tool Adapters
  */
 export const ApplianceFuelType = z.enum([
   "Natural Gas",
@@ -1285,6 +1478,7 @@ export const ApplianceFuelType = z.enum([
  * both "Frigidaire" and its own "Fridgidaire" typo — both stay verbatim — and
  * it is NOT the refrigerator list: the two are genuinely different sets, and
  * normalising one onto the other is exactly the bug doc 20 §4.5 warns about.
+ * @category Tool Adapters
  */
 export const FreezerManufacturer = z
   .enum([
@@ -1314,6 +1508,7 @@ export const FreezerManufacturer = z
  * "Frigidaire" and the vendor's own "Fridgidaire" typo, verbatim; again a
  * different set from the freezer list (this one adds Hotpoint, KitchenAid,
  * Fisher & Paykel, Ikea and Liebherr, and drops Igloo).
+ * @category Tool Adapters
  */
 export const RefrigeratorManufacturer = z
   .enum([
@@ -1347,6 +1542,7 @@ export const RefrigeratorManufacturer = z
  * are irregular in width and OVERLAP: both `"35-42"` and `"42+"` contain 42
  * (doc 20 §4.7). A stated age maps to the band containing it; a stated 42
  * resolves to `"35-42"`, the earlier of the two, deterministically.
+ * @category Tool Adapters
  */
 export const RefrigeratorAge = z.enum([
   "0-14",
@@ -1364,6 +1560,7 @@ export const RefrigeratorAge = z.enum([
  * `refrigeratorSize` — a banded size range in cubic feet (the unit is stated
  * only in the vendor's `refrigeratorName` description — itself a copy-paste
  * bug; see `RefrigeratorFields`).
+ * @category Tool Adapters
  */
 export const RefrigeratorSize = z.enum([
   "1-5",
@@ -1381,6 +1578,7 @@ export const RefrigeratorSize = z.enum([
  * member — the rule `WallCavityInsulationType` records. The create endpoint
  * publishes no meanings for the members; the response definition does, and
  * that text travels on the leaf's own description.
+ * @category Tool Adapters
  */
 export const RefrigeratorMaintenanceStarRating = z
   .enum(["1", "2", "3"])
@@ -1441,6 +1639,7 @@ function withVendorDescriptions<T extends z.ZodRawShape>(shape: T): T {
   return described as unknown as T;
 }
 
+/** @category Tool Adapters */
 export const BasedataFields = z
   .object(
     withVendorDescriptions({
@@ -2137,6 +2336,7 @@ export const BasedataFields = z
  * side is the only place the new system exists at all. The rest of the
  * improved side is desk-side purchase specs of equipment not yet bought
  * (serials, model numbers, ratings of a proposed unit) and stays excluded.
+ * @category Tool Adapters
  */
 export const HvacFields = z
   .object(
@@ -2475,6 +2675,7 @@ export const HvacFields = z
  * the thickness of insulation in the vaulted cavity") — the vault resource has no
  * depth field, so dictated vault depth lands on this attic leaf (doc 20 §5.5
  * cross-cutting notes; rule 8 of the extraction instructions).
+ * @category Tool Adapters
  */
 export const AtticFields = z
   .object(
@@ -2692,6 +2893,7 @@ export const AtticFields = z
  * `attic.atticInsulationDepth` by the vendor's own field description — a
  * cross-resource leak extraction must know about (doc 20 §5.5 cross-cutting notes;
  * rule 8 of the extraction instructions), not a vault-group bug.
+ * @category Tool Adapters
  */
 export const VaultFields = z
   .object(
@@ -2836,6 +3038,7 @@ export const VaultFields = z
  * system" rather than a partial area), yet gives them no human-facing identity — only
  * `uuid` in the response. "The north wall" becomes an anonymous system distinguished
  * by a percentage, so instance identity stays the roster's job (`inventory.ts`).
+ * @category Tool Adapters
  */
 export const WallFields = z
   .object(
@@ -2959,6 +3162,7 @@ export const WallFields = z
  * The `*Improved` area fields are NOT retrofit echoes of their base twins: they
  * are how the vendor encodes WHICH windows get replaced — dictated intent, kept
  * per the foundation design's decision 3.
+ * @category Tool Adapters
  */
 export const WindowFields = z
   .object(
@@ -3157,6 +3361,7 @@ export const WindowFields = z
  * A routing rule travels with `doorArea`: a door with glazing at or above half its
  * rough opening is modelled as a WINDOW at rough-opening area — that fact lands in
  * the `window` group, never here (doc 20 §5.5).
+ * @category Tool Adapters
  */
 export const DoorFields = z
   .object(
@@ -3234,6 +3439,7 @@ export const DoorFields = z
  * of a thing not yet installed), while `dhwPipeWrapLengthImproved` and
  * `dhwPipeWrapPercentageImproved` are improved-ONLY — the recommended
  * pipe-wrap measure's quantities, with no base counterpart.
+ * @category Tool Adapters
  */
 export const DhwFields = z
   .object(
@@ -3526,6 +3732,7 @@ export const DhwFields = z
  * condition, and the safety-questions disclosure. Every `formData` parameter of
  * the endpoint but the malformed `customFields` (doc 20 §5.8). Undiluted flue
  * CO and radon are real tests auditors dictate — the matrix must carry them.
+ * @category Tool Adapters
  */
 export const HealthFields = z
   .object(
@@ -3583,6 +3790,7 @@ export const HealthFields = z
  * natural name field, so instance identity rides the roster's discriminator
  * mechanism — the SUBJECT of the concern (noise vs. comfort vs. cost) — rather
  * than any leaf declared here. See `inventory.ts`.
+ * @category Tool Adapters
  */
 export const ConcernFields = z
   .object(
@@ -3630,6 +3838,7 @@ export const ConcernFields = z
  * and a recommendation cannot be created from an empty state, so a
  * cross-reference to records that can never be written is data the app can
  * never use.
+ * @category Tool Adapters
  */
 export const IncentiveFields = z
   .object(
@@ -3683,6 +3892,7 @@ export const IncentiveFields = z
  * manufacturer and model, and a dictated "the dryer in the basement" has no
  * writable home. Instance identity is the roster's job (`inventory.ts`); the
  * spoken location rides its discriminator, never a leaf here.
+ * @category Tool Adapters
  */
 export const ClothesDryerFields = z
   .object(
@@ -3738,6 +3948,7 @@ export const ClothesDryerFields = z
  * field anywhere): "garage chest freezer" all lands in that one string.
  * Instance identity still rides the roster (`inventory.ts`); the spoken label
  * lands on `freezerName`.
+ * @category Tool Adapters
  */
 export const FreezerFields = z
   .object(
@@ -3809,6 +4020,7 @@ export const FreezerFields = z
  *
  * Cardinality / instance label: NONE — no name, label or location field;
  * instance identity rides the roster (`inventory.ts`).
+ * @category Tool Adapters
  */
 export const RangeFields = z
   .object(
@@ -3847,6 +4059,7 @@ export const RangeFields = z
  * the Name string) and no type field (no mini-fridge distinction; the size
  * bands are the only proxy). Instance identity rides the roster
  * (`inventory.ts`).
+ * @category Tool Adapters
  */
 export const RefrigeratorFields = z
   .object(
@@ -3932,6 +4145,7 @@ export const RefrigeratorFields = z
  * slope, another two on the garage" produces two records indistinguishable on
  * the wire. Instance identity rides the roster (`inventory.ts`), keyed by
  * array size and the roof plane / orientation the auditor places it on.
+ * @category Tool Adapters
  */
 export const PvFields = z
   .object(
@@ -4021,6 +4235,7 @@ export const PvFields = z
  * SINGLETON, like `basedata` and `health`, not an array of instances — the
  * endpoint is a state transition on the job, not an instance create (doc 20
  * §5.1). Its sibling `stageChangeReason` is deliberately out of scope.
+ * @category Tool Adapters
  */
 export const StageFields = z
   .object(
@@ -4063,6 +4278,7 @@ export const StageFields = z
  * Requiredness: `PUT /jobs/{jobId}` requires nothing, so the group declares
  * nothing in `adapter.ts`'s `requiredOnCreate`; the patch leaves stay
  * `.nullable().optional()` by construction like every other group's.
+ * @category Tool Adapters
  */
 export const JobFields = z
   .object(
@@ -4128,6 +4344,7 @@ export const JobFields = z
  * is a short caption (doc 20 §5.3 "Free-text inventory and expected length") —
  * the live spec's `maxLength` hints doc 20 recorded are gone as of this
  * writing, so leaf descriptions state "short label," not a specific length.
+ * @category Tool Adapters
  */
 export const ReportFields = z
   .object(
@@ -4239,6 +4456,7 @@ export const ReportFields = z
  *     20 itself: its semantics are unresolved (an annual dollar total, not a
  *     per-kWh rate) with an explicit "do not map until confirmed" (§5.2 3.6,
  *     §9 question 5).
+ * @category Tool Adapters
  */
 export const UtilitiesFields = z
   .object(
@@ -4520,6 +4738,7 @@ export const UtilitiesFields = z
 // `POST /jobs/{jobId}/<type>`) are `z.array(...).optional()`. `basedata`,
 // `health`, `stage` and `job` are genuine singletons and stay objects.
 
+/** @category Tool Adapters */
 export const snuggValuesSchema = z
   .object({
     basedata: BasedataFields.optional(),
@@ -4550,6 +4769,7 @@ export const snuggValuesSchema = z
  * Inferred from {@link snuggValuesSchema}, never hand-declared — zod is the source
  * of truth. Every key is optional (absent = rejected, do not touch) and every
  * value nullable (present `null` = write it empty).
+ * @category Tool Adapters
  */
 export type SnuggValues = z.infer<typeof snuggValuesSchema>;
 
@@ -4561,6 +4781,7 @@ export type SnuggValues = z.infer<typeof snuggValuesSchema>;
  * every object with every key required. See the file header, and
  * `extraction-shape.test.ts` for the frozen JSON Schema this derivation must
  * keep producing.
+ * @category Tool Adapters
  */
 export const snuggExtractionSchema = enveloped(snuggValuesSchema);
 
@@ -4572,6 +4793,7 @@ export const snuggExtractionSchema = enveloped(snuggValuesSchema);
  * package all name the extraction shape identically. `enveloped.test.ts` pins the
  * two as mutually assignable, so this cannot drift from what `enveloped()` really
  * returns.
+ * @category Tool Adapters
  */
 export type SnuggExtraction = Enveloped<SnuggValues>;
 
@@ -4596,6 +4818,7 @@ export type SnuggExtraction = Enveloped<SnuggValues>;
  * ceiling); this constant guards the character half. The guard runs on the
  * partitioned pieces `perGroupExtractor` actually sends, never on a group as a
  * whole — an unpartitioned group can exceed the cap.
+ * @category Tool Adapters
  */
 export const SCHEMA_SERIALIZED_CHAR_CAP = 32_768;
 
@@ -4609,5 +4832,6 @@ export const SCHEMA_SERIALIZED_CHAR_CAP = 32_768;
  * The partitioned per-group pieces sit exactly AT this cap, with no headroom:
  * every `.nullable()` renders as `anyOf: [{…}, {type: "null"}]` and costs two
  * levels, so one more nullable union on a per-group path breaks extraction.
+ * @category Tool Adapters
  */
 export const SCHEMA_NESTING_DEPTH_CAP = 12;

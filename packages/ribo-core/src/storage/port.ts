@@ -25,10 +25,15 @@ import type { Observable } from "rxjs";
  * Three is the whole set, and it does not grow when a host declares a store: a
  * declared store is a namespace *within* `entries`, distinguished by its
  * `owner`, so a backend never learns how many stores exist.
+ * @category Offline & Storage
  */
 export type CollectionName = keyof Finders;
 
-/** What a stored document looks like to the port: JSON-ish, with a string `id`. */
+/**
+ * What a stored document looks like to the port: JSON-ish, with a string `id`.
+ *
+ * @category Offline & Storage
+ */
 export type StoredDocument = Record<string, unknown> & { id: string };
 
 /**
@@ -37,6 +42,7 @@ export type StoredDocument = Record<string, unknown> & { id: string };
  * The absence of a `data` field is load-bearing. `Capture.audioBytes` sums these
  * lengths across a whole queue, and a backend that materialised blobs to answer
  * would exhaust memory on a device holding a morning's dictations.
+ * @category Offline & Storage
  */
 export interface BlobDescriptor {
   readonly id: string;
@@ -61,6 +67,7 @@ export interface BlobDescriptor {
  * allocating the next one — which is {@link StorageBackend.insertNext}'s job
  * precisely so no caller has to read-then-write. If you find yourself wanting to
  * add one, you are probably reintroducing the race.
+ * @category Offline & Storage
  */
 export interface Finders {
   /** Captures, ordered by sequence ascending. */
@@ -95,13 +102,25 @@ export interface Finders {
   };
 }
 
-/** What a key-value entry is scoped to, and therefore what sweeps it. */
+/**
+ * What a key-value entry is scoped to, and therefore what sweeps it.
+ *
+ * @category Offline & Storage
+ */
 export type EntryScopeKind = "capture" | "session";
 
-/** A conflict-safe read-modify-write. Receives the current document, returns the next one. */
+/**
+ * A conflict-safe read-modify-write. Receives the current document, returns the next one.
+ *
+ * @category Offline & Storage
+ */
 export type Modifier = (current: StoredDocument) => StoredDocument;
 
-/** A blob to attach in the same write as its document. */
+/**
+ * A blob to attach in the same write as its document.
+ *
+ * @category Offline & Storage
+ */
 export interface BlobInput {
   readonly id: string;
   readonly data: Blob;
@@ -113,6 +132,7 @@ export interface BlobInput {
  * Every method's *behavioural* obligations are specified by the conformance kit
  * rather than by these signatures — a backend that satisfies the types and fails
  * the kit is not an implementation of this port. See `conformance.ts`.
+ * @category Offline & Storage
  */
 export interface StorageBackend {
   /** The database name this backend was opened on. Two handles on one name share state. */

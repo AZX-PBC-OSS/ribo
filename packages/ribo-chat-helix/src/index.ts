@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-chat-helix
+ *
  * @file The public surface of `@azx/ribo-chat-helix`.
  *
  * The Helix platform LLM route transport: one `helixChat` factory over the

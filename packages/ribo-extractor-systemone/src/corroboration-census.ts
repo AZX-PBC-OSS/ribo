@@ -22,7 +22,11 @@ import type { ChoiceQuestion, ChoiceResponse, SystemOneClient } from "@azx/ribo-
 
 import { enumMembersAt } from "./enum-members.js";
 
-/** The relationship a System One answer reports between transcript and recorded value. */
+/**
+ * The relationship a System One answer reports between transcript and recorded value.
+ *
+ * @category Arbitration & Fallback
+ */
 export type CorroborationVerdict = "supports" | "contradicts" | "says_nothing";
 
 /**
@@ -31,6 +35,7 @@ export type CorroborationVerdict = "supports" | "contradicts" | "says_nothing";
  * corroborate — carries `null` for all three rather than a fabricated verdict,
  * the same convention that keeps {@link CensusLeaf.groundedness} null for an
  * abstention.
+ * @category Arbitration & Fallback
  */
 export interface CorroboratedLeaf extends CensusLeaf {
   readonly verdict: CorroborationVerdict | null;
@@ -38,7 +43,11 @@ export interface CorroboratedLeaf extends CensusLeaf {
   readonly probabilities: Readonly<Record<CorroborationVerdict, number>> | null;
 }
 
-/** {@link GroundingCensusCounts} plus the corroboration tally. */
+/**
+ * {@link GroundingCensusCounts} plus the corroboration tally.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface CorroborationCensusCounts extends GroundingCensusCounts {
   /**
    * Committed leaves whose verdict came back as anything other than
@@ -49,13 +58,21 @@ export interface CorroborationCensusCounts extends GroundingCensusCounts {
   readonly uncorroborated: number;
 }
 
-/** The tally {@link corroborationCensus} produces. */
+/**
+ * The tally {@link corroborationCensus} produces.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface CorroborationCensus extends GroundingCensus {
   readonly leaves: readonly CorroboratedLeaf[];
   readonly counts: CorroborationCensusCounts;
 }
 
-/** Options for {@link corroborationCensus}. */
+/**
+ * Options for {@link corroborationCensus}.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface CorroborationCensusOptions {
   /** The System One client to ask — the host's proxied, credential-attaching one. */
   readonly client: SystemOneClient;
@@ -130,6 +147,7 @@ const pathKey = (path: LeafPath): string => JSON.stringify(path);
  * still appears in the output, carrying nulls. Unbatched questions are split
  * across sequential `ask` calls of at most `batchSize` each — the client rate-
  * limits, so calls do not run concurrently.
+ * @category Arbitration & Fallback
  */
 export const corroborationCensus = async (
   census: GroundingCensus,

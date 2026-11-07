@@ -30,7 +30,11 @@ import { snuggProInstructions } from "./instructions.js";
 import { snuggExtractionSchema, snuggValuesSchema, type SnuggValues } from "./schema.js";
 import { createSnuggHttpWriter, type SnuggHttpWriter } from "./write/writer.js";
 
-/** Stable identifier for this adapter: the bounded Snugg Pro pilot field set. */
+/**
+ * Stable identifier for this adapter: the bounded Snugg Pro pilot field set.
+ *
+ * @category Tool Adapters
+ */
 export const SNUGGPRO_ADAPTER_NAME = "snuggpro-bounded";
 
 /**
@@ -40,6 +44,7 @@ export const SNUGGPRO_ADAPTER_NAME = "snuggpro-bounded";
  * have a captured value, is a veto. Duct leakage, insulation, location and capacities are
  * intentionally excluded — they describe the wrong-record problem the plan documents
  * (furnace identity with AC duct data) and must not be allowed to override it.
+ * @category Tool Adapters
  */
 export const HVAC_IDENTIFYING_FIELDS = [
   "hvacSystemEquipmentType",
@@ -58,6 +63,7 @@ export const HVAC_IDENTIFYING_FIELDS = [
  * fact. The credential lives in the transport the host supplies: its `fetchImpl`
  * routes through the Helix gateway, which signs the request server-side and
  * injects the stored credential.
+ * @category Tool Adapters
  */
 export interface SnuggProAdapterOptions {
   /**
@@ -248,13 +254,14 @@ const writePatch = async (
 
 /**
  * Build a Snugg Pro adapter with a real write, over the transport the host
- * supplies. The write composes {@link createSnuggHttpWriter} — the I/O, URL
+ * supplies. The write composes `createSnuggHttpWriter` — the I/O, URL
  * building, body transform and failure classification are all the writer's; this
- * factory only bridges the patch to it (see {@link writePatch}).
+ * factory only bridges the patch to it (see `writePatch`).
  *
  * Without `fetchImpl` the product is the transport-less adapter: identical
  * surface, but `write` rejects naming this factory as the fix. That instance is
  * published as {@link snuggProAdapter}.
+ * @category Tool Adapters
  */
 export const createSnuggProAdapter = (
   options: SnuggProAdapterOptions = {},
@@ -269,7 +276,11 @@ export const createSnuggProAdapter = (
   };
 };
 
-/** The transport-less adapter: everything but a working write. See {@link createSnuggProAdapter}. */
+/**
+ * The transport-less adapter: everything but a working write. See {@link createSnuggProAdapter}.
+ *
+ * @category Tool Adapters
+ */
 export const snuggProAdapter: ToolAdapter<SnuggValues, SnuggWriteContext> = createSnuggProAdapter();
 
 /**
@@ -306,6 +317,7 @@ const toInstanceFacts = (group: string, values: Record<string, unknown>): Instan
  * Within each tier the original order is preserved so the host tool's own ordering
  * (e.g., creation order) survives. The strongest non-contradicting candidate may be
  * pre-highlighted, but it is never linked automatically.
+ * @category Tool Adapters
  */
 export function rankCandidates(
   group: string,
@@ -332,7 +344,11 @@ export function rankCandidates(
  */
 const snuggExistingRecordSchema = z.looseObject({ uuid: z.string().min(1) });
 
-/** Options for {@link readExistingRecords} — the same injectable transport as the writer's. */
+/**
+ * Options for {@link readExistingRecords} — the same injectable transport as the writer's.
+ *
+ * @category Tool Adapters
+ */
 export interface ReadExistingRecordsOptions {
   readonly fetchImpl?: typeof fetch;
 }

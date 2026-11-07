@@ -33,6 +33,7 @@ import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js
  * `winner` is positional (`"primary" | "hedge"`) rather than an engine id,
  * because this combinator takes two bare extractors and has no ids to name —
  * which separates the hedge's fire rate from its win rate just as well.
+ * @category Arbitration & Fallback
  */
 export interface ExtractionHedgeEvent {
   /**
@@ -46,10 +47,15 @@ export interface ExtractionHedgeEvent {
 /**
  * How long to give the primary before firing the hedge: a fixed number of
  * milliseconds, or a function of the transcript returning them.
+ * @category Arbitration & Fallback
  */
 export type HedgeDelay = number | ((transcript: AnnotatedTranscript) => number);
 
-/** What a caller supplies to {@link hedgedExtractor}. */
+/**
+ * What a caller supplies to {@link hedgedExtractor}.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface HedgedExtractorOptions {
   /**
    * When to fire the hedge, in milliseconds. Required — **core ships no
@@ -155,6 +161,7 @@ const defaultScheduleTimer: ScheduleTimer = (fn, delayMs) => {
  * number mean something different here than everywhere else. The true cost of
  * hedging is measured by counting {@link HedgedExtractorOptions.onHedge}
  * fires.
+ * @category Arbitration & Fallback
  */
 export function hedgedExtractor<F>(
   primary: Extractor<F>,

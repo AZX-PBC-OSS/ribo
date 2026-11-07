@@ -16,6 +16,7 @@ import type { CaptureCoordinator } from "./capture-coordinator.js";
 import { useOptionalRiboInstance, useRiboInstance } from "./use-ribo-instance.js";
 import { useSubscribed } from "./use-subscribed.js";
 
+/** @category React Hooks */
 export interface UseRecorderOptions {
   readonly recorder?: AnyRecorder;
   readonly storage?: Storage;
@@ -46,12 +47,14 @@ export interface UseRecorderOptions {
   readonly sessionId?: string;
 }
 
+/** @category React Hooks */
 export interface StopResult {
   readonly capture: RecorderCapture<Record<string, unknown>>;
   /** The queued row, or `undefined` when `enqueue` was `false`. */
   readonly item: Capture | undefined;
 }
 
+/** @category React Hooks */
 export interface UseRecorderResult {
   readonly phase: RecorderPhase;
   readonly elapsedMs: number;
@@ -111,6 +114,7 @@ export interface UseRecorderResult {
  * had been saved. A caller must therefore `await stop()` inside a `try`, same as
  * any other operation whose result it depends on; `error` state is populated
  * alongside the throw for a UI that also wants to render the failure inline.
+ * @category React Hooks
  */
 export function useRecorder(options: UseRecorderOptions = {}): UseRecorderResult {
   const { enqueue = true, sessionId } = options;

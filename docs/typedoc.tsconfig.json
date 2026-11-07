@@ -1,17 +1,21 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "//": "TypeDoc-only. Isolated from every package's own tsconfig so `docs:api` never enters `pnpm typecheck`. Extends browser-library.json for the DOM lib the engine/adapter APIs reference and the `@azx/source` condition so cross-package imports resolve to src/.",
-  "//include": "MUST list the same packages as typedoc.json's `entryPoints`. TypeDoc warns (not errors) when an entry point is absent here, so the two drift silently and the missing package's docs come out thin — that is how @azx/ribo-transcriber-pdfjs shipped with an entry point and no include. @azx/ribo-ui-react is deliberately absent from BOTH: it contains .tsx, and this config extends browser-library.json, which sets no `jsx`. Adding it needs react-library.json, which would pull JSX settings into every other package's docs pass.",
-  "extends": "../packages/tsconfig/browser-library.json",
+  "//": "TypeDoc-only. Isolated from every package's own tsconfig so `docs:api` never enters `pnpm typecheck`. Extends react-library.json (browser-library.json + jsx) for the DOM lib the engine/adapter APIs reference, the JSX settings the .tsx in @azx/ribo-ui-react needs, and the `@azx/source` condition so cross-package imports resolve to src/.",
+  "//include": "MUST list the same packages as typedoc.json's `entryPoints`. TypeDoc warns (not errors) when an entry point is absent here, and typedoc.json sets treatWarningsAsErrors, so a package listed there but missing here now fails `pnpm docs:api` instead of shipping thin docs silently — that is how @azx/ribo-transcriber-pdfjs once shipped with an entry point and no include.",
+  "extends": "../packages/tsconfig/react-library.json",
   "include": [
-    "../packages/ribo-core/src",
     "../packages/ribo-adapter-snuggpro/src",
     "../packages/ribo-chat-helix/src",
     "../packages/ribo-chat-openai/src",
+    "../packages/ribo-core/src",
     "../packages/ribo-extractor-ondevice/src",
+    "../packages/ribo-extractor-systemone/src",
+    "../packages/ribo-storage-rxdb/src",
+    "../packages/ribo-systemone-managed/src",
     "../packages/ribo-transcriber-managed/src",
     "../packages/ribo-transcriber-managed-docs/src",
     "../packages/ribo-transcriber-ondevice/src",
-    "../packages/ribo-transcriber-pdfjs/src"
+    "../packages/ribo-transcriber-pdfjs/src",
+    "../packages/ribo-ui-react/src"
   ]
 }

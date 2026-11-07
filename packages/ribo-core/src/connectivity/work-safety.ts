@@ -83,6 +83,7 @@ import type { SessionItem } from "../storage/session-schema.js";
  * A summary of the storage reduced to the three facts safety depends on. The
  * input {@link workSafety} classifies, so the classifier never has to hold the
  * full {@link Capture} shape and a caller can summarize once per render.
+ * @category Connectivity
  */
 export interface WorkOnDevice {
   /** Unsynced work still on the device: active recordings, open/extracting/writing sessions. */
@@ -113,6 +114,7 @@ export interface WorkOnDevice {
  * itself (cannot be asked); and `checking` maps to `"unknown"` (in flight). Only
  * `"granted"` is a grant; the other three are all "not persistent", and differ
  * only in the sentence a UI shows.
+ * @category Connectivity
  */
 export type StoragePersistence = "granted" | "denied" | "unsupported" | "unknown";
 
@@ -121,6 +123,7 @@ export type StoragePersistence = "granted" | "denied" | "unsupported" | "unknown
  * and a **reason** (the specific cause it phrases the sentence around), as a
  * discriminated union so each situation carries exactly the facts its sentence
  * needs and no more.
+ * @category Connectivity
  */
 export type WorkSafety =
   /** No unsynced work on the device. `all-synced` had work and it all left; `nothing-captured` never did. */
@@ -156,6 +159,7 @@ export type WorkSafety =
  * pending work that hasn't reached a session yet. `transcribed` recordings are
  * counted through their session. `dead` recordings and sessions are both
  * counted as `dead`. `discarded` recordings are counted nowhere.
+ * @category Connectivity
  */
 export const summarizeWork = (
   recordings: readonly Pick<Capture, "status">[],
@@ -198,6 +202,7 @@ export const summarizeWork = (
  * Pure and total. See the file header for the model, the precedence
  * (`action-required` > `at-risk` > `protected` > `safe`) and why only `synced`
  * is truly `safe`.
+ * @category Connectivity
  */
 export const workSafety = (
   work: WorkOnDevice,

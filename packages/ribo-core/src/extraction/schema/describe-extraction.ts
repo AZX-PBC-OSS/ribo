@@ -55,6 +55,7 @@ import type { TopLevelKey } from "./split-schema.js";
  * piece. The first two are the exact numbers `schemaExtractor`'s
  * single-shot-vs-per-group selection reads; depth rides beside them, measured
  * and never decided on (see the file header).
+ * @category Extraction
  */
 export interface SchemaMeasures {
   /** Nullable unions in the serialized response schema — the union cap's unit. */
@@ -71,6 +72,7 @@ export interface SchemaMeasures {
  * `part`/`parts` are present exactly when the key was partitioned. On the
  * single-shot path there is one row: the whole schema under `key: ""`, no
  * part — one call is a split answer too.
+ * @category Extraction
  */
 export interface ExtractionPieceDescription extends SchemaMeasures {
   readonly key: string;
@@ -86,19 +88,25 @@ export interface ExtractionPieceDescription extends SchemaMeasures {
  * by a second walk). A loose key BESIDE a group is not here: the mixed split
  * carries it as the unwrapped portion on the grouped path (ADR 0023), so it
  * can no longer force the flat path at all.
+ * @category Extraction
  */
 export type ExtractionFlatReason =
   | { readonly kind: "not-an-object" }
   | { readonly kind: "empty" }
   | { readonly kind: "loose-keys"; readonly keys: readonly string[] };
 
-/** Which stage of the real construction path raised the refusal the report carries. */
+/**
+ * Which stage of the real construction path raised the refusal the report carries.
+ *
+ * @category Extraction
+ */
 export type ExtractionRefusalStage = "derive" | "name" | "split";
 
 /**
  * The refusal construction would raise, carried rather than thrown: the stage
  * whose code raised it, and the real error's text verbatim. Present exactly
  * when construction over the same schema, caps and name would throw.
+ * @category Extraction
  */
 export interface ExtractionRefusal {
   readonly stage: ExtractionRefusalStage;
@@ -120,6 +128,7 @@ export interface ExtractionRefusal {
  *   - `keys`, `path`, `flatReason`, `callShape` and `whole` are present
  *     whenever a schema survived to be described — absent only on a
  *     derive-stage refusal, where there is no schema to measure.
+ * @category Extraction
  */
 export interface ExtractionDescription {
   readonly shape?: DerivedExtractionShape;
@@ -172,6 +181,7 @@ interface DescribeSharedOptions {
  * describes the derived extraction schema. Wire the carried `shape` into
  * `schemaExtractor`'s `extractionSchema` passthrough to build what was
  * described.
+ * @category Extraction
  */
 export interface DescribeRawSchemaOptions extends DescribeSharedOptions {
   readonly schema: z.ZodObject;
@@ -187,6 +197,7 @@ export interface DescribeRawSchemaOptions extends DescribeSharedOptions {
  * Describe an already-derived extraction schema, used as-is — enveloping
  * twice double-wraps. The derivation options are refused on this shape, the
  * same way `schemaExtractor` refuses both-or-neither.
+ * @category Extraction
  */
 export interface DescribeDerivedSchemaOptions extends DescribeSharedOptions {
   readonly extractionSchema: z.ZodType;
@@ -201,6 +212,7 @@ export interface DescribeDerivedSchemaOptions extends DescribeSharedOptions {
  * Options for {@link describeExtraction}: `schema` XOR `extractionSchema` —
  * the two input shapes `schemaExtractor` takes. No `chat`, no `model`, no
  * timing knobs: the same cut `perGroupPlan` draws.
+ * @category Extraction
  */
 export type DescribeExtractionOptions = DescribeRawSchemaOptions | DescribeDerivedSchemaOptions;
 
@@ -227,6 +239,7 @@ const refusalMessage = (error: unknown): string =>
  * keys, neither, or derivation options beside a passthrough schema — is a
  * programming error and THROWS, the same way `schemaExtractor` refuses
  * both-or-neither; a fact about the schema is reported, never thrown.
+ * @category Extraction
  */
 export function describeExtraction(options: DescribeExtractionOptions): ExtractionDescription {
   if (options.schema !== undefined && options.extractionSchema !== undefined) {

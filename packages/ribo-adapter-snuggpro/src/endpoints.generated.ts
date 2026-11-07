@@ -17,14 +17,17 @@
 // `pnpm snugg:check` fails when this no longer matches the live spec. Regeneration is
 // deliberate rather than automatic — see `scripts/snugg-descriptions.mjs`.
 
+/** @category Tool Adapters */
 export type SnuggEndpointKind = "collection" | "singleton" | "job";
 
+/** @category Tool Adapters */
 export interface SnuggEndpointOperation {
   readonly verb: "POST" | "PUT" | "GET";
   readonly path: string;
   readonly params: Readonly<Record<string, string>>;
 }
 
+/** @category Tool Adapters */
 export interface SnuggGroupEndpoints {
   readonly kind: SnuggEndpointKind;
   /** Collections only. Singletons upsert instead; `job` has no create. */
@@ -46,7 +49,11 @@ export interface SnuggGroupEndpoints {
   readonly createOnly: readonly string[];
 }
 
-/** The vendor's write endpoints, keyed by the group names of `snuggValuesSchema`. */
+/**
+ * The vendor's write endpoints, keyed by the group names of `snuggValuesSchema`.
+ *
+ * @category Tool Adapters
+ */
 export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Object.freeze({
   basedata: {
     kind: "singleton",

@@ -39,6 +39,7 @@ declare const NoteBrand: unique symbol;
  * `NoteKey<Roster>` is not assignable to a `NoteKey<PresenceMap>` slot even though both
  * are plain strings at runtime. `noteKey<unknown>(id)` is the escape hatch: an open
  * scratch key that round-trips any value.
+ * @category Extraction
  */
 export type NoteKey<T> = string & { readonly [NoteBrand]?: (value: T) => T };
 
@@ -49,6 +50,7 @@ export type NoteKey<T> = string & { readonly [NoteBrand]?: (value: T) => T };
  * is nothing to construct — and because the brand property is optional under a
  * module-private symbol, a plain `string` is directly assignable to the branded
  * intersection: no cast, even though semantically this is "a cast and nothing else".
+ * @category Extraction
  */
 export function noteKey<T>(id: string): NoteKey<T> {
   return id;
@@ -61,6 +63,7 @@ export function noteKey<T>(id: string): NoteKey<T> {
  * `get` and `set` are generic in the KEY's type parameter, so the value's type follows the
  * key — a mismatched read or write is a compile error. `keys` is the plain-string view of
  * everything set.
+ * @category Extraction
  */
 export interface Notes {
   /** The value stored under `key`, or `undefined` when nothing was set. */
@@ -96,7 +99,11 @@ class NoteBag implements Notes {
   }
 }
 
-/** The empty bag every draft starts with. */
+/**
+ * The empty bag every draft starts with.
+ *
+ * @category Extraction
+ */
 export function emptyNotes(): Notes {
   return new NoteBag(new Map());
 }
@@ -114,6 +121,7 @@ export function emptyNotes(): Notes {
  *
  * A plain `TypeError`, matching `validatePhases`' style: a composition bug, not a model
  * failure — `plan` is synchronous and runs before any call is made.
+ * @category Extraction
  */
 export function demandNote<T>(notes: Notes, key: NoteKey<T>, reader: string, writer: string): T {
   const value = notes.get(key);

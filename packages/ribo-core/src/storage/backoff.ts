@@ -1,4 +1,8 @@
-/** Window for the first retry, in milliseconds. Doubles per attempt from here. */
+/**
+ * Window for the first retry, in milliseconds. Doubles per attempt from here.
+ *
+ * @category Offline & Storage
+ */
 export const DEFAULT_BACKOFF_BASE_MS = 1_000;
 
 /**
@@ -7,9 +11,11 @@ export const DEFAULT_BACKOFF_BASE_MS = 1_000;
  * Five minutes rather than the hours a server-side queue might use: on iOS the
  * relay only runs while the tab is in the foreground (`09 §"Foreground relay"`),
  * so a long window mostly means "never retried this session".
+ * @category Offline & Storage
  */
 export const DEFAULT_BACKOFF_CAP_MS = 5 * 60_000;
 
+/** @category Offline & Storage */
 export interface BackoffOptions {
   baseMs?: number;
   capMs?: number;
@@ -31,6 +37,7 @@ export interface BackoffOptions {
  * point is decorrelation: several devices that lost the same flaky uplink come
  * back at the same instant, and a deterministic curve has them all retry in
  * lockstep. Drawing uniformly over the entire window spreads them out.
+ * @category Offline & Storage
  */
 export function fullJitterDelay(attempts: number, options: BackoffOptions = {}): number {
   if (!Number.isFinite(attempts) || attempts < 0) {
@@ -55,6 +62,7 @@ export function fullJitterDelay(attempts: number, options: BackoffOptions = {}):
  * For the cases the HTTP status heuristic below cannot see: audio missing from
  * the attachment store, a transcript that will never parse, a step that has
  * declared the item unprocessable.
+ * @category Offline & Storage
  */
 export class TerminalError extends Error {
   // `: string` is load-bearing: without it TypeScript infers the literal
@@ -84,6 +92,7 @@ function statusOf(error: unknown): number | undefined {
  * wrongly-`dead` transient failure silently loses a field recording that someone
  * drove to a house to make. `fetch` rejecting with a bare `TypeError` when the
  * uplink drops is the single most likely error this queue will ever see.
+ * @category Offline & Storage
  */
 export function isTransientFailure(error: unknown): boolean {
   if (error instanceof TerminalError) return false;

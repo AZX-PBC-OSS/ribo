@@ -285,6 +285,7 @@ const writeAt = (
  * `Enveloped` over the derived patch at the same per-group provenance, ready
  * for `buildReviewRequest` (which walks the patch schema and reads each leaf at
  * its patch path) and, after review, for the write.
+ * @category Extraction
  */
 export const reverseShapedFields = (
   fields: Record<string, unknown>,

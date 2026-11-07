@@ -16,7 +16,11 @@ import type { StorageBackend } from "./port.js";
  * owner and its scope, which is why adding a store costs the backend nothing.
  */
 
-/** A store's handle, scoped to one owner. Reached as `storage.store(owner)`. */
+/**
+ * A store's handle, scoped to one owner. Reached as `storage.store(owner)`.
+ *
+ * @category Offline & Storage
+ */
 export interface Store {
   /** This owner's namespace for one capture. Entries die when the capture does. */
   capture: (captureId: string) => PluginStorage;
@@ -33,12 +37,17 @@ export interface Store {
  * The owner is conventionally a package name — two packages that name themselves
  * differently cannot read or clobber each other's keys, and nothing enforces the
  * convention beyond that.
+ * @category Offline & Storage
  */
 export function createStore(backend: StorageBackend, owner: string): Store {
   return createPluginStorageScope(backend, owner);
 }
 
-/** One capture's namespace, with the owner supplied later. */
+/**
+ * One capture's namespace, with the owner supplied later.
+ *
+ * @category Offline & Storage
+ */
 export function createCaptureStore(
   backend: StorageBackend,
   captureId: string,
@@ -46,7 +55,11 @@ export function createCaptureStore(
   return createCaptureStorageScope(backend, captureId);
 }
 
-/** One capture's namespace for one owner, for a caller holding both ids already. */
+/**
+ * One capture's namespace for one owner, for a caller holding both ids already.
+ *
+ * @category Offline & Storage
+ */
 export function createScopedStore(
   backend: StorageBackend,
   captureId: string,
@@ -85,4 +98,5 @@ export async function sweepCaptureEntries(
   );
 }
 
+/** @category Offline & Storage */
 export type { CaptureStorageScope, PluginStorage, PluginStorageScope };

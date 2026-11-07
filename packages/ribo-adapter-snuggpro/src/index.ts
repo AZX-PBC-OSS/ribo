@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-adapter-snuggpro
+ *
  * @file The public surface of `@azx/ribo-adapter-snuggpro`.
  *
  * The only tool-specific surface in the workspace: how Snugg Pro's bounded audit

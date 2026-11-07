@@ -81,6 +81,7 @@ import { parseWithSchema } from "./parse-with-schema.js";
  * folds into its internal `""`-keyed record at entry. The READING surface
  * carries it — `ExtractionGroup.key`, `GroupUnit.key`, `PhaseUnit`'s default —
  * so a consumer comparing a key compares against this name (ADR 0023).
+ * @category Extraction
  */
 export const UNWRAPPED_KEY = "";
 
@@ -99,6 +100,7 @@ type NamedGroupEntries<V extends Record<string, unknown>, P> = {
  * `unwrapped`. The unwrapped portion is NOT a key in this map — it is the
  * separate `unwrapped` option; the `""` marker it folds into,
  * {@link UNWRAPPED_KEY}, is internal.
+ * @category Extraction
  */
 export type GroupMap<V extends Record<string, unknown>, P = NoProvenance> = NamedGroupEntries<V, P>;
 
@@ -136,6 +138,7 @@ export type GroupMap<V extends Record<string, unknown>, P = NoProvenance> = Name
  * entry's, and the closing parse validates shape only. The same guard covers
  * `statedEmptyGroups`, which the unwrapped entries would otherwise clobber in
  * pool arrival order.
+ * @category Extraction
  */
 export type UnwrappedEntry<V extends Record<string, unknown>, P = NoProvenance> =
   Extractor<Enveloped<V, P>> | readonly Extractor<Enveloped<V, P>>[];
@@ -157,6 +160,7 @@ export type UnwrappedEntry<V extends Record<string, unknown>, P = NoProvenance> 
  *   - **`unwrapped` alone** — the non-grouped fallback for a schema that is
  *     not an object of groups: the entry (or ordered piece list) covers the
  *     whole schema.
+ * @category Extraction
  */
 export type GroupedEntries<V extends Record<string, unknown>, P = NoProvenance> =
   | {
@@ -175,7 +179,11 @@ export type GroupedEntries<V extends Record<string, unknown>, P = NoProvenance> 
       readonly unwrapped: UnwrappedEntry<V, P>;
     };
 
-/** Options for {@link groupedExtractor}: the timing knobs plus {@link GroupedEntries}. */
+/**
+ * Options for {@link groupedExtractor}: the timing knobs plus {@link GroupedEntries}.
+ *
+ * @category Extraction
+ */
 export type GroupedExtractorOptions<
   V extends Record<string, unknown>,
   P = NoProvenance,
@@ -299,6 +307,7 @@ interface GroupEntry {
  * the entry's business and are visible only through that entry's events; the
  * combinator counts what it can see, and a combinator-level retry is visible in
  * the `GroupUnit` attempt numbers.
+ * @category Extraction
  */
 export function groupedExtractor<V extends Record<string, unknown>, P = NoProvenance>({
   target,

@@ -1,6 +1,7 @@
 import type { Storage } from "./storage.js";
 import { CAPTURE_LOCK, holdLock, isLockFree } from "./capture-lock.js";
 
+/** @category Offline & Storage */
 export interface RecoveryOptions {
   storage: Storage;
   /**

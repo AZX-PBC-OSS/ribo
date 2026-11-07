@@ -18,6 +18,7 @@
  * the `-docs` suffix signals "document understanding" without committing to a
  * specific vendor, because the package takes a bare endpoint and an injected
  * `fetch` and knows nothing about which service answers.
+ * @category Transcription
  */
 export const MANAGED_DOCS_ENGINE = "managed-docs";
 
@@ -35,6 +36,7 @@ export const MANAGED_DOCS_ENGINE = "managed-docs";
  * Connectivity is injected too, as a predicate: the package does not call
  * `navigator.onLine` and does not duplicate `ribo-core`'s three-state connectivity
  * model.
+ * @category Transcription
  */
 export interface ManagedDocsTranscriberOptions {
   /**

@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-chat-openai
+ *
  * @file The public surface of `@azx/ribo-chat-openai`.
  *
  * The OpenAI-compatible chat transport: one `openAiChat` factory over an

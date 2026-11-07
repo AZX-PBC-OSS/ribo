@@ -25,10 +25,18 @@ interface UnitBase {
   readonly error?: unknown;
 }
 
-/** `singleShotExtractor`: the document in one call. */
+/**
+ * `singleShotExtractor`: the document in one call.
+ *
+ * @category Extraction
+ */
 export type WholeUnit = UnitBase & { readonly unit: "whole" };
 
-/** `perGroupExtractor`: one group, or one part of a partitioned group. */
+/**
+ * `perGroupExtractor`: one group, or one part of a partitioned group.
+ *
+ * @category Extraction
+ */
 export type GroupUnit = UnitBase & {
   readonly unit: "group";
   readonly key: string;
@@ -36,7 +44,11 @@ export type GroupUnit = UnitBase & {
   readonly parts: number;
 };
 
-/** `threePhaseExtractor`: one call in the presence -> quote -> classify sequence. */
+/**
+ * `threePhaseExtractor`: one call in the presence -> quote -> classify sequence.
+ *
+ * @category Extraction
+ */
 export type PhaseUnit = UnitBase & {
   readonly unit: "phase";
   /**
@@ -74,6 +86,7 @@ export type PhaseUnit = UnitBase & {
   readonly parts?: number;
 };
 
+/** @category Extraction */
 export type ExtractionUnit = WholeUnit | GroupUnit | PhaseUnit;
 
 /**
@@ -82,6 +95,7 @@ export type ExtractionUnit = WholeUnit | GroupUnit | PhaseUnit;
  * `U` is the set of units the extractor being configured can actually emit, so an
  * options type states its own vocabulary rather than every consumer handling events
  * that will never arrive. The default keeps the general case general.
+ * @category Extraction
  */
 export interface ExtractionObserver<U extends ExtractionUnit = ExtractionUnit> {
   /** Called as each unit of extraction work starts and settles. Must not throw. */
@@ -97,6 +111,7 @@ let unitCounter = 0;
  * structured fields are how a consumer identifies a unit, and an id that looked
  * parseable would invite the coupling this hook exists to remove. Process-global so
  * ids from two tiers of one ladder cannot collide.
+ * @category Extraction
  */
 export function nextUnitId(): string {
   unitCounter += 1;
@@ -107,6 +122,7 @@ export function nextUnitId(): string {
  * Wrap an `onUnit` so every forwarded event carries `strategy`. Returns `undefined`
  * when handed `undefined`, so an extractor threading an absent observer stays absent
  * rather than getting a no-op function. Generic in `U` to preserve a narrow set.
+ * @category Extraction
  */
 export function stampStrategy<U extends ExtractionUnit>(
   strategy: string,

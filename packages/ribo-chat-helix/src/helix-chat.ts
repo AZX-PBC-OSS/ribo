@@ -1,5 +1,5 @@
 /**
- * A concrete {@link ChatClient} over the Helix platform LLM route
+ * A concrete {@link @azx/ribo-core!ChatClient} over the Helix platform LLM route
  * (`POST <base>/_api/llm/chat`). The route is provider-neutral and **not**
  * OpenAI-compatible — a system message becomes a top-level `system` field, the
  * response is a flat `{ model, content, stopReason, usage }`, and the route
@@ -23,7 +23,11 @@ import {
   type ChatUsage,
 } from "@azx/ribo-core";
 
-/** Config for {@link helixChat}. */
+/**
+ * Config for {@link helixChat}.
+ *
+ * @category Chat Transports
+ */
 export interface HelixChatOptions {
   /** Bearer token. Injected by the host — never read from a bundled constant. */
   readonly token: string;
@@ -78,7 +82,7 @@ interface HelixErrorBody {
 }
 
 /**
- * Build a {@link ChatClient} that POSTs to `${baseUrl}/_api/llm/chat` with
+ * Build a {@link @azx/ribo-core!ChatClient} that POSTs to `${baseUrl}/_api/llm/chat` with
  * bearer auth and an `Origin` header, and returns `content` from the
  * non-streaming JSON body.
  *
@@ -104,6 +108,7 @@ interface HelixErrorBody {
  * {@link ChatCompletion}. `"max_tokens"` maps to `"length"` so the existing
  * truncation guard keeps working (`assertStopFinishReason` treats `"length"` as
  * a `TerminalError`); `"end_turn"` maps to `"stop"`.
+ * @category Chat Transports
  */
 export function helixChat({
   token,

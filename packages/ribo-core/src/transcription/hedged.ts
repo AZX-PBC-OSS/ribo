@@ -65,6 +65,7 @@ const defaultScheduleTimer: ScheduleTimer = (fn, delayMs) => {
  * The host computes this from whatever it measured — typically a real-time
  * factor multiplied by `Recording.durationMs`. `ribo-core` never sees
  * the RTF; it sees only the resulting number.
+ * @category Arbitration & Fallback
  */
 export type PredictedDurationMs = (recording: Recording) => number | undefined;
 
@@ -72,6 +73,7 @@ export type PredictedDurationMs = (recording: Recording) => number | undefined;
  * A delay policy: given a recording, how many milliseconds to wait before
  * firing the hedge. Built by {@link hedgeDelay} in the common case, but a
  * host can supply its own function instead.
+ * @category Arbitration & Fallback
  */
 export type HedgeDelayPolicy = (recording: Recording) => number;
 
@@ -79,6 +81,7 @@ export type HedgeDelayPolicy = (recording: Recording) => number;
  * Provisional default for {@link HedgeDelayOptions.factor}. 1.5 — the value
  * used in §5.3's worked example. Gives the primary a 50 % margin over its
  * predicted duration before the hedge fires.
+ * @category Arbitration & Fallback
  */
 export const DEFAULT_HEDGE_FACTOR = 1.5;
 
@@ -86,6 +89,7 @@ export const DEFAULT_HEDGE_FACTOR = 1.5;
  * Provisional default for {@link HedgeDelayOptions.floorMs}. 2 seconds — do
  * not fire the hedge before the primary has had a chance to get going. Field
  * data from `onHedge` telemetry would refine this.
+ * @category Arbitration & Fallback
  */
 export const DEFAULT_HEDGE_FLOOR_MS = 2_000;
 
@@ -95,9 +99,11 @@ export const DEFAULT_HEDGE_FLOOR_MS = 2_000;
  * prediction only pulls the hedge *earlier* on fast devices; the budget is
  * the ceiling on how long anyone waits. Field-uplink measurement is
  * deliberately deferred (§9 of the design).
+ * @category Arbitration & Fallback
  */
 export const DEFAULT_HEDGE_BUDGET_MS = 30_000;
 
+/** @category Arbitration & Fallback */
 export interface HedgeDelayOptions {
   /** Host-supplied predicted primary duration in ms. `undefined` means "no
    * prediction" — the hedge fires at `budgetMs`, giving the primary the full
@@ -137,6 +143,7 @@ export interface HedgeDelayOptions {
  *
  * When `predictedDurationMs` returns `undefined` (no calibration yet), the
  * delay is `budgetMs` — give the primary the full budget.
+ * @category Arbitration & Fallback
  */
 export function hedgeDelay(options: HedgeDelayOptions): HedgeDelayPolicy {
   const {
@@ -171,6 +178,7 @@ export function hedgeDelay(options: HedgeDelayOptions): HedgeDelayPolicy {
  * Emitting only on a hedge *win* would be the tempting mistake. It hides every
  * fire-and-lose — the wasted calls — and it is the **fire rate**, not the win
  * rate, that tells you whether `budgetMs` is set correctly.
+ * @category Arbitration & Fallback
  */
 export interface TranscriberHedgeEvent {
   /** The recording being transcribed when the hedge fired. */
@@ -191,6 +199,7 @@ export interface TranscriberHedgeEvent {
 // The combinator
 // ---------------------------------------------------------------------------
 
+/** @category Arbitration & Fallback */
 export interface HedgedOptions {
   /** `Transcriber.engine` for the composite itself. Defaults to `"hedged"`. */
   readonly engine?: string;
@@ -236,6 +245,7 @@ export interface HedgedOptions {
  * Returns a {@link CompositeTranscriber} so it is drop-in interchangeable with
  * `firstCapable`: `capabilities()` and `invalidate()` keep working, and
  * the primary may itself be a `firstCapable` composite.
+ * @category Arbitration & Fallback
  */
 export function hedged(
   primary: Transcriber,

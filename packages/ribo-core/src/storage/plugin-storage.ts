@@ -21,6 +21,7 @@ import type { EntryScopeKind } from "./port.js";
  * plugin (a transcriber and an extractor from the same package) may run in
  * different tabs, minutes apart, and anything held in a module variable or a
  * class field is invisible to the second half.
+ * @category Plugin Storage
  */
 export interface PluginStorage {
   /** Read one key, or `undefined` if it was never set (or has been swept). */
@@ -36,10 +37,11 @@ export interface PluginStorage {
 /**
  * Create a {@link PluginStorage} handle scoped to one capture and one plugin.
  *
- * Called by {@link storage.scopedStore}; not intended for direct construction
+ * Called by {@link Storage.scopedStore}; not intended for direct construction
  * by plugins. The handle holds no state beyond the scoping ids and the
  * collection reference, so a fresh handle over the same database sees the same
  * entries — durability comes from the storage, not from the handle.
+ * @category Plugin Storage
  */
 export function createPluginStorage(
   backend: StorageBackend,
@@ -63,6 +65,7 @@ export function createPluginStorage(
  * backend: durable, visible to other tabs, and bound to the storage
  * instance that minted it — a closed storage's handles are dead; reopen and
  * re-mint (a fresh handle over the same database reads what a prior one wrote).
+ * @category Plugin Storage
  */
 export interface CaptureStorageScope {
   /** This plugin's namespace for this capture. */
@@ -105,6 +108,7 @@ export interface CaptureStorageScope {
  *   enumeration to it either. A plugin that needs session correlation encodes
  *   it in its own keys or values. The lifecycle is the **sweep**, not the
  *   session: entries live exactly as long as their capture does.
+ * @category Plugin Storage
  */
 export interface PluginStorageScope {
   /** This owner's namespace for one capture. Entries die when the capture does. */
@@ -116,7 +120,11 @@ export interface PluginStorageScope {
   captures: () => Promise<string[]>;
 }
 
-/** Create a {@link CaptureStorageScope} over one capture. Called by {@link storage.captureStore}. */
+/**
+ * Create a {@link CaptureStorageScope} over one capture. Called by {@link Storage.captureStore}.
+ *
+ * @category Plugin Storage
+ */
 export function createCaptureStorageScope(
   backend: StorageBackend,
   captureId: string,
@@ -126,7 +134,11 @@ export function createCaptureStorageScope(
   };
 }
 
-/** Create a {@link PluginStorageScope} over one plugin. Called by {@link storage.store}. */
+/**
+ * Create a {@link PluginStorageScope} over one plugin. Called by {@link Storage.store}.
+ *
+ * @category Plugin Storage
+ */
 export function createPluginStorageScope(
   backend: StorageBackend,
   pluginId: string,

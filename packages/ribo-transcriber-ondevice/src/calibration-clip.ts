@@ -22,10 +22,18 @@
  * recorder is the point; an ffmpeg-muxed file exercises a different muxer.
  */
 
-/** Duration of {@link CALIBRATION_CLIP_BASE64} in milliseconds, as recorded. */
+/**
+ * Duration of {@link CALIBRATION_CLIP_BASE64} in milliseconds, as recorded.
+ *
+ * @category Transcription
+ */
 export const CALIBRATION_CLIP_DURATION_MS = 5000;
 
-/** MIME type the clip was recorded as. */
+/**
+ * MIME type the clip was recorded as.
+ *
+ * @category Transcription
+ */
 export const CALIBRATION_CLIP_MIME_TYPE = "audio/webm;codecs=opus";
 
 /** The clip itself, base64-encoded. Split only to keep source lines readable. */
@@ -305,7 +313,11 @@ const CHUNKS = [
   "hKVV2uAJGudjTDksVsa0HFO7a427i7OBALeG94EB8YHX",
 ];
 
-/** The calibration clip as base64. */
+/**
+ * The calibration clip as base64.
+ *
+ * @category Transcription
+ */
 export const CALIBRATION_CLIP_BASE64 = CHUNKS.join("");
 
 /**
@@ -314,6 +326,7 @@ export const CALIBRATION_CLIP_BASE64 = CHUNKS.join("");
  * Decoded from base64 on each call rather than cached: this runs once per `prime()`,
  * and holding ~20 KB alive for the life of the page to save one decode is the wrong
  * trade.
+ * @category Transcription
  */
 export function calibrationClip(): Blob {
   const binary = atob(CALIBRATION_CLIP_BASE64);

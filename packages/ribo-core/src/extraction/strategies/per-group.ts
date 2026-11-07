@@ -108,7 +108,11 @@ import { projectTarget } from "../project-target.js";
 import { singleShotExtractor } from "../single-shot.js";
 import type { ToolAdapterExample } from "../../write/adapter.js";
 
-/** Options for {@link perGroupExtractor} and {@link perGroupPlan}. */
+/**
+ * Options for {@link perGroupExtractor} and {@link perGroupPlan}.
+ *
+ * @category Extraction
+ */
 export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProvenance>
   extends BackoffOptions, ExtractionObserver<GroupUnit>, RetryBudgetObserver {
   /** The field knowledge: `name`, `extractionSchema`, `instructions`, and few-shot `examples`. */
@@ -245,6 +249,7 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
  * piece's schema (the byte-cap-flat path: `key === ""`) is the schema's own
  * top-level strict object with its leaves narrowed to the piece's subset —
  * there is no wrapping, so the leaves ARE the schema's keys directly.
+ * @category Extraction
  */
 export function partitionedLeafKeys(group: ExtractionGroup): readonly string[] {
   if (group.key === "") {
@@ -292,6 +297,7 @@ type UnwrappedTarget<V extends Record<string, unknown>, P> =
  * The projected targets behind a {@link PerGroupPlan}'s NAMED groups —
  * {@link GroupMap} key for key and index for index. The unwrapped portion's
  * target is not a key here; it rides the plan's `unwrappedTarget` slot.
+ * @category Extraction
  */
 export type GroupTargets<V extends Record<string, unknown>, P = NoProvenance> = NamedGroupTargets<
   V,
@@ -307,6 +313,7 @@ export type GroupTargets<V extends Record<string, unknown>, P = NoProvenance> = 
  * either shape straight to `groupedExtractor`: `groupedExtractor({ target,
  * groups: plan.groups, unwrapped: plan.unwrapped })` — narrowing on
  * `plan.unwrapped === undefined` first picks the arm.
+ * @category Extraction
  */
 export type PerGroupPlan<V extends Record<string, unknown>, P = NoProvenance> =
   | {
@@ -401,6 +408,7 @@ function defaultPieceEntry<W extends Record<string, unknown>, P = NoProvenance>(
  * The timing knobs the options carry (`concurrency`, `maxRetries`, backoff,
  * `onUnit`, …) are the combinator's business and are ignored here; only the
  * per-piece construction inputs are read.
+ * @category Extraction
  */
 export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance>(
   options: PerGroupOptions<V, P>,
@@ -626,6 +634,7 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
  * same function can also replace a group outright — by ignoring its first
  * argument and building from the second; the piece's projected target keeps the
  * partitioning intact for a replacement that maps over pieces.
+ * @category Extraction
  */
 export type GroupOverride<
   V extends Record<string, unknown>,
@@ -651,6 +660,7 @@ export type GroupOverride<
  * construction-time throw naming the key for a JS caller — including any
  * override against a non-grouped fallback plan, which has no per-group entries
  * to override.
+ * @category Extraction
  */
 export function overrideGroups<V extends Record<string, unknown>, P = NoProvenance>(
   plan: PerGroupPlan<V, P>,
@@ -727,6 +737,7 @@ export function overrideGroups<V extends Record<string, unknown>, P = NoProvenan
  *
  * `usage.calls` reports the real number of calls made, including retries — the
  * default entries count their own calls per run, failed attempts included.
+ * @category Extraction
  */
 export function perGroupExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   options: PerGroupOptions<V, P>,
@@ -778,6 +789,7 @@ export function perGroupExtractor<V extends Record<string, unknown>, P = NoProve
  * the full array for each collection group. This is the default {@link perGroupExtractor}
  * behaviour, exposed as a named strategy so the ladder and the tests can refer
  * to it unambiguously.
+ * @category Extraction
  */
 export function perGroupArrayExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   options: PerGroupOptions<V, P>,
@@ -791,6 +803,7 @@ export function perGroupArrayExtractor<V extends Record<string, unknown>, P = No
  * singleton is wrapped back into a one-element array so the result still matches
  * the original extraction schema, but the model cannot represent a second
  * instance per group.
+ * @category Extraction
  */
 export function perGroupSingletonExtractor<V extends Record<string, unknown>, P = NoProvenance>(
   options: PerGroupOptions<V, P>,

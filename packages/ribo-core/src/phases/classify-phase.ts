@@ -67,6 +67,7 @@ import { spansNoteKey } from "./span-phase.js";
  * What one classify call settled: a classified value, or a marker saying the
  * model could not answer this schema. The marker is a CONTRIBUTION, not an
  * error — see the file header for why it does not reject.
+ * @category Extraction
  */
 export type ClassifyContribution =
   { readonly kind: "classified"; readonly value: unknown } | { readonly kind: "unsupported" };
@@ -75,6 +76,7 @@ export type ClassifyContribution =
  * The leaves the classify phase could not answer bare: the wrapped pass plans
  * exactly these, one item each — no items, no call, no event when there are
  * none.
+ * @category Extraction
  */
 export interface UnsupportedLeaf {
   readonly group: Group;
@@ -83,12 +85,21 @@ export interface UnsupportedLeaf {
   readonly span: string;
 }
 
+/** @category Extraction */
 export type UnsupportedLeaves = readonly UnsupportedLeaf[];
 
-/** The note key the classify phase's merge writes and the wrapped pass's plan reads. */
+/**
+ * The note key the classify phase's merge writes and the wrapped pass's plan reads.
+ *
+ * @category Extraction
+ */
 export const unsupportedNoteKey: NoteKey<UnsupportedLeaves> = noteKey("three-phase-unsupported");
 
-/** Options shared by {@link classifyPhase} and {@link classifyWrappedPhase}. */
+/**
+ * Options shared by {@link classifyPhase} and {@link classifyWrappedPhase}.
+ *
+ * @category Extraction
+ */
 export interface ClassifyPhaseOptions {
   /** The walked groups — the preset walks the schema once, at its construction. */
   readonly groups: readonly Group[];
@@ -195,6 +206,7 @@ function buildClassifyMessages(leaf: Leaf, span: string): ChatMessage[] {
  * The classify phase: one call per grounded leaf against the leaf's BARE value
  * schema. An `unsupported` transport answer becomes a marker contribution for
  * the wrapped pass, never a thrown error — see the file header.
+ * @category Extraction
  */
 export function classifyPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: ClassifyPhaseOptions,
@@ -287,6 +299,7 @@ export function classifyPhase<V extends Record<string, unknown>, P = NoProvenanc
  * The wrapped-schema phase: one call per leaf the classify phase recorded as
  * unsupported, against a one-key wrapper schema with a `-wrapped`-suffixed
  * request name. Its merge is classify's.
+ * @category Extraction
  */
 export function classifyWrappedPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: ClassifyPhaseOptions,

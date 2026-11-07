@@ -24,7 +24,11 @@ import type { StoreDeps } from "./deps.js";
  * here knows whether those words came from a microphone or a PDF.
  */
 
-/** What a caller hands to open a session. */
+/**
+ * What a caller hands to open a session.
+ *
+ * @category Offline & Storage
+ */
 export interface OpenSessionInput {
   /** Stable id for the session. Generated if omitted. */
   readonly id?: string;
@@ -51,6 +55,7 @@ export interface OpenSessionInput {
 /**
  * Which sessions a read is interested in. Every field is optional, and the
  * empty query means "everything, `openedAt`-ascending".
+ * @category Offline & Storage
  */
 export interface SessionQuery {
   status?: SessionStatus | readonly SessionStatus[];
@@ -60,7 +65,11 @@ export interface SessionQuery {
   limit?: number;
 }
 
-/** Every operation over sessions. Reached as `storage.sessions`. */
+/**
+ * Every operation over sessions. Reached as `storage.sessions`.
+ *
+ * @category Offline & Storage
+ */
 export class SessionStore {
   readonly #backend: StorageBackend;
   readonly #captures: CaptureStore;
@@ -204,7 +213,7 @@ export class SessionStore {
    * from `awaiting-review`. Guarded by `incrementalModify`, which RxDB re-runs
    * against the current document on write conflict, so the status check and the
    * mutation cannot be split by a second tab or a duplicate submission — the
-   * same guard shape as {@link reopenSessionForReview}'s own status check below.
+   * same guard shape as {@link SessionStore.reopenForReview}'s own status check below.
    *
    * - `accepted` / `edited` → `writing`, with `attempts` reset so the write
    *   gets a clean backoff budget. The relay picks the session up on its next

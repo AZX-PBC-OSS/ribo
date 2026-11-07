@@ -24,6 +24,7 @@ import {
  * The default TTL is `first-capable.ts`'s `DEFAULT_CAPABILITY_TTL_MS` rather
  * than a second constant: the number is a compromise between probe cost and
  * staleness (see its doc), and two spellings of one compromise would drift.
+ * @category Transcription
  */
 
 export interface CapabilityCacheOptions {
@@ -47,6 +48,7 @@ interface CacheEntry {
  * through {@link CapabilityCache.remember}, so a combinator whose *attempt* (not
  * probe) discovers a capability failure can replace a stale answer mid-flight —
  * the demotion is the caller's judgement; the cache only owns the lifetime rule.
+ * @category Transcription
  */
 export class CapabilityCache {
   readonly #ttlMs: number;

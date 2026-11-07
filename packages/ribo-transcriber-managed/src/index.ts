@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-transcriber-managed
+ *
  * @file The public surface of `@azx/ribo-transcriber-managed`.
  *
  * Managed transcription: Azure AI Speech Fast Transcription, proxied

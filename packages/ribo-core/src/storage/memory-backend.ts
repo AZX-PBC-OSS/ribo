@@ -79,12 +79,17 @@ function databaseFor(name: string): MemoryDatabase {
  *
  * The analogue of removing an IndexedDB database. Tests that want a guaranteed
  * cold start use it; nothing else should.
+ * @category Offline & Storage
  */
 export function removeMemoryDatabase(name: string): void {
   databases.delete(name);
 }
 
-/** Open an in-memory backend. Two calls with the same name share one database. */
+/**
+ * Open an in-memory backend. Two calls with the same name share one database.
+ *
+ * @category Offline & Storage
+ */
 export function createMemoryBackend(name: string): StorageBackend {
   return new MemoryBackend(name);
 }

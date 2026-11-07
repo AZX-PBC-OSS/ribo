@@ -17,6 +17,7 @@ import { z } from "zod";
  *
  * Returns a plain object (not a `z.ZodObject`) so each branch spreads it into
  * its own `z.strictObject` with its own `kind` and branch-specific fields.
+ * @category Captures & Sources
  */
 export const captureFields = <C extends z.ZodType>(ctx: C) =>
   ({

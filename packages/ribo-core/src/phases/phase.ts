@@ -36,7 +36,11 @@ import type { PhaseItemOutcome, PhaseOutput } from "./phase-outcome.js";
  * construction-time list check lives in `validate-phases.ts`.
  */
 
-/** The metadata a phase list carries on the outside, where `with` need not be entered. */
+/**
+ * The metadata a phase list carries on the outside, where `with` need not be entered.
+ *
+ * @category Extraction
+ */
 export interface PhaseMeta {
   /**
    * Stable identifier for the phase, e.g. `"presence"`. Unique within a list.
@@ -89,6 +93,7 @@ export interface PhaseMeta {
  * the transcript would defeat `isSpanGrounded`, which is only sound while the one
  * canonical text is read-only. `signal` and `deadline` are the caller's cancellation and
  * time budget, forwarded exactly as `ExtractOptions` documents.
+ * @category Extraction
  */
 export interface PhaseContext<V extends Record<string, unknown>, P = NoProvenance> {
   /** The one canonical text an extraction reads from, plus its annotations. */
@@ -115,6 +120,7 @@ export interface PhaseContext<V extends Record<string, unknown>, P = NoProvenanc
  * does that I/O in an earlier phase's `run`. `run` is the only async member, opaque to
  * the combinator. `merge` takes the whole batch (not one result at a time) because some
  * phases' interpretations span a group's outcomes, and it owns every write to the draft.
+ * @category Extraction
  */
 export interface PhaseDef<
   V extends Record<string, unknown>,
@@ -173,6 +179,7 @@ export interface PhaseDef<
  * types existentially hidden behind one `with` member.
  *
  * Read `PhaseMeta` off it directly for validation and planning; enter `with` to run it.
+ * @category Extraction
  */
 export type Phase<V extends Record<string, unknown>, P = NoProvenance> = PhaseMeta & {
   /**
@@ -192,6 +199,7 @@ export type Phase<V extends Record<string, unknown>, P = NoProvenance> = PhaseMe
  * supplying `with` as `use => use(def)` — the callback gets the ORIGINAL definition, with
  * `I` and `C` bound at the point `use` instantiates them. That is the whole mechanism: no
  * cast, no erasure, no type-argument juggling at the call site.
+ * @category Extraction
  */
 export function phaseBuilder<V extends Record<string, unknown>, P = NoProvenance>(): <I, C>(
   def: PhaseDef<V, P, I, C>,

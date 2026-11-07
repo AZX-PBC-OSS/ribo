@@ -4,18 +4,45 @@ import { defineConfig } from "vitepress";
 import type { DefaultTheme } from "vitepress";
 
 /**
- * The generated API Reference sidebar. TypeDoc (`pnpm docs:api`) writes this file next to the
- * Reference markdown before either `docs:dev` or `docs:build` runs VitePress. Loaded defensively
- * so a bare `vitepress` invocation (before `docs:api`) degrades to an empty Reference sidebar
- * rather than crashing the config.
+ * The generated API Reference sidebar, reshaped per package. TypeDoc (`pnpm docs:api`) writes
+ * `typedoc-sidebar.json` next to the Reference markdown before either `docs:dev` or `docs:build`
+ * runs VitePress; loaded defensively so a bare `vitepress` invocation (before `docs:api`) degrades
+ * to an empty Reference sidebar rather than crashing the config.
+ *
+ * The JSON as generated lists every symbol, and VitePress inlines the sidebar into every page —
+ * serving all ~820 symbol entries on each of the ~780 reference pages is what made
+ * `docs/.vitepress/dist` ~379 MB. So the sidebar is keyed per package directory instead, and each
+ * key carries only the module entry and its @category labels; the symbols themselves live on the
+ * module's index page. Subpath modules (`@azx/ribo-core/testing`, …) share their package's key.
  */
-function referenceSidebar(): DefaultTheme.SidebarItem[] {
+function referenceSidebar(): DefaultTheme.Sidebar {
+  let entries: DefaultTheme.SidebarItem[];
   try {
     const path = fileURLToPath(new URL("../reference/typedoc-sidebar.json", import.meta.url));
-    return JSON.parse(readFileSync(path, "utf8")) as DefaultTheme.SidebarItem[];
+    entries = JSON.parse(readFileSync(path, "utf8")) as DefaultTheme.SidebarItem[];
   } catch {
-    return [];
+    return { "/reference/": [{ text: "API Reference", link: "/reference/" }] };
   }
+  const byPackage = new Map<string, DefaultTheme.SidebarItem[]>();
+  for (const entry of entries) {
+    // Module links look like "/reference/@azx/ribo-core.md" or, for a subpath,
+    // "/reference/@azx/ribo-core/testing.md" — the package key is the directory prefix shared by
+    // a package's pages: everything up to and including the package name.
+    if (!entry.link) continue;
+    const segments = entry.link.replace(/\.md$/, "").split("/").filter(Boolean);
+    const packageSegments = segments[1] === "@azx" ? segments.slice(0, 3) : segments.slice(0, 2);
+    const key = "/" + packageSegments.join("/");
+    const items = byPackage.get(key) ?? [];
+    items.push({ text: entry.text, link: entry.link });
+    for (const category of entry.items ?? []) {
+      items.push({ text: category.text });
+    }
+    byPackage.set(key, items);
+  }
+  return {
+    "/reference/": [{ text: "API Reference", link: "/reference/" }],
+    ...Object.fromEntries(byPackage),
+  };
 }
 
 // Configurable base path so a subpath deploy (e.g. Helix under `/ribo/`) works without a rebuild
@@ -35,6 +62,9 @@ export default defineConfig({
   // the home page's markup underneath the sidebar. Keeping the `.html` extension in generated
   // links keeps every direct load an exact match.
   cleanUrls: false,
+  // Without this, VitePress inlines its page-hash map (~78 KB with one page per Reference symbol)
+  // into every page's HTML: ~67 MB of duplication across the site. One shared chunk instead.
+  metaChunk: true,
   // The internal process docs live under docs/ but are not part of the public site. The roadmap
   // (design specs and per-phase plans) stays committed but unpublished; the implementation findings
   // are repackaged into Deep Dives (Task 2), not served raw.
@@ -133,7 +163,7 @@ export default defineConfig({
           ],
         },
       ],
-      "/reference/": [{ text: "API Reference", link: "/reference/", items: referenceSidebar() }],
+      ...referenceSidebar(),
     },
     search: { provider: "local" },
     outline: { level: [2, 3] },

@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-core/testing
+ *
  * @file `@azx/ribo-core/testing` — the storage port's conformance kit.
  *
  * Published as its own subpath so that a backend author can depend on it while a

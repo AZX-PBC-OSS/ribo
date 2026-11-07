@@ -32,6 +32,7 @@ import { captureFields } from "./capture-fields.js";
  * `pageCount` is `.int().positive()` where `durationMs` is `.int().nonnegative()`:
  * a zero-length recording is a legitimate capture, but a zero-page document is
  * not a document — it is a parse that went wrong upstream.
+ * @category Captures & Sources
  */
 export const documentCaptureSchema = <C extends z.ZodType>(ctx: C) =>
   z.strictObject({
@@ -41,10 +42,18 @@ export const documentCaptureSchema = <C extends z.ZodType>(ctx: C) =>
     pageCount: z.number().int().positive(),
   });
 
-/** A `DocumentCapture` whose context is carried but not validated. */
+/**
+ * A `DocumentCapture` whose context is carried but not validated.
+ *
+ * @category Captures & Sources
+ */
 export const baseDocumentCaptureSchema = documentCaptureSchema(z.unknown());
 
-/** Inferred from {@link documentCaptureSchema} — never hand-declared alongside it. */
+/**
+ * Inferred from {@link documentCaptureSchema} — never hand-declared alongside it.
+ *
+ * @category Captures & Sources
+ */
 export type DocumentCapture<C extends z.ZodType = z.ZodUnknown> = z.infer<
   ReturnType<typeof documentCaptureSchema<C>>
 >;
@@ -68,6 +77,7 @@ export type DocumentCapture<C extends z.ZodType = z.ZodUnknown> = z.infer<
  * that goes through the union. If a later zod applies branch defaults during
  * discrimination, the preprocess can go, and the test that pins the behaviour
  * will go red to say so.
+ * @category Captures & Sources
  */
 export const capturePayloadSchema = <C extends z.ZodType>(ctx: C) => {
   const audio = z.strictObject({
@@ -89,10 +99,18 @@ export const capturePayloadSchema = <C extends z.ZodType>(ctx: C) => {
   }, discriminated);
 };
 
-/** A `CapturePayload` whose context is carried but not validated. */
+/**
+ * A `CapturePayload` whose context is carried but not validated.
+ *
+ * @category Captures & Sources
+ */
 export const basePayloadSchema = capturePayloadSchema(z.unknown());
 
-/** Inferred from {@link capturePayloadSchema} — never hand-declared alongside it. */
+/**
+ * Inferred from {@link capturePayloadSchema} — never hand-declared alongside it.
+ *
+ * @category Captures & Sources
+ */
 export type CapturePayload<C extends z.ZodType = z.ZodUnknown> = z.infer<
   ReturnType<typeof capturePayloadSchema<C>>
 >;

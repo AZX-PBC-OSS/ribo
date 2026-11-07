@@ -7,8 +7,10 @@
 
 import type { ShapeUpgrade } from "./rung.js";
 
+/** @category Offline & Storage */
 export const PLUGIN_STORAGE_DOCUMENT_VERSION = 1;
 
+/** @category Offline & Storage */
 export const PLUGIN_STORAGE_DOCUMENT_UPGRADES: readonly ShapeUpgrade[] = [
   {
     reason:

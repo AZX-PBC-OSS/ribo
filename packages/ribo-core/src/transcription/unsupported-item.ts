@@ -57,6 +57,7 @@ import { TerminalError } from "../storage/backoff.js";
  * A UI has to branch on this, and free-text reasons make that impossible.
  * `detail` is required so a reason code never has to carry nuance it cannot
  * express.
+ * @category Transcription
  */
 export const UNSUPPORTED_ITEM_REASONS = [
   /** The document has no extractable text — a scanned PDF with no OCR layer. */
@@ -67,8 +68,10 @@ export const UNSUPPORTED_ITEM_REASONS = [
   "unsupported-format",
 ] as const;
 
+/** @category Transcription */
 export type UnsupportedItemReason = (typeof UNSUPPORTED_ITEM_REASONS)[number];
 
+/** @category Transcription */
 export interface UnsupportedItemInit {
   /** The engine that cannot handle this item — `Transcriber.engine`. */
   engine: string;
@@ -92,6 +95,7 @@ export interface UnsupportedItemInit {
  * must never do is offer a capability verdict to replace a cached one, because
  * the engine stays `ready` — pdf.js can read the next document fine. Demotion
  * is a capability failure's job, not this one's.
+ * @category Transcription
  */
 export class UnsupportedItemError extends TerminalError {
   override readonly name = "UnsupportedItemError";

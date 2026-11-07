@@ -21,7 +21,11 @@ import type { core, ZodError } from "zod";
  * the same punctuation an operator reads everywhere else.
  */
 
-/** A failure and where it happened. Structurally satisfied by `review.ts`'s `ReviewIssue`. */
+/**
+ * A failure and where it happened. Structurally satisfied by `review.ts`'s `ReviewIssue`.
+ *
+ * @category Review
+ */
 export interface LocatedIssue {
   readonly path: string;
   readonly message: string;
@@ -31,6 +35,7 @@ export interface LocatedIssue {
  * Every issue in a `ZodError`, with its path flattened to the dotted form the rest of
  * this package addresses leaves by. The root (an issue about the object as a whole)
  * flattens to `""`, which {@link describeLocated} renders as the bare message.
+ * @category Review
  */
 export const zodIssues = (error: ZodError): LocatedIssue[] =>
   error.issues.map((issue: core.$ZodIssue) => ({
@@ -39,6 +44,10 @@ export const zodIssues = (error: ZodError): LocatedIssue[] =>
     message: issue.message,
   }));
 
-/** `path: message`, semicolon-separated; an issue with no path renders as its message alone. */
+/**
+ * `path: message`, semicolon-separated; an issue with no path renders as its message alone.
+ *
+ * @category Review
+ */
 export const describeLocated = (issues: readonly LocatedIssue[]): string =>
   issues.map(({ path, message }) => (path === "" ? message : `${path}: ${message}`)).join("; ");

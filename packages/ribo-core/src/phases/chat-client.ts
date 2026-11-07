@@ -15,10 +15,18 @@
 
 import { CANCELLATION } from "../async/cancellation.js";
 
-/** Chat roles used by single-shot extraction: the system prompt, few-shot turns, the transcript. */
+/**
+ * Chat roles used by single-shot extraction: the system prompt, few-shot turns, the transcript.
+ *
+ * @category Extraction
+ */
 export type ChatRole = "system" | "user" | "assistant";
 
-/** One role-tagged message in a chat-completions request. */
+/**
+ * One role-tagged message in a chat-completions request.
+ *
+ * @category Extraction
+ */
 export interface ChatMessage {
   readonly role: ChatRole;
   readonly content: string;
@@ -30,6 +38,7 @@ export interface ChatMessage {
  * endpoint reject a response that omits a key or adds one, which is why the schema
  * must carry no keywords strict mode forbids (`minimum`/`maximum`; see
  * `schema.ts`'s note on `confidence`).
+ * @category Extraction
  */
 export interface ChatResponseFormat {
   readonly type: "json_schema";
@@ -41,7 +50,11 @@ export interface ChatResponseFormat {
   };
 }
 
-/** A single chat-completions request: the model, the conversation, the output contract. */
+/**
+ * A single chat-completions request: the model, the conversation, the output contract.
+ *
+ * @category Extraction
+ */
 export interface ChatRequest {
   readonly model: string;
   readonly messages: readonly ChatMessage[];
@@ -64,10 +77,18 @@ export interface ChatRequest {
   readonly maxTokens?: number;
 }
 
-/** Why the model stopped generating. The three outcomes a truncation detector needs. */
+/**
+ * Why the model stopped generating. The three outcomes a truncation detector needs.
+ *
+ * @category Extraction
+ */
 export type ChatFinishReason = "stop" | "length" | "content_filter";
 
-/** Token counts for a single completion, normalised out of the wire body. */
+/**
+ * Token counts for a single completion, normalised out of the wire body.
+ *
+ * @category Extraction
+ */
 export interface ChatUsage {
   readonly promptTokens: number;
   readonly completionTokens: number;
@@ -108,6 +129,7 @@ export interface ChatUsage {
  * members is a {@link ChatError} of kind `malformed-response`, not a completion with
  * the field left off. `ribo-adapter-snuggpro/acceptance/cli-chat.ts`
  * cannot truncate, so its inability to report a finish reason is sound.
+ * @category Extraction
  */
 export interface ChatCompletion {
   readonly content: string;
@@ -115,7 +137,11 @@ export interface ChatCompletion {
   readonly usage?: ChatUsage;
 }
 
-/** Per-call options — *how* this call is made, not *what* is being asked. */
+/**
+ * Per-call options — *how* this call is made, not *what* is being asked.
+ *
+ * @category Extraction
+ */
 export interface ChatCallOptions {
   /** Abort the call; implementations must stop work and reject with `ChatError.aborted`. */
   readonly signal?: AbortSignal;
@@ -126,6 +152,7 @@ export interface ChatCallOptions {
  * message content back. Implementations own the wire concern (auth, base URL,
  * error status) — see `openai-chat.ts`. Extractors own prompt
  * assembly and the trust boundary and never touch the network directly.
+ * @category Extraction
  */
 export interface ChatClient {
   complete: (request: ChatRequest, options?: ChatCallOptions) => Promise<ChatCompletion>;
@@ -148,6 +175,7 @@ export interface ChatClient {
  * If a permanence predicate ever arrives — a composite caching an `unavailable` forever rather
  * than on the capability TTL, which is exactly what `firstCapable` does — reintroduce the array
  * then, when it has a caller.
+ * @category Extraction
  */
 export type ChatUnavailableReason =
   /** The device or browser cannot run this engine at all — e.g. no Prompt API. */
@@ -178,6 +206,7 @@ export type ChatUnavailableReason =
  * API reports progress as a 0..1 fraction and `total` is always 1, so no real size
  * is available; inventing a number would make the consent screen dishonest. Use
  * `detail` for human-readable context instead.
+ * @category Extraction
  */
 export type ChatCapability =
   | {
@@ -217,6 +246,7 @@ export type ChatCapability =
  * download or may be unsupported. Keeping the contract in core, beside the
  * `Transcriber` seam, lets both extractor packages consume it without a
  * dependency between them.
+ * @category Extraction
  */
 export interface CapableChatClient extends ChatClient {
   /**
@@ -244,6 +274,7 @@ export interface CapableChatClient extends ChatClient {
  * Why a {@link ChatClient.complete} call failed. A single discriminant (`kind`)
  * rather than six subclasses: it supports exhaustive switching, does not multiply
  * types, and does not force `instanceof` chains.
+ * @category Extraction
  */
 export type ChatErrorKind =
   | "transport" // fetch/spawn rejected — no response at all
@@ -267,6 +298,7 @@ export type ChatErrorKind =
  * factory only — never in the constructor and never on the prototype: branding the
  * class would make every transport failure look like a cancellation and silently
  * disable retries everywhere.
+ * @category Extraction
  */
 export class ChatError extends Error {
   override readonly name = "ChatError";

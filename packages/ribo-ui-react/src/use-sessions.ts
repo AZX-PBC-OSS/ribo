@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { queryFromKey, queryKey } from "./query-key.js";
 import { useRiboInstance } from "./use-ribo-instance.js";
 
+/** @category React Hooks */
 export interface UseSessionsResult {
   readonly items: readonly SessionItem[];
   /** No emission has arrived yet. Distinct from an empty session list. */
@@ -24,6 +25,7 @@ export interface UseSessionsResult {
  * object every render and the subscription must not tear down on each one), and
  * the hook subscribes directly to the rxjs `Observable` rather than going
  * through `useSubscribed` (which is for core's callback-subscribe shape).
+ * @category React Hooks
  */
 export function useSessions(query: SessionQuery = {}, storage?: Storage): UseSessionsResult {
   const instance = useRiboInstance("storage", storage);

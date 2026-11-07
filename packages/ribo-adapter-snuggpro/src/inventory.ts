@@ -22,7 +22,11 @@ import { z } from "zod";
 
 import { TRANSCRIPT_SECTION } from "./instructions.js";
 
-/** Eligibility verdict for a candidate instance. */
+/**
+ * Eligibility verdict for a candidate instance.
+ *
+ * @category Tool Adapters
+ */
 export const RosterEligibility = z.enum([
   "current",
   "decommissioned",
@@ -39,6 +43,7 @@ export const RosterEligibility = z.enum([
  * under the group and candidate unions, taking the roster past the
  * structured-output route's depth cap — a 400 that dropped every inventory
  * pass to the next tier without an error. ADR 0025.
+ * @category Tool Adapters
  */
 export const rosterCandidateSchema = z.union([
   // A current (recordable) candidate: no exclusion span needed.
@@ -59,6 +64,7 @@ export const rosterCandidateSchema = z.union([
   }),
 ]);
 
+/** @category Tool Adapters */
 export type RosterCandidate = z.infer<typeof rosterCandidateSchema>;
 
 /**
@@ -71,6 +77,7 @@ export type RosterCandidate = z.infer<typeof rosterCandidateSchema>;
  * does not exist in the property. An empty array still means "the model found
  * nothing to report," used when the transcript never brings the group up at
  * all.
+ * @category Tool Adapters
  */
 export const rosterGroupSchema = z.union([
   z
@@ -85,7 +92,11 @@ export const rosterGroupSchema = z.union([
   z.strictObject({ stated: z.literal("none"), span: z.string().min(1) }),
 ]);
 
-/** The house-wide inventory roster, one ordered list per collection group. */
+/**
+ * The house-wide inventory roster, one ordered list per collection group.
+ *
+ * @category Tool Adapters
+ */
 export const rosterSchema = z.strictObject({
   hvac: rosterGroupSchema,
   attic: rosterGroupSchema,
@@ -103,6 +114,7 @@ export const rosterSchema = z.strictObject({
   pv: rosterGroupSchema,
 });
 
+/** @category Tool Adapters */
 export type Roster = z.infer<typeof rosterSchema>;
 
 // --- Instructions ------------------------------------------------------------
@@ -244,5 +256,6 @@ Return a **single JSON object** conforming exactly to the roster schema.
  * The full inventory-pass instructions for Snugg Pro: the system prompt, rules,
  * output section and the transcript injection boundary. The transcript stays
  * last so everything after the boundary line is data, never instructions.
+ * @category Tool Adapters
  */
 export const snuggInventoryInstructions = INVENTORY_PREAMBLE + TRANSCRIPT_SECTION;

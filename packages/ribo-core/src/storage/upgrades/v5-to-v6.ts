@@ -49,6 +49,7 @@ function migratedSessionId(ctx: unknown): string {
   return `migrated-session-singleton`;
 }
 
+/** @category Offline & Storage */
 export const captureV5ToV6Upgrade = (doc: Record<string, unknown>): Record<string, unknown> => {
   // v5 → v6, the EXPAND half of the split. Per-document and free of side effects.
   //

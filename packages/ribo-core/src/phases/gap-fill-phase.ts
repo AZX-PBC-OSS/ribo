@@ -55,7 +55,11 @@ import {
   mergeGapFilledLeaves,
 } from "../extraction/gap-fill/gap-fill.js";
 
-/** Options for {@link gapFillPhase} — the gap-fill preset's follow-up half. */
+/**
+ * Options for {@link gapFillPhase} — the gap-fill preset's follow-up half.
+ *
+ * @category Extraction
+ */
 export interface GapFillPhaseOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /**
    * The field knowledge: the follow-up reads its scoped schema from
@@ -138,6 +142,7 @@ interface GapFillItem {
  * one call over the whole document, which is the `""` convention's meaning
  * (`groupedExtractor`'s internal group record; `UNWRAPPED_KEY` in core). No
  * observer: the engine owns the unit stream.
+ * @category Extraction
  */
 export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: GapFillPhaseOptions<V, P>,

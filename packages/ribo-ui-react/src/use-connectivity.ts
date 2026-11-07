@@ -23,6 +23,7 @@ import { useSubscribed } from "./use-subscribed.js";
  * inherent to `useSubscribed`'s design (see its doc comment) and acceptable for a
  * status badge; a hook that could not tolerate one stale frame would need a
  * different primitive, not a workaround bolted on here.
+ * @category React Hooks
  */
 export function useConnectivity(connectivity?: Connectivity): ConnectivityState {
   const instance = useRiboInstance("connectivity", connectivity);

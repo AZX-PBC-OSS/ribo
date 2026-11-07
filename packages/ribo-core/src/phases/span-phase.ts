@@ -50,13 +50,22 @@ import type { Group, JsonSchema, Leaf } from "./presence-phase.js";
  * Which leaves survived grounding, per group: group key → leaf key → span. Only
  * grounded spans are stored, so classify's plan is exactly the grounded-leaf
  * list; a group with no entry (failed or all-ungrounded) plans nothing.
+ * @category Extraction
  */
 export type SpanMaps = Record<string, Record<string, string>>;
 
-/** The note key {@link spanPhase}'s merge writes and the classify phase's plan reads. */
+/**
+ * The note key {@link spanPhase}'s merge writes and the classify phase's plan reads.
+ *
+ * @category Extraction
+ */
 export const spansNoteKey: NoteKey<SpanMaps> = noteKey("three-phase-spans");
 
-/** Options for {@link spanPhase}. */
+/**
+ * Options for {@link spanPhase}.
+ *
+ * @category Extraction
+ */
 export interface SpanPhaseOptions {
   /** The walked groups — the preset walks the schema once, at its construction. */
   readonly groups: readonly Group[];
@@ -92,6 +101,7 @@ interface SpanItem {
  * The span phase: one verbatim-quote call per group with present leaves, then a
  * grounding filter over the answers. See the file header for the narrowing and
  * the drop.
+ * @category Extraction
  */
 export function spanPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: SpanPhaseOptions,

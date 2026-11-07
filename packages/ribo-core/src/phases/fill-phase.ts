@@ -57,7 +57,11 @@ import {
 } from "../extraction/scoped-instance/instance-fill.js";
 import { rosterNoteKey } from "./inventory-phase.js";
 
-/** Options for {@link fillPhase} — the scoped-instance port's second half. */
+/**
+ * Options for {@link fillPhase} — the scoped-instance port's second half.
+ *
+ * @category Extraction
+ */
 export interface FillPhaseOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /** The field knowledge: name, extraction schema, instructions, and examples. */
   readonly target: ExtractionTarget<V, P>;
@@ -213,6 +217,7 @@ const abstainedPieceFor = (job: FillJob): unknown => {
  * The fill phase: derive one job per `(group, piece, instance)` from the
  * inventory's settled roster, make each job's one chat call, and recombine the
  * outcomes into the draft. See the file header for the shape of each member.
+ * @category Extraction
  */
 export function fillPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: FillPhaseOptions<V, P>,

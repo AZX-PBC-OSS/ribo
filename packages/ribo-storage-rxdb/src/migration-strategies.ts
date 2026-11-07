@@ -17,7 +17,11 @@
 
 import type { ShapeUpgrade } from "@azx/ribo-core";
 
-/** RxDB's strategy map: target version → transform. */
+/**
+ * RxDB's strategy map: target version → transform.
+ *
+ * @category Offline & Storage
+ */
 export type MigrationStrategies = Record<
   number,
   (document: Record<string, unknown>) => Record<string, unknown>
@@ -30,6 +34,7 @@ export type MigrationStrategies = Record<
  * keyed `i + 1`. A ladder of length N therefore produces keys 1 through N and no
  * key 0 — RxDB never migrates *to* version 0, because that is where documents
  * start.
+ * @category Offline & Storage
  */
 export function toMigrationStrategies(ladder: readonly ShapeUpgrade[]): MigrationStrategies {
   const strategies: MigrationStrategies = {};

@@ -43,6 +43,7 @@
 
 import { z } from "zod";
 
+/** @category Tool Adapters */
 export const snuggCtxSchema = z.object({
   /**
    * The Snugg Pro assessment (a.k.a. job) the accepted fields are written into —
@@ -76,5 +77,6 @@ export const snuggCtxSchema = z.object({
  * `Readonly` because a write's destination is not something a caller should be
  * mutating in place. See the file header on why the modifier survives the move
  * from a hand-written interface to an inferred type.
+ * @category Tool Adapters
  */
 export type SnuggWriteContext = Readonly<z.infer<typeof snuggCtxSchema>>;

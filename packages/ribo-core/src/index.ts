@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-core
+ *
  * @file The public surface of `@azx/ribo-core`.
  *
  * This barrel **re-exports only** — it defines nothing. Everything lives in the small module

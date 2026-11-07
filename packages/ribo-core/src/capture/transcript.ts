@@ -14,7 +14,7 @@ import { z } from "zod";
  *
  * Annotations are an optional field on this type. When a transcriber produces them (page
  * boundaries, table structure, a provider's own structured response), they travel alongside
- * the text into the storage document and are merged into the {@link AnnotatedTranscript}
+ * the text into the storage document and are merged into the {@link @azx/ribo-core!AnnotatedTranscript}
  * annotations bag by `listSessionTranscriptParts`. The relay also supplies capture metadata
  * (`capture.seq`, `capture.kind`, `capture.id`) into the same bag; the `capture.` prefix is a
  * reserved namespace so a transcriber's own `seq` or `id` cannot collide with it. A transcriber
@@ -28,6 +28,7 @@ import { z } from "zod";
  * envelope (`provenance.ts`, `Extracted<T>`) and is documented there as non-load-bearing —
  * the extraction spike returned ~1.0 on all 168 slots, so nothing flags on it. Treat this field
  * the same way: record it, show it if you like, never branch on it.
+ * @category Captures & Sources
  */
 export const transcriptSchema = z.strictObject({
   /** The `Recording.id` this text came from. */
@@ -63,7 +64,7 @@ export const transcriptSchema = z.strictObject({
   /**
    * Optional annotations bag — structured data a transcriber contributes alongside
    * the text (page boundaries, table structure, provider metadata). Shaped as the same
-   * open record {@link AnnotatedTranscript} uses, so it merges directly into the
+   * open record {@link @azx/ribo-core!AnnotatedTranscript} uses, so it merges directly into the
    * annotations bag that an extractor receives.
    *
    * Optional because not every transcriber produces annotations; absent is the correct
@@ -79,5 +80,9 @@ export const transcriptSchema = z.strictObject({
   annotations: z.record(z.string(), z.unknown()).optional(),
 });
 
-/** Inferred from {@link transcriptSchema} — never hand-declared alongside it. */
+/**
+ * Inferred from {@link transcriptSchema} — never hand-declared alongside it.
+ *
+ * @category Captures & Sources
+ */
 export type Transcript = z.infer<typeof transcriptSchema>;

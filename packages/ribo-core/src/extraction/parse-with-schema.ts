@@ -23,6 +23,7 @@ import { SchemaParseError } from "./schema-parse-error.js";
  * parse, by the transport's finish-reason check.
  *
  * @param context - a descriptive prefix for the error
+ * @category Extraction
  */
 export function parseWithSchema<T>(schema: z.ZodType<T>, raw: unknown, context: string): T {
   const parsed = schema.safeParse(raw);

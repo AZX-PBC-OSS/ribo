@@ -23,6 +23,7 @@ import { isExtractedLeaf } from "../provenance/extracted-leaves.js";
  * The uuid is the stable identifier the write step uses to choose an update over
  * a create; `fields` are the plain values the host tool returned for it. These are
  * NOT provenance envelopes — they never entered the extraction prompt.
+ * @category Review
  */
 export interface ExistingRecord {
   readonly uuid: string;
@@ -35,6 +36,7 @@ export interface ExistingRecord {
  * Records are ordered with non-contradicting candidates first, then contradicting
  * ones; within each tier the original order is preserved so the host tool's own
  * sorting (e.g., creation order) survives.
+ * @category Review
  */
 export interface RankedCandidate extends ExistingRecord {
   readonly contradicts: boolean;
@@ -43,6 +45,7 @@ export interface RankedCandidate extends ExistingRecord {
 /**
  * A human decision about whether a captured instance should be linked to an existing
  * record or created as a new one.
+ * @category Review
  */
 export type InstanceLinkDecision =
   { readonly kind: "create" } | { readonly kind: "link"; readonly uuid: string };
@@ -51,6 +54,7 @@ export type InstanceLinkDecision =
  * The link decisions that survive review, aligned with the positional array the
  * patch resolves each collection group to. `null` means "create a new record"; a
  * string is the uuid of the existing record to update.
+ * @category Review
  */
 export type LinkTarget = string | null;
 
@@ -58,6 +62,7 @@ export type LinkTarget = string | null;
  * Link targets per collection group. The array length matches the resolved instance
  * count for that group, and indices follow the first-mention order established by
  * `buildInstancePositions` (`review.ts`).
+ * @category Review
  */
 export type LinkTargets = Readonly<Record<string, ReadonlyArray<LinkTarget>>>;
 
@@ -75,6 +80,7 @@ export type LinkTargets = Readonly<Record<string, ReadonlyArray<LinkTarget>>>;
  * `provenance.ts` records "uniform-high confidence is not calibration, it is a
  * constant" — so a matcher reading it would be reading noise. Leaving it out of the
  * type says so structurally: there is nothing here to read.
+ * @category Review
  */
 export interface InstanceEvidence {
   readonly value: unknown;
@@ -90,7 +96,11 @@ export interface InstanceEvidence {
   readonly sourceSpan: string | null;
 }
 
-/** What one side of a sameness comparison knows about one instance. */
+/**
+ * What one side of a sameness comparison knows about one instance.
+ *
+ * @category Review
+ */
 export interface InstanceFacts {
   /** The collection group the instance belongs to (e.g. `"hvac"`). */
   readonly group: string;
@@ -103,10 +113,15 @@ export interface InstanceFacts {
  * side said anything", and that collapse is exactly how `confidence` became useless —
  * `SpanGroundedness`'s near-miss tier exists to prevent the same collapse. The consumer
  * maps `"unknown"` to its own safe default; the matcher is never asked to guess.
+ * @category Review
  */
 export type InstanceSameness = "same" | "different" | "unknown";
 
-/** Compares two instances and returns what the evidence supports. */
+/**
+ * Compares two instances and returns what the evidence supports.
+ *
+ * @category Review
+ */
 export type InstanceMatcher = (a: InstanceFacts, b: InstanceFacts) => InstanceSameness;
 
 /**
@@ -115,6 +130,7 @@ export type InstanceMatcher = (a: InstanceFacts, b: InstanceFacts) => InstanceSa
  * adapter *declares* is `IdentifyingFields<V>` in `adapter.ts`; these meet through
  * structural assignability, the same move `RequiredOnCreate` → `RequiredOnCreateMap`
  * makes in `review.ts`.
+ * @category Review
  */
 export type IdentifyingFieldsMap = Readonly<Record<string, readonly string[]>>;
 
@@ -154,6 +170,7 @@ export type IdentifyingFieldsMap = Readonly<Record<string, readonly string[]>>;
  * parameter per nested group — do not approximate it by flattening nested groups into
  * dotted leaf names, which would make a host declare against instance keys that only
  * exist after extraction.
+ * @category Review
  */
 export const contradictionMatcher = (fields?: IdentifyingFieldsMap): InstanceMatcher => {
   const identifying: IdentifyingFieldsMap = fields ?? {};

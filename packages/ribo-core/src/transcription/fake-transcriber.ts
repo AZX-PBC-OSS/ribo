@@ -10,15 +10,28 @@ import {
 } from "./transcriber.js";
 import { UnsupportedItemError, type UnsupportedItemReason } from "./unsupported-item.js";
 
-/** Text a {@link FakeTranscriber} returns when nothing else is configured. */
+/**
+ * Text a {@link FakeTranscriber} returns when nothing else is configured.
+ *
+ * @category Transcription
+ */
 export const DEFAULT_FAKE_TRANSCRIPT_TEXT = "fake transcript";
 
-/** `Transcriber.engine` a {@link FakeTranscriber} reports unless told otherwise. */
+/**
+ * `Transcriber.engine` a {@link FakeTranscriber} reports unless told otherwise.
+ *
+ * @category Transcription
+ */
 export const DEFAULT_FAKE_TRANSCRIBER_ENGINE = "fake";
 
-/** A canned response: bare text, or text plus a confidence to echo back. */
+/**
+ * A canned response: bare text, or text plus a confidence to echo back.
+ *
+ * @category Transcription
+ */
 export type FakeTranscriberResponse = string | { text: string; confidence?: number };
 
+/** @category Transcription */
 export interface FakeTranscriberOptions {
   /**
    * The engine id this fake reports and stamps onto its transcripts.
@@ -38,7 +51,11 @@ export interface FakeTranscriberOptions {
   capability?: TranscriberCapability;
 }
 
-/** One `transcribe` invocation, in call order. */
+/**
+ * One `transcribe` invocation, in call order.
+ *
+ * @category Transcription
+ */
 export interface FakeTranscribeCall<S extends CapturePayload = Recording> {
   readonly item: S;
   readonly bytes: Blob;
@@ -60,6 +77,7 @@ export interface FakeTranscribeCall<S extends CapturePayload = Recording> {
  *   `TranscriberUnavailableError` for a one-shot;
  * - item unsuitability — {@link failWithUnsupported} / {@link failNextWithUnsupported},
  *   the third failure kind: terminal for the queue but not for the item.
+ * @category Transcription
  */
 export class FakeTranscriber<S extends CapturePayload = Recording> implements Transcriber<S> {
   readonly engine: string;

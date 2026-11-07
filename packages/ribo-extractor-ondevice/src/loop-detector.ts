@@ -6,6 +6,7 @@
  * never contains 80 consecutive whitespace characters, so this threshold cannot
  * fire on a good answer. False positives matter enormously here: a wrongly
  * detected loop would silently truncate a correct extraction.
+ * @category Extraction
  */
 export const WHITESPACE_LOOP_THRESHOLD = 80;
 
@@ -15,6 +16,7 @@ export const WHITESPACE_LOOP_THRESHOLD = 80;
  * characters long. This is the kill signal for the constrained-decoding loop
  * where Chrome's on-device model emits valid JSON and then falls into an
  * unbounded whitespace run until it hits the output cap.
+ * @category Extraction
  */
 export function isLoopingOutput(output: string): boolean {
   if (output.length < WHITESPACE_LOOP_THRESHOLD) {

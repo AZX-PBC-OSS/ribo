@@ -24,6 +24,7 @@ import type { Transcriber, TranscriberCapability } from "./transcriber.js";
  * audio-only roster into a queue that can hold documents gets a type error, and
  * this is the fix — `relay({ transcriber: restrictToKind("audio", firstCapable([…])) })`.
  * It changes no engine, and nothing relies on remembering an ordering rule.
+ * @category Transcription
  */
 export function restrictToKind<S extends CapturePayload>(
   kind: S["kind"],

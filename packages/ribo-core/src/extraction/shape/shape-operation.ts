@@ -89,6 +89,7 @@
 /**
  * One operation on the caller's schema. See the file header for the set, the
  * composition rule, and why there is no `markCollection`.
+ * @category Extraction
  */
 export type ShapeOperation =
   | /** Remove the leaf (or whole subtree) at the dotted path from both the

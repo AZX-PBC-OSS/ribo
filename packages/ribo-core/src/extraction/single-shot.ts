@@ -54,6 +54,7 @@ import { toJsonSchemaForWire } from "./schema/wire-schema.js";
  * one `extract()` emits exactly one unit — `start`, then `done` or `error`. There
  * is no retry loop here, so `attempt` is always 1, and that is the honest report,
  * not a placeholder.
+ * @category Extraction
  */
 export interface SingleShotOptions<
   V extends Record<string, unknown>,
@@ -116,6 +117,7 @@ export interface SingleShotOptions<
  *
  * Steps 2 and 3 use the shared helpers in `extraction-common.ts`,
  * where the full reasoning behind each is documented.
+ * @category Extraction
  */
 export function singleShotExtractor<V extends Record<string, unknown>, P = NoProvenance>({
   target,

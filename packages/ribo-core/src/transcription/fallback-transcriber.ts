@@ -23,6 +23,7 @@ import type { Transcriber, TranscriberCapability, TranscribeOptions } from "./tr
  * generalisation of the extractor engine. See the document-transcription plan
  * Task 4's Intent for the three-part argument for why a sibling is the right
  * call.
+ * @category Arbitration & Fallback
  */
 
 export interface FallbackTranscriberOptions {
@@ -50,6 +51,7 @@ export interface FallbackTranscriberOptions {
  * `capability()` on the composite reports the **best** of its delegates, with
  * `firstCapable`'s precedence (`ready` beats `needs-download` beats
  * `unavailable`, first in order within a tier).
+ * @category Arbitration & Fallback
  */
 export function fallbackTranscriber<S extends CapturePayload = CapturePayload>(
   transcribers: readonly Transcriber<S>[],

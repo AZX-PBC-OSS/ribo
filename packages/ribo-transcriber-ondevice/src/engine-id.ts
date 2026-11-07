@@ -29,7 +29,11 @@
  */
 import type { OnnxDtype } from "./protocol.js";
 
-/** What distinguishes one on-device operating point from another. */
+/**
+ * What distinguishes one on-device operating point from another.
+ *
+ * @category Transcription
+ */
 export interface EngineIdentity {
   readonly modelId: string;
   /** Unset means transformers.js auto-selects, which is itself a distinct operating point. */
@@ -38,7 +42,11 @@ export interface EngineIdentity {
   readonly dtype?: OnnxDtype;
 }
 
-/** Prefix every on-device engine id carries, so a persisted value is recognisable on sight. */
+/**
+ * Prefix every on-device engine id carries, so a persisted value is recognisable on sight.
+ *
+ * @category Transcription
+ */
 export const ONDEVICE_ENGINE_PREFIX = "ondevice";
 
 /**
@@ -48,6 +56,7 @@ export const ONDEVICE_ENGINE_PREFIX = "ondevice";
  * `onnx-community/moonshine-base-ONNX` → `moonshine-base`; `Xenova/whisper-tiny.en` →
  * `whisper-tiny.en`. Two repos publishing the same model under different orgs collapse to one
  * id, which is right: they are the same weights and the same operating point.
+ * @category Transcription
  */
 export function shortModelName(modelId: string): string {
   const withoutOrg = modelId.slice(modelId.lastIndexOf("/") + 1);
@@ -60,6 +69,7 @@ export function shortModelName(modelId: string): string {
  * `auto` is used where the caller left a choice to the library, and is deliberately a value
  * rather than an omission: "whatever transformers.js picks on this machine" is a real, distinct
  * operating point, and two instances that both left it unset genuinely are the same engine.
+ * @category Transcription
  */
 export function ondeviceEngineId(identity: EngineIdentity): string {
   return [

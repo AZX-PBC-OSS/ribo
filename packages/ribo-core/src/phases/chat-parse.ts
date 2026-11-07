@@ -76,6 +76,7 @@ export async function completeOrClassify(
  *
  * @param context - a descriptive prefix for the error (e.g.
  *   `singleShotExtractor: model response for "demo-fields"`)
+ * @category Extraction
  */
 export function assertStopFinishReason(completion: ChatCompletion, context: string): void {
   if (completion.finishReason && completion.finishReason !== "stop") {
@@ -97,6 +98,7 @@ export function assertStopFinishReason(completion: ChatCompletion, context: stri
  * exactly what `isTransientFailure` retries.
  *
  * @param context - a descriptive prefix for the error
+ * @category Extraction
  */
 export function parseJsonContent(content: string, context: string): unknown {
   try {

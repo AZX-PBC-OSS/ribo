@@ -45,9 +45,11 @@ import { z } from "zod";
  * Lives here rather than in `review.ts` because `adapter.ts` needs it too
  * (`ToolAdapter.requiredOnCreate`), and the adapter contract sits *below* the
  * review contract — an adapter importing from review would invert that.
+ * @category Provenance
  */
 export type FieldPath = string;
 
+/** @category Provenance */
 export const stripOptionalNullable = (field: z.ZodType): z.ZodType => {
   let current = field;
   // Carry the OUTERMOST description down. A patch leaf is `X.nullable().optional()`, so a
@@ -82,6 +84,7 @@ const INTEGER_LIKE_KEY = /^(?:0|[1-9]\d*)$/;
  * One segment in a {@link FieldPath}. Object keys are joined with `.`; instance keys
  * are wrapped in `[...]`. Keeping the two kinds distinct at the type level is what
  * stops a parser from silently treating `hvac[k3]` as a single object key.
+ * @category Provenance
  */
 export type FieldPathSegment =
   | { readonly kind: "objectKey"; readonly key: string }
@@ -94,6 +97,7 @@ export type FieldPathSegment =
  * convenience for plain object-key paths, but every path this module produces —
  * dotted or bracketed — is ultimately built here so that parsing has exactly one
  * encoding to reverse.
+ * @category Provenance
  */
 export const buildFieldPath = (segments: ReadonlyArray<FieldPathSegment>): string => {
   if (segments.length === 0) {
@@ -133,6 +137,7 @@ export const buildFieldPath = (segments: ReadonlyArray<FieldPathSegment>): strin
  * that the resolver would read differently — the silent shape mismatch that
  * `resolveReview`'s old `path.split(".")` would have produced for
  * `hvac[k3].hvacDuctLeakage`.
+ * @category Provenance
  */
 export const parseFieldPath = (path: string): FieldPathSegment[] => {
   if (path === "") {
@@ -228,6 +233,7 @@ export const parseFieldPath = (path: string): FieldPathSegment[] => {
  * Refusing is safe for the field sets this repo has: adapter schemas are bounded,
  * hand-written, and use identifier-shaped names. A tool that genuinely needs a `.` or `[`
  * in a field name needs a different path encoding, which is a design change, not a patch.
+ * @category Provenance
  */
 export const childPath = (parent: string, key: string): string => {
   validateObjectKey(key, parent);

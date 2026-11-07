@@ -16,6 +16,7 @@ import type { z } from "zod";
  * failed re-ask (`narrowToAbstained`'s whole point). Later-wins is safe for the
  * success arm only because partitioned pieces hold disjoint leaf sets; an
  * abstained piece covers the piece's FULL leaf set, so it needs under-fill.
+ * @category Extraction
  */
 export const fillAbsentKeys = (slot: unknown, abstained: unknown): unknown => {
   // An absent slot takes the abstained value whole — the common case, and what
@@ -40,6 +41,7 @@ export const fillAbsentKeys = (slot: unknown, abstained: unknown): unknown => {
  * `z.array(element)` would answer `[]` — the abstention for the whole
  * collection, not for one instance of it, and not what a skipped batched piece
  * writes into every slot.
+ * @category Extraction
  */
 export const abstainedElement = (pieceSchema: z.ZodType, key: string): unknown =>
   // THE CAST: the abstained value of a one-key object schema is a one-key

@@ -11,6 +11,7 @@ import { resolveDuctInsulationVendorLiteral } from "../normalization.js";
  * The operation is named, not passed as an object, so `params`, the create-only
  * list and the create/update split all come from the one source of truth
  * (`SNUGG_ENDPOINTS`) and a hand-rolled operation object can never desync them.
+ * @category Tool Adapters
  */
 export type SnuggWriteOperationName = "create" | "update" | "upsert";
 
@@ -86,6 +87,7 @@ const transformLeaf = (value: unknown, specType: string): unknown => {
  *
  * @throws Error on an unknown group, an operation the group does not have
  * (`job` has no create), or an unresolved reference leaf present in `values`.
+ * @category Tool Adapters
  */
 export const buildWriteBody = (
   group: string,

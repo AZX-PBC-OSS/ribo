@@ -44,6 +44,7 @@
  * A rung cannot read another document, write another collection, or touch
  * attachment bytes. That bound is part of the contract: cross-collection work is
  * a backfill, and attachment work has no home here at all.
+ * @category Offline & Storage
  */
 export type ShapeUpgrade =
   | {

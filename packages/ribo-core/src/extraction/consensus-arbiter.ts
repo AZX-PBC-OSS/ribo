@@ -36,6 +36,7 @@ import type { Extracted } from "../provenance/provenance.js";
  * count them, and the contested count is the headline signal — unrecoverable
  * afterwards, because a leaf the samples agreed was `null` and one they fought
  * over are byte-identical.
+ * @category Arbitration & Fallback
  */
 export type ConsensusVerdict = { readonly accept: number } | { readonly contested: number };
 
@@ -53,6 +54,7 @@ export type ConsensusVerdict = { readonly accept: number } | { readonly conteste
  * outside `samples` is a policy bug; the combinator throws on it rather than
  * clamping, because silently accepting sample 0 when the policy said 7 hides
  * the bug forever.
+ * @category Arbitration & Fallback
  */
 export type ConsensusArbiter = (input: {
   /** The structured path of the leaf being decided — never a formatted string. */
@@ -74,6 +76,7 @@ export type ConsensusArbiter = (input: {
  * Spans are not compared — see the {@link ConsensusArbiter} contract. This
  * policy fails safe under any reordering of collection instances, which is why
  * it is the default and `majorityValues` is not.
+ * @category Arbitration & Fallback
  */
 export const unanimousValues: ConsensusArbiter = ({ samples }) => {
   // The head is the leaf every other sample is compared against. An empty hand
@@ -108,6 +111,7 @@ export const unanimousValues: ConsensusArbiter = ({ samples }) => {
  * {@link unanimousValues} — which fails safe under any reordering — is the
  * default; point this policy at collections only when instance order is
  * meaningful or enforced upstream.
+ * @category Arbitration & Fallback
  */
 export const majorityValues: ConsensusArbiter = ({ samples }) => {
   const half = samples.length / 2;

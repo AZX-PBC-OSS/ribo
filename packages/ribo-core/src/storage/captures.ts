@@ -32,7 +32,11 @@ import type { StoreDeps } from "./deps.js";
  * subsystem.
  */
 
-/** What a caller hands the capture store: capture metadata, the bytes, and the owning session. */
+/**
+ * What a caller hands the capture store: capture metadata, the bytes, and the owning session.
+ *
+ * @category Offline & Storage
+ */
 export interface EnqueueInput {
   /**
    * The capture record — audio (`Recording`) or document (`DocumentCapture`),
@@ -54,6 +58,7 @@ export interface EnqueueInput {
  * Which items a read is interested in. Every field is optional, and the empty
  * query means "everything, seq-ascending" — the historical behaviour of
  * `list()` and `items$`.
+ * @category Offline & Storage
  */
 export interface CaptureQuery {
   status?: CaptureStatus | readonly CaptureStatus[];
@@ -63,7 +68,11 @@ export interface CaptureQuery {
   limit?: number;
 }
 
-/** Every operation over captures. Reached as `storage.captures`. */
+/**
+ * Every operation over captures. Reached as `storage.captures`.
+ *
+ * @category Offline & Storage
+ */
 export class CaptureStore {
   readonly #backend: StorageBackend;
   readonly #now: () => number;

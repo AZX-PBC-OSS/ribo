@@ -33,6 +33,7 @@ import type { StorageBackend } from "../port.js";
  * delete. Nothing outside migration writes this. It is persisted rather than
  * held in memory because a crash between the migration finishing and the
  * backfill running would otherwise lose the data for good.
+ * @category Offline & Storage
  */
 export interface LegacySessionFields {
   extracted?: Record<string, unknown>;

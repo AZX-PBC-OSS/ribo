@@ -62,10 +62,15 @@ import { enumMembersAt } from "./enum-members.js";
  * lowest correctly-present leaf — no margin at all — so the default keeps a
  * margin BELOW that boundary rather than on it, erring toward recall with the
  * cheapest currency there is.
+ * @category Arbitration & Fallback
  */
 export const DEFAULT_PRESENCE_THRESHOLD = 0.2;
 
-/** Options for {@link systemOnePresencePhase}. */
+/**
+ * Options for {@link systemOnePresencePhase}.
+ *
+ * @category Arbitration & Fallback
+ */
 export interface SystemOnePresencePhaseOptions {
   /** The System One client to ask — the host's proxied, credential-attaching one. */
   readonly client: SystemOneClient;
@@ -132,6 +137,7 @@ const presenceInstructions = (leaf: Leaf, members: readonly string[] | null): st
  * batched request, thresholded per leaf into core's presence map. See the file
  * header for the three behaviours reproduced from core's phase — the plan, the
  * seed and the wrap.
+ * @category Arbitration & Fallback
  */
 export function systemOnePresencePhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: SystemOnePresencePhaseOptions,

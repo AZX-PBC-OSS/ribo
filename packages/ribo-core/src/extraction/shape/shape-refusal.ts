@@ -31,7 +31,11 @@
 import type { DerivedExtractionShape } from "./derived-shape.js";
 import type { ShapeOperation } from "./shape-operation.js";
 
-/** What a refusal is defeasible against — see the file header. */
+/**
+ * What a refusal is defeasible against — see the file header.
+ *
+ * @category Extraction
+ */
 export type ShapeRefusalClass = "local" | "consequential" | "set";
 
 /**
@@ -39,6 +43,7 @@ export type ShapeRefusalClass = "local" | "consequential" | "set";
  * removed or occupied the target, or the caller's declaration the operation
  * conflicts with (the declaration is the invariant; the operation takes the
  * refusal).
+ * @category Extraction
  */
 export type ShapeRefusalCause =
   | {
@@ -58,7 +63,11 @@ export type ShapeRefusalCause =
       readonly leaf?: string;
     };
 
-/** One refused operation: which, where, why — and for consequential, who did it. */
+/**
+ * One refused operation: which, where, why — and for consequential, who did it.
+ *
+ * @category Extraction
+ */
 export interface ShapeRefusal {
   /** The caller's operation, verbatim. */
   readonly operation: ShapeOperation;
@@ -75,7 +84,11 @@ export interface ShapeRefusal {
   readonly cause?: ShapeRefusalCause;
 }
 
-/** The partial derivation's result: the artifact from the survivors, and every refusal. */
+/**
+ * The partial derivation's result: the artifact from the survivors, and every refusal.
+ *
+ * @category Extraction
+ */
 export interface PartiallyDerivedShape {
   /**
    * A full {@link DerivedExtractionShape} derived from the operations that
@@ -94,7 +107,11 @@ export interface PartiallyDerivedShape {
   readonly refusals: readonly ShapeRefusal[];
 }
 
-/** The canonical refusal order: class, then kind, then path/group, then index. */
+/**
+ * The canonical refusal order: class, then kind, then path/group, then index.
+ *
+ * @category Extraction
+ */
 export const compareShapeRefusals = (a: ShapeRefusal, b: ShapeRefusal): number => {
   const byClass = a.class.localeCompare(b.class);
   if (byClass !== 0) return byClass;

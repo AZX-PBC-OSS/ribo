@@ -68,7 +68,11 @@ import type { AppliedDrop, MoveFailure } from "./shape-moves.js";
 import { assertShapeMapping } from "./shape-mapping.js";
 import type { Retype, ShapeMapping } from "./shape-mapping.js";
 
-/** Options for {@link deriveExtractionShape} and {@link deriveExtractionShapePartially}. */
+/**
+ * Options for {@link deriveExtractionShape} and {@link deriveExtractionShapePartially}.
+ *
+ * @category Extraction
+ */
 export interface DeriveExtractionShapeOptions {
   /** The shape operations to apply. Defaults to none — pure normalization. */
   readonly operations?: readonly ShapeOperation[];
@@ -144,6 +148,7 @@ const remapThroughMoves = (
  * defects (scalar arrays, unions, records, a pre-existing empty object) and
  * caller declarations no applied operation explains. An error at derivation,
  * where the schema author is present, beats the same failure at extraction.
+ * @category Extraction
  */
 export function deriveExtractionShapePartially(
   schema: z.ZodObject,
@@ -1041,6 +1046,7 @@ const refuseEmptyObjectsHard = (patchTree: ReturnType<typeof buildObjectNode>): 
  * used to reach first, because the canonical order (not discovery order)
  * decides. A caller that wants the surviving operations' artifact instead of
  * the throw calls the partial surface directly.
+ * @category Extraction
  */
 export function deriveExtractionShape(
   schema: z.ZodObject,

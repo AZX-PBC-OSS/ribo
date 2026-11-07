@@ -38,6 +38,7 @@ import { useSubscribed } from "./use-subscribed.js";
  * would tell `workSafety` a request was refused when none was made. So an
  * un-asked origin reports `unknown`, and `denied` is set only by a `persist()`
  * call that resolved `false`.
+ * @category React Hooks
  */
 export interface UseStoragePersistenceResult {
   readonly persistence: StoragePersistence;
@@ -193,6 +194,7 @@ const readStorage = async (): Promise<StorageSnapshotDraft> => {
  */
 let requestSeq = 0;
 
+/** @category React Hooks */
 export function useStoragePersistence(): UseStoragePersistenceResult {
   const current = useSubscribed(subscribeToStorage, () => snapshot);
 

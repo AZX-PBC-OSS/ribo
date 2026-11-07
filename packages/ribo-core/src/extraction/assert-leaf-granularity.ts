@@ -125,6 +125,7 @@ const refuseGroup = (groupKey: string, group: z.ZodType, combinator: string): ne
  * granularity is a property of a group, so the walk below only finds WHICH
  * group offends; the recursion answers only whether a leaf envelope was
  * found.
+ * @category Extraction
  */
 export const assertLeafGranularity = (schema: z.ZodType, options: { combinator: string }): void => {
   const { combinator } = options;

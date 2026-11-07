@@ -69,6 +69,7 @@ const DEFAULT_MAX_RETRIES = 1;
  * `base` is handed over ALREADY BUILT, exactly as in {@link GapFillOptions}:
  * there is no observer threading to do, and the base's own units flow through
  * whatever `onUnit` its caller gave it at construction.
+ * @category Extraction
  */
 export interface SchemaRetryOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /**
@@ -157,6 +158,7 @@ const retryUsage = (calls: number, totals: UsageTotals): ExtractionUsage => ({
  *      again appends its own output and error and loops; when the budget is
  *      spent the LAST `SchemaParseError` rethrows as-is, so a strategy ladder
  *      still sees the recognisable, transient failure it knows how to handle.
+ * @category Extraction
  */
 export function schemaRetryExtractor<V extends Record<string, unknown>, P = NoProvenance>({
   base,

@@ -49,7 +49,11 @@ import type {
  *   it happens.
  */
 
-/** The store {@link cachedExtractor} memoises through. Injected, not constructed. */
+/**
+ * The store {@link cachedExtractor} memoises through. Injected, not constructed.
+ *
+ * @category Extraction
+ */
 export interface ExtractionCache {
   /** The stored result under `key`, or `undefined` on a miss. */
   get: (key: string) => Promise<ExtractionResult<unknown> | undefined>;
@@ -57,7 +61,11 @@ export interface ExtractionCache {
   set: (key: string, result: ExtractionResult<unknown>) => Promise<void>;
 }
 
-/** What a caller supplies to {@link cachedExtractor}. */
+/**
+ * What a caller supplies to {@link cachedExtractor}.
+ *
+ * @category Extraction
+ */
 export interface CachedExtractorOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /**
    * The whole extraction target the inner extractor was built against — read for
@@ -170,6 +178,7 @@ const mapCache = (): ExtractionCache => {
  * A rejecting inner call throws before any write, so failures are never cached
  * and the next call retries. A cache `get` that throws is a miss; a cache `set`
  * that throws is swallowed — the result is already in hand and paid for.
+ * @category Extraction
  */
 export function cachedExtractor<F, V extends Record<string, unknown>, P = NoProvenance>(
   extractor: Extractor<F>,

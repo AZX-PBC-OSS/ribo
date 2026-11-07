@@ -7,7 +7,7 @@ import { createDefaultTranscriptCombiner } from "../capture/transcript-combiner.
 /**
  * @file Session-level extraction: list a session's transcribed captures in
  * capture order (excluding `discarded` and `dead`), build an
- * {@link AnnotatedTranscript} for each, and hand the array to a
+ * {@link @azx/ribo-core!AnnotatedTranscript} for each, and hand the array to a
  * {@link TranscriptCombiner} for the policy.
  *
  * The I/O (listing, filtering, sorting, building parts) lives here; the
@@ -23,7 +23,7 @@ import { createDefaultTranscriptCombiner } from "../capture/transcript-combiner.
 
 /**
  * List a session's transcribed captures in capture order (seq-ascending),
- * excluding `discarded` and `dead`, and build an {@link AnnotatedTranscript}
+ * excluding `discarded` and `dead`, and build an {@link @azx/ribo-core!AnnotatedTranscript}
  * for each.
  *
  * Each part's `annotations` bag merges two sources:
@@ -100,6 +100,7 @@ export async function joinSessionTranscript(
  * Compares the sorted recording ids against `session.extractedFromRecordingIds`.
  * A session that has never been extracted (`extractedFromRecordingIds` absent)
  * always returns `true` — the first extraction must always run.
+ * @category Offline & Storage
  */
 export function recordingSetChanged(
   session: SessionItem,

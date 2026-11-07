@@ -48,7 +48,11 @@ import { phaseBuilder } from "./phase.js";
  */
 const ONE_STEP = null;
 
-/** Options for {@link computePhase}. */
+/**
+ * Options for {@link computePhase}.
+ *
+ * @category Extraction
+ */
 export interface ComputePhaseOptions<V extends Record<string, unknown>, P = NoProvenance> {
   /**
    * The deterministic fold. It owns every write, the way a merge does, and must leave
@@ -73,6 +77,7 @@ export interface ComputePhaseOptions<V extends Record<string, unknown>, P = NoPr
 /**
  * The compute phase: run the caller's deterministic fold once, between the phases
  * around it. See the file header for the marker, and for what this deliberately is not.
+ * @category Extraction
  */
 export function computePhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: ComputePhaseOptions<V, P>,

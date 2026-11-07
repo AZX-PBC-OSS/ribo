@@ -21,6 +21,7 @@ import type {
  * `reason` is `string` rather than a closed union on purpose: each engine family names its own
  * reasons (`ChatUnavailableReason`, `TranscriberUnavailableReason`), and a combinator that only
  * formats them into an error message has no business constraining that vocabulary.
+ * @category Extraction
  */
 export type SelectableCapability =
   | { readonly status: "ready" }
@@ -33,6 +34,7 @@ export type SelectableCapability =
  * **Not a `ChatClient`.** The composite never sends a request — it picks an extractor and gets
  * out of the way. Requiring a transport would couple a core combinator to an LLM concept it does
  * not use, which is exactly how this file ended up in the wrong package to begin with.
+ * @category Extraction
  */
 export interface CapabilitySource {
   readonly engine: string;
@@ -66,13 +68,21 @@ export interface CapabilitySource {
  * `invalidate()` stay in this file because the engine has no clock.
  */
 
-/** One entry in the composite roster: a capability source and the extractor built over it. */
+/**
+ * One entry in the composite roster: a capability source and the extractor built over it.
+ *
+ * @category Extraction
+ */
 export interface CompositeExtractorEntry<F> {
   readonly source: CapabilitySource;
   readonly extractor: Extractor<F>;
 }
 
-/** What {@link compositeExtractor} returns: an `Extractor` plus cache control. */
+/**
+ * What {@link compositeExtractor} returns: an `Extractor` plus cache control.
+ *
+ * @category Extraction
+ */
 export interface CompositeExtractor<F> extends Extractor<F> {
   /** Drop cached capabilities and re-probe on the next `extract()`. */
   invalidate: () => void;
@@ -84,7 +94,11 @@ interface CachedCapability {
   readonly expiresAt: number;
 }
 
-/** Options for {@link compositeExtractor}. */
+/**
+ * Options for {@link compositeExtractor}.
+ *
+ * @category Extraction
+ */
 export interface CompositeExtractorOptions {
   /** Capability cache lifetime. Defaults to {@link DEFAULT_CAPABILITY_TTL_MS}. */
   ttlMs?: number;
@@ -110,6 +124,7 @@ export interface CompositeExtractorOptions {
  *
  * The winning entry's `source.engine` is stamped onto `result.usage.engine` so provenance
  * survives the boundary.
+ * @category Extraction
  */
 export function compositeExtractor<F>(
   entries: readonly CompositeExtractorEntry<F>[],

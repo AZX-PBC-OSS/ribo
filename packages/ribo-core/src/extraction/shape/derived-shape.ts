@@ -12,6 +12,7 @@ import type { ShapeMapping } from "./shape-mapping.js";
  * the merge and write-back never see it, and review sees the cut only when
  * the host hands the record back as a `reviewPlan`, whose layout sections the
  * review tree by it (ADR 0036).
+ * @category Extraction
  */
 export type ShapePartitions = Readonly<Record<string, Readonly<Record<string, readonly string[]>>>>;
 
@@ -31,6 +32,7 @@ export type ShapePartitions = Readonly<Record<string, Readonly<Record<string, re
  * schema normalized into patch form, with dropped leaves removed — and "you
  * land back" means back in that patch: `buildReviewRequest` walks it, the write
  * parses against it, and reversal produces its enveloped shape.
+ * @category Extraction
  */
 export interface DerivedExtractionShape {
   /**

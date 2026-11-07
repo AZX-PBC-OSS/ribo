@@ -2,7 +2,11 @@ import { z } from "zod";
 
 import { reviewOutcomeSchema } from "../review/review.js";
 
-/** The RxDB collection name for sessions. Sits beside `storage` in the same database. */
+/**
+ * The RxDB collection name for sessions. Sits beside `storage` in the same database.
+ *
+ * @category Offline & Storage
+ */
 export const SESSION_COLLECTION_NAME = "sessions";
 
 /**
@@ -32,6 +36,7 @@ export const SESSION_COLLECTION_NAME = "sessions";
  * **Both `done` and `dead` have a human-driven way out.** `failed` is resting,
  * same as the storage item's: the relay picks it back up once `nextAttemptAt`
  * has passed.
+ * @category Offline & Storage
  */
 export const SESSION_STATUSES = [
   "open",
@@ -43,6 +48,7 @@ export const SESSION_STATUSES = [
   "dead",
 ] as const;
 
+/** @category Offline & Storage */
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
 /**
@@ -52,6 +58,7 @@ export type SessionStatus = (typeof SESSION_STATUSES)[number];
  * after backoff). **`open` is NOT active** — the relay does not act on an open
  * session until the host closes it. **`awaiting-review` is NOT active** — the
  * review gate, same omission as the storage item's side.
+ * @category Offline & Storage
  */
 export const ACTIVE_SESSION_STATUSES = [
   "extracting",
@@ -66,6 +73,7 @@ export const ACTIVE_SESSION_STATUSES = [
  * something like `RESTING_SESSION_STATUSES`, is an open question (see the
  * session-ownership design's §10.1), left to a follow-up so a rename does not
  * ride along with a behaviour change.
+ * @category Offline & Storage
  */
 export const FINISHED_SESSION_STATUSES = [
   "done",
@@ -86,9 +94,10 @@ export const FINISHED_SESSION_STATUSES = [
  * silently re-target it. `ctx` is opaque to core; `ref` is a bounded string
  * core indexes but never parses.
  *
- * Pinned field-for-field against {@link sessionRxSchema} by
+ * Pinned field-for-field against `sessionRxSchema` by
  * `session-schema.test.ts`, the same seam `schema.test.ts` guards for the
  * storage item.
+ * @category Offline & Storage
  */
 export const sessionDocumentSchema = z.strictObject({
   /** Stable id, and the RxDB primary key. */
@@ -251,7 +260,11 @@ export const sessionDocumentSchema = z.strictObject({
   idempotencyKey: z.string().min(1),
 });
 
-/** Inferred from {@link sessionDocumentSchema} — never hand-declared alongside it. */
+/**
+ * Inferred from {@link sessionDocumentSchema} — never hand-declared alongside it.
+ *
+ * @category Offline & Storage
+ */
 export type SessionDocument = z.infer<typeof sessionDocumentSchema>;
 
 /**
@@ -259,10 +272,15 @@ export type SessionDocument = z.infer<typeof sessionDocumentSchema>;
  * attachments — but the split mirrors the recording's document/item pair so a
  * future derived field (e.g. recording count) has a place to land without
  * changing every call site.
+ * @category Offline & Storage
  */
 export const sessionItemSchema = sessionDocumentSchema;
 
-/** Inferred from {@link sessionItemSchema} — never hand-declared alongside it. */
+/**
+ * Inferred from {@link sessionItemSchema} — never hand-declared alongside it.
+ *
+ * @category Offline & Storage
+ */
 export type SessionItem = z.infer<typeof sessionItemSchema>;
 
 /**
@@ -272,6 +290,7 @@ export type SessionItem = z.infer<typeof sessionItemSchema>;
  * they are decided once and re-deciding any of them would break provenance,
  * idempotency, strand a write or silently re-target it. Same reasoning as
  * `CapturePatch` on the recording side.
+ * @category Offline & Storage
  */
 export type SessionPatch = Partial<
   Omit<SessionDocument, "id" | "openedAt" | "idempotencyKey" | "ctx" | "ref">

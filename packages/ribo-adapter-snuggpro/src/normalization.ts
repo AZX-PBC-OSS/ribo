@@ -71,6 +71,7 @@ type AgeBand = (typeof DhwAgeBand.options)[number];
  * The three members without a quote (`No Insulation`, `Reflective bubble wrap`,
  * `Measured (R Value)`) are intentionally absent: their alias IS their wire
  * value, and a lookup miss signals "no translation needed".
+ * @category Tool Adapters
  */
 export const DUCT_INSULATION_VENDOR_LITERALS: ReadonlyMap<string, string> = new Map([
   ["Duct Board 1 inch", 'Duct Board 1"'],
@@ -87,6 +88,7 @@ export const DUCT_INSULATION_VENDOR_LITERALS: ReadonlyMap<string, string> = new 
  * Aliased members (the six inch-mark entries) map to their quoted vendor literal;
  * unaliased members pass through unchanged. Returns `null` for `null` so a caller
  * threading a nullable leaf does not need to guard separately.
+ * @category Tool Adapters
  */
 export const resolveDuctInsulationVendorLiteral = (value: string | null): string | null => {
   if (value === null) return null;
@@ -134,6 +136,7 @@ for (const member of HvacDuctInsulation.options) {
  * express the bound (strict structured-output rejects `minimum`/`maximum`), so a
  * model that emits `1.4` or `-0.1` is corrected here. A non-finite input collapses
  * to `0` — an unusable confidence reads as "no confidence", never as a high one.
+ * @category Tool Adapters
  */
 export const clampConfidence = (confidence: number): number => {
   if (!Number.isFinite(confidence)) return 0;
@@ -153,6 +156,7 @@ export const clampConfidence = (confidence: number): number => {
  *
  * @throws RangeError on a non-finite or negative depth (a negative depth is nonsense
  * and must surface, not be silently bucketed).
+ * @category Tool Adapters
  */
 export const inchesToAtticDepthBand = (inches: number): AtticBand => {
   if (!Number.isFinite(inches) || inches < 0) {
@@ -175,6 +179,7 @@ export const inchesToAtticDepthBand = (inches: number): AtticBand => {
  * calls out — `15` years -> `11-15`, not `16-20`. "About eight years" -> `6-10`.
  *
  * @throws RangeError on a non-finite or negative age.
+ * @category Tool Adapters
  */
 export const yearsToDhwAgeBand = (years: number): AgeBand => {
   if (!Number.isFinite(years) || years < 0) {
@@ -230,6 +235,7 @@ const clampDeep = (node: unknown): unknown => {
  * inside the extractor's trust boundary, long before review turns envelopes into
  * writable values. Every key is present — the extraction shape is required at
  * every level — so there is nothing to skip over.
+ * @category Tool Adapters
  */
 export const normalizeFields = (fields: SnuggExtraction): SnuggExtraction =>
   clampDeep(fields) as SnuggExtraction;

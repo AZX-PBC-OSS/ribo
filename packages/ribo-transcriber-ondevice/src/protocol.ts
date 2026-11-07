@@ -20,6 +20,7 @@
 /**
  * Weight quantization values transformers.js accepts for `dtype`. Mirrors the ORT `DataType` union
  * so our public options constrain to valid values without importing transformers types at the seam.
+ * @category Transcription
  */
 export type OnnxDtype =
   | "auto"
@@ -36,6 +37,7 @@ export type OnnxDtype =
   | "q1"
   | "q1f16";
 
+/** @category Transcription */
 export interface PrimeConfig {
   /** HuggingFace repo id of the ASR model, e.g. `"Xenova/whisper-base.en"`. */
   readonly modelId: string;
@@ -79,6 +81,7 @@ export interface PrimeConfig {
  * Granular enough to drive a real bar: the `"progress"` stage carries per-file `loaded`/`total`
  * bytes. transformers.js emits these per file (config, tokenizer, each `.onnx` weight shard), so
  * a consumer aggregates across files to show one overall percentage.
+ * @category Transcription
  */
 export type PrimeProgress =
   | { readonly stage: "initiate"; readonly file: string }
@@ -121,6 +124,7 @@ export type PrimeProgress =
  * Hence the seam carries the hint text; `worker.ts` owns the text → `decoder_input_ids`
  * step. See the worker for the exact prompt construction and the prefix-stripping that keeps the
  * jargon out of the returned transcript.
+ * @category Transcription
  */
 export interface TranscribeWorkerRequest {
   /**
@@ -140,6 +144,7 @@ export interface TranscribeWorkerRequest {
 /** Main → worker. `"prime"` downloads+caches; `"transcribe"` runs batch inference;
  * `"cancelTranscribe"` aborts an outstanding batch (the cancellation channel for
  * `TranscribeOptions.signal`); `"liveOpen"`/`"liveFeed"`/`"liveClose"` are the live conversation
+ * @category Transcription
  * (Task 3 live seam). */
 export type MainToWorkerMessage =
   | {
@@ -201,10 +206,15 @@ export type MainToWorkerMessage =
  *   being revised.
  * - `"commit"` — permanent text for a committed region. Appended to the
  *   committed list; never revised. The host renders it as settled.
+ * @category Transcription
  */
 export type LiveSegmentKind = "tail" | "commit";
 
-/** Worker → main. */
+/**
+ * Worker → main.
+ *
+ * @category Transcription
+ */
 export type WorkerToMainMessage =
   | { readonly type: "progress"; readonly requestId: string; readonly progress: PrimeProgress }
   | { readonly type: "primed"; readonly requestId: string }

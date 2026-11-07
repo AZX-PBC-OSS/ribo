@@ -72,6 +72,7 @@ import type { DerivedExtractionShape } from "./derived-shape.js";
  * written against, named explicitly, because the mapping is data and no
  * compiler can check it: {@link assertShapeMapping} is that check, run at
  * construction against both schemas.
+ * @category Extraction
  */
 export function reshapedExtractor<
   VShape extends Record<string, unknown> = Record<string, unknown>,

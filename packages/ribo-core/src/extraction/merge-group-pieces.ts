@@ -24,6 +24,7 @@
  * is missing the other piece's keys, which the full extraction schema requires,
  * so the second trust-boundary parse (`parseWithSchema`) rejects the merge
  * with a `SchemaParseError` rather than silently emitting a partial instance.
+ * @category Extraction
  */
 export function mergeGroupPieces(existing: unknown, incoming: unknown): unknown {
   if (Array.isArray(existing) && Array.isArray(incoming)) {

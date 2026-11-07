@@ -20,6 +20,7 @@ import type { Enveloped, NoProvenance } from "../provenance/enveloped.js";
  * Leaf names resolve against the group's own shape: a collection group's element type, a
  * singleton group's own keys, and for a top-level leaf the group key itself — the same name the
  * runtime matches against.
+ * @category Write-back
  */
 export type RequiredOnCreate<V extends Record<string, unknown>> = Readonly<{
   [K in keyof V & string]?: readonly GroupLeafKey<V[K], K>[];
@@ -32,7 +33,11 @@ type GroupLeafKey<G, K extends string> = G extends readonly (infer E)[]
     ? keyof NonNullable<G> & string
     : K;
 
-/** Loose runtime shape used inside review.ts, where the schema has already been walked. */
+/**
+ * Loose runtime shape used inside review.ts, where the schema has already been walked.
+ *
+ * @category Write-back
+ */
 export type RequiredOnCreateMap = Readonly<Record<string, readonly string[]>>;
 
 /**
@@ -48,7 +53,8 @@ export type RequiredOnCreateMap = Readonly<Record<string, readonly string[]>>;
  * `IdentifyingFieldsMap` lives in `instance-identity.ts` because it is what the matcher
  * *consumes* and that file is the declared home for identity vocabulary. No import is
  * needed between them — structural assignability carries it, the same move
- * {@link RequiredOnCreate} → {@link RequiredOnCreateMap} makes in `review.ts`.
+ * {@link RequiredOnCreate} → `RequiredOnCreateMap` makes in `review.ts`.
+ * @category Write-back
  */
 export type IdentifyingFields<V extends Record<string, unknown>> = Readonly<{
   [K in keyof V & string]?: readonly GroupLeafKey<V[K], K>[];
@@ -130,6 +136,7 @@ export type IdentifyingFields<V extends Record<string, unknown>> = Readonly<{
  * `out Config`). `adapter.test.ts` pins every direction — the walk compiles, `enveloped()`
  * accepts it, a disjoint schema does not, a disagreeing leaf does not, and the mixed
  * pairing above does not.
+ * @category Write-back
  */
 export interface ValuesSchema<V extends Record<string, unknown>> extends ZodObject {
   readonly _output: V;
@@ -146,6 +153,7 @@ export interface ValuesSchema<V extends Record<string, unknown>> extends ZodObje
  * On a {@link ToolAdapter} this is instantiated at `Enveloped<V>`, not `V`: the
  * example's `fields` become the **assistant** turn the model is asked to imitate,
  * so they must be the provenance-enveloped shape the model actually emits.
+ * @category Write-back
  */
 export interface ToolAdapterExample<F> {
   readonly transcript: string;
@@ -155,6 +163,7 @@ export interface ToolAdapterExample<F> {
 /**
  * Metadata for one write attempt. Not part of `V` and not part of `C` — see
  * {@link ToolAdapter}'s note on `write`'s third parameter.
+ * @category Write-back
  */
 export interface WriteMetadata {
   /**
@@ -234,6 +243,7 @@ export interface WriteMetadata {
  * not a `Enveloped<V>`, so without this parameter the only way to declare such an adapter would be
  * a cast — and a cast at this boundary is precisely the schema drift the derivation exists to make
  * impossible.
+ * @category Write-back
  */
 export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvenance> {
   /** Stable identifier for this adapter, e.g. `"snuggpro-attic-insulation"`. */

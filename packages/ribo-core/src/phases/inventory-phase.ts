@@ -57,6 +57,7 @@ import type { PreparedGroup } from "../extraction/scoped-instance/instance-fill.
  * The note key the inventory phase stores its {@link Roster} under and the fill
  * phase requires — the roster crosses the phase boundary through the draft's
  * typed notes bag, not through any strategy-private state.
+ * @category Extraction
  */
 export const rosterNoteKey: NoteKey<Roster> = noteKey("scoped-instance-roster");
 
@@ -71,6 +72,7 @@ export const rosterNoteKey: NoteKey<Roster> = noteKey("scoped-instance-roster");
  * `demandNote`'s error about the missing roster note — naming the mis-wiring
  * instead of quietly extracting nothing. Refusing the option at the type level
  * keeps that consequence at the wiring, where it is diagnosable.
+ * @category Extraction
  */
 export interface InventoryPhaseOptions {
   /**
@@ -111,6 +113,7 @@ interface InventoryItem {
  *
  * Nothing here reads the target, so `V` and `P` appear only on the returned
  * phase — a host composing a phase list by hand passes them explicitly.
+ * @category Extraction
  */
 export function inventoryPhase<V extends Record<string, unknown>, P = NoProvenance>(
   options: InventoryPhaseOptions,

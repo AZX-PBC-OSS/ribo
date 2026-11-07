@@ -23,13 +23,18 @@ import type {
   Unsubscribe,
 } from "../connectivity/connectivity.js";
 
-/** Structured fields produced by extraction. */
+/**
+ * Structured fields produced by extraction.
+ *
+ * @category Offline & Storage
+ */
 export type ExtractedFieldMap = Record<string, unknown>;
 
 // ---------------------------------------------------------------------------
 // Session-level step interfaces
 // ---------------------------------------------------------------------------
 
+/** @category Offline & Storage */
 export interface SessionExtractInput {
   session: SessionItem;
   /** The joined transcript of all transcribed recordings, in capture order. */
@@ -41,6 +46,7 @@ export interface SessionExtractInput {
 /**
  * What one extraction step produced: the fields, and optionally which engine
  * produced them.
+ * @category Offline & Storage
  */
 export interface ExtractStepResult {
   readonly fields: ExtractedFieldMap;
@@ -90,12 +96,14 @@ export interface ExtractStepResult {
  * signal it aborts when the step's timeout fires, so a timed-out extraction
  * cancels its in-flight request instead of leaving it running behind the
  * rejection.
+ * @category Offline & Storage
  */
 export type SessionExtractStep = (
   input: SessionExtractInput,
   options?: ExtractOptions,
 ) => Promise<ExtractStepResult>;
 
+/** @category Offline & Storage */
 export interface SessionWriteInput {
   session: SessionItem;
   /**
@@ -148,6 +156,7 @@ export interface SessionWriteInput {
  * `fields` is unchanged from today's bare return value (persisted as
  * `writeResult`); `receipts` is new and persisted onto `session.receipts`,
  * additively.
+ * @category Offline & Storage
  */
 export interface SessionWriteResult {
   readonly fields?: ExtractedFieldMap;
@@ -160,6 +169,7 @@ export interface SessionWriteResult {
 /**
  * Fields → the host tool. `result.fields` is persisted as `writeResult`;
  * `result.receipts` is persisted onto `session.receipts` (merged, additive).
+ * @category Offline & Storage
  */
 export type SessionWriteStep = (input: SessionWriteInput) => Promise<SessionWriteResult | void>;
 
@@ -170,6 +180,7 @@ export type SessionWriteStep = (input: SessionWriteInput) => Promise<SessionWrit
 /**
  * The connectivity slice the relay watches: just the subscription. A full
  * `Connectivity` model satisfies it structurally.
+ * @category Offline & Storage
  */
 export interface ConnectivitySource {
   subscribe: (listener: (state: ConnectivityState) => void) => Unsubscribe;
@@ -185,11 +196,13 @@ export interface ConnectivitySource {
  * distinguishable. Nothing is persisted — the discriminant lives at the
  * callback boundary only (design §0.6). A `switch (subject.kind)` reaches a
  * correctly-typed document with no cast.
+ * @category Offline & Storage
  */
 export type RelaySubject =
   | { readonly kind: "recording"; readonly item: Capture }
   | { readonly kind: "session"; readonly session: SessionItem };
 
+/** @category Offline & Storage */
 export interface RelayOptions extends BackoffOptions {
   storage: Storage;
   /**
@@ -227,6 +240,7 @@ export interface RelayOptions extends BackoffOptions {
 // Relay interface
 // ---------------------------------------------------------------------------
 
+/** @category Offline & Storage */
 export interface Relay {
   syncNow: () => Promise<void>;
   start: (connectivity?: ConnectivitySource) => Promise<void>;
@@ -239,6 +253,7 @@ function messageOf(error: unknown): string {
   return String(error);
 }
 
+/** @category Offline & Storage */
 export const DEFAULT_STEP_TIMEOUT_MS = 900_000;
 
 async function withTimeout<T>(
@@ -313,6 +328,7 @@ const SESSION_STEP_STATUS = {
 // Factory
 // ---------------------------------------------------------------------------
 
+/** @category Offline & Storage */
 export function createRelay(options: RelayOptions): Relay {
   return new QueueRelay(options);
 }

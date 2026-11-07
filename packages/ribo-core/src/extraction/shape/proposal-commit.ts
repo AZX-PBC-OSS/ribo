@@ -19,7 +19,11 @@ import type { ShapeOperation } from "./shape-operation.js";
 import type { ShapeRefusal, ShapeRefusalCause } from "./shape-refusal.js";
 import type { InventoryDeclarations } from "./leaf-inventory.js";
 
-/** One incoming operation the rule could not commit, with the reason why. */
+/**
+ * One incoming operation the rule could not commit, with the reason why.
+ *
+ * @category Extraction
+ */
 export interface CommitRefusal {
   /** The INCOMING operation that was not committed. */
   readonly operation: ShapeOperation;
@@ -74,6 +78,7 @@ type ApplierOutcome =
  * incoming operation reported once, in incoming order, with its cause
  * translated to `incoming` positions — is what the resuming loop's feedback
  * is built from.
+ * @category Extraction
  */
 export const commitAttempt = (
   schema: ZodObject,

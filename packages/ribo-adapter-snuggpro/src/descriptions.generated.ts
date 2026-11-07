@@ -12,7 +12,11 @@
 // deliberate rather than automatic, so a vendor rewording lands in a reviewable diff
 // instead of silently changing what an extraction model is told.
 
-/** Vendor descriptions, keyed by the leaf name as it appears in `snuggValuesSchema`. */
+/**
+ * Vendor descriptions, keyed by the leaf name as it appears in `snuggValuesSchema`.
+ *
+ * @category Tool Adapters
+ */
 export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
   accountId: "Unique identifier of the Snugg Pro user who owns this job.",
   additionalFuelUtilityProviderName:

@@ -1,9 +1,17 @@
 import { z } from "zod";
 
-/** The collection name on disk. Sits beside `outbox` and `sessions` in the same database. */
+/**
+ * The collection name on disk. Sits beside `outbox` and `sessions` in the same database.
+ *
+ * @category Plugin Storage
+ */
 export const PLUGIN_STORAGE_COLLECTION_NAME = "pluginStorage";
 
-/** What an entry is scoped to, and therefore what sweeps it. */
+/**
+ * What an entry is scoped to, and therefore what sweeps it.
+ *
+ * @category Plugin Storage
+ */
 export const ENTRY_SCOPE_KINDS = ["capture", "session"] as const;
 
 /**
@@ -35,6 +43,7 @@ export const ENTRY_SCOPE_KINDS = ["capture", "session"] as const;
  * the deterministic `migrated-session-*` ids the session backfill derives), and
  * no public API writes a session-scoped entry yet. Null bytes do not appear in
  * package names, UUIDs or human-chosen keys, so the join needs no escaping.
+ * @category Plugin Storage
  */
 export const pluginStorageDocumentSchema = z.strictObject({
   // The bounds mirror the backend's JSON schema and are load-bearing rather than defensive:
@@ -49,7 +58,11 @@ export const pluginStorageDocumentSchema = z.strictObject({
   value: z.string(),
 });
 
-/** Inferred from {@link pluginStorageDocumentSchema} — never hand-declared alongside it. */
+/**
+ * Inferred from {@link pluginStorageDocumentSchema} — never hand-declared alongside it.
+ *
+ * @category Plugin Storage
+ */
 export type PluginStorageDocument = z.infer<typeof pluginStorageDocumentSchema>;
 
 /**
@@ -57,6 +70,7 @@ export type PluginStorageDocument = z.infer<typeof pluginStorageDocumentSchema>;
  *
  * Unchanged from version 0 on purpose — see the note above on why the scope kind
  * stays out of the key.
+ * @category Plugin Storage
  */
 export function pluginStorageEntryId(scopeId: string, owner: string, key: string): string {
   return `${owner}\x00${scopeId}\x00${key}`;

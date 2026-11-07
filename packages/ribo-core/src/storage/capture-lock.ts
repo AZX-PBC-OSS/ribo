@@ -9,6 +9,7 @@
  * released while its holder's context survives (bfcache). With recovery writing a
  * new row, being wrong about liveness costs an orphan, not corruption. The bfcache
  * question stops mattering.
+ * @category Offline & Storage
  */
 export const CAPTURE_LOCK = "ribo-capture";
 
@@ -24,6 +25,7 @@ export const CAPTURE_LOCK = "ribo-capture";
  * that with an expiry — which means a tuned timeout, and a wrong guess either strands work or lets two
  * tabs run the same step. A Web Lock is released by the browser when its holding context dies, so
  * "the tab that owned this is gone" and "the lock is free" are the same event, with no clock involved.
+ * @category Offline & Storage
  */
 export function relayItemLock(id: string): string {
   return `ribo-relay-item:${id}`;
@@ -35,11 +37,13 @@ export function relayItemLock(id: string): string {
  * Same rationale as {@link relayItemLock}: per session, not one global lock, so
  * two tabs can drain different sessions concurrently. Web Locks rather than a
  * lease, for the same crash-resume reason.
+ * @category Offline & Storage
  */
 export function relaySessionLock(id: string): string {
   return `ribo-relay-session:${id}`;
 }
 
+/** @category Offline & Storage */
 export interface HeldLock<T> {
   /** Resolves when `run` finishes — NOT when the lock is released. */
   readonly ready: Promise<T>;

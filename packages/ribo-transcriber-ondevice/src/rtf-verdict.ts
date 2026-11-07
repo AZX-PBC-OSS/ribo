@@ -19,7 +19,11 @@
  * is all `capability()` needs.
  */
 
-/** The `CacheStorage` bucket the RTF verdict is stored in, separate from model weights. */
+/**
+ * The `CacheStorage` bucket the RTF verdict is stored in, separate from model weights.
+ *
+ * @category Transcription
+ */
 export const RTF_VERDICT_CACHE_NAME = "ribo-rtf-verdict";
 
 /**
@@ -29,6 +33,7 @@ export const RTF_VERDICT_CACHE_NAME = "ribo-rtf-verdict";
  * not the same question as interactivity and should sit higher — a device at RTF 1.5
  * is slow but still usable for batch transcription, while one at RTF 4 is not. Refine
  * with measured Surface Go 3 numbers when available (design §9 open question 2).
+ * @category Transcription
  */
 export const DEFAULT_RTF_THRESHOLD = 3;
 

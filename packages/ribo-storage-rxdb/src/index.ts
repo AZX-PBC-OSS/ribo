@@ -1,4 +1,6 @@
 /**
+ * @module @azx/ribo-storage-rxdb
+ *
  * @file `@azx/ribo-storage-rxdb` — the RxDB implementation of ribo's storage port.
  *
  * `@azx/ribo-core` owns the contracts and every piece of domain logic; this

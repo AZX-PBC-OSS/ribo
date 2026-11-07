@@ -90,6 +90,7 @@ const pruneGroup = (groupValue: unknown, shape: DeclaredShape): unknown => {
  * surviving group's shape no longer declares is dropped from it (each element of a
  * collection group individually). Returns a new record; the input is not mutated,
  * and every surviving value is passed through untouched.
+ * @category Tool Adapters
  */
 export function prunePersistedValues(fields: Record<string, unknown>): Record<string, unknown> {
   const groups = snuggValuesSchema.shape as unknown as Record<string, z.ZodType>;

@@ -41,6 +41,7 @@ import { describeLocated, zodIssues } from "../review/zod-issues.js";
  * @param options.collectionGroups - top-level field names that are per-instance
  *   arrays in the adapter's schema. Every other top-level field is treated as a
  *   singleton and written once.
+ * @category Write-back
  */
 export interface ToInstanceWriteStepOptions<V extends Record<string, unknown>, C> {
   readonly adapter: ToolAdapter<V, C>;
@@ -60,6 +61,7 @@ export interface ToInstanceWriteStepOptions<V extends Record<string, unknown>, C
  * `Idempotency-Key` (measured 2026-09-21 against Snugg Pro's staging API). The
  * receipt — a retry UPDATEs the record a previous attempt's receipt names — is the
  * mechanism; the key is still sent because it is harmless and free.
+ * @category Write-back
  */
 export function deriveInstanceIdempotencyKey(
   itemKey: string,
@@ -72,6 +74,7 @@ export function deriveInstanceIdempotencyKey(
 /**
  * Build a per-instance write step from an adapter and the list of collection
  * groups the adapter models as per-instance arrays.
+ * @category Write-back
  */
 export function toInstanceWriteStep<V extends Record<string, unknown>, C>(
   options: ToInstanceWriteStepOptions<V, C>,

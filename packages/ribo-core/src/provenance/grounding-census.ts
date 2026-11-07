@@ -16,7 +16,11 @@ import type { LeafPath } from "./extracted-leaves.js";
 import { spanGroundedness } from "./provenance.js";
 import type { Extracted, SpanGroundedness } from "./provenance.js";
 
-/** The census's record of one leaf: where it is, and how well it is cited. */
+/**
+ * The census's record of one leaf: where it is, and how well it is cited.
+ *
+ * @category Provenance
+ */
 export interface CensusLeaf {
   /** Structured path through the fields — object keys and array indices, never a formatted string. */
   readonly path: LeafPath;
@@ -53,6 +57,7 @@ export interface CensusLeaf {
  * over the leaves alone could not see them at all. Unlike a leaf, a stated-empty
  * entry has no separate committed/cited facts: the entry's existence IS the
  * commitment and the span IS its citation, so there is only the groundedness.
+ * @category Provenance
  */
 export interface CensusEmptyGroup {
   /** The group's own top-level key — the key `statedEmptyGroups` was keyed by. */
@@ -65,6 +70,7 @@ export interface CensusEmptyGroup {
  * Counts over {@link GroundingCensus.leaves} — a convenience, not a second
  * source of truth. Every member is derived from the leaves in one pass; a
  * policy that wants something these do not offer walks `leaves`.
+ * @category Provenance
  */
 export interface GroundingCensusCounts {
   /** Every leaf the walk visited. */
@@ -83,7 +89,11 @@ export interface GroundingCensusCounts {
   readonly emptyGroups: number;
 }
 
-/** The tally {@link groundingCensus} produces, and a {@link ValidationPolicy} decides from. */
+/**
+ * The tally {@link groundingCensus} produces, and a {@link ValidationPolicy} decides from.
+ *
+ * @category Provenance
+ */
 export interface GroundingCensus {
   /** One entry per leaf, in walk order — depth-first, schema order, array indices ascending. */
   readonly leaves: readonly CensusLeaf[];
@@ -108,6 +118,7 @@ export interface GroundingCensus {
  *
  * Pure: no I/O, no mutation of `fields` — the leaf walk runs as a pure visitor
  * that returns every leaf unchanged.
+ * @category Provenance
  */
 export const groundingCensus = (
   fields: unknown,
