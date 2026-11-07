@@ -622,26 +622,24 @@ Checklist:
 ## 7. Definition of done
 
 **`./check.sh` is green.** It runs typecheck → lint → format:check → build:packages → resolve →
-build:app → pkg:gates → snugg:drift → skips:tracked → score:mutations → test and prints a PASS/FAIL
-summary. Run it before you claim a task is finished, and paste the summary line rather than
+build:app → docs:build → pkg:gates → snugg:drift → skips:tracked → score:mutations → test and prints a
+PASS/FAIL summary. Run it before you claim a task is finished, and paste the summary line rather than
 asserting success.
 
 **`./check.sh` is the everyday bar, but it is NOT the whole CI bar.** This sentence used to read
 "CI runs the same script, so there is no second bar to clear", and that was wrong in a way that
-cost a red CI on a change that was green locally. `.github/workflows/ci.yml` runs three further
+cost a red CI on a change that was green locally. `.github/workflows/ci.yml` runs two further
 steps that `./check.sh` does not:
 
 | CI step                                     | What it catches that `check.sh` cannot                                                         |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `pnpm docs:build`                           | typedoc entry points, broken `{@link}` targets, a VitePress build failure                      |
 | `pnpm changeset status --since=origin/main` | a changed package with no changeset                                                            |
 | `pnpm test:pack-and-consume`                | real tarballs installed into an app **outside** this repo — see §7's own paragraph on the tier |
 
-For an ordinary change, `./check.sh` really is enough and the other three pass by construction.
+For an ordinary change, `./check.sh` really is enough and the other two pass by construction.
 **Adding, renaming or removing a publishable package is the case where they do not**, because the
 pack-and-consume tier keeps its own scratch app that must list the package in both `dependencies`
-and `pnpm.overrides`, and typedoc keeps its own entry-point list. Run all four before pushing that
-kind of change.
+and `pnpm.overrides`. Run all three before pushing that kind of change.
 
 The two build stages are `build:packages` (tsdown produces every publishable `dist/`, running
 publint and attw in-build) and `build:app` (the playground's production Vite build, the only gate

@@ -1,13 +1,13 @@
 # @azx/ribo-ui-react
 
 The headless React hook layer over `@azx/ribo-core`'s engine: `RiboProvider` plus seven `use*` hooks
-that wire the recorder, the outbox, sessions, review, connectivity, and work-safety into React
+that wire the recorder, the capture queue, sessions, review, connectivity, and work-safety into React
 state. It ships one component — the provider — and no markup or stylesheet.
 
 ## When to use it
 
 Use it when your host app is React and you want the queue's state as hooks instead of re-deriving
-it from `@azx/ribo-core` yourself — `useRecorder`, `useOutboxItems`, `useSessions`, `useReview`,
+it from `@azx/ribo-core` yourself — `useRecorder`, `useCaptures`, `useSessions`, `useReview`,
 `useConnectivity`, `useWorkSafety`, `useStoragePersistence`.
 
 Skip it if your host isn't React (go straight to `@azx/ribo-core`) or if you want a component
@@ -20,7 +20,7 @@ import { RiboProvider, useReview, useSessions } from "@azx/ribo-ui-react";
 
 function ReviewCard({ session }) {
   // `valuesSchema` comes from whatever ToolAdapter package this host writes into,
-  // e.g. `@azx/ribo-adapter-snuggpro`'s `snuggValuesSchema` (an example adapter, not the only one).
+  // e.g. `@azx/ribo-adapter-snuggpro`'s patch schema (an example adapter, not the only one).
   const { fields, accept, submit } = useReview(session, { valuesSchema: hostValuesSchema });
   // Render `fields` however this host likes.
   return null;
@@ -32,10 +32,11 @@ function ReviewPanel() {
   return items.map((session) => <ReviewCard key={session.id} session={session} />);
 }
 
-function App() {
-  const outbox = useHostOutbox(); // the host owns instance lifetime, not this package
+function App({ storage }) {
+  // The host owns instance lifetime, not this package: the provider carries the
+  // already-opened `Storage` (and recorder/connectivity) rather than constructing them.
   return (
-    <RiboProvider value={{ outbox }}>
+    <RiboProvider value={{ storage }}>
       <ReviewPanel />
     </RiboProvider>
   );

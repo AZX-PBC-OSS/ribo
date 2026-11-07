@@ -19,20 +19,23 @@ that case, though it stays a peer dependency underneath.
 
 ```ts
 import {
+  createMemoryBackend,
   createRelay,
   FakeExtractor,
   FakeTranscriber,
-  openOutbox,
+  openStorage,
   toSessionExtractStep,
 } from "@azx/ribo-core";
 
 // The durable queue: every capture lands here the instant it's made, online or not.
-const outbox = await openOutbox();
+// Pass `openRxdbBackend()` from @azx/ribo-storage-rxdb in a browser host; the memory
+// backend is for tests and development.
+const storage = await openStorage({ backend: createMemoryBackend("example") });
 
 // The relay drains the queue whenever connectivity allows. Swap the fakes below for a real
 // Transcriber package and a real ToolAdapter's `toWriteStep(adapter)` with no change to this shape.
 const relay = createRelay({
-  outbox,
+  storage,
   transcriber: new FakeTranscriber(),
   sessionExtract: toSessionExtractStep(new FakeExtractor({})),
   sessionWrite: async () => ({}),

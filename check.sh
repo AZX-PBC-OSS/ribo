@@ -51,6 +51,11 @@ run_stage "resolve" pnpm check:resolve
 # gates (so their output is not buried) and before `test`, because a module
 # resolution failure explains most test failures that would follow.
 run_stage "build:app" pnpm build:app
+# The docs site build is the only gate that runs VitePress's dead-link check and
+# TypeDoc's entry-point/{@link} validation. It builds the static site into
+# `docs/.vitepress/dist`. Part of the everyday loop so broken docs fail here and
+# in CI alike, not only in CI.
+run_stage "docs:build" pnpm docs:build
 # The three publishing gates publint and attw do not cover: no TypeScript source in
 # any tarball, exactly one resolved React, and react/react-dom declared as peer
 # deps (not regular deps) where used. Runs here rather than in CI alone so
@@ -106,7 +111,7 @@ run_stage "test" pnpm test
 printf '\n----------------------------------------\n'
 
 if [ -z "$failed" ]; then
-  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, pkg:gates, snugg:drift, skips:tracked, score:mutations, test\n'
+  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, docs:build, pkg:gates, snugg:drift, skips:tracked, score:mutations, test\n'
   exit 0
 fi
 

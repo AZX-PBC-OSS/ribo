@@ -5,10 +5,10 @@
  * response is a flat `{ model, content, stopReason, usage }`, and the route
  * defaults to SSE so we force `stream: false` for one JSON body.
  *
- * Everything is injected — the token, the base URL, the registered `Origin`,
- * and (for tests) the `fetch` implementation. No secret is hardcoded. `fetch`
- * is expressly allowed in this headless adapter (AGENTS §4); it is used as the
- * bare global, never `window.fetch`.
+ * Everything is injected — the optional bearer token, the base URL, the
+ * registered `Origin`, and (for tests) the `fetch` implementation. No secret
+ * is hardcoded. `fetch` is expressly allowed in this headless adapter
+ * (AGENTS §4); it is used as the bare global, never `window.fetch`.
  */
 
 import type { ConnectivitySource, ConnectivityStatus } from "@azx/ribo-core";
@@ -29,8 +29,13 @@ import {
  * @category Chat Transports
  */
 export interface HelixChatOptions {
-  /** Bearer token. Injected by the host — never read from a bundled constant. */
-  readonly token: string;
+  /**
+   * Bearer token. Injected by the host — never read from a bundled constant.
+   * Optional: a deployed Helix app authenticates to its same-origin gateway
+   * with the session cookie and has no token, so when this is absent no
+   * `authorization` header is sent at all (never a placeholder `Bearer`).
+   */
+  readonly token?: string;
   /**
    * Base URL of the Helix gateway, WITHOUT the trailing `/_api/llm/chat`
    * (e.g. `https://dev-api.azx.helix.azxlabs.io/<slug>`, or `""` for same-origin
@@ -83,8 +88,8 @@ interface HelixErrorBody {
 
 /**
  * Build a {@link @azx/ribo-core!ChatClient} that POSTs to `${baseUrl}/_api/llm/chat` with
- * bearer auth and an `Origin` header, and returns `content` from the
- * non-streaming JSON body.
+ * bearer auth when a token is given (none when absent) and an `Origin` header,
+ * and returns `content` from the non-streaming JSON body.
  *
  * Request mapping: a `role: "system"` message becomes the top-level `system`
  * field (NOT a message); all other messages go into `messages` with roles
@@ -194,8 +199,12 @@ export function helixChat({
 
       const headers: Record<string, string> = {
         "content-type": "application/json",
-        authorization: `Bearer ${token}`,
       };
+      // Truthiness, not `!== undefined`: an empty string is the placeholder hosts passed before
+      // `token` was optional, and it must not become a bare `Bearer ` header.
+      if (token) {
+        headers.authorization = `Bearer ${token}`;
+      }
       if (origin !== undefined) {
         headers.origin = origin;
       }

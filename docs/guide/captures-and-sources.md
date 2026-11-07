@@ -14,9 +14,9 @@ seam costs more than it buys.
 `kind` discriminant:
 
 ```ts
-import { baseCaptureItemSchema } from "@azx/ribo-core";
+import { basePayloadSchema } from "@azx/ribo-core";
 
-const invoice = baseCaptureItemSchema.parse({
+const invoice = basePayloadSchema.parse({
   id: "cap-invoice",
   capturedAt: new Date().toISOString(),
   mimeType: "application/pdf",
@@ -25,7 +25,7 @@ const invoice = baseCaptureItemSchema.parse({
   ctx: {},
 });
 
-const dictation = baseCaptureItemSchema.parse({
+const dictation = basePayloadSchema.parse({
   id: "cap-dictation",
   capturedAt: new Date().toISOString(),
   mimeType: "audio/webm;codecs=opus",
