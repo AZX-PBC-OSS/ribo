@@ -73,10 +73,12 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
 
 ## Pages
 
-- [`Transcriber`](/api/transcriber) — the transcription contract: capability, transcription, and
-  the three kinds of failure.
+### Capture
+
 - [`Recorder`](/api/recorder) — microphone capture: negotiated containers, released streams, and
   a mid-capture failure that is surfaced, not banked.
+- [`Transcriber`](/api/transcriber) — the transcription contract: capability, transcription, and
+  the three kinds of failure.
 - [`OnDeviceTranscriber`](/api/ondevice-transcriber) — on-device Whisper-family transcription:
   explicit priming, capability from the Cache API, worker wiring.
 - [`ManagedTranscriber`](/api/managed-transcriber) — Azure Fast Transcription behind the host's
@@ -90,6 +92,9 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
   `LiveTranscriber` seam and its tail/commit segments.
 - [`CaptureSession`](/api/capture-session) — one live recording against storage: chunked
   ingestion, finalize, abort — and startup recovery for the recordings a dead tab left behind.
+
+### Extraction
+
 - [`Extractor`](/api/extractor) — the extraction contract: one annotated transcript in, parsed
   fields plus usage out, and the bridge to the relay.
 - [`singleShotExtractor`](/api/single-shot-extractor) — the built strategy: one structured-output
@@ -98,14 +103,27 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
   dialects, the on-device transport, the typed error, and the scripted double.
 - [Test doubles](/api/test-doubles) — `FakeExtractor`, `FakeTranscriber`, `scriptedChat`: the
   whole pipeline, credential-free.
-- [Phased extraction](/api/phased-extraction) — `phasedExtractor` and the phase vocabulary:
-  write a multi-pass strategy as a list of narrowing steps, never a bespoke loop.
-- [Presence narrowing](/api/presence-narrowing) — the opt-in preset that fills only the groups
-  presence marked present; the presence phase is a parameter.
+
+### Large Schemas
+
 - [Schema at scale](/api/schema-at-scale) — the split, the dry run, the per-group plan and
   override layer, and the shape derivation: the whole split-and-per-group family on one page.
+- [Presence narrowing](/api/presence-narrowing) — the opt-in preset that fills only the groups
+  presence marked present; the presence phase is a parameter.
+- [Phased extraction](/api/phased-extraction) — `phasedExtractor` and the phase vocabulary:
+  write a multi-pass strategy as a list of narrowing steps, never a bespoke loop.
 - [`groupedExtractor`](/api/grouped-extractor) — the run-owner combinator over per-key groups:
   coverage, scheduling, retry, sibling abort, merge.
+
+### Arbitration
+
+- [`fallbackExtractor`](/api/fallback-extractor) and the arbitration wrappers — ladders, races,
+  arbiters, and the retry/timeout/hedge/consensus/cache/budget family.
+- [`corroborateExtractor`](/api/corroborate-extractor) — the second judging combinator: a System
+  One verdict per committed leaf, a terminal rejection, a ladder that falls through.
+
+### Review & Write-back
+
 - [Provenance](/api/provenance) — `enveloped`, the per-leaf envelope, the span check in three
   tiers, and the grounding census.
 - [Review](/api/review) — `buildReviewRequest` and `resolveReview`: what a reviewer is shown,
@@ -114,6 +132,9 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
   lives, and the trust boundary before a write.
 - [`snuggProAdapter`](/api/snuggpro-adapter) — the real adapter: two field schemas, a refusing
   write until the host's transport arrives.
+
+### Storage & Offline
+
 - [`createRelay`](/api/relay) — the foreground queue: transcribe, extract, write, retry, die.
 - [`openStorage`](/api/open-storage) — the durability container over a backend, with no default
   backend.
@@ -121,6 +142,9 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
   conformance kit that makes the obligations executable.
 - [`createConnectivity`](/api/connectivity) and work safety — the three-state link model and the
   "is my work safe?" verdict.
+
+### React
+
 - [`RiboProvider`](/api/ribo-provider) — the one context: host-constructed instances in, hooks
   served, nothing constructed or memoized by the provider itself.
 - [`useRecorder`](/api/use-recorder) — capture as React state, with stop() that rethrows and
@@ -128,6 +152,8 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
 - [`useCaptures`](/api/use-captures) — the capture queue as live state, with a load-bearing
   `loading` and a by-value query comparison.
 - [`useSessions`](/api/use-sessions) — the session-collection mirror of `useCaptures`.
+- [`useReview`](/api/use-review) — field-by-field review of one parked session as React state;
+  the schema as an argument, never the adapter.
 - [`useConnectivity`](/api/use-connectivity) — the three-state model as state; lifecycle stays
   the host's.
 - [`useStoragePersistence`](/api/use-storage-persistence) — the persistence grant and quota, one
@@ -135,9 +161,3 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
 - [`useWorkSafety`](/api/use-work-safety) — the withheld-until-honest verdict, composed once.
 - [`createCaptureCoordinator`](/api/create-capture-coordinator) — the shared handle between the
   recording hook and the work-safety verdict.
-- [`fallbackExtractor`](/api/fallback-extractor) and the arbitration wrappers — ladders, races,
-  arbiters, and the retry/timeout/hedge/consensus/cache/budget family.
-- [`corroborateExtractor`](/api/corroborate-extractor) — the second judging combinator: a System
-  One verdict per committed leaf, a terminal rejection, a ladder that falls through.
-- [`useReview`](/api/use-review) — field-by-field review of one parked session as React state;
-  the schema as an argument, never the adapter.

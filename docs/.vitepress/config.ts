@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitepress";
 import type { DefaultTheme } from "vitepress";
@@ -45,6 +45,38 @@ function referenceSidebar(): DefaultTheme.Sidebar {
   };
 }
 
+/**
+ * The Design sidebar, shared with `/adr/`. The ADR list is read from `docs/adr/` at config load,
+ * so a new ADR appears without editing this file; each entry's text is the file's own `# NNNN.`
+ * heading. Collapsed by default: the list is long and most readers come for one record.
+ */
+function adrItems(): DefaultTheme.SidebarItem[] {
+  const dir = fileURLToPath(new URL("../adr/", import.meta.url));
+  return readdirSync(dir)
+    .filter((name) => /^\d{4}-.*\.md$/.test(name))
+    .sort()
+    .map((name) => {
+      const heading = /^# (.+)$/m.exec(readFileSync(dir + name, "utf8"))?.[1] ?? name;
+      return { text: heading, link: `/adr/${name.replace(/\.md$/, "")}` };
+    });
+}
+
+const designSidebar: DefaultTheme.SidebarItem[] = [
+  {
+    text: "Design & Contributing",
+    items: [
+      { text: "Design Decisions", link: "/design/" },
+      { text: "Contributing", link: "/design/contributing" },
+      { text: "Releasing", link: "/design/releasing" },
+    ],
+  },
+  {
+    text: "Architecture Decisions",
+    collapsed: true,
+    items: [{ text: "Overview", link: "/adr/" }, ...adrItems()],
+  },
+];
+
 // Configurable base path so a subpath deploy (e.g. Helix under `/ribo/`) works without a rebuild
 // of anything but this value: `DOCS_BASE=/ribo/ pnpm docs:build`. Defaults to root.
 const base = process.env.DOCS_BASE ?? "/";
@@ -75,96 +107,160 @@ export default defineConfig({
     nav: [
       { text: "Guide", link: "/guide/" },
       { text: "API", link: "/api/" },
-      { text: "Comparison", link: "/guide/comparison" },
       { text: "Offline-first", link: "/offline-first/" },
       { text: "Deep Dives", link: "/deep-dives/" },
       { text: "Reference", link: "/reference/" },
       { text: "Design", link: "/design/" },
     ],
     sidebar: {
-      // One `/guide/` directory, two sidebar groups. A sibling `guides/` directory was
+      // One `/guide/` directory, grouped in the sidebar. A sibling `guides/` directory was
       // considered and rejected: two paths one character apart are a permanent source of
       // wrong links. See docs/roadmap/design/docs-repositioning-design.md §4.
+      // The /api/ groups reuse these group names, so a concept sits under the same heading
+      // in both sidebars.
       "/guide/": [
         {
           text: "Getting Started",
+          collapsed: false,
           items: [
             { text: "Overview", link: "/guide/" },
-            { text: "Motivation", link: "/guide/motivation" },
-            { text: "Comparison", link: "/guide/comparison" },
             { text: "Installation", link: "/guide/installation" },
             { text: "Quick Start", link: "/guide/quick-start" },
             { text: "Important Defaults", link: "/guide/important-defaults" },
           ],
         },
         {
-          text: "Guides",
+          text: "Capture",
+          collapsed: false,
           items: [
             { text: "Captures & Sources", link: "/guide/captures-and-sources" },
             { text: "Sessions", link: "/guide/sessions" },
+          ],
+        },
+        {
+          text: "Extraction",
+          collapsed: false,
+          items: [
             { text: "Extraction", link: "/guide/extraction" },
-            { text: "Schema at Scale", link: "/guide/schema-at-scale" },
             { text: "From a Schema", link: "/guide/from-a-schema" },
+            { text: "Schema at Scale", link: "/guide/schema-at-scale" },
             { text: "Per-Group Composition", link: "/guide/per-group" },
+            { text: "Arbitration & Fallback", link: "/guide/arbitration" },
+          ],
+        },
+        {
+          text: "Review & Write-back",
+          collapsed: false,
+          items: [
             { text: "Provenance", link: "/guide/provenance" },
             { text: "Review", link: "/guide/review" },
             { text: "Write-back", link: "/guide/write-back" },
+          ],
+        },
+        {
+          text: "Storage",
+          collapsed: false,
+          items: [
             { text: "Offline & Storage", link: "/guide/offline-and-storage" },
             { text: "Migrations", link: "/guide/migrations" },
-            { text: "Arbitration & Fallback", link: "/guide/arbitration" },
             { text: "Plugin Storage", link: "/guide/plugin-storage" },
+          ],
+        },
+        {
+          text: "Integration",
+          collapsed: false,
+          items: [
             { text: "React Hooks", link: "/guide/react" },
             { text: "Typesafety", link: "/guide/typesafety" },
           ],
         },
+        {
+          text: "Background",
+          collapsed: false,
+          items: [
+            { text: "Motivation", link: "/guide/motivation" },
+            { text: "Comparison", link: "/guide/comparison" },
+          ],
+        },
       ],
       "/api/": [
+        { text: "API", items: [{ text: "Overview", link: "/api/" }] },
         {
-          text: "API",
+          text: "Capture",
+          collapsed: false,
           items: [
-            { text: "Overview", link: "/api/" },
             { text: "Recorder", link: "/api/recorder" },
             { text: "Transcriber", link: "/api/transcriber" },
             { text: "OnDeviceTranscriber", link: "/api/ondevice-transcriber" },
             { text: "ManagedTranscriber", link: "/api/managed-transcriber" },
             { text: "PdfjsTranscriber", link: "/api/pdfjs-transcriber" },
             { text: "ManagedDocsTranscriber", link: "/api/managed-docs-transcriber" },
-            {
-              text: "Choosing and composing transcribers",
-              link: "/api/composing-transcribers",
-            },
+            { text: "Composing transcribers", link: "/api/composing-transcribers" },
             { text: "Live transcription", link: "/api/live-transcription" },
-            { text: "Capture session", link: "/api/capture-session" },
+            { text: "CaptureSession", link: "/api/capture-session" },
+          ],
+        },
+        {
+          text: "Extraction",
+          collapsed: false,
+          items: [
             { text: "Extractor", link: "/api/extractor" },
             { text: "singleShotExtractor", link: "/api/single-shot-extractor" },
-            { text: "ChatClient and chat transports", link: "/api/chat-transports" },
+            { text: "ChatClient and transports", link: "/api/chat-transports" },
             { text: "Test doubles", link: "/api/test-doubles" },
-            { text: "Phased extraction", link: "/api/phased-extraction" },
-            { text: "Presence narrowing", link: "/api/presence-narrowing" },
+          ],
+        },
+        {
+          text: "Large Schemas",
+          collapsed: false,
+          items: [
             { text: "Schema at scale", link: "/api/schema-at-scale" },
+            { text: "Presence narrowing", link: "/api/presence-narrowing" },
+            { text: "Phased extraction", link: "/api/phased-extraction" },
             { text: "groupedExtractor", link: "/api/grouped-extractor" },
+          ],
+        },
+        {
+          text: "Arbitration",
+          collapsed: false,
+          items: [
+            { text: "fallbackExtractor and wrappers", link: "/api/fallback-extractor" },
+            { text: "corroborateExtractor", link: "/api/corroborate-extractor" },
+          ],
+        },
+        {
+          text: "Review & Write-back",
+          collapsed: false,
+          items: [
             { text: "Provenance", link: "/api/provenance" },
             { text: "Review", link: "/api/review" },
             { text: "ToolAdapter and write steps", link: "/api/tool-adapter" },
             { text: "snuggProAdapter", link: "/api/snuggpro-adapter" },
+          ],
+        },
+        {
+          text: "Storage & Offline",
+          collapsed: false,
+          items: [
             { text: "createRelay", link: "/api/relay" },
             { text: "openStorage", link: "/api/open-storage" },
             { text: "The StorageBackend port", link: "/api/storage-port" },
-            { text: "createConnectivity and work safety", link: "/api/connectivity" },
+            { text: "createConnectivity", link: "/api/connectivity" },
+          ],
+        },
+        {
+          text: "React",
+          collapsed: false,
+          items: [
             { text: "RiboProvider", link: "/api/ribo-provider" },
             { text: "useRecorder", link: "/api/use-recorder" },
             { text: "useCaptures", link: "/api/use-captures" },
             { text: "useSessions", link: "/api/use-sessions" },
+            { text: "useReview", link: "/api/use-review" },
             { text: "useConnectivity", link: "/api/use-connectivity" },
             { text: "useStoragePersistence", link: "/api/use-storage-persistence" },
             { text: "useWorkSafety", link: "/api/use-work-safety" },
             { text: "createCaptureCoordinator", link: "/api/create-capture-coordinator" },
-            { text: "useReview", link: "/api/use-review" },
-            {
-              text: "fallbackExtractor and the arbitration wrappers",
-              link: "/api/fallback-extractor",
-            },
-            { text: "corroborateExtractor", link: "/api/corroborate-extractor" },
           ],
         },
       ],
@@ -185,35 +281,31 @@ export default defineConfig({
           items: [
             { text: "Overview", link: "/deep-dives/" },
             { text: "Feasibility", link: "/deep-dives/feasibility" },
-            {
-              text: "Transcription: Measured",
-              link: "/deep-dives/transcription-measurement",
-            },
-            { text: "Extraction: Measured", link: "/deep-dives/accuracy" },
+          ],
+        },
+        {
+          text: "Measured",
+          collapsed: false,
+          items: [
+            { text: "Transcription", link: "/deep-dives/transcription-measurement" },
+            { text: "Extraction", link: "/deep-dives/accuracy" },
+            { text: "Schema at Scale", link: "/deep-dives/schema-scale" },
+            { text: "Native Extraction", link: "/deep-dives/native-extraction" },
+            { text: "Provenance", link: "/deep-dives/provenance-measurement" },
+          ],
+        },
+        {
+          text: "Field Data",
+          collapsed: false,
+          items: [
             { text: "Real Field Audio", link: "/deep-dives/real-audio" },
             { text: "The Snugg Pro Data Model", link: "/deep-dives/snuggpro-data-model" },
-            { text: "Schema at Scale: Measured", link: "/deep-dives/schema-scale" },
-            {
-              text: "Native Extraction: Measured",
-              link: "/deep-dives/native-extraction",
-            },
-            {
-              text: "Provenance: Measured",
-              link: "/deep-dives/provenance-measurement",
-            },
           ],
         },
       ],
-      "/design/": [
-        {
-          text: "Design & Contributing",
-          items: [
-            { text: "Design Decisions", link: "/design/" },
-            { text: "Contributing", link: "/design/contributing" },
-            { text: "Releasing", link: "/design/releasing" },
-          ],
-        },
-      ],
+      // Design and the ADRs share one sidebar, so a reader moves between them.
+      "/design/": designSidebar,
+      "/adr/": designSidebar,
       ...referenceSidebar(),
     },
     search: { provider: "local" },
