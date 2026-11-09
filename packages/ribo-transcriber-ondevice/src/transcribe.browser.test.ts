@@ -14,12 +14,10 @@ import {
   type Transcriber,
 } from "@azx/ribo-core";
 
-import {
-  decodeTo16kMono,
-  DEFAULT_MODEL_ID,
-  ondeviceEngineId,
-  OnDeviceTranscriber,
-} from "./index.js";
+import { DEFAULT_MODEL_ID } from "./config.js";
+import { ondeviceEngineId } from "./engine-id.js";
+import { decodeTo16kMono } from "./decode.js";
+import { OnDeviceTranscriber } from "./index.js";
 import type { MainToWorkerMessage, WorkerToMainMessage } from "./protocol.js";
 
 /**

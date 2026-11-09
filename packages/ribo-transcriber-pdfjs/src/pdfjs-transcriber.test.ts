@@ -2,7 +2,8 @@ import { isPermanentlyUnavailable, isTransientFailure, TerminalError } from "@az
 import type { DocumentCapture } from "@azx/ribo-core";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { PdfjsTranscriber, resetPdfjsCache } from "./index.js";
+import { PdfjsTranscriber } from "./index.js";
+import { resetPdfjsCache } from "./pdf-text.js";
 import { PDFJS_ENGINE } from "./config.js";
 import type { PdfDocumentProxy, PdfjsModule } from "./config.js";
 

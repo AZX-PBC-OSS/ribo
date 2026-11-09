@@ -1,5 +1,5 @@
 import { backfillSessions } from "@azx/ribo-core";
-import { CAPTURE_MIGRATION_STRATEGIES, removeOutboxDatabase } from "./database.js";
+import { CAPTURE_MIGRATION_STRATEGIES, removeStorageDatabase } from "./database.js";
 import { openRxdbBackend } from "./open.js";
 import type { RxdbStorageBackend } from "./backend.js";
 import { addRxPlugin, createRxDatabase } from "rxdb";
@@ -61,7 +61,7 @@ afterEach(async () => {
   for (const storage of openDatabases.splice(0)) {
     if (!storage.closed) await storage.close();
   }
-  for (const name of usedNames.splice(0)) await removeOutboxDatabase(name);
+  for (const name of usedNames.splice(0)) await removeStorageDatabase(name);
 });
 
 const recording: Recording = {
@@ -618,7 +618,7 @@ test("a v5 recording whose ctx is a primitive migrates to a session storage can 
   // unconstrained, so a host could legally enqueue `ctx: "job-42"` under v5.
   // `sessionRxSchema` types the session's `ctx` as an object, so minting a
   // session from that recording without a substitute produces a document the
-  // insert refuses — and that insert runs inside `openOutboxDatabase`, which
+  // insert refuses — and that insert runs inside `openStorageDatabase`, which
   // means storage that will not open, on every launch, with no way back.
   // Before the session owned its destination, the same recording reached the
   // write step and died there with a readable error.
@@ -779,7 +779,7 @@ test("a backfill that already created the session does not insert it twice", asy
     .exec();
   await doc!.incrementalPatch({ legacy: { extracted: { hvac: "furnace" } } });
 
-  // Core's backfill, over the port — the same call `openOutboxDatabase` makes.
+  // Core's backfill, over the port — the same call `openStorageDatabase` makes.
   await backfillSessions(storage.backend);
 
   expect(await storage.sessions.list({})).toHaveLength(1);

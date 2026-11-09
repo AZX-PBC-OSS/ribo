@@ -150,18 +150,10 @@ export type {
   ProvenanceMap,
 } from "./provenance/enveloped.js";
 
-// The abstained value for a built extraction schema: every leaf at the
-// abstention floor, shaped by the schema itself, so a phase merging a FAILED
-// item under `onItemFailure: "skip"` writes a value the closing parse accepts.
-// Walks the same built schemas `enveloped()` produced and mirrors its decision
-// table's allowlist throw.
-export { abstainedValue } from "./provenance/abstained-value.js";
-
 // Capture records and their transcripts.
 export { baseRecordingSchema, recordingSchema } from "./capture/recording.js";
 export type { Recording } from "./capture/recording.js";
 export {
-  capturePayloadSchema,
   basePayloadSchema,
   documentCaptureSchema,
   baseDocumentCaptureSchema,
@@ -188,7 +180,6 @@ export type {
 export {
   isPermanentlyUnavailable,
   PERMANENT_TRANSCRIBER_UNAVAILABLE_REASONS,
-  TRANSCRIBER_UNAVAILABLE_REASONS,
   TranscriberUnavailableError,
 } from "./transcription/transcriber.js";
 export type {
@@ -278,13 +269,6 @@ export type {
   TranscriptionOutcome,
 } from "./transcription/transcription-arbitration.js";
 
-// The TTL-keyed capability cache the transcription combinators share, extracted
-// when `raceTranscriber` became the third copy of the shape. `firstCapable` and
-// `hedged` still carry their own copies — a deliberate, unfinished migration
-// (see capability-cache.ts's header).
-export { CapabilityCache } from "./transcription/capability-cache.js";
-export type { CapabilityCacheOptions } from "./transcription/capability-cache.js";
-
 // Transcriber fallback: try transcribers in order without consulting
 // capability(), letting an arbiter decide whether each outcome is acceptable.
 // The per-item sibling of firstCapable — a reader who thinks it is
@@ -303,11 +287,7 @@ export type { RaceTranscriberOptions } from "./transcription/race-transcriber.js
 
 // The fake that lets later phases run the pipeline — and drive every capability
 // state and all three failure kinds — without a model.
-export {
-  DEFAULT_FAKE_TRANSCRIBER_ENGINE,
-  DEFAULT_FAKE_TRANSCRIPT_TEXT,
-  FakeTranscriber,
-} from "./transcription/fake-transcriber.js";
+export { DEFAULT_FAKE_TRANSCRIPT_TEXT, FakeTranscriber } from "./transcription/fake-transcriber.js";
 export type {
   FakeTranscribeCall,
   FakeTranscriberOptions,
@@ -315,12 +295,7 @@ export type {
 } from "./transcription/fake-transcriber.js";
 
 // Microphone capture: negotiated container in, a `Recording` plus its bytes out.
-export {
-  DEFAULT_MIME_TYPE_PREFERENCES,
-  negotiateMimeType,
-  Recorder,
-  RecorderError,
-} from "./recorder.js";
+export { negotiateMimeType, Recorder, RecorderError } from "./recorder.js";
 export type {
   RecorderCapture,
   EmptyContext,
@@ -586,12 +561,12 @@ export { stripOptionalNullable } from "./provenance/field-path.js";
 // Field-path grammar: one shared implementation for building and parsing dotted
 // and bracketed paths. Object-key and instance-key segments are distinct at the
 // type level so `resolveReview` cannot silently rebuild `hvac[k3].leaf` as an
-// object whose key is the literal text `hvac[k3]`. `childPath` is exported
-// beside them because the schema-shape derivation composes further walks over
-// the same schemas — the derivation and the mapping-back, now in core's
-// `extraction/shape/` — and every walk must refuse the same
+// object whose key is the literal text `hvac[k3]`. `childPath` and
+// `parseFieldPath` are exported because the schema-shape derivation composes
+// further walks over the same schemas — the derivation and the mapping-back,
+// now in core's `extraction/shape/` — and every walk must refuse the same
 // path-breaking key shapes, not copy the validation.
-export { buildFieldPath, childPath, parseFieldPath } from "./provenance/field-path.js";
+export { childPath, parseFieldPath } from "./provenance/field-path.js";
 export type { FieldPathSegment } from "./provenance/field-path.js";
 
 // Retry-budget derivation: the shared worst-case-fit calculation every managed
@@ -707,7 +682,6 @@ export {
 export { projectTarget } from "./extraction/project-target.js";
 export type { ProjectTargetOptions } from "./extraction/project-target.js";
 export {
-  addUsage,
   assertWireSafeSchemaName,
   buildGroupMessages,
   buildMessages,
@@ -724,11 +698,7 @@ export type { UsageTotals } from "./extraction/extraction-common.js";
 // because its safe walk over schema positions (never a key-name filter — a
 // property genuinely named `description` survives with its `required` entry)
 // is the answer any hand-rolled response-format builder needs too.
-export {
-  fieldDescriptionsMode,
-  renderFieldGuidance,
-  withFieldGuidance,
-} from "./extraction/field-guidance.js";
+export { renderFieldGuidance, withFieldGuidance } from "./extraction/field-guidance.js";
 export type { FieldDescriptionsMode, FieldGuidanceOptions } from "./extraction/field-guidance.js";
 export {
   toJsonSchemaForWire,
@@ -749,7 +719,7 @@ export type { SingleShotOptions } from "./extraction/single-shot.js";
 // which are unsupported — nothing on-device — and core owns the phase vocabulary. The
 // on-device package keeps the preset; a host composes the phases from here, the way
 // `public-composition.test.ts` does.
-// `nullEnvelope`/`wrapGroupEntry`/`writableGroupEntry` and `PresenceMaps` are public because a
+// `nullEnvelope`/`wrapGroupEntry` and `PresenceMaps` are public because a
 // presence phase implemented OUTSIDE core must seed every group with the full null envelope
 // exactly as this module's `merge` does — without the seed, an all-false group goes missing from
 // the result fields and the closing trust-boundary parse rejects it — so it needs these same
@@ -760,7 +730,6 @@ export {
   presencePhase,
   presenceNoteKey,
   wrapGroupEntry,
-  writableGroupEntry,
 } from "./phases/presence-phase.js";
 export type {
   Group,
@@ -821,12 +790,9 @@ export type { ComputePhaseOptions } from "./phases/compute-phase.js";
 // (`SplitOptions`); the library carries no provider's byte cap. The split's
 // top-level classifier and its nesting-depth measure are exported beside it:
 // `describeExtraction` reports with them, and a host comparing a piece against
-// its route's depth cap reads the same walk. `partitionLabelLine` is the one
-// line a partitioned piece's request carries — exported because the fill
-// phases and a host's own phases reuse it verbatim.
+// its route's depth cap reads the same walk.
 export {
   MAX_NULLABLE_UNIONS_PER_CALL,
-  partitionLabelLine,
   serializedNestingDepth,
   splitExtractionSchema,
   topLevelKeyKinds,
@@ -968,7 +934,6 @@ export type { InventoryOptions } from "./extraction/scoped-instance/inventory.js
 export {
   buildFillMessages,
   prepareGroups,
-  projectFillExample,
   scopedInstanceExtractor,
 } from "./extraction/scoped-instance/instance-fill.js";
 export type {
@@ -1006,7 +971,7 @@ export type {
 } from "./extraction/shape/shape-refusal.js";
 export type { ShapeOperation } from "./extraction/shape/shape-operation.js";
 export type { DerivedExtractionShape, ShapePartitions } from "./extraction/shape/derived-shape.js";
-export { assertShapeMapping, retypeToPatchValue } from "./extraction/shape/shape-mapping.js";
+export { assertShapeMapping } from "./extraction/shape/shape-mapping.js";
 export type {
   LeafKind,
   LeafMapping,

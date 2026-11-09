@@ -93,4 +93,3 @@ None — this page is opt-in wiring, and no guide walks through it.
 - [`CorroborationRejectedError`](/reference/@azx/ribo-extractor-systemone/classes/CorroborationRejectedError.html) ·
   [`rejectUncorroboratedCommitments`](/reference/@azx/ribo-extractor-systemone/functions/rejectUncorroboratedCommitments.html) ·
   [`CorroborationPolicy`](/reference/@azx/ribo-extractor-systemone/type-aliases/CorroborationPolicy.html)
-- [`corroborationCensus`](/reference/@azx/ribo-extractor-systemone/functions/corroborationCensus.html)

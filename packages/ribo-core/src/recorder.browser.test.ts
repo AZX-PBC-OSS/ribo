@@ -11,13 +11,8 @@ import {
   type SampleTapOptions,
   type SampleTapTeardown,
 } from "./recorder.js";
-import {
-  CAPTURE_LOCK,
-  holdLock,
-  isLockFree,
-  openCaptureSession,
-  openStorage,
-} from "./storage/index.js";
+import { holdLock } from "./storage/capture-lock.js";
+import { CAPTURE_LOCK, isLockFree, openCaptureSession, openStorage } from "./storage/index.js";
 import type { CaptureSession } from "./storage/index.js";
 import type { Recording } from "./capture/recording.js";
 

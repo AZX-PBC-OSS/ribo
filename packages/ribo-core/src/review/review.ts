@@ -181,7 +181,7 @@ export interface ReviewField {
  * Every leaf of the adapter's values schema, prepared for review, keyed by path.
  * Paths are dotted for nested objects (`health.healthGasLeak`) and bracketed for
  * array instances (`hvac[k1].hvacSystemEquipmentType`), constructed by
- * {@link buildFieldPath} so construction and parsing never diverge.
+ * `buildFieldPath` so construction and parsing never diverge.
  *
  * **Insertion order is schema-declaration order within each instance, and is part of the
  * contract.** The walk visits the shape's keys in declaration order and recurses into a

@@ -28,18 +28,6 @@ import { transcribeViaManagedDocs } from "./transcribe.js";
 
 export { MANAGED_DOCS_ENGINE } from "./config.js";
 export type { ManagedDocsTranscriberOptions } from "./config.js";
-export {
-  flattenDocumentAnalysisResponse,
-  isEncryptedError,
-  stripMarkersAndWhitespace,
-} from "./response.js";
-export type {
-  DocumentAnalysisCell,
-  DocumentAnalysisErrorBody,
-  DocumentAnalysisPage,
-  DocumentAnalysisResponse,
-  DocumentAnalysisTable,
-} from "./response.js";
 
 /**
  * Managed document transcription, implementing `Transcriber<DocumentCapture>`.

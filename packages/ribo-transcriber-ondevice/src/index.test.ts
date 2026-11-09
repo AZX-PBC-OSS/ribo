@@ -3,13 +3,9 @@ import { expect, test, vi } from "vitest";
 import { TerminalError, isTransientFailure } from "@azx/ribo-core";
 import type { Recording, Transcriber } from "@azx/ribo-core";
 
-import {
-  buildHintPrompt,
-  DEFAULT_MODEL_ID,
-  ONDEVICE_WHISPER_ENGINE,
-  ondeviceEngineId,
-  OnDeviceTranscriber,
-} from "./index.js";
+import { buildHintPrompt, DEFAULT_MODEL_ID } from "./config.js";
+import { ondeviceEngineId } from "./engine-id.js";
+import { OnDeviceTranscriber } from "./index.js";
 import { TRANSFORMERS_CACHE_NAME } from "./model-cache.js";
 import type { MainToWorkerMessage, WorkerToMainMessage } from "./protocol.js";
 
@@ -90,8 +86,6 @@ test("the engine id names the model that actually ran", () => {
   const transcriber = new OnDeviceTranscriber({ wasmPaths: WASM_PATHS });
   expect(transcriber.engine).toContain("moonshine");
   expect(transcriber.engine).not.toContain("whisper");
-  // The old constant survives only as the historical value carried by already-persisted rows.
-  expect(ONDEVICE_WHISPER_ENGINE).toBe("ondevice-whisper");
 });
 
 test("capability is unavailable/unsupported-platform when there is no Cache API", async () => {

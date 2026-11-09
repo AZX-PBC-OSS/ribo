@@ -53,46 +53,20 @@ import type {
 type RequestMessage = Extract<MainToWorkerMessage, { requestId: string }>;
 
 export {
-  buildHintPrompt,
   DEFAULT_MODEL_ID,
   DEFAULT_WORKER_TIMEOUT_MS,
-  MODEL_DOWNLOAD_BYTES,
   modelSupportsHints,
-  VAD_MODEL_ID,
-  VAD_DOWNLOAD_BYTES,
   estimateDownloadBytes,
-  STREAMING_VAD_MODEL_ID,
-  STREAMING_VAD_DOWNLOAD_BYTES,
 } from "./config.js";
 export type { OnDeviceTranscriberOptions, TranscribeHints } from "./config.js";
 export { decodeTo16kMono } from "./decode.js";
-export { ONDEVICE_ENGINE_PREFIX, ondeviceEngineId, shortModelName } from "./engine-id.js";
-export type { EngineIdentity } from "./engine-id.js";
 export { TRANSFORMERS_CACHE_NAME, isModelCached } from "./model-cache.js";
-export {
-  DEFAULT_RTF_THRESHOLD,
-  RTF_VERDICT_CACHE_NAME,
-  readRtfVerdict,
-  writeRtfVerdict,
-} from "./rtf-verdict.js";
+export { DEFAULT_RTF_THRESHOLD } from "./rtf-verdict.js";
 export type { PrimeConfig, PrimeProgress, TranscribeWorkerRequest } from "./protocol.js";
 
 // Live transcription: the streaming seam implementation.
 export { DEFAULT_LIVE_OPEN_TIMEOUT_MS, OnDeviceLiveTranscriber } from "./live.js";
 export type { OnDeviceLiveTranscriberOptions } from "./live.js";
-
-/**
- * **Superseded.** The `Transcriber.engine` value is now derived per configuration by
- * {@link ondeviceEngineId} — see `engine-id.ts` for why a shared constant was wrong in three
- * ways, the sharpest being that it made a two-configuration roster throw at construction.
- *
- * Kept only as the historical value: transcripts written before 2026-08-17 carry this string,
- * and it names Whisper on a package whose default model has been Moonshine since the
- * live-transcription work — which is exactly the provenance defect the derived id fixes.
- *
- * @deprecated Read `transcriber.engine`, or build one with {@link ondeviceEngineId}.
- */
-export const ONDEVICE_WHISPER_ENGINE = "ondevice-whisper";
 
 /** Callback invoked for each download-progress datum while {@link OnDeviceTranscriber.prime} runs. */
 export type PrimeProgressListener = (progress: PrimeProgress) => void;

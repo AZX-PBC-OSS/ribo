@@ -111,7 +111,7 @@ export type PdfTransformMatrix = readonly [
  *
  * Every field is **required**: pdf.js supplies all of them on a text item, and
  * an optional one here would only be modelling the *other* branch of
- * {@link PdfContentItem}, which is what {@link isPdfTextItem} is for.
+ * {@link PdfContentItem}, which is what `isPdfTextItem` is for.
  *
  * `hasEOL` signals a line break in the **drawing** order. It is no longer read —
  * geometry supersedes it, and on a real invoice it was actively misleading — but

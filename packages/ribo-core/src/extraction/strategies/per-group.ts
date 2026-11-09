@@ -221,7 +221,7 @@ export interface PerGroupOptions<V extends Record<string, unknown>, P = NoProven
    * The derived shape's partitions record (`DerivedExtractionShape.partitions`),
    * forwarded to {@link splitExtractionSchema}: a group with an entry is cut
    * along its parts, and each piece's request appends
-   * {@link partitionLabelLine} to its base instructions — the target's or
+   * `partitionLabelLine` to its base instructions — the target's or
    * `groupInstructions`' text. Absent or empty, requests are byte-identical to
    * what they have always been.
    */

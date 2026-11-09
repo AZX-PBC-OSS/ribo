@@ -16,7 +16,7 @@ import type { CorroborationCensus } from "./corroboration-census.js";
 /**
  * @file `corroborateExtractor` — the second judging combinator (ADR 0021). It
  * wraps any {@link Extractor}, extends core's pure grounding census with a
- * System One verdict per committed leaf ({@link corroborationCensus}), hands
+ * System One verdict per committed leaf (`corroborationCensus`), hands
  * that census to a caller-supplied synchronous policy, and either returns the
  * result untouched or throws an error an arbitration ladder falls through on.
  *
@@ -152,7 +152,7 @@ export interface CorroborateExtractorOptions<V extends Record<string, unknown>, 
  * bag forwarded whole — this combinator holds no budget of its own, so it
  * narrows nothing and replaces nothing); core's {@link groundingCensus} is
  * taken over the result's fields AND its `statedEmptyGroups`, on the
- * transcript's text; {@link corroborationCensus} extends it with one `choice`
+ * transcript's text; `corroborationCensus` extends it with one `choice`
  * verdict per committed leaf — a network call the census itself cannot make,
  * which is the asymmetry that makes this a sibling combinator rather than an
  * option on `validateExtractor` (ADR 0021); the policy decides. A rejected

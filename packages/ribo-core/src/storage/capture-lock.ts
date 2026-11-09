@@ -34,7 +34,7 @@ export function relayItemLock(id: string): string {
 /**
  * The lock a relay holds while working one session — extraction or write.
  *
- * Same rationale as {@link relayItemLock}: per session, not one global lock, so
+ * Same rationale as `relayItemLock`: per session, not one global lock, so
  * two tabs can drain different sessions concurrently. Web Locks rather than a
  * lease, for the same crash-resume reason.
  * @category Offline & Storage

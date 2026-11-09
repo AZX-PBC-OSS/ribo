@@ -2,8 +2,8 @@ import type { RxStorage } from "rxdb";
 
 import {
   DEFAULT_OUTBOX_DATABASE_NAME,
-  openOutboxDatabase,
-  type OutboxDatabase,
+  openStorageDatabase,
+  type StorageDatabase,
 } from "./database.js";
 
 import { createRxdbBackend as wrap, type RxdbStorageBackend } from "./backend.js";
@@ -60,7 +60,7 @@ export async function openRxdbBackend(
   options: OpenRxdbBackendOptions = {},
 ): Promise<RxdbStorageBackend> {
   const name = options.name ?? DEFAULT_OUTBOX_DATABASE_NAME;
-  const database: OutboxDatabase = await openOutboxDatabase(name, options.storage, {
+  const database: StorageDatabase = await openStorageDatabase(name, options.storage, {
     ignoreDuplicate: options.ignoreDuplicate,
   });
   return wrap(database, name);

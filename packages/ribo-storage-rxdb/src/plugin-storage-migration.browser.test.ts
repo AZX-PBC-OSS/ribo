@@ -6,7 +6,7 @@ import { afterEach, expect, test } from "vitest";
 
 import { PLUGIN_STORAGE_COLLECTION_NAME } from "@azx/ribo-core";
 
-import { removeOutboxDatabase } from "./database.js";
+import { removeStorageDatabase } from "./database.js";
 import { openRxdbBackend } from "./open.js";
 
 /**
@@ -58,7 +58,7 @@ function uniqueName(): string {
 }
 
 afterEach(async () => {
-  for (const name of names.splice(0)) await removeOutboxDatabase(name);
+  for (const name of names.splice(0)) await removeStorageDatabase(name);
 });
 
 /**

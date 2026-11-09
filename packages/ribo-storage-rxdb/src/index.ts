@@ -21,9 +21,7 @@
 
 export { createRxdbBackend, openRxdbBackend } from "./open.js";
 export type { OpenRxdbBackendOptions, RxdbStorageBackend } from "./open.js";
-// `backfillSessions` used to be exported here. It moved to `@azx/ribo-core`,
-// where it is written against the storage port rather than against RxDB — import
-// it from there and hand it a backend. `openOutboxDatabase` still runs it, so a
-// host on the batteries-included path needs to do nothing.
-export { openOutboxDatabase, removeOutboxDatabase } from "./database.js";
-export type { OutboxDatabase } from "./database.js";
+// Type-only: `createRxdbBackend` and `RxdbStorageBackend` expose the database in
+// their signatures, so the type must stay reachable from the barrel even though
+// the `openStorageDatabase` / `removeStorageDatabase` helpers no longer are.
+export type { StorageDatabase } from "./database.js";
