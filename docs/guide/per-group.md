@@ -184,7 +184,9 @@ a schema property, because the review leaf-path grammar refuses an empty key. On
 surface lost it; the _reading_ surface keeps it.)
 
 **API pages:** [`groupedExtractor`](/api/grouped-extractor) — the run-owner combinator this page's
-map feeds into, with the coverage, retry and merge guarantees spelled out.
+map feeds into, with the coverage, retry and merge guarantees spelled out — and
+[Schema at scale](/api/schema-at-scale) for `perGroupPlan`, the override layer, and the
+array/singleton tiers.
 
 ## Next
 

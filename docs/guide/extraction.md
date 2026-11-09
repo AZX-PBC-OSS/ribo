@@ -637,7 +637,9 @@ transcript, not as a claim about current accuracy.
 
 **API pages:** the [`Extractor`](/api/extractor) contract every strategy above implements,
 [`singleShotExtractor`](/api/single-shot-extractor), the [`ChatClient` transports](/api/chat-transports)
-underneath them, and the [test doubles](/api/test-doubles) the examples drive.
+underneath them, the [test doubles](/api/test-doubles) the examples drive, and
+[Phased extraction](/api/phased-extraction) — the phase vocabulary the multi-pass strategies are
+now lists over, with [Presence narrowing](/api/presence-narrowing) as the opt-in preset.
 
 ## Next
 
