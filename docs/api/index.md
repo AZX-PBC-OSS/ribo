@@ -113,5 +113,19 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
   conformance kit that makes the obligations executable.
 - [`createConnectivity`](/api/connectivity) and work safety — the three-state link model and the
   "is my work safe?" verdict.
+- [`RiboProvider`](/api/ribo-provider) — the one context: host-constructed instances in, hooks
+  served, nothing constructed or memoized by the provider itself.
+- [`useRecorder`](/api/use-recorder) — capture as React state, with stop() that rethrows and
+  start() that does not.
+- [`useCaptures`](/api/use-captures) — the capture queue as live state, with a load-bearing
+  `loading` and a by-value query comparison.
+- [`useSessions`](/api/use-sessions) — the session-collection mirror of `useCaptures`.
+- [`useConnectivity`](/api/use-connectivity) — the three-state model as state; lifecycle stays
+  the host's.
+- [`useStoragePersistence`](/api/use-storage-persistence) — the persistence grant and quota, one
+  module-level store, `denied` means refused.
+- [`useWorkSafety`](/api/use-work-safety) — the withheld-until-honest verdict, composed once.
+- [`createCaptureCoordinator`](/api/create-capture-coordinator) — the shared handle between the
+  recording hook and the work-safety verdict.
 - [`fallbackExtractor`](/api/fallback-extractor) and the arbitration wrappers — ladders, races,
   arbiters, and the retry/timeout/hedge/consensus/cache/budget family.

@@ -111,12 +111,17 @@ boundary, your app and `ribo-ui-react` have to resolve to one copy of core, or t
 being `instanceof` what the hooks expect. See [Installation](/guide/installation) for the full
 peer-dependency rationale, which applies here unchanged.
 
-**API pages:** the [API section](/api/) collects per-API lookup pages — hook pages land there as
-they are written. Already there: [`Recorder`](/api/recorder) and the transcription engines
+**API pages:** the [API section](/api/) collects per-API lookup pages. Already there:
+[`Recorder`](/api/recorder) and the transcription engines
 ([`OnDeviceTranscriber`](/api/ondevice-transcriber), [`ManagedTranscriber`](/api/managed-transcriber),
 [`PdfjsTranscriber`](/api/pdfjs-transcriber), [`ManagedDocsTranscriber`](/api/managed-docs-transcriber)) —
 the APIs behind `useRecorder` and `useCaptures` — and [`createConnectivity`](/api/connectivity)
-and work safety, the model behind `useConnectivity` and `useWorkSafety`.
+and work safety, the model behind `useConnectivity` and `useWorkSafety`. The hooks themselves:
+[`RiboProvider`](/api/ribo-provider), [`useRecorder`](/api/use-recorder),
+[`useCaptures`](/api/use-captures), [`useSessions`](/api/use-sessions),
+[`useConnectivity`](/api/use-connectivity), [`useStoragePersistence`](/api/use-storage-persistence),
+[`useWorkSafety`](/api/use-work-safety) and
+[`createCaptureCoordinator`](/api/create-capture-coordinator).
 
 ## Next
 
