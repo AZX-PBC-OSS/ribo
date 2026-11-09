@@ -46,8 +46,9 @@ against.
 
 The stall threshold behind `CaptureHealth` is the one number this page states without an exported
 constant to assert against: a chunk write failure, or no `dataavailable` past the threshold,
-latches `stalled` — read from `packages/ribo-core/src/storage/capture-session.ts`
-(`STALL_AFTER_MS`, 30 s). It is a stated residual risk, re-checkable by any reader.
+latches `stalled` — read from `packages/ribo-core/src/storage/capture-session.ts`, where the
+private constant is a commented placeholder (currently 30 s) rather than a chosen value. It is a
+stated residual risk, re-checkable by any reader.
 
 ## Return value
 
