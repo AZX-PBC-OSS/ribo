@@ -88,8 +88,8 @@ quoted under Options.
 
 - [`createRelay`](/api/relay) — the consumer: it drains on the edge into `online`, never on the
   raw browser event.
-- [`useConnectivity`](/guide/react) and [`useWorkSafety`](/guide/react) — the hook layer over
-  this model (hook pages land in the API section as they are written).
+- [`useConnectivity`](/api/use-connectivity) and [`useWorkSafety`](/api/use-work-safety) — the
+  hook layer over this model.
 
 ## Guides that use it
 
