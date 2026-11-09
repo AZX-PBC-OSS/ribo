@@ -131,3 +131,6 @@ verify any of this. The ladders are exported values rather than port methods, so
 nothing obliges a backend to read them — you can pass every conformance case and
 still destroy data on your first upgrade. The obligations above are a contract you
 keep, not one the kit enforces.
+
+**API pages:** [the StorageBackend port](/api/storage-port) — the contract the ladders ride on,
+the conformance kit's obligations, and what the kit deliberately does not check.

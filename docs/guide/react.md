@@ -115,7 +115,8 @@ peer-dependency rationale, which applies here unchanged.
 they are written. Already there: [`Recorder`](/api/recorder) and the transcription engines
 ([`OnDeviceTranscriber`](/api/ondevice-transcriber), [`ManagedTranscriber`](/api/managed-transcriber),
 [`PdfjsTranscriber`](/api/pdfjs-transcriber), [`ManagedDocsTranscriber`](/api/managed-docs-transcriber)) —
-the APIs behind `useRecorder` and `useCaptures`.
+the APIs behind `useRecorder` and `useCaptures` — and [`createConnectivity`](/api/connectivity)
+and work safety, the model behind `useConnectivity` and `useWorkSafety`.
 
 ## Next
 

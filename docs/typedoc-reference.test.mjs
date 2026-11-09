@@ -339,3 +339,28 @@ test("the docs/api section is wired in: nav entry, keyed sidebar, and every side
     `the /api/ sidebar links pages that do not exist under docs/api/:\n  ${missing.join("\n  ")}`,
   );
 });
+
+test("every docs/api page is sidebar-linked", async () => {
+  runDocsApi(); // config.ts reads the generated typedoc sidebar JSON at import time
+  const config = await import(new URL("./.vitepress/config.ts", import.meta.url).href);
+  const apiSidebar = config.default.themeConfig.sidebar["/api/"];
+
+  const linked = new Set();
+  for (const group of apiSidebar) {
+    for (const leaf of group.items ?? []) linked.add(leaf.link);
+  }
+
+  // The reverse of the check above: a page under docs/api/ that no sidebar entry
+  // links is orphaned content — reachable from nothing.
+  const orphaned = [];
+  for (const name of readdirSync(path.join(DOCS, "api"))) {
+    if (!name.endsWith(".md")) continue;
+    const link = name === "index.md" ? "/api/" : `/api/${name.replace(/\.md$/, "")}`;
+    if (!linked.has(link)) orphaned.push(link);
+  }
+  assert.deepEqual(
+    orphaned,
+    [],
+    `docs/api/ holds pages the /api/ sidebar does not link:\n  ${orphaned.join("\n  ")}`,
+  );
+});

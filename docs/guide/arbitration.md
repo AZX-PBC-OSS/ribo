@@ -259,6 +259,10 @@ vocabulary (`UnsupportedItemError`, `TranscriberUnavailableError`) is not the ex
   questions for different seams, and reusing one where the other belongs would apply the wrong retry
   policy to the wrong failure vocabulary.
 
+**API pages:** [`fallbackExtractor`](/api/fallback-extractor) and the arbitration wrappers — the
+ladder, the two shipped arbiters, `SchemaParseError`'s retryable-but-recognisable behaviour, and
+the retry/timeout/hedge/consensus/cache/budget family as one overview.
+
 ## Next
 
 [Extraction](/guide/extraction) covers the single-strategy seam these combinators compose, and the

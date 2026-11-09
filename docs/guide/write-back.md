@@ -130,6 +130,10 @@ request is a small change to an existing function rather than a redesign of the 
 other tool's adapter follows the same shape: one values schema, one derived extraction schema, one
 `write`, and nothing else this SDK needs to know about it.
 
+**API pages:** [`ToolAdapter`](/api/tool-adapter) and the write steps — the two field schemas, the
+receipt, and both compositions that wire an adapter into the queue — plus
+[`snuggProAdapter`](/api/snuggpro-adapter), the worked example itself.
+
 ## Next
 
 [Sessions](/guide/sessions) covers the session lifecycle `writing` sits inside, from `open` through
