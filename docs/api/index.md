@@ -98,10 +98,18 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
   dialects, the on-device transport, the typed error, and the scripted double.
 - [Test doubles](/api/test-doubles) — `FakeExtractor`, `FakeTranscriber`, `scriptedChat`: the
   whole pipeline, credential-free.
+- [Phased extraction](/api/phased-extraction) — `phasedExtractor` and the phase vocabulary:
+  write a multi-pass strategy as a list of narrowing steps, never a bespoke loop.
+- [Presence narrowing](/api/presence-narrowing) — the opt-in preset that fills only the groups
+  presence marked present; the presence phase is a parameter.
+- [Schema at scale](/api/schema-at-scale) — the split, the dry run, the per-group plan and
+  override layer, and the shape derivation: the whole split-and-per-group family on one page.
 - [`groupedExtractor`](/api/grouped-extractor) — the run-owner combinator over per-key groups:
   coverage, scheduling, retry, sibling abort, merge.
 - [Provenance](/api/provenance) — `enveloped`, the per-leaf envelope, the span check in three
   tiers, and the grounding census.
+- [Review](/api/review) — `buildReviewRequest` and `resolveReview`: what a reviewer is shown,
+  what they report back, and what the gate before a write enforces.
 - [`ToolAdapter`](/api/tool-adapter) and the write steps — the one place tool-specific knowledge
   lives, and the trust boundary before a write.
 - [`snuggProAdapter`](/api/snuggpro-adapter) — the real adapter: two field schemas, a refusing
@@ -129,3 +137,7 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
   recording hook and the work-safety verdict.
 - [`fallbackExtractor`](/api/fallback-extractor) and the arbitration wrappers — ladders, races,
   arbiters, and the retry/timeout/hedge/consensus/cache/budget family.
+- [`corroborateExtractor`](/api/corroborate-extractor) — the second judging combinator: a System
+  One verdict per committed leaf, a terminal rejection, a ladder that falls through.
+- [`useReview`](/api/use-review) — field-by-field review of one parked session as React state;
+  the schema as an argument, never the adapter.

@@ -137,6 +137,9 @@ collection group, aligned by position with the same group's resolved instances, 
 default create applies and a `string` uuid where a human linked one. Absent a decision for an
 instance, the answer is always create: the safe default never silently overwrites an existing record.
 
+**API pages:** [Review](/api/review) — `buildReviewRequest`, `resolveReview`, and the
+`ReviewNode` tree with its section nodes on one lookup page.
+
 ## Next
 
 [Write-back](/guide/write-back) covers what happens to a `ReviewOutcome` once it reaches `writing` —

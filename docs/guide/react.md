@@ -120,8 +120,9 @@ and work safety, the model behind `useConnectivity` and `useWorkSafety`. The hoo
 [`RiboProvider`](/api/ribo-provider), [`useRecorder`](/api/use-recorder),
 [`useCaptures`](/api/use-captures), [`useSessions`](/api/use-sessions),
 [`useConnectivity`](/api/use-connectivity), [`useStoragePersistence`](/api/use-storage-persistence),
-[`useWorkSafety`](/api/use-work-safety) and
-[`createCaptureCoordinator`](/api/create-capture-coordinator).
+[`useWorkSafety`](/api/use-work-safety),
+[`createCaptureCoordinator`](/api/create-capture-coordinator) and
+[`useReview`](/api/use-review).
 
 ## Next
 

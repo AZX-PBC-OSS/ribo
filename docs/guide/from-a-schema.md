@@ -313,6 +313,9 @@ the `ShapeOperation[]` however you cache other schema-derived data, and pass it 
 `deriveExtractionShape` to compose the artifact. The `PluginStorage`-aligned cache this repo uses
 for other per-schema derivations is one of many ways; the lifecycle is yours.
 
+**API pages:** [Schema at scale](/api/schema-at-scale) — the split and the shape-derivation
+family this page's derivations belong to, on one lookup page.
+
 ## Next
 
 [Schema at Scale](/guide/schema-at-scale) explains why the caps bind and what the measurements

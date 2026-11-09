@@ -188,6 +188,9 @@ partitions instead of scaling one call up, and why partitioning is not a stopgap
 context window — a bigger window does not move a property cap, an enum cap, or a per-family
 nullable-union cap.
 
+**API pages:** [Schema at scale](/api/schema-at-scale) — the split, `describeExtraction`, the
+per-group plan and override layer, and the shape derivation, on one lookup page.
+
 ## Next
 
 [Per-Group Composition](/guide/per-group) covers what the partition makes possible — giving one
