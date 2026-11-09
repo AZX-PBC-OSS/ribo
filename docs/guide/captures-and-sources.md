@@ -176,6 +176,8 @@ wiring both a document roster (`pdfjs` falling back to `managed-docs`) and an au
 both into a single `fallbackTranscriber` — one `Transcriber<CapturePayload>` the relay drains against,
 regardless of which kind of capture it's handed next.
 
+**API pages:** [`Transcriber`](/api/transcriber) — the seam every engine above implements.
+
 ## Next
 
 [Sessions](/guide/sessions) is where these captures go once they're transcribed — one or several,

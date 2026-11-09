@@ -111,6 +111,9 @@ boundary, your app and `ribo-ui-react` have to resolve to one copy of core, or t
 being `instanceof` what the hooks expect. See [Installation](/guide/installation) for the full
 peer-dependency rationale, which applies here unchanged.
 
+**API pages:** the [API section](/api/) collects per-API lookup pages — hook pages land there as
+they are written.
+
 ## Next
 
 **[Review](/guide/review)** covers the contract `useReview` is built on in full — the

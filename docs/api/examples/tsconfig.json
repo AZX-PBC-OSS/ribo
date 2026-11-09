@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Type-check gate for every docs/api example (R6a). Extends react-library.json BY RELATIVE PATH — a package-name extend would be as unresolvable from docs/ as the imports were (docs/ is not a workspace member); this mirrors docs/typedoc.tsconfig.json. Brings the DOM lib, JSX and the @azx/source condition, so package-name imports resolve through the real exports map to TypeScript source. Adds node types (node:assert/strict in *.run.ts examples) and vite/client (import.meta.glob in the runner). Wired into docs:build via the docs:examples script, so a renamed or removed export fails the docs:build stage. Exempt from the orphan check in scripts/check-api-examples.mjs by name.",
+  "extends": "../../../packages/tsconfig/react-library.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"]
+  },
+  "include": ["**/*.ts", "**/*.tsx"]
+}

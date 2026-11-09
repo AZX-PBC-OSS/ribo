@@ -123,6 +123,45 @@ importers:
 
   .:
     devDependencies:
+      '@azx/ribo-adapter-snuggpro':
+        specifier: workspace:*
+        version: link:packages/ribo-adapter-snuggpro
+      '@azx/ribo-chat-helix':
+        specifier: workspace:*
+        version: link:packages/ribo-chat-helix
+      '@azx/ribo-chat-openai':
+        specifier: workspace:*
+        version: link:packages/ribo-chat-openai
+      '@azx/ribo-core':
+        specifier: workspace:*
+        version: link:packages/ribo-core
+      '@azx/ribo-extractor-ondevice':
+        specifier: workspace:*
+        version: link:packages/ribo-extractor-ondevice
+      '@azx/ribo-extractor-systemone':
+        specifier: workspace:*
+        version: link:packages/ribo-extractor-systemone
+      '@azx/ribo-storage-rxdb':
+        specifier: workspace:*
+        version: link:packages/ribo-storage-rxdb
+      '@azx/ribo-systemone-managed':
+        specifier: workspace:*
+        version: link:packages/ribo-systemone-managed
+      '@azx/ribo-transcriber-managed':
+        specifier: workspace:*
+        version: link:packages/ribo-transcriber-managed
+      '@azx/ribo-transcriber-managed-docs':
+        specifier: workspace:*
+        version: link:packages/ribo-transcriber-managed-docs
+      '@azx/ribo-transcriber-ondevice':
+        specifier: workspace:*
+        version: link:packages/ribo-transcriber-ondevice
+      '@azx/ribo-transcriber-pdfjs':
+        specifier: workspace:*
+        version: link:packages/ribo-transcriber-pdfjs
+      '@azx/ribo-ui-react':
+        specifier: workspace:*
+        version: link:packages/ribo-ui-react
       '@changesets/cli':
         specifier: 'catalog:'
         version: 3.0.3
@@ -132,6 +171,9 @@ importers:
       '@huggingface/transformers':
         specifier: 'catalog:'
         version: 4.2.0(@types/node@24.13.3)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
       '@vitest/browser':
         specifier: 'catalog:'
         version: 5.0.3(vite@8.3.4(@types/node@24.13.3)(terser@5.49.0)(yaml@2.9.0))(vitest@5.0.3)
@@ -6232,7 +6274,7 @@ snapshots:
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.5
+      '@jridgewell/sourcemap-codec': 1.6.0
       '@jridgewell/trace-mapping': 0.3.31
 
   '@jridgewell/remapping@2.3.5':
