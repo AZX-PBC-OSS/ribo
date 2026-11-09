@@ -183,6 +183,9 @@ marker key `""` — exported from `@azx/ribo-core` as `UNWRAPPED_KEY` — which 
 a schema property, because the review leaf-path grammar refuses an empty key. Only the _writing_
 surface lost it; the _reading_ surface keeps it.)
 
+**API pages:** [`groupedExtractor`](/api/grouped-extractor) — the run-owner combinator this page's
+map feeds into, with the coverage, retry and merge guarantees spelled out.
+
 ## Next
 
 [Arbitration & Fallback](/guide/arbitration) covers composing whole extractors — this page's map

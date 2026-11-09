@@ -635,6 +635,10 @@ that span is the right one. See [Extraction: Measured](/deep-dives/accuracy) for
 recorded before the gate started refusing, kept as a worked example of how the gate scores a
 transcript, not as a claim about current accuracy.
 
+**API pages:** the [`Extractor`](/api/extractor) contract every strategy above implements,
+[`singleShotExtractor`](/api/single-shot-extractor), the [`ChatClient` transports](/api/chat-transports)
+underneath them, and the [test doubles](/api/test-doubles) the examples drive.
+
 ## Next
 
 [Arbitration & Fallback](/guide/arbitration) covers composing more than one of the extractors above
