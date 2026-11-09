@@ -218,6 +218,11 @@ intact. There is no half-recovered state and no silent repair — an interrupted
 visible orphan the relay picks up like any other queued item, or a dead row an operator can look at,
 never something the app quietly patches over.
 
+**API pages:** [`createRelay`](/api/relay), [`openStorage`](/api/open-storage), the
+[StorageBackend port](/api/storage-port) for backend authors, and
+[`createConnectivity`](/api/connectivity) with work safety — the durability subsystem's lookup
+pages, each with a checked example.
+
 ## Next
 
 [Storage & Eviction](/offline-first/storage-eviction) covers the other half of "is my work safe" —

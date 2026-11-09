@@ -100,3 +100,18 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
   whole pipeline, credential-free.
 - [`groupedExtractor`](/api/grouped-extractor) — the run-owner combinator over per-key groups:
   coverage, scheduling, retry, sibling abort, merge.
+- [Provenance](/api/provenance) — `enveloped`, the per-leaf envelope, the span check in three
+  tiers, and the grounding census.
+- [`ToolAdapter`](/api/tool-adapter) and the write steps — the one place tool-specific knowledge
+  lives, and the trust boundary before a write.
+- [`snuggProAdapter`](/api/snuggpro-adapter) — the real adapter: two field schemas, a refusing
+  write until the host's transport arrives.
+- [`createRelay`](/api/relay) — the foreground queue: transcribe, extract, write, retry, die.
+- [`openStorage`](/api/open-storage) — the durability container over a backend, with no default
+  backend.
+- [The StorageBackend port](/api/storage-port) — the contract a backend implements, and the
+  conformance kit that makes the obligations executable.
+- [`createConnectivity`](/api/connectivity) and work safety — the three-state link model and the
+  "is my work safe?" verdict.
+- [`fallbackExtractor`](/api/fallback-extractor) and the arbitration wrappers — ladders, races,
+  arbiters, and the retry/timeout/hedge/consensus/cache/budget family.

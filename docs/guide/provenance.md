@@ -151,6 +151,9 @@ reviewable entry — except every field in one row points at that row's shared s
 groundedness is computed from it. `"none"` reads as ungrounded outright: there's no span to check,
 so there's nothing to claim is grounded.
 
+**API pages:** [Provenance](/api/provenance) — `enveloped`, the per-leaf envelope, the
+three-tier span check, and the grounding census, with the derivation's own checked example.
+
 ## Next
 
 [Typesafety](/guide/typesafety) covers the derivation this page assumes — how `enveloped()` turns a
