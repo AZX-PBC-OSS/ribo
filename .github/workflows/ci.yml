@@ -41,7 +41,12 @@ jobs:
       # docs/implementation/10-build-and-packaging.md §2.1).
       - run: pnpm exec playwright install --with-deps chromium
 
+      # Type-aware lint holds a TypeScript program per tsconfig, and the docs/api
+      # examples project loads every package's source again; V8's default heap on
+      # the runner (~2GB) is not enough for lint since #111.
       - run: ./check.sh
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
       # `./check.sh`'s docs:build stage covers the docs (VitePress dead-link check,
       # TypeDoc, the generated accuracy page) — no separate step, so CI never builds
