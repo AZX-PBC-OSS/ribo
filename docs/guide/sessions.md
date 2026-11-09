@@ -185,6 +185,9 @@ extraction runs once against it, and the review screen shows a single set of fie
 cost from the invoice, sizing from the Manual J, the exception the reviewer dictated — each
 citation still checkable against whichever capture it came from.
 
+**API pages:** [`CaptureSession`](/api/capture-session) — the recording lifecycle this page
+lectures about, plus `recoverInterrupted`, with the `CaptureSession`/`CaptureHealth` surface.
+
 ## Next
 
 [Provenance](/guide/provenance) covers what a session's extracted fields look like once they exist —

@@ -67,7 +67,8 @@
     "typescript-eslint": "8.71.1",
     "vite": "catalog:",
     "vitepress": "catalog:",
-    "vitest": "5.0.3"
+    "vitest": "5.0.3",
+    "zod": "catalog:"
   },
   "pnpm": {
     "overrides": {

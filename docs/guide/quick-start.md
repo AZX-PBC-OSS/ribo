@@ -87,6 +87,11 @@ adapter straight in rather than building a `target` literal by hand. Or skip the
 entirely: [From a Schema](/guide/from-a-schema) is the constructor that takes the plain zod
 schema you wrote and derives the rest.
 
+**API pages:** [`singleShotExtractor`](/api/single-shot-extractor) — the real strategy behind the
+swap-in above — plus the [`CaptureSession`](/api/capture-session) and
+[`ChatClient`](/api/chat-transports) pages, for the pieces this quick start drives through the
+[fakes](/api/test-doubles).
+
 ## Next
 
 Swap `FakeTranscriber` for a real engine, wire both into durable storage, and get a result to

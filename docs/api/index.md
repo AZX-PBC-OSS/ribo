@@ -67,7 +67,7 @@ export or a lost source condition fails the docs build for every package at once
 
 Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
 `/reference/@azx/<package>/<kind>/<Symbol>.html`, where `<kind>` is one of `classes`,
-`interfaces`, `functions` or `type-aliases` — for example
+`interfaces`, `functions`, `type-aliases` or `variables` (for exported constants) — for example
 `/reference/@azx/ribo-core/interfaces/Transcriber.html`. Links keep their `.html` extension:
 `cleanUrls` is `false` and the hosting setup matches request paths to files exactly.
 
@@ -88,3 +88,15 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
   `fallbackTranscriber`, `raceTranscriber`, `hedged`, `restrictToKind`, and which one when.
 - [Live transcription](/api/live-transcription) — utterance-level preview during recording; the
   `LiveTranscriber` seam and its tail/commit segments.
+- [`CaptureSession`](/api/capture-session) — one live recording against storage: chunked
+  ingestion, finalize, abort — and startup recovery for the recordings a dead tab left behind.
+- [`Extractor`](/api/extractor) — the extraction contract: one annotated transcript in, parsed
+  fields plus usage out, and the bridge to the relay.
+- [`singleShotExtractor`](/api/single-shot-extractor) — the built strategy: one structured-output
+  chat call over the target's schema.
+- [`ChatClient` and chat transports](/api/chat-transports) — the transport seam, the two managed
+  dialects, the on-device transport, the typed error, and the scripted double.
+- [Test doubles](/api/test-doubles) — `FakeExtractor`, `FakeTranscriber`, `scriptedChat`: the
+  whole pipeline, credential-free.
+- [`groupedExtractor`](/api/grouped-extractor) — the run-owner combinator over per-key groups:
+  coverage, scheduling, retry, sibling abort, merge.
