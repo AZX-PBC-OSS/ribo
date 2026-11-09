@@ -75,3 +75,16 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
 
 - [`Transcriber`](/api/transcriber) — the transcription contract: capability, transcription, and
   the three kinds of failure.
+- [`Recorder`](/api/recorder) — microphone capture: negotiated containers, released streams, and
+  a mid-capture failure that is surfaced, not banked.
+- [`OnDeviceTranscriber`](/api/ondevice-transcriber) — on-device Whisper-family transcription:
+  explicit priming, capability from the Cache API, worker wiring.
+- [`ManagedTranscriber`](/api/managed-transcriber) — Azure Fast Transcription behind the host's
+  transport, with no capacity to authenticate.
+- [`PdfjsTranscriber`](/api/pdfjs-transcriber) — pdf.js document transcription, `Blob` in.
+- [`ManagedDocsTranscriber`](/api/managed-docs-transcriber) — managed document transcription,
+  the managed rung of a document ladder.
+- [Choosing and composing transcribers](/api/composing-transcribers) — `firstCapable`,
+  `fallbackTranscriber`, `raceTranscriber`, `hedged`, `restrictToKind`, and which one when.
+- [Live transcription](/api/live-transcription) — utterance-level preview during recording; the
+  `LiveTranscriber` seam and its tail/commit segments.
