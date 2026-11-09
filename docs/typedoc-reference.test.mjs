@@ -21,6 +21,8 @@
  *   5. The reference sidebar served on every page must stay bounded: config.ts must key
  *      it per package and list only module/category entries, NOT inline every generated
  *      symbol into each of the ~780 pages (which made docs/.vitepress/dist ~379 MB).
+ *   6. The hand-written docs/api section is wired into the VitePress config — a nav
+ *      entry and a keyed /api/ sidebar — and every page the sidebar links exists.
  *
  * Runs on Node's built-in test runner (`node --test`) because docs/ is not a workspace
  * member and matches no vitest glob; it drives the real scripts, so `pnpm install` must
@@ -32,7 +34,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -304,5 +306,36 @@ test("the reference sidebar served on every page stays bounded, not one entry pe
     bloated,
     [],
     `sidebar keys inlining every symbol into every reference page (each page carries ~450 KB of shared sidebar):\n  ${bloated.map((c) => `${c.key}: ${c.count} entries`).join("\n  ")}`,
+  );
+});
+
+test("the docs/api section is wired in: nav entry, keyed sidebar, and every sidebar page exists", async () => {
+  runDocsApi(); // config.ts reads the generated typedoc sidebar JSON at import time
+  const config = await import(new URL("./.vitepress/config.ts", import.meta.url).href);
+  const { nav, sidebar } = config.default.themeConfig;
+
+  assert.ok(
+    nav.some((entry) => entry.link === "/api/"),
+    "the VitePress nav has no entry linking /api/ — the docs/api section is unreachable from the nav",
+  );
+
+  const apiSidebar = sidebar["/api/"];
+  assert.ok(apiSidebar, "the VitePress config defines no keyed sidebar for /api/");
+
+  // A sidebar link to a page that does not exist is a dead link VitePress never checks
+  // (the dead-link check runs on page content, not on config.ts) — so check it here.
+  const missing = [];
+  for (const group of apiSidebar) {
+    for (const leaf of group.items ?? []) {
+      const rel = leaf.link.replace(/^\/api\/?/, "");
+      const file =
+        rel === "" ? path.join(DOCS, "api", "index.md") : path.join(DOCS, "api", `${rel}.md`);
+      if (!existsSync(file)) missing.push(`${leaf.link} -> ${path.relative(ROOT, file)}`);
+    }
+  }
+  assert.deepEqual(
+    missing,
+    [],
+    `the /api/ sidebar links pages that do not exist under docs/api/:\n  ${missing.join("\n  ")}`,
   );
 });

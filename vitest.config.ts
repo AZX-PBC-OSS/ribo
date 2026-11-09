@@ -34,18 +34,30 @@ export default defineConfig({
         //   1. `environment: "node"` tests are loaded through Vite's SSR
         //      pipeline, which reads `ssr.resolve.conditions`. Plain
         //      `resolve.conditions` only feeds the client/web pipeline.
-        //   2. Vitest 4 projects do not inherit the root `resolve`/`ssr`
-        //      config, so a root-level entry never reaches this project.
+        //   2. On the Vitest 4 semantics this block was verified against
+        //      (4.1.10), projects did not inherit the root `resolve`/`ssr`
+        //      config, so a root-level entry never reached this project. The
+        //      pinned Vitest (5.0.3) changed that: an inline project RE-RESOLVES
+        //      the declaring config file (its `extends` defaults to the parent
+        //      config file), so a root-level `ssr.resolve.conditions` WOULD now
+        //      reach this project. The block stays here anyway — correct under
+        //      both semantics, and gated by `pnpm check:resolve` rather than by
+        //      either version's inheritance behaviour. The same v5 change cuts
+        //      the other way for `include`: a root-level `test.include` would
+        //      now leak into every project, which is why the docs/api example
+        //      runner glob below lives in THIS project's include and not at the
+        //      root — see that entry.
         //
-        // Verified empirically against Vitest 4.1.10: root `resolve`, project
-        // `resolve`, both together, and root `ssr.resolve` all FAIL with
+        // Verified empirically against Vitest 4.1.10 (root `resolve`, project
+        // `resolve`, both together, and root `ssr.resolve` all FAILED with
         // "Failed to resolve entry for package `@azx/ribo-core`"; only the form
-        // below passes. The plain `resolve.conditions` entries that used to sit
-        // here and at the root are deliberately NOT kept: they resolved nothing,
-        // and config that looks load-bearing but is dead is exactly what hid
-        // this bug for as long as it did. The `browser` project below runs
-        // through the client pipeline and needs the *other* spelling — see
-        // there.
+        // below passed) and re-verified against the pinned 5.0.3, whose inline
+        // projects re-resolve the declaring config file. The plain
+        // `resolve.conditions` entries that used to sit here and at the root are
+        // deliberately NOT kept: they resolved nothing, and config that looks
+        // load-bearing but is dead is exactly what hid this bug for as long as
+        // it did. The `browser` project below runs through the client pipeline
+        // and needs the *other* spelling — see there.
         //
         // This block is gated by `pnpm check:resolve`
         // (scripts/assert-source-condition.mjs), which loads this file through
@@ -89,6 +101,15 @@ export default defineConfig({
             // The naming convention (`*.test.ts` vs `*.manual.ts`) is what keeps the two
             // apart without needing a narrower, hand-maintained glob.
             "packages/ribo-adapter-snuggpro/acceptance/*.test.{ts,tsx}",
+            // The docs/api example-execution gate: the ONE file matching this glob is the
+            // runner (docs/api/examples/run-examples.test.ts), which registers one test per
+            // exported function of every `*.run.ts` example. It lives in THIS project's
+            // include — NOT at the root — because on the pinned Vitest 5 an inline project
+            // re-resolves the declaring config file, so a root-level include would leak the
+            // node-only runner into the `browser` and `e2e` projects too. The runner needs
+            // this project's `ssr.resolve.conditions` above to resolve `@azx/*` example
+            // imports to source.
+            "docs/api/examples/**/*.test.ts",
           ],
           // `*.browser.test.ts` and `*.e2e.test.ts` both end in `.test.ts`, so they
           // match the includes above. Without these excludes every browser test
@@ -181,8 +202,8 @@ export default defineConfig({
           browser: {
             enabled: true,
             headless: true,
-            // Vitest 4 takes a provider *factory*, not the string "playwright"
-            // — the string throws at startup. Launch options belong to the
+            // Vitest 5 (like 4) takes a provider *factory*, not the string
+            // "playwright" — the string throws at startup. Launch options belong to the
             // provider, not to the instance.
             provider: playwright({
               launchOptions: {

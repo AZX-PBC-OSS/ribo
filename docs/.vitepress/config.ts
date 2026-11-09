@@ -74,6 +74,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: "Guide", link: "/guide/" },
+      { text: "API", link: "/api/" },
       { text: "Comparison", link: "/guide/comparison" },
       { text: "Offline-first", link: "/offline-first/" },
       { text: "Deep Dives", link: "/deep-dives/" },
@@ -114,6 +115,15 @@ export default defineConfig({
             { text: "Plugin Storage", link: "/guide/plugin-storage" },
             { text: "React Hooks", link: "/guide/react" },
             { text: "Typesafety", link: "/guide/typesafety" },
+          ],
+        },
+      ],
+      "/api/": [
+        {
+          text: "API",
+          items: [
+            { text: "Overview", link: "/api/" },
+            { text: "Transcriber", link: "/api/transcriber" },
           ],
         },
       ],

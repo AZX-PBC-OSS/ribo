@@ -9,6 +9,11 @@ const typeAwareFiles = [
   // ["e2e"]), so the project service finds them — they get the same type-aware
   // gate as every other test file.
   "playground/e2e/**/*.{ts,tsx}",
+  // Doc examples have their own project too (docs/api/examples/tsconfig.json,
+  // include: ["**/*.ts", "**/*.tsx"]), so the project service discovers them and
+  // they get the type-aware tier — an un-floated promise in an example fails
+  // `lint`, same as it would in a package.
+  "docs/api/examples/**/*.{ts,tsx}",
 ];
 
 export default tseslint.config(
