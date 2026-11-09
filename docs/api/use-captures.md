@@ -22,10 +22,12 @@ never executed; its runtime behaviour is covered by the package's own browser te
 `useCaptures(query?, storage?)` takes the storage's own `CaptureQuery` plus an optional
 `Storage` override.
 
-| Name      | Type           | Default                                                                                                                                                    | What it does                                                                                                                                                                                                                             |
-| --------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `query`   | `CaptureQuery` | `{}` — everything in the collection (stated as a residual risk: read from `use-captures.ts:36`, no exported constant and no runnable example to assert it) | Status (one value or an array), `sessionId`, `limit`. Compared **by value**, not identity: a fresh object literal every render does not tear the subscription down, because the hook memoises on a canonical serialisation of the query. |
-| `storage` | `Storage`      | the provider's                                                                                                                                             | Override the storage for a subtree, or inject one in a test without a provider.                                                                                                                                                          |
+| Name      | Type           | Default                             | What it does                                                                                                                                                                                                                             |
+| --------- | -------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `query`   | `CaptureQuery` | `{}` — everything in the collection | Status (one value or an array), `sessionId`, `limit`. Compared **by value**, not identity: a fresh object literal every render does not tear the subscription down, because the hook memoises on a canonical serialisation of the query. |
+| `storage` | `Storage`      | the provider's                      | Override the storage for a subtree, or inject one in a test without a provider.                                                                                                                                                          |
+
+The defaults live in the hook's source, not in an exported constant, so no example asserts them.
 
 Source: `packages/ribo-ui-react/src/use-captures.ts`; the query-key serialisation from
 `packages/ribo-ui-react/src/query-key.ts`.

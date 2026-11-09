@@ -22,10 +22,12 @@ never executed; its runtime behaviour is covered by the package's own browser te
 `useSessions(query?, storage?)` takes the storage's own `SessionQuery` plus an optional
 `Storage` override.
 
-| Name      | Type           | Default                                                                                                                                                    | What it does                                                                                                                                                                                              |
-| --------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `query`   | `SessionQuery` | `{}` — everything in the collection (stated as a residual risk: read from `use-sessions.ts:30`, no exported constant and no runnable example to assert it) | Status (one value or an array), exact `ref`, `limit`. Compared **by value**, not identity — the same serialised-key memoisation `useCaptures` uses, so a fresh literal every render does not resubscribe. |
-| `storage` | `Storage`      | the provider's                                                                                                                                             | Override the storage for a subtree, or inject one in a test without a provider.                                                                                                                           |
+| Name      | Type           | Default                             | What it does                                                                                                                                                                                              |
+| --------- | -------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `query`   | `SessionQuery` | `{}` — everything in the collection | Status (one value or an array), exact `ref`, `limit`. Compared **by value**, not identity — the same serialised-key memoisation `useCaptures` uses, so a fresh literal every render does not resubscribe. |
+| `storage` | `Storage`      | the provider's                      | Override the storage for a subtree, or inject one in a test without a provider.                                                                                                                           |
+
+The defaults live in the hook's source, not in an exported constant, so no example asserts them.
 
 Source: `packages/ribo-ui-react/src/use-sessions.ts`; the query-key serialisation from
 `packages/ribo-ui-react/src/query-key.ts`.
