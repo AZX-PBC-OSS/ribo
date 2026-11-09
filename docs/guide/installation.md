@@ -37,6 +37,12 @@ The `playground/` app composes every publishable package from TypeScript source,
 `src/index.ts` hot-updates the page with no build step — a good way to see how the pieces fit
 together before you write against the published packages.
 
+**API pages:** [`Recorder`](/api/recorder) and the engine pages —
+[`OnDeviceTranscriber`](/api/ondevice-transcriber), [`ManagedTranscriber`](/api/managed-transcriber),
+[`PdfjsTranscriber`](/api/pdfjs-transcriber) and
+[`ManagedDocsTranscriber`](/api/managed-docs-transcriber) — the packages this page tells you to
+install, one page each.
+
 ## Next
 
 **[Quick Start](/guide/quick-start)** — extract and check your first field, with no credentials

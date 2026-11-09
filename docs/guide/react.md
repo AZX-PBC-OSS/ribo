@@ -112,7 +112,10 @@ being `instanceof` what the hooks expect. See [Installation](/guide/installation
 peer-dependency rationale, which applies here unchanged.
 
 **API pages:** the [API section](/api/) collects per-API lookup pages — hook pages land there as
-they are written.
+they are written. Already there: [`Recorder`](/api/recorder) and the transcription engines
+([`OnDeviceTranscriber`](/api/ondevice-transcriber), [`ManagedTranscriber`](/api/managed-transcriber),
+[`PdfjsTranscriber`](/api/pdfjs-transcriber), [`ManagedDocsTranscriber`](/api/managed-docs-transcriber)) —
+the APIs behind `useRecorder` and `useCaptures`.
 
 ## Next
 

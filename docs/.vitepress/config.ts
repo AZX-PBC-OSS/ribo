@@ -123,7 +123,17 @@ export default defineConfig({
           text: "API",
           items: [
             { text: "Overview", link: "/api/" },
+            { text: "Recorder", link: "/api/recorder" },
             { text: "Transcriber", link: "/api/transcriber" },
+            { text: "OnDeviceTranscriber", link: "/api/ondevice-transcriber" },
+            { text: "ManagedTranscriber", link: "/api/managed-transcriber" },
+            { text: "PdfjsTranscriber", link: "/api/pdfjs-transcriber" },
+            { text: "ManagedDocsTranscriber", link: "/api/managed-docs-transcriber" },
+            {
+              text: "Choosing and composing transcribers",
+              link: "/api/composing-transcribers",
+            },
+            { text: "Live transcription", link: "/api/live-transcription" },
           ],
         },
       ],
