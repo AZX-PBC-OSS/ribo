@@ -15,12 +15,11 @@
 export { enumMembersAt } from "./enum-members.js";
 
 // Corroboration: one choice per committed leaf, attached to a grounding census.
-export { corroborationCensus } from "./corroboration-census.js";
+// `corroborationCensus` itself stays internal — `corroborateExtractor` is the public surface.
 export type {
   CorroboratedLeaf,
   CorroborationCensus,
   CorroborationCensusCounts,
-  CorroborationCensusOptions,
   CorroborationVerdict,
 } from "./corroboration-census.js";
 

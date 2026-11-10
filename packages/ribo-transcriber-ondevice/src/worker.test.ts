@@ -1,17 +1,17 @@
 import { describe, expect, test, vi } from "vitest";
 
 import { WHISPER_SAMPLE_RATE } from "./decode.js";
+import { handleMessage } from "./worker.js";
 import {
   WORKER_ENTRY_NAME,
   clearCancelledTranscribes,
   clearLiveSessions,
-  handleMessage,
   injectLiveSession,
   normalizeProgress,
   planChunks,
   processPendingClose,
   serialize,
-} from "./worker.js";
+} from "./worker-internals.js";
 import type { RegionFrameResult } from "./vad-stream.js";
 import type { WorkerToMainMessage } from "./protocol.js";
 

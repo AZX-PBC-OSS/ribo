@@ -14,9 +14,9 @@ import {
 
 import {
   CAPTURE_MIGRATION_STRATEGIES,
-  removeOutboxDatabase,
+  removeStorageDatabase,
   type OutboxCollection,
-  type OutboxDatabase,
+  type StorageDatabase,
   type PluginStorageCollection,
   type SessionCollection,
 } from "./database.js";
@@ -93,12 +93,12 @@ afterEach(async () => {
   for (const storage of openOutboxes.splice(0)) {
     if (!storage.closed) await storage.close();
   }
-  for (const name of usedNames.splice(0)) await removeOutboxDatabase(name);
+  for (const name of usedNames.splice(0)) await removeStorageDatabase(name);
 });
 
 /**
  * A second, independent connection to an ALREADY-OPEN storage database —
- * everything `openOutboxDatabase` (`database.ts`) does, plus the
+ * everything `openStorageDatabase` (`database.ts`) does, plus the
  * `ignoreDuplicate: true` production code has no reason to ever pass, since a
  * real second tab is a separate process with no duplicate to ignore. Kept
  * local to this file rather than added as an option on `openStorage` for
@@ -106,7 +106,7 @@ afterEach(async () => {
  * one JS heap, not a knob a host should be able to reach for.
  */
 async function openSecondConnection(name: string): Promise<Storage> {
-  const database: OutboxDatabase = await createRxDatabase<{
+  const database: StorageDatabase = await createRxDatabase<{
     outbox: OutboxCollection;
     sessions: SessionCollection;
     pluginStorage: PluginStorageCollection;
@@ -125,7 +125,7 @@ async function openSecondConnection(name: string): Promise<Storage> {
     },
     [SESSION_COLLECTION_NAME]: {
       schema: sessionRxSchema,
-      // Mirrors `openOutboxDatabase`. Every version above 0 needs a strategy or
+      // Mirrors `openStorageDatabase`. Every version above 0 needs a strategy or
       // `addCollections` fails with COL12, so this file has to move with the
       // schema — the cost of hand-rolling the registration rather than going
       // through `openStorage`. It does that deliberately: this test needs two

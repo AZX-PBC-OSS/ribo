@@ -17,7 +17,7 @@ import type {
   StoredDocument,
 } from "@azx/ribo-core";
 
-import type { OutboxDatabase } from "./database.js";
+import type { StorageDatabase } from "./database.js";
 import { captureRxSchema, pluginStorageRxSchema, sessionRxSchema } from "./schemas.js";
 
 /**
@@ -176,7 +176,7 @@ function withSelector(
  */
 export interface RxdbStorageBackend extends StorageBackend {
   /** The database this backend reads and writes, for hosts adding their own collections. */
-  readonly database: OutboxDatabase;
+  readonly database: StorageDatabase;
 }
 
 /**
@@ -184,20 +184,20 @@ export interface RxdbStorageBackend extends StorageBackend {
  *
  * @category Offline & Storage
  */
-export function createRxdbBackend(database: OutboxDatabase, name: string): RxdbStorageBackend {
+export function createRxdbBackend(database: StorageDatabase, name: string): RxdbStorageBackend {
   return new RxdbBackend(database, name);
 }
 
 class RxdbBackend implements RxdbStorageBackend {
   readonly name: string;
-  readonly #database: OutboxDatabase;
+  readonly #database: StorageDatabase;
 
-  constructor(database: OutboxDatabase, name: string) {
+  constructor(database: StorageDatabase, name: string) {
     this.#database = database;
     this.name = name;
   }
 
-  get database(): OutboxDatabase {
+  get database(): StorageDatabase {
     return this.#database;
   }
 
@@ -405,7 +405,7 @@ class RxdbBackend implements RxdbStorageBackend {
 
   #collection(collection: CollectionName): RxCollection<Record<string, unknown>> {
     return this.#database.collections[
-      PERSISTED[collection] as keyof OutboxDatabase["collections"]
+      PERSISTED[collection] as keyof StorageDatabase["collections"]
     ] as unknown as RxCollection<Record<string, unknown>>;
   }
 

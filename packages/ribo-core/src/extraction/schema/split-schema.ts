@@ -158,7 +158,7 @@ export interface ExtractionGroup {
    * (`remainder` for the applier's implicit remainder part). Present exactly
    * when the group has an entry in the caller's `partitions`, even when the
    * group fits whole under the caps: a partitioned group is one piece per part.
-   * The request builders render {@link partitionLabelLine} from it.
+   * The request builders render `partitionLabelLine` from it.
    */
   readonly label?: string;
   /**

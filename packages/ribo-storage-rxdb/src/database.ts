@@ -57,7 +57,7 @@ export type PluginStorageCollection = RxCollection<PluginStorageDocument>;
  *
  * @category Offline & Storage
  */
-export type OutboxDatabase = RxDatabase<{
+export type StorageDatabase = RxDatabase<{
   outbox: OutboxCollection;
   sessions: SessionCollection;
   pluginStorage: PluginStorageCollection;
@@ -221,11 +221,11 @@ function defaultStorage(): RxStorage<unknown, unknown> {
  * evaluated lazily (default-argument, not module scope) so a caller that injects
  * its own engine never even constructs a Dexie storage.
  */
-export async function openOutboxDatabase(
+export async function openStorageDatabase(
   name: string = DEFAULT_OUTBOX_DATABASE_NAME,
   storage: RxStorage<unknown, unknown> = defaultStorage(),
   options: { ignoreDuplicate?: boolean } = {},
-): Promise<OutboxDatabase> {
+): Promise<StorageDatabase> {
   registerPlugins();
   const database = await createRxDatabase<{
     outbox: OutboxCollection;
@@ -286,9 +286,9 @@ export async function openOutboxDatabase(
  * `storage` must match the one the database was opened with — RxDB's
  * `removeRxDatabase` deletes through the storage engine's own layout, so a
  * memory-opened database cannot be removed via Dexie and vice versa. It defaults
- * to Dexie for symmetry with {@link openOutboxDatabase}.
+ * to Dexie for symmetry with {@link openStorageDatabase}.
  */
-export async function removeOutboxDatabase(
+export async function removeStorageDatabase(
   name: string = DEFAULT_OUTBOX_DATABASE_NAME,
   storage: RxStorage<unknown, unknown> = defaultStorage(),
 ): Promise<void> {

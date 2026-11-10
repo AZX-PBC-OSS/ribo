@@ -109,7 +109,7 @@ export const captureRxSchema: RxJsonSchema<CaptureDocument> = {
  * **An optional addition still needs the bump, and the stake is the captures.**
  * RxDB validates the declared schema against the one the collection was created
  * with, so adding a property at the same version is refused at `addCollections`
- * — and `openOutboxDatabase` adds `storage` and `sessions` in ONE call on ONE
+ * — and `openStorageDatabase` adds `storage` and `sessions` in ONE call on ONE
  * database. A `DB6` on this collection therefore rejects the whole open, so the
  * storage is unreachable too: an auditor's captured items and their audio (or
  * document) attachments, on a device, with no way in. The only recovery a host could offer

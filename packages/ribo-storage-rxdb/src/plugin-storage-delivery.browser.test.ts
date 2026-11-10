@@ -1,4 +1,4 @@
-import { removeOutboxDatabase } from "./database.js";
+import { removeStorageDatabase } from "./database.js";
 import { openRxdbBackend } from "./open.js";
 import { afterEach, expect, test } from "vitest";
 
@@ -31,7 +31,7 @@ function uniqueName(): string {
 }
 
 afterEach(async () => {
-  for (const name of usedNames.splice(0)) await removeOutboxDatabase(name);
+  for (const name of usedNames.splice(0)) await removeStorageDatabase(name);
 });
 
 const recording: Recording = {

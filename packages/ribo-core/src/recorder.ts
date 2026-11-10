@@ -214,7 +214,7 @@ export interface RecorderOptions<C = EmptyContext> {
    * Defaults to `{}` so the key always exists — "no context" stays distinguishable from "forgot".
    */
   readonly ctx?: C;
-  /** Container preference list. Defaults to {@link DEFAULT_MIME_TYPE_PREFERENCES}. */
+  /** Container preference list. Defaults to `DEFAULT_MIME_TYPE_PREFERENCES`. */
   readonly mimeTypes?: readonly string[];
   /** How often {@link Recorder.subscribe} listeners are notified while recording, in ms. */
   readonly tickMs?: number;

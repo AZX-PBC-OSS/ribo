@@ -107,7 +107,7 @@ export const capturePayloadSchema = <C extends z.ZodType>(ctx: C) => {
 export const basePayloadSchema = capturePayloadSchema(z.unknown());
 
 /**
- * Inferred from {@link capturePayloadSchema} — never hand-declared alongside it.
+ * Inferred from `capturePayloadSchema` — never hand-declared alongside it.
  *
  * @category Captures & Sources
  */

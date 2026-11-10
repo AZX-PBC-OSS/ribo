@@ -59,7 +59,7 @@ export interface CorroborationCensusCounts extends GroundingCensusCounts {
 }
 
 /**
- * The tally {@link corroborationCensus} produces.
+ * The tally `corroborationCensus` produces.
  *
  * @category Arbitration & Fallback
  */
@@ -69,7 +69,7 @@ export interface CorroborationCensus extends GroundingCensus {
 }
 
 /**
- * Options for {@link corroborationCensus}.
+ * Options for `corroborationCensus`.
  *
  * @category Arbitration & Fallback
  */

@@ -100,11 +100,6 @@ export {
 } from "./plugin-storage-schema.js";
 export type { PluginStorageDocument } from "./plugin-storage-schema.js";
 
-export {
-  createCaptureStorageScope,
-  createPluginStorage,
-  createPluginStorageScope,
-} from "./plugin-storage.js";
 export type { CaptureStorageScope, PluginStorage, PluginStorageScope } from "./plugin-storage.js";
 
 export { joinSessionTranscript, listSessionTranscriptParts } from "./session-extract.js";
@@ -117,14 +112,7 @@ export {
   MAX_SLICE_INDEX,
   sliceOversized,
 } from "./chunk-names.js";
-export {
-  CAPTURE_LOCK,
-  holdLock,
-  isLockFree,
-  relayItemLock,
-  relaySessionLock,
-} from "./capture-lock.js";
-export type { HeldLock } from "./capture-lock.js";
+export { CAPTURE_LOCK, isLockFree, relaySessionLock } from "./capture-lock.js";
 
 export { decodeAudioDuration, openCaptureSession } from "./capture-session.js";
 export type { CaptureHealth, CaptureSession, CaptureSessionOptions } from "./capture-session.js";
