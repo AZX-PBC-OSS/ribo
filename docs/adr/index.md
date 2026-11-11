@@ -78,3 +78,5 @@ receives.
 | [0034](./0034-a-group-splits-for-extraction-by-partition-not-by-carving.md)         | A group splits for extraction by partition, not by carving new groups                          | Accepted |
 | [0035](./0035-collection-fill-can-batch-instances-keyed-by-roster-id.md)            | Collection fill can batch instances, keyed by roster id                                        | Accepted |
 | [0036](./0036-a-shape-plan-lays-the-review-tree-out-by-sections.md)                 | A shape plan lays the review tree out by sections                                              | Accepted |
+| [0037](./0037-the-cli-ships-as-azx-ribo-cli-a-single-file-node-bundle.md)           | The CLI ships as `@azx/ribo-cli`, one single-file Node bundle                                  | Accepted |
+| [0038](./0038-inspect-takes-json-schema-in-openapi-3-0-form-and-nothing-else.md)    | The inspect command takes JSON Schema in OpenAPI 3.0 form, and nothing else                    | Accepted |
