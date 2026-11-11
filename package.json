@@ -28,7 +28,7 @@
     "docs:dev": "pnpm run docs:api && pnpm run docs:accuracy && vitepress dev docs",
     "docs:build": "pnpm run docs:examples && pnpm run docs:api-examples && pnpm run docs:api && pnpm run docs:accuracy && vitepress build docs",
     "docs:deploy": "pnpm run docs:build && helix deploy",
-    "docs:examples": "tsc -p docs/api/examples",
+    "docs:examples": "tsc -p docs/api/examples && tsc -p examples",
     "docs:api-examples": "node scripts/check-api-examples.mjs",
     "target:refresh": "node scripts/refresh-target.mjs",
     "snugg:refresh": "node scripts/snugg-descriptions.mjs --refresh",

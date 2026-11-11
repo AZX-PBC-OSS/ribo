@@ -24,9 +24,9 @@
     // …) into THIS project's type graph. Those names need the `DOM` lib to
     // resolve. The values are erased at build (the runtime `openAiChat` is loaded
     // via `ssrLoadModule`, never bundled), so this is purely a type-checking need.
-    // Both widenings are scoped to this project — it contains only vite.config.ts
-    // and vite-extract.ts (server-side build tooling) — so neither can leak into
-    // the browser-targeted packages.
+    // Both widenings are scoped to this project — it contains only vite.config.ts,
+    // vite-extract.ts and examples-wiring.test.ts (server-side build tooling and the
+    // node-side wiring guard) — so neither can leak into the browser-targeted packages.
     "lib": ["ESNext", "DOM"]
   },
   "include": [
@@ -34,6 +34,9 @@
     "vite-extract.ts",
     "vite-extract.test.ts",
     "vite-transcribe.ts",
-    "vite-transcribe.test.ts"
+    "vite-transcribe.test.ts",
+    "examples-wiring.test.ts",
+    // The wiring guard imports the root config to assert on the real object.
+    "../vitest.config.ts"
   ]
 }

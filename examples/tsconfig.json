@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Type-check gate for the examples/ root mechanism files (the runner). Extends base.json BY RELATIVE PATH — examples/ is not a workspace member and the root package.json has no @azx/tsconfig dependency, so a package-name extend would not resolve; this mirrors docs/api/examples/tsconfig.json. Adds node types (node:fs, node:assert) and vite/client (import.meta.glob). Each example package's files are type-checked by that package's own tsconfig, never double-owned here. Wired into docs:build via the docs:examples script, so a broken runner fails the docs:build stage.",
+  "extends": "../packages/tsconfig/base.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"]
+  },
+  "include": ["*.ts"]
+}
