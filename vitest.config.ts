@@ -114,6 +114,13 @@ export default defineConfig({
             // runner (examples/run-examples.test.ts), for the same reasons — inside the
             // project, not at the root, on the pinned Vitest 5.
             "examples/**/*.test.ts",
+            // The docs Examples check's fixture tests (scripts/check-api-examples.test.mjs):
+            // the generalised docs example gate's branches, driven against committed fixture
+            // trees (scripts/test-fixtures/check-api-examples/). Inside the project like the
+            // two runner globs above — a root-level include would leak into the browser and
+            // e2e projects. One level only: nothing under scripts/test-fixtures/ matches, so
+            // the fixtures' deliberately-broken trees are never collected as tests.
+            "scripts/*.test.mjs",
           ],
           // `*.browser.test.ts` and `*.e2e.test.ts` both end in `.test.ts`, so they
           // match the includes above. Without these excludes every browser test

@@ -106,6 +106,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: "Guide", link: "/guide/" },
+      { text: "Examples", link: "/examples/" },
       { text: "API", link: "/api/" },
       { text: "Offline-first", link: "/offline-first/" },
       { text: "Deep Dives", link: "/deep-dives/" },

@@ -1,0 +1,5 @@
+{
+  "name": "fixture-smoke",
+  "private": true,
+  "type": "module"
+}

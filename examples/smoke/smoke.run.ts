@@ -12,6 +12,7 @@
 import assert from "node:assert/strict";
 import { createMemoryBackend, openStorage } from "@azx/ribo-core";
 
+// #region smoke-opens-and-closes
 export async function smokeOpensAndClosesInMemoryStorage(): Promise<void> {
   const storage = await openStorage({
     backend: createMemoryBackend(`example-smoke-${crypto.randomUUID()}`),
@@ -20,3 +21,4 @@ export async function smokeOpensAndClosesInMemoryStorage(): Promise<void> {
   await storage.close();
   assert.equal(storage.closed, true);
 }
+// #endregion smoke-opens-and-closes
