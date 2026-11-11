@@ -100,7 +100,11 @@ function render(pairs) {
 // deliberate rather than automatic, so a vendor rewording lands in a reviewable diff
 // instead of silently changing what an extraction model is told.
 
-/** Vendor descriptions, keyed by the leaf name as it appears in \`snuggValuesSchema\`. */
+/**
+ * Vendor descriptions, keyed by the leaf name as it appears in \`snuggValuesSchema\`.
+ *
+ * @category Tool Adapters
+ */
 export const VENDOR_DESCRIPTIONS: Readonly<Record<string, string>> = {
 ${entries}
 };
@@ -305,14 +309,17 @@ function renderEndpoints(table) {
 // \`pnpm snugg:check\` fails when this no longer matches the live spec. Regeneration is
 // deliberate rather than automatic — see \`scripts/snugg-descriptions.mjs\`.
 
+/** @category Tool Adapters */
 export type SnuggEndpointKind = "collection" | "singleton" | "job";
 
+/** @category Tool Adapters */
 export interface SnuggEndpointOperation {
   readonly verb: "POST" | "PUT" | "GET";
   readonly path: string;
   readonly params: Readonly<Record<string, string>>;
 }
 
+/** @category Tool Adapters */
 export interface SnuggGroupEndpoints {
   readonly kind: SnuggEndpointKind;
   /** Collections only. Singletons upsert instead; \`job\` has no create. */
@@ -334,7 +341,11 @@ export interface SnuggGroupEndpoints {
   readonly createOnly: readonly string[];
 }
 
-/** The vendor's write endpoints, keyed by the group names of \`snuggValuesSchema\`. */
+/**
+ * The vendor's write endpoints, keyed by the group names of \`snuggValuesSchema\`.
+ *
+ * @category Tool Adapters
+ */
 export const SNUGG_ENDPOINTS: Readonly<Record<string, SnuggGroupEndpoints>> = Object.freeze({
 ${body}
 } as const);
