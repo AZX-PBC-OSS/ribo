@@ -224,7 +224,7 @@ export interface PreparedGroup {
    * entry and the array-vs-singleton narrowing is blind to partitioning.
    */
   readonly schema: z.ZodType;
-  /** The JSON Schema sent to the model in `response_format`. */
+  /** The JSON Schema sent to the model in `responseFormat`. */
   readonly jsonSchema: Record<string, unknown>;
   /**
    * Where this group's field descriptions travel — the mode `prepareGroups`
@@ -234,7 +234,7 @@ export interface PreparedGroup {
    * mode exists to prevent.
    */
   readonly fieldDescriptions: FieldDescriptionsMode;
-  /** The base for `response_format.json_schema.name`. */
+  /** The base for `responseFormat.json_schema.name`. */
   readonly name: string;
   /** The descriptive prefix for error messages from this group's calls. */
   readonly context: string;
@@ -250,7 +250,7 @@ export interface PreparedGroup {
   /**
    * The leaf keys THIS piece asks the model for, present only when `part` is
    * defined. Passed to {@link buildFillMessages} so a partitioned piece's
-   * few-shot example is narrowed to the same subset its `response_format`
+   * few-shot example is narrowed to the same subset its `responseFormat`
    * accepts, rather than showing an assistant turn wider than the call allows.
    */
   readonly leafKeys?: readonly string[];
@@ -293,7 +293,7 @@ export interface FillMessageOptions extends FieldGuidanceOptions {
  * When `leafKeys` is supplied (a partitioned piece), the projected instance is
  * further narrowed to exactly those leaves — the same narrowing
  * {@link buildGroupMessages} applies for the per-group extractor, so the
- * example's assistant turn never carries fields the piece's `response_format`
+ * example's assistant turn never carries fields the piece's `responseFormat`
  * rejects.
  * @category Extraction
  */
@@ -327,7 +327,7 @@ export function projectFillExample<F extends Record<string, unknown>>(
  *
  * `leafKeys` is supplied for a partitioned piece (`ExtractionGroup.part`) so the
  * example's assistant turn is narrowed to the same leaf subset the piece's
- * `response_format` accepts — mirroring {@link buildGroupMessages}' `leafKeys`.
+ * `responseFormat` accepts — mirroring {@link buildGroupMessages}' `leafKeys`.
  *
  * `pieceSchema` is the zod schema the call is pinned to (the prepared group's
  * own — a collection's single-instance wrapper, a `""` piece's strict object),
@@ -430,7 +430,7 @@ export function singletonFillScope(groupKey: string): FillScope {
  * **The wire name is the FILL variant** — `${target.name}-${key}-fill${partSuffix}`,
  * not `perGroupPlan`'s `${target.name}-${key}${partSuffix}`. Same charset rule,
  * same part suffix; the `-fill` infix keeps the scoped fill call for a key from
- * carrying the same `response_format.json_schema.name` as the per-group call for
+ * carrying the same `responseFormat.json_schema.name` as the per-group call for
  * that key, which is the name a log or a route-side error cites — the two
  * strategies name the same group differently so their calls are distinguishable.
  * The name is guarded here: a colon in the target's name or a schema property's

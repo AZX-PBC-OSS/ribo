@@ -130,10 +130,10 @@ describe("extractInventory", () => {
     await extractInventory(makeOptions(chat), "t");
 
     const request = requests[0]!;
-    expect(request.response_format.type).toBe("json_schema");
-    expect(request.response_format.json_schema.name).toBe("demo-inventory");
-    expect(request.response_format.json_schema.strict).toBe(true);
-    expect(request.response_format.json_schema.schema).toEqual(
+    expect(request.responseFormat.type).toBe("json_schema");
+    expect(request.responseFormat.json_schema.name).toBe("demo-inventory");
+    expect(request.responseFormat.json_schema.strict).toBe(true);
+    expect(request.responseFormat.json_schema.schema).toEqual(
       z.toJSONSchema(syntheticRosterSchema, { target: "draft-2020-12" }),
     );
   });

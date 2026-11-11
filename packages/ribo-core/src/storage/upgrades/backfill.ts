@@ -128,7 +128,7 @@ function sessionDocumentFromMigratedGroup(
     // from the `assessmentId` the session id already extracts.
     //
     // `migratedCtx` rather than the raw value, because a v5 recording is not
-    // guaranteed to carry one. `Recording["ctx"]` is `unknown`, and zod's
+    // guaranteed to carry one. `AudioCapture["ctx"]` is `unknown`, and zod's
     // `strictObject` rejects a MISSING key while accepting an explicit
     // `undefined` — so `ctx: undefined` was legal to enqueue, and JSON storage
     // then drops the key entirely. Minting a session from such a recording with

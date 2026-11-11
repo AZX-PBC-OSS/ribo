@@ -137,13 +137,13 @@ describe("singleShotExtractor — request shape", () => {
     // model passed through
     expect(req.model).toBe("gpt-test");
 
-    // strict json_schema response_format, named after the target, carrying the
+    // strict json_schema responseFormat, named after the target, carrying the
     // EXACT z.toJSONSchema output (draft-2020-12) of the EXTRACTION schema — not
     // the patch, and not a hand-rolled schema.
-    expect(req.response_format.type).toBe("json_schema");
-    expect(req.response_format.json_schema.strict).toBe(true);
-    expect(req.response_format.json_schema.name).toBe(demoTarget.name);
-    expect(req.response_format.json_schema.schema).toEqual(
+    expect(req.responseFormat.type).toBe("json_schema");
+    expect(req.responseFormat.json_schema.strict).toBe(true);
+    expect(req.responseFormat.json_schema.name).toBe(demoTarget.name);
+    expect(req.responseFormat.json_schema.schema).toEqual(
       z.toJSONSchema(demoExtractionSchema, { target: "draft-2020-12" }),
     );
 
@@ -163,7 +163,7 @@ describe("singleShotExtractor — request shape", () => {
       text: "hi",
       annotations: {},
     });
-    const asString = JSON.stringify(requests[0]!.response_format.json_schema.schema);
+    const asString = JSON.stringify(requests[0]!.responseFormat.json_schema.schema);
     // `.min()/.max()` would emit these — the reason `confidence` is a bare z.number().
     expect(asString).not.toContain('"minimum"');
     expect(asString).not.toContain('"maximum"');
@@ -181,7 +181,7 @@ describe("singleShotExtractor — request shape", () => {
       text: "hi",
       annotations: {},
     });
-    const schema = requests[0]!.response_format.json_schema.schema;
+    const schema = requests[0]!.responseFormat.json_schema.schema;
 
     const requireEveryKey = (node: Record<string, unknown>, path: string): void => {
       if (node.type !== "object") return;

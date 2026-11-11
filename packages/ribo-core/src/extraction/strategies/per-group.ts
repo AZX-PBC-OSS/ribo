@@ -25,7 +25,7 @@
  * `perGroupPlan(options)` and nothing more.
  *
  * **Requests are byte-identical to the pre-combinator implementation** —
- * `response_format.json_schema.name`, the schema, the message list, the order —
+ * `responseFormat.json_schema.name`, the schema, the message list, the order —
  * which is the regression gate: this package's `per-group.test.ts` suite
  * (including partitioning and progress units), the adapter's
  * `per-group-cap.test.ts`, and the adapter's frozen JSON Schema fixture. Three
@@ -486,7 +486,7 @@ export function perGroupPlan<V extends Record<string, unknown>, P = NoProvenance
 
     for (const group of keyPieces) {
       // The leaf keys one partitioned piece asks the model for, so its few-shot
-      // example narrows to the same subset the response_format constrains this
+      // example narrows to the same subset the responseFormat constrains this
       // call to. Read from the piece's own schema — it cannot drift from it.
       const leafKeys = group.part !== undefined ? partitionedLeafKeys(group) : undefined;
 

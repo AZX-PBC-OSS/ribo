@@ -113,7 +113,7 @@ const recordingChat = {
       // Capture only the propose type of call (`shape-proposal` is the
       // proposer's pinned wire schema name).
       if (
-        request.response_format?.json_schema?.name === "shape-proposal" &&
+        request.responseFormat?.json_schema?.name === "shape-proposal" &&
         proposeLog.request === null
       ) {
         proposeLog.request = request;
@@ -127,7 +127,7 @@ const recordingChat = {
           body: JSON.stringify({
             model: request.model,
             messages: request.messages,
-            response_format: request.response_format,
+            response_format: request.responseFormat,
             ...(request.maxTokens !== undefined ? { max_tokens: request.maxTokens } : {}),
           }),
           signal: options?.signal,
@@ -181,7 +181,7 @@ if (proposeLog.request !== null) {
   console.log("--- user message (the leaf inventory) ---");
   console.log(proposeLog.request.messages.find((m) => m.role === "user")?.content);
   console.log();
-  console.log("Wire schema name:", proposeLog.request.response_format.json_schema.name);
+  console.log("Wire schema name:", proposeLog.request.responseFormat.json_schema.name);
 } else {
   console.log("WARNING: proposeLog.request was not captured.");
 }

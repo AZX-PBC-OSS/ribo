@@ -58,7 +58,7 @@ mechanism.
 | `unavailable` reasons `offline` and `not-configured`, written for this path — "the managed path becomes `unavailable` the moment the uplink drops" | `transcriber.ts`                              |
 | `too-slow` present in both the reason list and the _permanent_ subset                                                                              | `transcriber.ts:24`, `:49`                    |
 | Roster selection, capability caching with TTL, demotion on `TranscriberUnavailableError`, `onFallback` telemetry                                   | `ribo-core/src/first-capable.ts`              |
-| `Recording.durationMs`, needed to predict transcription time                                                                                       | `ribo-core/src/recording.ts`                  |
+| `AudioCapture.durationMs`, needed to predict transcription time                                                                                    | `ribo-core/src/recording.ts`                  |
 | Vocabulary biasing on the on-device path — "every chunk gets the same jargon prefix"                                                               | `ribo-transcriber-ondevice/src/worker.ts:524` |
 
 The single gap is that no implementation ever _produces_ `too-slow`. The only occurrence outside the
@@ -82,7 +82,7 @@ one OOMed clip permanently demote a device to the cloud". **This design does not
 - **Not cancellation of a losing hedge.** `Transcriber.transcribe` takes no `AbortSignal`, so a fired
   hedge is paid for even when the primary wins. Accepted for this tranche; revisited when telemetry
   shows the real firing rate.
-- **Not composition safety.** `hedged` can be composed into configurations that race an engine against
+- **Not composition safety.** `hedgedTranscriber` can be composed into configurations that race an engine against
   itself. Deliberately deferred to
   [its own ticket](https://app.asana.com/1/1208495702765136/project/1216763563065333/task/1217558466172554) —
   the composition this repo ships is the safe one, and a point fix would paper over a general gap.
@@ -198,7 +198,7 @@ unhandled rejection.
 
 ### 5.4 Composition
 
-`firstCapable` returns a `CompositeTranscriber`, so it nests inside `hedged`. The intended shape when
+`firstCapable` returns a `CompositeTranscriber`, so it nests inside `hedgedTranscriber`. The intended shape when
 several on-device engines exist is a `firstCapable` roster as the primary with the managed engine as
 the hedge. The host's choice between sequential and racing is a one-line change at the composition
 site; nothing downstream of the `Transcriber` seam is aware of which was chosen.
@@ -287,7 +287,7 @@ the reason the recorder bitrate matters: a 4× smaller upload saves time exactly
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@azx/ribo-transcriber-ondevice`       | `prime()` measures and persists RTF; `capability()` reports `too-slow` above threshold; an accessor exposes the measured value                                                    |
 | `@azx/ribo-transcriber-managed`        | New package: the Azure transcriber, its Helix transport, and chunking if §7 requires it                                                                                           |
-| `@azx/ribo-core`                       | New `hedged` combinator and its delay helper. **No change to `Transcriber`, `TranscriberCapability`, `firstCapable`, or the outbox schema**                                       |
+| `@azx/ribo-core`                       | New `hedgedTranscriber` combinator and its delay helper. **No change to `Transcriber`, `TranscriberCapability`, `firstCapable`, or the outbox schema**                            |
 | `playground`                           | Compose the real roster. Batch transcription there still runs a `FakeTranscriber` (`QueuePanel.tsx:243`), so this is also where the on-device engine first reaches the batch path |
 | `docs/roadmap/index.md`                | Managed STT moves out of "deliberately out of scope"                                                                                                                              |
 | `docs/implementation/02-server-stt.md` | Record the vendor decision (§6) and the chunking correction (§7)                                                                                                                  |

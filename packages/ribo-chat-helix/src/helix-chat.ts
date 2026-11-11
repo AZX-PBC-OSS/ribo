@@ -93,9 +93,9 @@ interface HelixErrorBody {
  *
  * Request mapping: a `role: "system"` message becomes the top-level `system`
  * field (NOT a message); all other messages go into `messages` with roles
- * `user`/`assistant` only. `response_format` is flattened to `responseFormat`
- * (`{ type, name, schema }` — `strict` is dropped: the platform always enforces
- * the schema). `stream: false` is always sent because the route defaults to SSE.
+ * `user`/`assistant` only. The seam's `responseFormat` is flattened to the
+ * wire's `responseFormat` (`{ type, name, schema }` — `strict` is dropped: the
+ * platform always enforces the schema). `stream: false` is always sent because the route defaults to SSE.
  *
  * Error mapping: a `fetch` rejection is `transport`, an `AbortError` is
  * `aborted`, a non-2xx is `http` with the real status, and an unparseable body
@@ -176,7 +176,7 @@ export function helixChat({
         }
       }
 
-      // The seam carries `response_format: { type, json_schema: { name, schema,
+      // The seam carries `responseFormat: { type, json_schema: { name, schema,
       // strict } }`. The Helix wire flattens this to `responseFormat:
       // { type, name, schema }` — `strict` is implied (the platform always
       // enforces; there is no best-effort mode), so it is dropped.
@@ -185,9 +185,9 @@ export function helixChat({
         messages,
         stream: false,
         responseFormat: {
-          type: request.response_format.type,
-          name: request.response_format.json_schema.name,
-          schema: request.response_format.json_schema.schema,
+          type: request.responseFormat.type,
+          name: request.responseFormat.json_schema.name,
+          schema: request.responseFormat.json_schema.schema,
         },
       };
       if (system !== undefined) {

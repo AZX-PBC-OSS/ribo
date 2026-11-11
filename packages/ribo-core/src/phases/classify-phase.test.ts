@@ -149,9 +149,9 @@ describe("classifyPhase — run", () => {
       const output = await def.run(item!, draft, ctx);
 
       expect(requests).toHaveLength(1);
-      expect(requests[0]!.response_format.json_schema.name).toBe("classify-hvac-fuel");
+      expect(requests[0]!.responseFormat.json_schema.name).toBe("classify-hvac-fuel");
       // The BARE schema: the leaf's own value schema, not a wrapper.
-      expect(requests[0]!.response_format.json_schema.schema).toEqual({
+      expect(requests[0]!.responseFormat.json_schema.schema).toEqual({
         anyOf: [{ type: "string", enum: ["Oil", "Gas"] }, { type: "null" }],
       });
       expect(output.value).toEqual({ kind: "classified", value: "Gas" });
@@ -351,8 +351,8 @@ describe("classifyWrappedPhase", () => {
       const [item] = def.plan(draft, ctx);
       const output = await def.run(item!, draft, ctx);
       expect(requests).toHaveLength(1);
-      expect(requests[0]!.response_format.json_schema.name).toBe("classify-hvac-fuel-wrapped");
-      expect(requests[0]!.response_format.json_schema.schema).toEqual({
+      expect(requests[0]!.responseFormat.json_schema.name).toBe("classify-hvac-fuel-wrapped");
+      expect(requests[0]!.responseFormat.json_schema.schema).toEqual({
         type: "object",
         properties: {
           value: { anyOf: [{ type: "string", enum: ["Oil", "Gas"] }, { type: "null" }] },

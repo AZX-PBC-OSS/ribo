@@ -29,7 +29,7 @@ The split is structural, enforced in two places at once:
   annotations bag — and returns fields; it has no parameter that could carry a `CapturePayload`, so it
   cannot know or care whether that text came from a microphone or a PDF. `isSpanGrounded` checks a
   `sourceSpan` against the transcript's text the same way regardless of source. The review contract
-  addresses leaf paths against a values schema; it has never seen a `Recording` or a
+  addresses leaf paths against a values schema; it has never seen an `AudioCapture` or a
   `DocumentCapture`, only the joined transcript that produced the fields it's reviewing.
 - **The persistence layer.** `CaptureDocument` (the recording) carries capture and transcription
   fields only. `SessionDocument` carries `extracted`, `extractedBy`, `reviewOutcome`, `writeResult`,
@@ -177,7 +177,7 @@ storage.sessions.watch({ status: "awaiting-review" }).subscribe((sessions) => {
 
 The heat-pump quote reviewer's job opens as one session. The supplier invoice and the Manual J
 report enqueue as `DocumentCapture` items — `pdfjs` (or `managed-docs` for a scanned page it can't
-read) transcribes each into text. The reviewer's own dictation enqueues as a `Recording`,
+read) transcribes each into text. The reviewer's own dictation enqueues as an `AudioCapture`,
 transcribed by whichever audio engine is configured, and all three transcribe independently, on
 their own schedule, into the same session. When the reviewer closes the session, the relay lists
 the three transcripts and hands them to its combiner — one transcript spanning all three —

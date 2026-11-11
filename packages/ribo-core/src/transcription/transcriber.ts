@@ -1,5 +1,5 @@
 import type { CapturePayload } from "../capture/capture-item.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import type { Transcript } from "../capture/transcript.js";
 import type { CaptureStorageScope } from "../storage/plugin-storage.js";
 
@@ -153,19 +153,19 @@ export interface TranscribeOptions {
  * Turns captured bytes into a {@link Transcript}.
  *
  * The bytes are passed separately from the capture record on purpose: the record
- * is metadata, and the blob is held by the queue (see `recording.ts`). An
+ * is metadata, and the blob is held by the queue (see `audio-capture.ts`). An
  * implementation gets both, and returns a transcript whose `recordingId` ties it
  * back to the record it came from and whose `engine` records that this
  * implementation is what produced it.
  *
- * Generic over the capture kind: `Transcriber<Recording>` is an audio-only
+ * Generic over the capture kind: `Transcriber<AudioCapture>` is an audio-only
  * engine (the default, so bare `Transcriber` keeps meaning exactly what it did
  * before documents existed), `Transcriber<DocumentCapture>` is a document
  * engine, and `Transcriber<CapturePayload>` is an engine that can accept either.
  *
  * `transcribe` is declared as a **function-typed property, not a method**.
  * Method parameters are exempt from `strictFunctionTypes` and compared
- * bivariantly, so with method syntax an audio-only `Transcriber<Recording>`
+ * bivariantly, so with method syntax an audio-only `Transcriber<AudioCapture>`
  * would slide unchallenged into a `Transcriber<CapturePayload>` slot — which is
  * the bug this contract exists to prevent. A property declaration makes that
  * assignment a type error, which is what sends a host to `restrictToKind`.
@@ -194,7 +194,7 @@ export interface TranscribeOptions {
  *   the item (a composition layer routes to the next engine).
  * @category Transcription
  */
-export interface Transcriber<S extends CapturePayload = Recording> {
+export interface Transcriber<S extends CapturePayload = AudioCapture> {
   /**
    * Stable, opaque id for this engine. Goes into every `Transcript.engine` it produces, so it
    * ends up persisted in the storage — keep it short and stable across versions.

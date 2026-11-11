@@ -14,10 +14,9 @@ what. Reach for the [Arbitration & Fallback guide](/guide/arbitration) for the r
 arbiter may and may not see, and why concurrency is opt-in by name.
 
 **Duplicate spellings, stated once:** `fallbackExtractor` / `raceExtractor` are the public
-combinators; `createSequentialExtractor` / `createConcurrentExtractor` (`arbitration.ts`) are the
-shared engine constructors behind them — `compositeExtractor` builds on the sequential engine
-directly, and the guides use the public names. Both spellings exist in the API; pick the public
-one.
+combinators; the shared engine constructors behind them (`arbitration.ts`) are internal —
+`compositeExtractor` builds on the sequential engine directly, and the guides use the public
+names. Pick the public one.
 
 ## Usage
 
@@ -122,6 +121,4 @@ defaults quoted under Options.
   [`cachedExtractor`](/reference/@azx/ribo-core/functions/cachedExtractor.html) ·
   [`budgetExtractor`](/reference/@azx/ribo-core/functions/budgetExtractor.html) ·
   [`compositeExtractor`](/reference/@azx/ribo-core/functions/compositeExtractor.html)
-- [`createSequentialExtractor`](/reference/@azx/ribo-core/functions/createSequentialExtractor.html) ·
-  [`createConcurrentExtractor`](/reference/@azx/ribo-core/functions/createConcurrentExtractor.html)
 - [`SchemaParseError`](/reference/@azx/ribo-core/classes/SchemaParseError.html)

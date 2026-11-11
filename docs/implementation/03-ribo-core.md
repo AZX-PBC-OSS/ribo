@@ -16,7 +16,7 @@ The reusable heart. Framework-free (no React) and no DOM _rendering_ — but ver
 ## Key interfaces
 
 ```ts
-export interface Recording {
+export interface AudioCapture {
   id: string;
   blob: Blob;
   capturedAt: number;
@@ -40,7 +40,7 @@ export interface TranscribeHints {
 export interface Transcriber {
   readonly engine: string;
   capability(): Promise<TranscriberCapability>; // ready | needs-download | unavailable
-  transcribe(rec: Recording, audio: Blob): Promise<Transcript>;
+  transcribe(rec: AudioCapture, audio: Blob): Promise<Transcript>;
 }
 
 // Ordered roster, first one `ready` wins. `needs-download` is never auto-selected.
@@ -58,7 +58,7 @@ export interface ToolAdapter<V, C> {
   name: string;
   schema: ValuesSchema<V>; // the patch — source of truth for `V`
   extractionSchema: z.ZodType<Enveloped<V>>; // derived: schema, stripped + enveloped
-  ctxSchema: z.ZodType<C>; // parses Recording.ctx into this adapter's destination
+  ctxSchema: z.ZodType<C>; // parses AudioCapture.ctx into this adapter's destination
   instructions: string; // domain guidance for extraction
   examples?: Array<{ text: string; fields: Enveloped<V> }>; // few-shot
   write(fields: V, ctx: C, meta: WriteMetadata): Promise<void>; // meta carries idempotencyKey
@@ -96,7 +96,7 @@ unchanged. Noted here so the omission reads as deferral, not as a decision rever
 
 **The actual WER cost of energy-audit jargon and spoken numerals is [unmeasured]** for every candidate ([open questions §12](../open-questions.md)) — priming is the mitigation we designed for, not a measured fix.
 
-**Batch is the contract, deliberately.** `transcribe()` returns a whole `Transcript` for a whole `Recording`. Streaming partials are demonstrated on Chromium+WebGPU but cost roughly N× a batch transcription, because Whisper re-encodes a zero-padded 30 s window on each update — unaffordable on the single-threaded WASM path that iOS is now known to get ([01](01-feasibility-spike.md), Finding 1). Partials therefore ship, if at all, as a **Chromium-only progressive enhancement, off by default**, layered on top of this interface rather than changing it. `Recorder`'s "(on-device) partials" in the table above should be read that way.
+**Batch is the contract, deliberately.** `transcribe()` returns a whole `Transcript` for a whole `AudioCapture`. Streaming partials are demonstrated on Chromium+WebGPU but cost roughly N× a batch transcription, because Whisper re-encodes a zero-padded 30 s window on each update — unaffordable on the single-threaded WASM path that iOS is now known to get ([01](01-feasibility-spike.md), Finding 1). Partials therefore ship, if at all, as a **Chromium-only progressive enhancement, off by default**, layered on top of this interface rather than changing it. `Recorder`'s "(on-device) partials" in the table above should be read that way.
 
 **Backend selection is not a device flag.** WebGPU on Chromium; WASM-SIMD, single-thread-safe, everywhere else. On iOS the shipped ORT binary contains **no WebGPU code at all** **[verified by inspection]** while `IS_WEBGPU_AVAILABLE` still reports `true`, so the probe must sniff the **engine** and force the WASM path for every iOS browser — including Chrome and Firefox on iOS, which transformers.js's own `isSafari()` misclassifies. **Never require COOP/COEP** ([10 §4](10-build-and-packaging.md)).
 

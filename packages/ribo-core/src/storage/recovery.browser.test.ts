@@ -5,9 +5,9 @@ import { openStorage, type Storage } from "./storage.js";
 import { chunkName } from "./chunk-names.js";
 import { CAPTURE_LOCK, holdLock } from "./capture-lock.js";
 import { recoverInterrupted } from "./recovery.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",

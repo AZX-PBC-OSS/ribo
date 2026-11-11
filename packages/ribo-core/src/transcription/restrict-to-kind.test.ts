@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import type { CapturePayload } from "../capture/capture-item.js";
 import type { DocumentCapture } from "../capture/capture-item.js";
 import { restrictToKind } from "./restrict-to-kind.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import { FakeTranscriber } from "./fake-transcriber.js";
 import { UnsupportedItemError } from "./unsupported-item.js";
 import type { Transcriber } from "./transcriber.js";
@@ -13,7 +13,7 @@ import type { Transcript } from "../capture/transcript.js";
 // Runtime: restrictToKind refuses other kinds and delegates for the matching one
 // ---------------------------------------------------------------------------
 
-const audioRecording: Recording = {
+const audioRecording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",
@@ -72,8 +72,8 @@ test("restrictToKind delegates capability()", async () => {
 // assertion has inverted and the test fails. Vitest does not typecheck, so
 // these fire under `pnpm typecheck`, not `pnpm test`.
 
-test("a Transcriber<Recording> is NOT assignable to Transcriber<CapturePayload>", () => {
-  const audioOnly: Transcriber<Recording> = new FakeTranscriber();
+test("a Transcriber<AudioCapture> is NOT assignable to Transcriber<CapturePayload>", () => {
+  const audioOnly: Transcriber<AudioCapture> = new FakeTranscriber();
   // @ts-expect-error — with property-typed `transcribe`, the contravariant
   // parameter makes this assignment a type error. If `transcribe` were
   // declared as a method, this directive would go unused and the typecheck
@@ -82,22 +82,22 @@ test("a Transcriber<Recording> is NOT assignable to Transcriber<CapturePayload>"
   expect(_wide).toBe(audioOnly);
 });
 
-test("a Transcriber<CapturePayload> IS assignable to Transcriber<Recording>", () => {
+test("a Transcriber<CapturePayload> IS assignable to Transcriber<AudioCapture>", () => {
   // The safe direction must keep working; a test that only pins the rejection
   // would also pass if the type were simply broken.
   const wide: Transcriber<CapturePayload> = restrictToKind("audio", new FakeTranscriber());
-  const _narrow: Transcriber<Recording> = wide;
+  const _narrow: Transcriber<AudioCapture> = wide;
   expect(_narrow).toBe(wide);
 });
 
-test("bare Transcriber still accepts a Recording and rejects a DocumentCapture", () => {
+test("bare Transcriber still accepts an AudioCapture and rejects a DocumentCapture", () => {
   // The default type argument has not silently widened the existing contract.
   const t: Transcriber = new FakeTranscriber();
-  // A DocumentCapture is not assignable to Recording, so passing one to
+  // A DocumentCapture is not assignable to AudioCapture, so passing one to
   // transcribe is a type error.
-  // @ts-expect-error — DocumentCapture is not assignable to Recording.
+  // @ts-expect-error — DocumentCapture is not assignable to AudioCapture.
   void t.transcribe(documentCapture, new Blob([]));
-  // A Recording is fine.
+  // A AudioCapture is fine.
   void t.transcribe(audioRecording, new Blob([]));
 });
 
@@ -109,7 +109,7 @@ test("a class with an async transcribe method satisfies the property-typed inter
     async capability() {
       return { status: "ready" } as const;
     }
-    async transcribe(recording: Recording, _bytes: Blob): Promise<Transcript> {
+    async transcribe(recording: AudioCapture, _bytes: Blob): Promise<Transcript> {
       return { recordingId: recording.id, text: "", engine: this.engine };
     }
   }
@@ -118,7 +118,7 @@ test("a class with an async transcribe method satisfies the property-typed inter
 });
 
 test("restrictToKind('audio', audioOnly) is assignable to Transcriber<CapturePayload>", () => {
-  const audioOnly: Transcriber<Recording> = new FakeTranscriber();
+  const audioOnly: Transcriber<AudioCapture> = new FakeTranscriber();
   const wide: Transcriber<CapturePayload> = restrictToKind("audio", audioOnly);
   expect(wide.engine).toBe(audioOnly.engine);
 });

@@ -221,13 +221,13 @@ describe("gapFillExtractor — the follow-up call", () => {
     const req = requests[0]!;
     expect(req.model).toBe("gpt-test");
     expect(req.maxTokens).toBe(2048);
-    expect(req.response_format.type).toBe("json_schema");
-    expect(req.response_format.json_schema.strict).toBe(true);
-    expect(req.response_format.json_schema.name).toBe("gap-demo-gap-fill");
+    expect(req.responseFormat.type).toBe("json_schema");
+    expect(req.responseFormat.json_schema.strict).toBe(true);
+    expect(req.responseFormat.json_schema.name).toBe("gap-demo-gap-fill");
 
     // Scoped: the schema carries exactly the abstained leaves, keyed by path —
     // the committed wall and hvac[0] are not re-asked.
-    const schema = req.response_format.json_schema.schema as {
+    const schema = req.responseFormat.json_schema.schema as {
       properties: Record<string, unknown>;
     };
     expect(Object.keys(schema.properties)).toEqual(["envelope.roof", "hvac[1].systemType"]);

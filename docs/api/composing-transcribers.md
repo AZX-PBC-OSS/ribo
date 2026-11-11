@@ -2,7 +2,7 @@
 
 Four combinators build many engines into one [`Transcriber`](/api/transcriber):
 `firstCapable` (sequential selection on capability), `fallbackTranscriber` (sequential, with an
-arbiter judging outcomes), `raceTranscriber` (every capable engine at once), and `hedged` (a
+arbiter judging outcomes), `raceTranscriber` (every capable engine at once), and `hedgedTranscriber` (a
 preferred engine raced against a fallback on a latency budget). All four return composites that
 are drop-in interchangeable, and all four are privacy-preserving by default: a deployment that
 will not let audio leave the device simply never composes a managed engine.
@@ -24,7 +24,7 @@ recommends and why fallback is narrower than it looks.
 - **`raceTranscriber`** — when latency beats cost: every capable engine is dispatched at once,
   and a race that includes a managed engine uploads the audio every time. That is the cost
   `firstCapable` exists to avoid.
-- **`hedged`** — when the primary is usually fast but occasionally stalls: start the primary;
+- **`hedgedTranscriber`** — when the primary is usually fast but occasionally stalls: start the primary;
   fire the hedge only if the predicted budget lapses.
 
 ## Usage
@@ -38,31 +38,31 @@ fetch needs:
 
 ## Options
 
-`firstCapable(transcribers, options?)` takes `FirstCapableOptions`; `hedged(primary, hedge,
-options)` takes `HedgedOptions` plus a delay policy built by `hedgeDelay`. The defaults the page
+`firstCapable(transcribers, options?)` takes `FirstCapableOptions`; `hedgedTranscriber(primary, hedge,
+options)` takes `HedgedTranscriberOptions` plus a delay policy built by `hedgeDelay`. The defaults the page
 states are quoted from the example file rather than retyped, and the same file's test run asserts
 every one of them against the exported constants — so a source change that moves one fails the
 `test` stage:
 
 <<< @/api/examples/composing-transcribers.run.ts#defaults
 
-| Name         | Combinator                                  | Type                                   | Default                             | What it does                                                                                                                                                                                                     |
-| ------------ | ------------------------------------------- | -------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `engine`     | all four                                    | `string`                               | the combinator's own name           | `Transcriber.engine` for the composite (`"first-capable"`, `"fallback"`, `"race"`, `"hedged"`). The delegates keep their own ids — a transcript is stamped by the implementation that ran, never by the wrapper. |
-| `ttlMs`      | `firstCapable`, `hedged`, `raceTranscriber` | `number`                               | `DEFAULT_CAPABILITY_TTL_MS` (above) | How long a capability answer is reused before re-probing. A backstop, not the mechanism — call `invalidate()` when a download finishes or the uplink returns.                                                    |
-| `onFallback` | `firstCapable`                              | `(event: TranscriberFallback) => void` | —                                   | Called whenever a preferred engine was skipped. Quiet on the happy path; loud on exactly the failure that is otherwise invisible.                                                                                |
-| `delay`      | `hedged`                                    | `HedgeDelayPolicy`                     | **required**                        | When to fire the hedge, as a function of the recording. Build it with `hedgeDelay` or supply your own.                                                                                                           |
-| `factor`     | `hedgeDelay`                                | `number`                               | `DEFAULT_HEDGE_FACTOR` (above)      | Scale on the predicted duration — the primary gets a margin before the hedge fires.                                                                                                                              |
-| `floorMs`    | `hedgeDelay`                                | `number`                               | `DEFAULT_HEDGE_FLOOR_MS` (above)    | Minimum delay, however small the prediction.                                                                                                                                                                     |
-| `budgetMs`   | `hedgeDelay`                                | `number`                               | `DEFAULT_HEDGE_BUDGET_MS` (above)   | The ceiling — the auditor's tolerance. The prediction only pulls the hedge **earlier** on fast devices; the slower the device, the later the help would be without this clamp.                                   |
-| `arbiter`    | `fallbackTranscriber`, `raceTranscriber`    | `TranscriptionArbiter`                 | `unsupportedFallsThrough` (race)    | The policy that decides accept / continue / give up from settled outcomes. Required on `fallbackTranscriber`, so the policy is chosen by name rather than inherited by omission.                                 |
+| Name         | Combinator                                             | Type                                   | Default                             | What it does                                                                                                                                                                                                     |
+| ------------ | ------------------------------------------------------ | -------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `engine`     | all four                                               | `string`                               | the combinator's own name           | `Transcriber.engine` for the composite (`"first-capable"`, `"fallback"`, `"race"`, `"hedged"`). The delegates keep their own ids — a transcript is stamped by the implementation that ran, never by the wrapper. |
+| `ttlMs`      | `firstCapable`, `hedgedTranscriber`, `raceTranscriber` | `number`                               | `DEFAULT_CAPABILITY_TTL_MS` (above) | How long a capability answer is reused before re-probing. A backstop, not the mechanism — call `invalidate()` when a download finishes or the uplink returns.                                                    |
+| `onFallback` | `firstCapable`                                         | `(event: TranscriberFallback) => void` | —                                   | Called whenever a preferred engine was skipped. Quiet on the happy path; loud on exactly the failure that is otherwise invisible.                                                                                |
+| `delay`      | `hedgedTranscriber`                                    | `HedgeDelayPolicy`                     | **required**                        | When to fire the hedge, as a function of the recording. Build it with `hedgeDelay` or supply your own.                                                                                                           |
+| `factor`     | `hedgeDelay`                                           | `number`                               | `DEFAULT_HEDGE_FACTOR` (above)      | Scale on the predicted duration — the primary gets a margin before the hedge fires.                                                                                                                              |
+| `floorMs`    | `hedgeDelay`                                           | `number`                               | `DEFAULT_HEDGE_FLOOR_MS` (above)    | Minimum delay, however small the prediction.                                                                                                                                                                     |
+| `budgetMs`   | `hedgeDelay`                                           | `number`                               | `DEFAULT_HEDGE_BUDGET_MS` (above)   | The ceiling — the auditor's tolerance. The prediction only pulls the hedge **earlier** on fast devices; the slower the device, the later the help would be without this clamp.                                   |
+| `arbiter`    | `fallbackTranscriber`, `raceTranscriber`               | `TranscriptionArbiter`                 | `unsupportedFallsThrough` (race)    | The policy that decides accept / continue / give up from settled outcomes. Required on `fallbackTranscriber`, so the policy is chosen by name rather than inherited by omission.                                 |
 
-Defaults are read from `packages/ribo-core/src/transcription/hedged.ts`,
+Defaults are read from `packages/ribo-core/src/transcription/hedged-transcriber.ts`,
 `first-capable.ts`, `fallback-transcriber.ts`, `race-transcriber.ts` and `restrict-to-kind.ts`.
 
 ## Return value
 
-`firstCapable`, `hedged` and `raceTranscriber` return a `CompositeTranscriber` — a `Transcriber`
+`firstCapable`, `hedgedTranscriber` and `raceTranscriber` return a `CompositeTranscriber` — a `Transcriber`
 plus `capabilities()` (every delegate's current answer, in preference order — the roster a
 download screen renders from) and `invalidate(engine?)` (drop cached capabilities; this is how
 "the model finished downloading" is announced).
@@ -113,7 +113,7 @@ under Options.
 - [`firstCapable`](/reference/@azx/ribo-core/functions/firstCapable.html)
 - [`fallbackTranscriber`](/reference/@azx/ribo-core/functions/fallbackTranscriber.html)
 - [`raceTranscriber`](/reference/@azx/ribo-core/functions/raceTranscriber.html)
-- [`hedged`](/reference/@azx/ribo-core/functions/hedged.html) ·
+- [`hedgedTranscriber`](/reference/@azx/ribo-core/functions/hedgedTranscriber.html) ·
   [`hedgeDelay`](/reference/@azx/ribo-core/functions/hedgeDelay.html)
 - [`restrictToKind`](/reference/@azx/ribo-core/functions/restrictToKind.html)
 - [`CompositeTranscriber`](/reference/@azx/ribo-core/interfaces/CompositeTranscriber.html)

@@ -228,7 +228,7 @@ export interface SplitOptions {
   /**
    * Max serialized JSON Schema characters per piece, measured with
    * `z.toJSONSchema(schema, { target: "draft-2020-12" })` — the same rendering
-   * the request's `response_format` carries. A group whose piece exceeds it is
+   * the request's `responseFormat` carries. A group whose piece exceeds it is
    * partitioned further, exactly as the union cap partitions. Omitted, size is
    * not measured and nothing packs against it.
    *
@@ -286,7 +286,7 @@ export function partitionLabelLine(
 
 /**
  * The serialized size of a schema, in the exact rendering a request's
- * `response_format` carries. Exported for the extraction strategies above this
+ * `responseFormat` carries. Exported for the extraction strategies above this
  * module, which must measure the WHOLE schema against the same caps the split
  * packs its pieces against.
  *

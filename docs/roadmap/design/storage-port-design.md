@@ -243,19 +243,19 @@ The rename follows rules rather than a table, and the barrel is regenerated from
 ### 5.1 The row noun, and the payload rename
 
 `OutboxItem` is the persisted row; the payload it carries at `.recording` is `CaptureItem`, the
-union of `Recording` and `DocumentCapture`. Naming the row `Capture` gives the best symmetry —
+union of `AudioCapture` and `DocumentCapture`. Naming the row `Capture` gives the best symmetry —
 `storage.captures` yields `Capture[]` — but leaves `Capture` and `CaptureItem` one word apart, with
 one containing the other.
 
 **The payload is renamed instead.** The row becomes `Capture`; today's `CaptureItem` becomes
-`CapturePayload`. `Transcriber<S extends CapturePayload = Recording>` reads correctly, and the two
+`CapturePayload`. `Transcriber<S extends CapturePayload = AudioCapture>` reads correctly, and the two
 nouns stop competing.
 
 This widens the change beyond storage, but less than expected: `CaptureItem` has 85 non-test
 references across 19 files, and every code reference is inside `ribo-core` itself — `transcriber.ts`,
 `restrict-to-kind.ts`, `fallback-transcriber.ts`, `fake-transcriber.ts`, `recording.ts`,
 `capture-item.ts` and storage. The four transcriber packages never name it; they ride the
-`= Recording` default. The rest is four guide pages.
+`= AudioCapture` default. The rest is four guide pages.
 
 ## 6. Key-value stores and their scopes
 

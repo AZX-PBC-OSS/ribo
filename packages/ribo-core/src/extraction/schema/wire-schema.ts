@@ -87,7 +87,7 @@ export function stripJsonSchemaDescriptions(node: unknown): unknown {
 }
 
 /**
- * Render a zod schema the way a request's `response_format` carries it —
+ * Render a zod schema the way a request's `responseFormat` carries it —
  * `z.toJSONSchema` (draft-2020-12) with the field descriptions stripped for the
  * prompt, unless `keepDescriptions` keeps them (the "schema" mode of the
  * `fieldDescriptions` option).

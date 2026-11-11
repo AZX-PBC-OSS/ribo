@@ -112,7 +112,7 @@ function fakeChat(respond: (request: ChatRequest) => ChatCompletion): {
   };
 }
 
-const requestName = (request: ChatRequest): string => request.response_format.json_schema.name;
+const requestName = (request: ChatRequest): string => request.responseFormat.json_schema.name;
 const bodyChat = (): { chat: ChatClient; requests: ChatRequest[] } =>
   fakeChat((request) => ({
     content: BODIES[requestName(request)] ?? "{}",

@@ -133,7 +133,7 @@ measure, it won't — it picks the first one in your list that's ready right now
 engine first; put the one you want as a last resort, last. If availability changes fast — an
 uplink returns, a model finishes downloading — call `invalidate()`; don't shorten the TTL.
 
-`hedged` composes differently: it starts your preferred engine and only starts a fallback if the
+`hedgedTranscriber` composes differently: it starts your preferred engine and only starts a fallback if the
 preferred one hasn't finished within a delay computed from `DEFAULT_HEDGE_FACTOR` (a multiple of a
 host-supplied predicted duration), floored at `DEFAULT_HEDGE_FLOOR_MS` so a hedge never fires before
 the primary has had a chance to start, and capped at `DEFAULT_HEDGE_BUDGET_MS` regardless of what the

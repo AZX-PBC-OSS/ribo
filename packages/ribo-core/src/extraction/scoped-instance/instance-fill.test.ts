@@ -155,7 +155,7 @@ describe("scopedInstanceExtractor", () => {
     };
 
     const { chat, requests } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-mixed-widgets-fill-0") {
         return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
       }
@@ -194,7 +194,7 @@ describe("scopedInstanceExtractor", () => {
     // Inventory + one fill per piece. The loose piece is one call, named
     // without the group infix — the flat fallback's fill name.
     expect(result.usage.calls).toBe(4);
-    expect(requests.map((r) => r.response_format.json_schema.name).sort()).toEqual([
+    expect(requests.map((r) => r.responseFormat.json_schema.name).sort()).toEqual([
       "demo-mixed-fill",
       "demo-mixed-house-fill",
       "demo-mixed-widgets-fill-0",
@@ -225,7 +225,7 @@ describe("scopedInstanceExtractor", () => {
     });
 
     const { chat, requests } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-widgets-fill-0") {
         return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
       }
@@ -316,7 +316,7 @@ describe("scopedInstanceExtractor", () => {
     });
 
     const { chat, requests } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-widgets-fill-0") {
         return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
       }
@@ -337,7 +337,7 @@ describe("scopedInstanceExtractor", () => {
     await extractor.extract({ text: "the full transcript", annotations: {} });
 
     const firstFill = requests.find(
-      (r) => r.response_format.json_schema.name === "demo-widgets-fill-0",
+      (r) => r.responseFormat.json_schema.name === "demo-widgets-fill-0",
     );
     expect(firstFill).toBeDefined();
     const system = firstFill!.messages[0]!.content;
@@ -362,7 +362,7 @@ describe("scopedInstanceExtractor", () => {
     });
 
     const { chat, requests } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-house-fill") {
         return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
       }
@@ -380,7 +380,7 @@ describe("scopedInstanceExtractor", () => {
     await extractor.extract({ text: transcript, annotations: {} });
 
     const widgetFill = requests.find(
-      (r) => r.response_format.json_schema.name === "demo-widgets-fill-0",
+      (r) => r.responseFormat.json_schema.name === "demo-widgets-fill-0",
     );
     expect(widgetFill).toBeDefined();
     const last = widgetFill!.messages[widgetFill!.messages.length - 1];
@@ -417,7 +417,7 @@ describe("scopedInstanceExtractor", () => {
 
     expect(result.fields.widgets).toEqual([]);
     expect(
-      requests.some((r) => r.response_format.json_schema.name.startsWith("demo-widgets-fill")),
+      requests.some((r) => r.responseFormat.json_schema.name.startsWith("demo-widgets-fill")),
     ).toBe(false);
   });
 
@@ -467,7 +467,7 @@ describe("scopedInstanceExtractor", () => {
     });
 
     const { chat, requests } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-house-fill") {
         return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
       }
@@ -489,7 +489,7 @@ describe("scopedInstanceExtractor", () => {
     expect(result.fields.widgets).toEqual([]);
     expect(result.fields.gadgets).toEqual([]);
     expect(
-      requests.some((r) => r.response_format.json_schema.name.startsWith("demo-widgets-fill")),
+      requests.some((r) => r.responseFormat.json_schema.name.startsWith("demo-widgets-fill")),
     ).toBe(false);
   });
 
@@ -521,7 +521,7 @@ describe("scopedInstanceExtractor", () => {
 
     // The singleton branch runs exactly as today regardless of roster shape.
     expect(result.fields.house?.name.value).toBe("main");
-    expect(requests.some((r) => r.response_format.json_schema.name === "demo-house-fill")).toBe(
+    expect(requests.some((r) => r.responseFormat.json_schema.name === "demo-house-fill")).toBe(
       true,
     );
   });
@@ -725,7 +725,7 @@ const bigRoster: Roster = {
  */
 function fakeBigChat(): { chat: ChatClient; requests: ChatRequest[] } {
   return fakeChat((request) => {
-    const name = request.response_format.json_schema.name;
+    const name = request.responseFormat.json_schema.name;
     const systems = /^demo-big-systems-fill-(\d+)-(\d+)$/.exec(name);
     if (systems) {
       const [, part, instance] = systems;
@@ -774,8 +774,8 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
     // Each request was actually pinned to one piece's leaf subset — the merge
     // assertions below are meaningless if nothing was partitioned.
     for (const request of requests) {
-      const name = request.response_format.json_schema.name;
-      const schema = request.response_format.json_schema.schema as {
+      const name = request.responseFormat.json_schema.name;
+      const schema = request.responseFormat.json_schema.schema as {
         properties: Record<string, { properties: Record<string, unknown> }>;
       };
       const groupKey = name.includes("systems") ? "systems" : "profile";
@@ -807,7 +807,7 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
 
   test("a partitioned piece's few-shot example is narrowed to that piece's leaves", async () => {
     // The same rationale as buildGroupMessages' leafKeys: the assistant turn a
-    // piece imitates must not carry fields its own response_format rejects.
+    // piece imitates must not carry fields its own responseFormat rejects.
     const targetWithExample: ExtractionTarget<BigValues> = {
       ...bigTarget,
       examples: [
@@ -832,7 +832,7 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
 
     expect(requests).toHaveLength(6);
     for (const request of requests) {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       const part = Number(/-(\d+)(?:-\d+)?$/.exec(name)![1]);
       const assistant = request.messages.find((m) => m.role === "assistant")!;
       const fields = JSON.parse(assistant.content) as Record<string, Record<string, unknown>>;
@@ -867,7 +867,7 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
       widgets: [currentCandidate("the red widget")],
     });
     const { chat, requests } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-widgets-fill-0") {
         return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
       }
@@ -887,7 +887,7 @@ describe("scopedInstanceExtractor — leaf-count partitioning", () => {
 
     const result = await extractor.extract({ text: "the full transcript", annotations: {} });
 
-    expect(requests.map((r) => r.response_format.json_schema.name)).toEqual([
+    expect(requests.map((r) => r.responseFormat.json_schema.name)).toEqual([
       "demo-widgets-fill-0",
       "demo-house-fill",
     ]);
@@ -935,7 +935,7 @@ const twoCandidateRoster: Roster = {
 
 function obsChat(): { chat: ChatClient; requests: ChatRequest[] } {
   return fakeChat((request) => {
-    const name = request.response_format.json_schema.name;
+    const name = request.responseFormat.json_schema.name;
     if (name === "demo-obs-widgets-fill-0")
       return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
     if (name === "demo-obs-widgets-fill-1")
@@ -1091,7 +1091,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
       gadgets: [],
     });
     const { chat } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-house-fill")
         return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
       throw new Error(`Unexpected request: ${name}`);
@@ -1124,7 +1124,7 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
 
     function makeChat(): { chat: ChatClient; requests: ChatRequest[] } {
       return fakeChat((request) => {
-        const name = request.response_format.json_schema.name;
+        const name = request.responseFormat.json_schema.name;
         if (name === "demo-widgets-fill-0")
           return { content: JSON.stringify(widgetResponse("red", null)), finishReason: "stop" };
         if (name === "demo-house-fill")
@@ -1159,8 +1159,8 @@ describe("scopedInstanceExtractor — extraction observability (Task 4)", () => 
     expect(resultWithout.raw).toEqual(resultWith.raw);
 
     // Call sequences are identical — same request names in the same order.
-    const namesWith = withObserver.requests.map((r) => r.response_format.json_schema.name);
-    const namesWithout = withoutObserver.requests.map((r) => r.response_format.json_schema.name);
+    const namesWith = withObserver.requests.map((r) => r.responseFormat.json_schema.name);
+    const namesWithout = withoutObserver.requests.map((r) => r.responseFormat.json_schema.name);
     expect(namesWithout).toEqual(namesWith);
   });
 
@@ -1248,7 +1248,7 @@ describe("scopedInstanceExtractor — Wave 5 regression pins", () => {
       gadgets: [],
     });
     const { chat } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-house-fill") {
         return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
       }
@@ -1278,7 +1278,7 @@ describe("scopedInstanceExtractor — Wave 5 regression pins", () => {
       widgets: [currentCandidate("the red widget")],
     });
     const { chat } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-house-fill") {
         return { content: JSON.stringify(houseResponse("main")), finishReason: "stop" };
       }
@@ -1324,7 +1324,7 @@ describe("scopedInstanceExtractor — Wave 5 regression pins", () => {
     // the changeset.
     let widgetFillAttempts = 0;
     const { chat, requests } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-obs-widgets-fill-0") {
         widgetFillAttempts += 1;
         if (widgetFillAttempts === 1) {
@@ -1363,7 +1363,7 @@ describe("scopedInstanceExtractor — Wave 5 regression pins", () => {
     // status.
     let widgetFillAttempts = 0;
     const { chat } = fakeChat((request) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-obs-widgets-fill-0") {
         widgetFillAttempts += 1;
         throw Object.assign(new Error("not found"), { status: 404 });
@@ -1432,13 +1432,13 @@ describe("scopedInstanceExtractor — byte-cap option flow-through (flat partiti
     const chat: ChatClient = {
       complete: async (request) => {
         requests.push(request);
-        const name = request.response_format.json_schema.name;
+        const name = request.responseFormat.json_schema.name;
         const m = /-(\d+)$/.exec(name);
         if (m === null) throw new Error(`unpartitioned fill should not appear here: ${name}`);
-        // Each response carries exactly the leaves its request's response_format
+        // Each response carries exactly the leaves its request's responseFormat
         // accepts — read the schema off the request so the partition layout is
         // not hard-coded here.
-        const schema = request.response_format.json_schema.schema as {
+        const schema = request.responseFormat.json_schema.schema as {
           properties: Record<string, unknown>;
         };
         const fields: Record<string, unknown> = {};
@@ -1461,7 +1461,7 @@ describe("scopedInstanceExtractor — byte-cap option flow-through (flat partiti
     // N fill calls (no inventory replies needed — the flat schema's pieces
     // occupy the call budget); one per piece, with a distinct -<part> suffix.
     expect(requests.length).toBeGreaterThan(1);
-    const names = requests.map((r) => r.response_format.json_schema.name);
+    const names = requests.map((r) => r.responseFormat.json_schema.name);
     // Every name carries a part suffix — distinct wire identifiers, the bug
     // finding 2 fixed.
     expect(new Set(names).size).toBe(requests.length);

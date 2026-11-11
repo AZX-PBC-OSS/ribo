@@ -1,6 +1,6 @@
 # Transcriber
 
-A `Transcriber` turns one captured item — a `Recording` or a `DocumentCapture` — into citable
+A `Transcriber` turns one captured item — an `AudioCapture` or a `DocumentCapture` — into citable
 text: it reports what the engine can do right now through `capability()`, and turns the captured
 bytes into a `Transcript` through `transcribe()`. It is the seam every transcription engine
 implements — on-device Whisper, the managed Azure path, the pdf.js document engine, and the
@@ -18,12 +18,12 @@ directly except the relay, which drains against a `Transcriber<CapturePayload>`.
 
 <<< @/api/examples/transcriber.run.ts#usage
 
-The contract is generic — `Transcriber<S extends CapturePayload = Recording>` — so **"Recording"
+The contract is generic — `Transcriber<S extends CapturePayload = AudioCapture>` — so **"AudioCapture"
 is the default type parameter** while the rest of the surface says "capture". A document engine
 implements `Transcriber<DocumentCapture>`; an engine that accepts either kind implements
 `Transcriber<CapturePayload>`. The full example constructs both. The asymmetry is deliberate and
 enforced: `transcribe` is declared as a function-typed property, not a method, so an audio-only
-`Transcriber<Recording>` does not slide unchallenged into a `Transcriber<CapturePayload>` slot —
+`Transcriber<AudioCapture>` does not slide unchallenged into a `Transcriber<CapturePayload>` slot —
 the compiler sends a host to `restrictToKind` instead.
 
 ## Options
@@ -100,7 +100,7 @@ quoted under Options.
 
 - [`firstCapable`](/reference/@azx/ribo-core/functions/firstCapable.html) — try engines in
   preference order; first one ready wins.
-- [`hedged`](/reference/@azx/ribo-core/functions/hedged.html) — race a preferred engine against
+- [`hedgedTranscriber`](/reference/@azx/ribo-core/functions/hedgedTranscriber.html) — race a preferred engine against
   a fallback on a latency budget.
 - [`fallbackTranscriber`](/reference/@azx/ribo-core/functions/fallbackTranscriber.html) — let an
   arbiter decide whether an outcome is acceptable.

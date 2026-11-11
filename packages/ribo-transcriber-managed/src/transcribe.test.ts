@@ -2,7 +2,7 @@ import {
   isTransientFailure,
   TerminalError,
   TranscriberUnavailableError,
-  type Recording,
+  type AudioCapture,
 } from "@azx/ribo-core";
 import { describe, expect, test } from "vitest";
 
@@ -20,7 +20,7 @@ import { MANAGED_AZURE_SPEECH_ENGINE } from "./config.js";
 const ENDPOINT =
   "https://myresource.cognitiveservices.azure.com/speechtotext/transcriptions:transcribe?api-version=2025-10-15";
 
-const RECORDING: Recording = {
+const RECORDING: AudioCapture = {
   id: "rec-001",
   capturedAt: "2026-08-17T12:00:00.000Z",
   kind: "audio",

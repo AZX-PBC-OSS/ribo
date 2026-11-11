@@ -115,7 +115,7 @@ The fix is one line; the pins exist so the next member added to the bag does not
 
   **Pin what the error carries when the budget was narrowed.** `ExtractionTimeoutError`'s message names "the budget that elapsed", and with an inherited deadline there are two candidate numbers — this combinator's own `timeoutMs` and the shorter inherited remainder. Use the **effective** budget actually waited, since that is what elapsed; for the already-in-the-past case, where nothing elapsed, use the combinator's own `timeoutMs`. Either choice is defensible, but it must be one of them and it must be asserted.
 
-  Use the injected `scheduleTimer` and an injectable clock. `timeout-extractor.ts` has no clock seam from Wave 1 — add one (`now?: () => number`, defaulting to `Date.now`), matching `compositeExtractor` and `hedged`. The existing `makeCapturedTimer` double discards the delay it is handed, so extend it to record that value: the "timer scheduled for the remaining interval" assertions cannot be written without it.
+  Use the injected `scheduleTimer` and an injectable clock. `timeout-extractor.ts` has no clock seam from Wave 1 — add one (`now?: () => number`, defaulting to `Date.now`), matching `compositeExtractor` and `hedgedTranscriber`. The existing `makeCapturedTimer` double discards the delay it is handed, so extend it to record that value: the "timer scheduled for the remaining interval" assertions cannot be written without it.
 
 - [ ] **Step 2: Run to verify they fail**
 

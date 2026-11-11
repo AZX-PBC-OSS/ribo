@@ -15,7 +15,7 @@ interface Extractor<F> {
 }
 ```
 
-One method, and it never sees a `CapturePayload`, a `Recording`, or a `DocumentCapture` — only the
+One method, and it never sees a `CapturePayload`, an `AudioCapture`, or a `DocumentCapture` — only the
 joined transcript a session assembles. An extractor that took a capture would have to know whether
 the words came from a microphone or a scanner, and nothing about turning text into fields cares.
 This is the same structural split [Sessions](/guide/sessions) describes, from the other side.
@@ -109,8 +109,8 @@ import { scriptedChat, singleShotExtractor } from "@azx/ribo-core";
 const chat = scriptedChat((request) => {
   // Matching is plain caller code — there is no rule list. The extraction
   // target's name is what `singleShotExtractor` puts in `json_schema.name`.
-  if (request.response_format.json_schema.name !== "contact") {
-    throw new Error(`unexpected schema: ${request.response_format.json_schema.name}`);
+  if (request.responseFormat.json_schema.name !== "contact") {
+    throw new Error(`unexpected schema: ${request.responseFormat.json_schema.name}`);
   }
   // Objects are serialised for you; strings pass through as-is.
   return {

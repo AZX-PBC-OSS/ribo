@@ -101,7 +101,7 @@ function fakeChat(responses: Record<string, string>): {
     chat: {
       complete: (request) => {
         requests.push(request);
-        const name = request.response_format.json_schema.name;
+        const name = request.responseFormat.json_schema.name;
         return Promise.resolve({ content: responses[name] ?? "{}", finishReason: "stop" });
       },
     },
@@ -441,10 +441,10 @@ describe("overrideGroups — the running example", () => {
     // projected target's name; the plan's chat received none for that key and
     // all of them for every other key. (Pieces run concurrently, so assert the
     // key SET, not the order.)
-    expect(cheapChat.requests.map((r) => r.response_format.json_schema.name)).toEqual([
+    expect(cheapChat.requests.map((r) => r.responseFormat.json_schema.name)).toEqual([
       "demo-componentLoads",
     ]);
-    expect(planChat.requests.map((r) => r.response_format.json_schema.name).sort()).toEqual([
+    expect(planChat.requests.map((r) => r.responseFormat.json_schema.name).sort()).toEqual([
       "demo-attic",
       "demo-health-0",
       "demo-health-1",
@@ -496,10 +496,10 @@ describe("overrideGroups — the running example", () => {
     const result = await extractor.extract({ text: "t", annotations: {} });
 
     // Exactly one follow-up — piece 0's — named for the piece, and piece 1 made none.
-    expect(gapChat.requests.map((r) => r.response_format.json_schema.name)).toEqual([
+    expect(gapChat.requests.map((r) => r.responseFormat.json_schema.name)).toEqual([
       "demo-health-0-gap-fill",
     ]);
-    const followUpSchema = gapChat.requests[0]!.response_format.json_schema.schema as {
+    const followUpSchema = gapChat.requests[0]!.responseFormat.json_schema.schema as {
       properties: Record<string, unknown>;
     };
     expect(Object.keys(followUpSchema.properties)).toEqual(["health.h3"]);

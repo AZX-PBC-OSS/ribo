@@ -8,7 +8,7 @@ import {
   type CapturePayload,
   type DocumentCapture,
 } from "./capture-item.js";
-import { baseRecordingSchema, type Recording } from "./recording.js";
+import { baseAudioCaptureSchema, type AudioCapture } from "./audio-capture.js";
 
 const jobContext = z.object({ jobId: z.string().min(1) });
 const schema = capturePayloadSchema(jobContext);
@@ -148,8 +148,8 @@ describe("capturePayloadSchema — type-level properties", () => {
     }
   });
 
-  test("Recording and DocumentCapture are both CapturePayload members", () => {
-    const rec: Recording = baseRecordingSchema.parse({
+  test("AudioCapture and DocumentCapture are both CapturePayload members", () => {
+    const rec: AudioCapture = baseAudioCaptureSchema.parse({
       id: "r",
       capturedAt: "2026-07-23T10:00:00.000Z",
       kind: "audio",

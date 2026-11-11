@@ -40,7 +40,7 @@ Three things make it a contract rather than a helper.
 **The accept/reject judgement is domain knowledge, and the core does not have it.** Whether a result
 is good enough is not answerable from an `ExtractionResult` alone. "Did this segment the house
 acceptably" is a question about audit data. `ribo-core` deliberately does not know what a real-time
-factor is (`hedged`), and `SelectableCapability` is structurally typed precisely so a core combinator
+factor is (`hedgedTranscriber`), and `SelectableCapability` is structurally typed precisely so a core combinator
 does not import any one engine's vocabulary. The same discipline applies here: **the core accumulates
 outcomes and calls out to an arbiter the host supplies.**
 
@@ -58,14 +58,14 @@ the primary one's. §5 is not optional polish; it is the thing that makes the me
 
 ## 3. The shape these combinators share
 
-`compositeExtractor`, `hedged` and the fallback proposed here are one shape with four knobs.
+`compositeExtractor`, `hedgedTranscriber` and the fallback proposed here are one shape with four knobs.
 
-| Knob            | What it decides                     | `compositeExtractor` | `hedged`         | fallback           |
-| --------------- | ----------------------------------- | -------------------- | ---------------- | ------------------ |
-| **Candidates**  | what may run                        | engines              | two transcribers | strategies         |
-| **Admission**   | may this candidate be tried at all? | capability probe     | capability probe | none               |
-| **Scheduling**  | when does the next candidate start? | on demand            | after a delay    | on failure         |
-| **Arbitration** | given what is back, are we done?    | none                 | first to finish  | outcome classifier |
+| Knob            | What it decides                     | `compositeExtractor` | `hedgedTranscriber` | fallback           |
+| --------------- | ----------------------------------- | -------------------- | ------------------- | ------------------ |
+| **Candidates**  | what may run                        | engines              | two transcribers    | strategies         |
+| **Admission**   | may this candidate be tried at all? | capability probe     | capability probe    | none               |
+| **Scheduling**  | when does the next candidate start? | on demand            | after a delay       | on failure         |
+| **Arbitration** | given what is back, are we done?    | none                 | first to finish     | outcome classifier |
 
 `raceExtractor` is a fourth setting of the same knobs — no admission, concurrent scheduling, an
 arbiter over accumulated outcomes. It is discussed in §4.5, including why it has no admission gate.
@@ -75,14 +75,14 @@ and neither has the other's gate.
 
 ### 3.1 What this design does _not_ unify, and why
 
-`hedged` and `firstCapable` are **`Transcriber`** combinators. `compositeExtractor` is the only
+`hedgedTranscriber` and `firstCapable` are **`Transcriber`** combinators. `compositeExtractor` is the only
 extractor-side one. A single engine spanning both seams would have to be generic over the delegate
-operation (`Recording → Transcript` versus `string → ExtractionResult<F>`), which is possible but
+operation (`AudioCapture → Transcript` versus `string → ExtractionResult<F>`), which is possible but
 means refactoring shipped transcriber behaviour carrying eight documented resolution rules.
 
-One of those rules is not a convenience. `hedged`'s file header states:
+One of those rules is not a convenience. `hedgedTranscriber`'s file header states:
 
-> A deployment that will not let audio leave the device simply never calls `hedged`; the default
+> A deployment that will not let audio leave the device simply never calls `hedgedTranscriber`; the default
 > composition stays privacy-preserving.
 
 That property is **structural today** — you cannot accidentally obtain concurrency, because the
@@ -245,7 +245,7 @@ called as each result lands can accept early or wait for a better one, which is 
 than "first to finish."
 
 It is a **separate constructor with no scheduling parameter**, per §3.1, and that separation is doing
-real work rather than mirroring `hedged` for symmetry's sake.
+real work rather than mirroring `hedgedTranscriber` for symmetry's sake.
 
 The privacy exposure is smaller here than on the transcriber seam but it is **not zero**, and an
 earlier draft of this section wrongly said it was. A sequential ladder reaches a managed engine only
@@ -254,11 +254,11 @@ default composition already prefers managed-first (`composite-extractor.ts` inve
 preference on purpose), so racing usually reveals the transcript to nobody new — but a host that
 deliberately ordered an on-device engine first for privacy reasons would have that intent silently
 reversed by a scheduling flag. Keeping `raceExtractor` a distinct constructor means concurrency is
-always something a caller asked for by name, which is the same property `hedged` protects, obtained
+always something a caller asked for by name, which is the same property `hedgedTranscriber` protects, obtained
 the same way.
 
 **`raceExtractor` has no admission gate, and that is a decision rather than an omission.** The
-four-knob table in §3 lists admission for `compositeExtractor` and `hedged` and omits race entirely,
+four-knob table in §3 lists admission for `compositeExtractor` and `hedgedTranscriber` and omits race entirely,
 which left the asymmetry looking accidental — it was asked about, the answer had to be reconstructed
 from the code, and the likely "fix" from a reader who reconstructs it differently is to add a probe.
 So it is written down here.
@@ -329,7 +329,7 @@ Two consequences follow, and both matter more than the field does:
 | `ribo-core/composite-extractor.ts`        | reimplemented over the engine; **public behaviour and rule 5 unchanged**, proven by its existing suite passing untouched |
 | `ribo-core/index.ts`                      | exports                                                                                                                  |
 
-`hedged.ts`, `first-capable.ts` and every transcriber path: **no change**.
+`hedged-transcriber.ts`, `first-capable.ts` and every transcriber path: **no change**.
 
 ## 7. Testing
 
@@ -345,7 +345,7 @@ The must-fail tests, stated as the behaviours that would be broken:
   handling classify it exactly as they would without the combinator in the path.
 - `usage.strategy` names the accepted candidate, including when the accepted candidate is the first.
 - Every discarded promise in `raceExtractor` has a rejection handler, so a losing failure never
-  surfaces as an unhandled rejection — the same guard `hedged` documents.
+  surfaces as an unhandled rejection — the same guard `hedgedTranscriber` documents.
 - `compositeExtractor`'s existing suite passes with no edits. This is the regression gate for the
   reimplementation, and it is the reason rule 5 can be claimed to survive rather than asserted to.
 
@@ -361,7 +361,7 @@ The must-fail tests, stated as the behaviours that would be broken:
   widening.
 
 - **Cross-seam unification.** Making the engine generic over the delegate operation so `firstCapable`
-  and `hedged` share it. Real, and worth doing against a passing transcriber suite once the extractor
+  and `hedgedTranscriber` share it. Real, and worth doing against a passing transcriber suite once the extractor
   side has proven the shape. Not done blind, and not done in the same change that introduces the
   engine.
 - **A transcriber-side arbiter.** Same reasoning.

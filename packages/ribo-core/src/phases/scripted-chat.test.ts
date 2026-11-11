@@ -90,10 +90,10 @@ describe("scriptedChat", () => {
   test("a callback switching on the schema name drives singleShotExtractor end to end", async () => {
     const chat = scriptedChat((request) => {
       // Plain caller code — there is no rule list: dispatch on the extraction target's name.
-      if (request.response_format.json_schema.name === "contact") {
+      if (request.responseFormat.json_schema.name === "contact") {
         return { content: contactReply };
       }
-      throw new Error(`unexpected schema: ${request.response_format.json_schema.name}`);
+      throw new Error(`unexpected schema: ${request.responseFormat.json_schema.name}`);
     });
     const extractor = singleShotExtractor({ target: contactTarget, chat, model: "fake" });
 
@@ -108,7 +108,7 @@ describe("scriptedChat", () => {
     expect(result.usage.calls).toBe(1);
     // And the scripted client saw the full request the extractor built.
     expect(chat.calls).toHaveLength(1);
-    expect(chat.calls[0]?.response_format.json_schema.name).toBe("contact");
+    expect(chat.calls[0]?.responseFormat.json_schema.name).toBe("contact");
     expect(chat.calls[0]?.model).toBe("fake");
   });
 
@@ -393,7 +393,7 @@ function request(): ChatRequest {
   return {
     model: "fake",
     messages: [{ role: "user", content: "hello" }],
-    response_format: {
+    responseFormat: {
       type: "json_schema",
       json_schema: { name: "contact", schema: { type: "object" }, strict: true },
     },

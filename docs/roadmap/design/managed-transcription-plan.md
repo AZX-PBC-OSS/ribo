@@ -188,7 +188,7 @@ exists to prevent** (`transcriber.ts`, and rule 5 of `firstCapable`):
   a second classifier.
 
 **Interfaces.** Consumes Task 3's options and class. Produces a `Transcript` whose `recordingId`
-matches the input `Recording` and whose `engine` is the package's engine id.
+matches the input `AudioCapture` and whose `engine` is the package's engine id.
 
 **Must-fail tests.** Drive these with an injected `fetch` double; **no test may make a network call.**
 

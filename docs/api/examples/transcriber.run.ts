@@ -14,14 +14,14 @@ import {
   FakeTranscriber,
   isPermanentlyUnavailable,
   type DocumentCapture,
-  type Recording,
+  type AudioCapture,
   TranscriberUnavailableError,
   type Transcriber,
   type TranscriberCapability,
   type Transcript,
 } from "@azx/ribo-core";
 
-function recording(id: string): Recording {
+function recording(id: string): AudioCapture {
   return {
     id,
     capturedAt: new Date().toISOString(),

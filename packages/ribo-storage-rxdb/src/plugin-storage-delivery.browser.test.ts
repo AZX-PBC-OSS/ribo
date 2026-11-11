@@ -4,7 +4,7 @@ import { afterEach, expect, test } from "vitest";
 
 import { FakeTranscriber } from "@azx/ribo-core";
 import type { CapturePayload } from "@azx/ribo-core";
-import type { Recording } from "@azx/ribo-core";
+import type { AudioCapture } from "@azx/ribo-core";
 import { openStorage } from "@azx/ribo-core";
 import { createRelay } from "@azx/ribo-core";
 import { toSessionExtractStep } from "@azx/ribo-core";
@@ -34,7 +34,7 @@ afterEach(async () => {
   for (const name of usedNames.splice(0)) await removeStorageDatabase(name);
 });
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-09-11T10:00:00.000Z",
   kind: "audio",

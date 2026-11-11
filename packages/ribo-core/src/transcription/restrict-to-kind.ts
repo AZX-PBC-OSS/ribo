@@ -9,7 +9,7 @@ import type { Transcriber, TranscriberCapability } from "./transcriber.js";
  * See the document-transcription plan D7a for the full reasoning. The short
  * version: `RelayOptions.transcriber` is `Transcriber<CapturePayload>`, because the
  * queue can hold either kind. With `transcribe` declared as a property (not a
- * method), an audio-only `Transcriber<Recording>` no longer typechecks into
+ * method), an audio-only `Transcriber<AudioCapture>` no longer typechecks into
  * that slot — which is the point. The compiler sends the host here, and this
  * combinator lifts the narrow engine by refusing other kinds with
  * {@link UnsupportedItemError} and delegating for the matching kind.

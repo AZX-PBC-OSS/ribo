@@ -9,14 +9,14 @@ import {
  * @file The TTL-keyed capability cache the transcription combinators share.
  *
  * Extracted from `first-capable.ts` when `raceTranscriber` became the third
- * copy of the same shape — `hedged` was already a second copy, because the plan
+ * copy of the same shape — `hedgedTranscriber` was already a second copy, because the plan
  * that added it forbade modifying `first-capable.ts`. Both copies are
  * line-for-line identical, so what is extracted here is exactly what they
  * share: a per-engine verdict keyed by `Transcriber.engine`, an injectable
  * clock, a TTL, permanent verdicts cached without expiry, and an
  * invalidate-one-or-all.
  *
- * **The migration is deliberate and unfinished.** `firstCapable` and `hedged`
+ * **The migration is deliberate and unfinished.** `firstCapable` and `hedgedTranscriber`
  * still carry their own copies of this shape, which changes no shipped
  * behaviour; moving them onto this module is a follow-up, not an error to fix
  * in passing. Do not add a fourth copy — use this one.

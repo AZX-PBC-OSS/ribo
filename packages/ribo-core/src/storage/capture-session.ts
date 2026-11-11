@@ -3,7 +3,7 @@ import { BehaviorSubject } from "rxjs";
 
 import type { Storage } from "./storage.js";
 import type { Capture } from "./capture-schema.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import { chunkName, sliceOversized } from "./chunk-names.js";
 
 /**
@@ -27,7 +27,7 @@ const MAX_CHUNK_BYTES = 10_000_000;
 /** @category Offline & Storage */
 export interface CaptureSessionOptions {
   storage: Storage;
-  recording: Recording;
+  recording: AudioCapture;
   sourceId: string;
   mimeType: string;
   /** The session this recording belongs to. */

@@ -16,7 +16,7 @@ home-energy audits — not the subject.
 pipeline, with a headless React hook layer over it.** `@azx/ribo-core` holds the contracts and the
 engine: the provenance envelope (`extractedSchema`, `isSpanGrounded`, `spanGroundedness`) and the
 derivation that applies it at a group's chosen granularity (`enveloped(schema, { provenance })` —
-one span per leaf by default, or one per row for a wide table), `Recording` / `Transcript`,
+one span per leaf by default, or one per row for a wide table), `AudioCapture` / `Transcript`,
 the `Transcriber` contract (capability reporting, `firstCapable` selection, a `FakeTranscriber`
 double), the `Extractor<F>` seam (`toSessionExtractStep`, `FakeExtractor`), the extraction-arbitration
 engine for composing strategies (`fallbackExtractor`, `raceExtractor`, the `ExtractionArbiter`
@@ -48,7 +48,7 @@ device's real-time factor at `prime()` time, which is what lets `capability()` r
 `@azx/ribo-transcriber-managed` is the fallback for devices that fail that gate — Azure AI Speech
 Fast Transcription behind the same `Transcriber` seam, with **no capacity to authenticate**: it takes
 an endpoint and an injected `fetch`, so the credential lives in the host's transport and never in the
-package. `ribo-core` composes the two with `firstCapable` (sequential) or `hedged` (an opt-in race on
+package. `ribo-core` composes the two with `firstCapable` (sequential) or `hedgedTranscriber` (an opt-in race on
 a latency budget). `@azx/ribo-adapter-snuggpro` is the real Snugg Pro `ToolAdapter`; the
 managed-LLM strategies (single-shot, the per-group/instance/shape strategies, the schema split and
 the shape derivation) live in `ribo-core` itself, spoken through two chat transports that are each

@@ -1,6 +1,6 @@
 import { createMemoryBackend } from "./storage/memory-backend.js";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { baseRecordingSchema } from "./capture/recording.js";
+import { baseAudioCaptureSchema } from "./capture/audio-capture.js";
 import {
   DEFAULT_MIME_TYPE_PREFERENCES,
   negotiateMimeType,
@@ -14,7 +14,7 @@ import {
 import { holdLock } from "./storage/capture-lock.js";
 import { CAPTURE_LOCK, isLockFree, openCaptureSession, openStorage } from "./storage/index.js";
 import type { CaptureSession } from "./storage/index.js";
-import type { Recording } from "./capture/recording.js";
+import type { AudioCapture } from "./capture/audio-capture.js";
 
 // Browser mode, not jsdom, and the filename says so: `*.browser.test.ts` is the
 // discovery contract in vitest.config.ts. Renaming this file to `*.test.ts`
@@ -82,7 +82,7 @@ describe("negotiateMimeType", () => {
   test("every default preference is a concrete type, not a wildcard", () => {
     // A bare `audio/webm` with no codecs parameter is legal as a *fallback*,
     // but the entries must never be patterns — `isTypeSupported` does not glob,
-    // and a MIME type recorded onto a `Recording` must be one a decoder can act
+    // and a MIME type recorded onto a `AudioCapture` must be one a decoder can act
     // on.
     for (const type of DEFAULT_MIME_TYPE_PREFERENCES) {
       expect(type).toMatch(/^audio\/[a-z0-9.+-]+(;codecs=[a-z0-9,.+-]+)?$/);
@@ -92,7 +92,7 @@ describe("negotiateMimeType", () => {
 
   test("throws an actionable RecorderError when nothing in the list is supported", () => {
     // The alternative — letting MediaRecorder pick its own default — means the
-    // `mimeType` on the Recording lies about the container. That breaks Phase 3
+    // `mimeType` on the AudioCapture lies about the container. That breaks Phase 3
     // decoding in a way that is very hard to trace back to here.
     const attempt = () => negotiateMimeType(["audio/nope", "audio/also-nope"]);
 
@@ -114,7 +114,7 @@ describe("Recorder capture", () => {
     const { recording, audio } = await recorder.stop();
 
     // Metadata goes through the Phase 1 schema, not a hand-rolled shape check.
-    expect(baseRecordingSchema.parse(recording)).toEqual(recording);
+    expect(baseAudioCaptureSchema.parse(recording)).toEqual(recording);
     expect(recording.mimeType).toBe("audio/webm;codecs=opus");
     expect(recording.ctx).toEqual({ jobId: "job_42" });
     expect(recording.durationMs).toBeGreaterThanOrEqual(500);
@@ -605,7 +605,7 @@ describe("Recorder durable capture", () => {
         sourceId,
         mimeType,
       }: {
-        recording: Recording;
+        recording: AudioCapture;
         sourceId: string;
         mimeType: string;
       }): Promise<CaptureSession> =>
@@ -664,7 +664,7 @@ describe("Recorder durable capture", () => {
       sourceId,
       mimeType,
     }: {
-      recording: Recording;
+      recording: AudioCapture;
       sourceId: string;
       mimeType: string;
     }): Promise<CaptureSession> =>
@@ -695,7 +695,7 @@ describe("Recorder durable capture", () => {
       sourceId,
       mimeType,
     }: {
-      recording: Recording;
+      recording: AudioCapture;
       sourceId: string;
       mimeType: string;
     }): Promise<CaptureSession> =>

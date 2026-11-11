@@ -3,8 +3,8 @@ import { switchMap } from "rxjs";
 
 import { basePayloadSchema } from "../capture/capture-item.js";
 import type { CapturePayload } from "../capture/capture-item.js";
-import type { Recording } from "../capture/recording.js";
-import { baseRecordingSchema } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
+import { baseAudioCaptureSchema } from "../capture/audio-capture.js";
 import { isChunkOf } from "./chunk-names.js";
 import { commitRegion, handoffTranscript, writeTail } from "./preview.js";
 import {
@@ -39,7 +39,7 @@ import type { StoreDeps } from "./deps.js";
  */
 export interface EnqueueInput {
   /**
-   * The capture record — audio (`Recording`) or document (`DocumentCapture`),
+   * The capture record — audio (`AudioCapture`) or document (`DocumentCapture`),
    * discriminated by `kind`. The union is parsed at the boundary; the key stays
    * `recording` (persisted on the v6 collection) and the input field stays
    * `audio` (the attachment id `AUDIO_ATTACHMENT_ID` is a persisted name) for
@@ -184,7 +184,7 @@ export class CaptureStore {
     sourceId,
     sessionId,
   }: {
-    recording: Recording;
+    recording: AudioCapture;
     sourceId: string;
     sessionId: string;
   }): Promise<Capture> {
@@ -196,7 +196,7 @@ export class CaptureStore {
       attempts: 0,
       nextAttemptAt: this.#nowIso(),
       enqueuedAt: this.#nowIso(),
-      recording: baseRecordingSchema.parse(recording),
+      recording: baseAudioCaptureSchema.parse(recording),
       capture: { sourceId },
     } satisfies CaptureDocument);
     const inserted = await this.#backend.insertNext("captures", "seq", document);

@@ -10,7 +10,7 @@ import {
   FakeTranscriber,
   firstCapable,
   hedgedExtractor,
-  recordingSchema,
+  audioCaptureSchema,
   resolveReview,
 } from "./index.js";
 import type {
@@ -30,7 +30,7 @@ import type {
   InstanceFacts,
   InstanceMatcher,
   InstanceSameness,
-  Recording,
+  AudioCapture,
   ReviewRequest,
   ToolAdapter,
   Transcriber,
@@ -129,13 +129,15 @@ const TRANSCRIPT_TEXT =
   "The attic is R-19 over about four hundred square feet, the hatch is uninsulated, " +
   "and ambient CO came back clean.";
 
-const recording: Recording<typeof jobContextSchema> = recordingSchema(jobContextSchema).parse({
-  id: "rec-1",
-  capturedAt: "2026-07-23T14:02:00.000Z",
-  durationMs: 8_400,
-  mimeType: "audio/webm;codecs=opus",
-  ctx: { jobId: "job-7" },
-});
+const recording: AudioCapture<typeof jobContextSchema> = audioCaptureSchema(jobContextSchema).parse(
+  {
+    id: "rec-1",
+    capturedAt: "2026-07-23T14:02:00.000Z",
+    durationMs: 8_400,
+    mimeType: "audio/webm;codecs=opus",
+    ctx: { jobId: "job-7" },
+  },
+);
 
 /**
  * The extraction step, faked: a model would return this shape, parsed through the DERIVED
@@ -386,9 +388,9 @@ test("the hedged extractor vocabulary is public through the barrel and composes 
     onHedge: (event) => events.push(event),
   };
   const inner = new FakeExtractor<AtticValues>({ rValue: 19, area: 400, notes: "" });
-  const hedged: Extractor<AtticValues> = hedgedExtractor(inner, inner, options);
+  const hedgedComposite: Extractor<AtticValues> = hedgedExtractor(inner, inner, options);
 
-  const result = await hedged.extract({ text: TRANSCRIPT_TEXT, annotations: {} });
+  const result = await hedgedComposite.extract({ text: TRANSCRIPT_TEXT, annotations: {} });
 
   // The primary settles before any timer could fire, so the hedge never ran and
   // nothing fired — rule 1, the case the combinator exists for.

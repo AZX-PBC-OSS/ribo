@@ -66,7 +66,7 @@ export interface GapFillPhaseOptions<V extends Record<string, unknown>, P = NoPr
    * `extractionSchema` and builds on `instructions`. Few-shot `examples` are NOT
    * projected into the follow-up — candidates can span groups arbitrarily, so no
    * coherent projection exists, and an unprojected example would imitate a shape
-   * the scoped `response_format` forbids (the mismatch the per-group extractor's
+   * the scoped `responseFormat` forbids (the mismatch the per-group extractor's
    * leaf narrowing exists to avoid).
    */
   readonly target: ExtractionTarget<V, P>;
@@ -214,7 +214,7 @@ export function gapFillPhase<V extends Record<string, unknown>, P = NoProvenance
         {
           model,
           messages: buildGapFillMessages(target, item.transcript, item.candidates),
-          response_format: {
+          responseFormat: {
             type: "json_schema",
             json_schema: { name, schema: jsonSchema, strict: true },
           },

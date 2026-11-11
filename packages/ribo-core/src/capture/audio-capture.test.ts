@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
-import { baseRecordingSchema, recordingSchema, type Recording } from "./recording.js";
+import { baseAudioCaptureSchema, audioCaptureSchema, type AudioCapture } from "./audio-capture.js";
 
 const jobContext = z.object({ jobId: z.string().min(1) });
-const schema = recordingSchema(jobContext);
+const schema = audioCaptureSchema(jobContext);
 
 const valid = {
   id: "rec_01",
@@ -14,7 +14,7 @@ const valid = {
   ctx: { jobId: "job_42" },
 };
 
-describe("recordingSchema", () => {
+describe("audioCaptureSchema", () => {
   test("parses a well-formed recording", () => {
     const parsed = schema.parse(valid);
 
@@ -73,26 +73,28 @@ describe("recordingSchema", () => {
   });
 
   test("keeps the host context typed through inference", () => {
-    const parsed: Recording<typeof jobContext> = schema.parse(valid);
+    const parsed: AudioCapture<typeof jobContext> = schema.parse(valid);
     const jobId: string = parsed.ctx.jobId;
 
     expect(jobId).toBe("job_42");
   });
 });
 
-describe("baseRecordingSchema", () => {
+describe("baseAudioCaptureSchema", () => {
   test("parses a recording whose context is unvalidated", () => {
-    expect(baseRecordingSchema.safeParse({ ...valid, ctx: { anything: true } }).success).toBe(true);
+    expect(baseAudioCaptureSchema.safeParse({ ...valid, ctx: { anything: true } }).success).toBe(
+      true,
+    );
   });
 
   test("still requires the ctx key to be present — an opaque slot is not an absent one", () => {
     const { ctx: _ctx, ...withoutCtx } = valid;
 
-    expect(baseRecordingSchema.safeParse(withoutCtx).success).toBe(false);
+    expect(baseAudioCaptureSchema.safeParse(withoutCtx).success).toBe(false);
   });
 
   test("is still strict about the fields it does own", () => {
-    expect(baseRecordingSchema.safeParse({ ...valid, audio: "oops" }).success).toBe(false);
-    expect(baseRecordingSchema.safeParse({ ...valid, id: "" }).success).toBe(false);
+    expect(baseAudioCaptureSchema.safeParse({ ...valid, audio: "oops" }).success).toBe(false);
+    expect(baseAudioCaptureSchema.safeParse({ ...valid, id: "" }).success).toBe(false);
   });
 });

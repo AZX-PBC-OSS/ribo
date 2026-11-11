@@ -169,12 +169,12 @@ describe("schemaRetryExtractor — the self-correction retry", () => {
     expect(feedback.content).toContain("stories");
 
     // The original prompt is otherwise unchanged: same system instructions,
-    // same response SCHEMA (the retry's response_format name differs — `-retry`
+    // same response SCHEMA (the retry's responseFormat name differs — `-retry`
     // — but the contract pinned to the model is the target's own).
     expect(retry.messages[0]).toEqual(requests[0]!.messages[0]);
-    expect(retry.response_format.json_schema.name).toBe("retry-demo-retry");
-    expect(retry.response_format.json_schema.schema).toEqual(
-      requests[0]!.response_format.json_schema.schema,
+    expect(retry.responseFormat.json_schema.name).toBe("retry-demo-retry");
+    expect(retry.responseFormat.json_schema.schema).toEqual(
+      requests[0]!.responseFormat.json_schema.schema,
     );
   });
 

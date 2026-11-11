@@ -62,7 +62,7 @@ widened and not just `Extractor`'s.
 ## Task 1: Add `TranscribeOptions` to the `Transcriber` contract
 
 **Files:** `packages/ribo-core/src/transcriber.ts` (the contract), `fake-transcriber.ts`,
-`first-capable.ts`, `fallback-transcriber.ts`, `hedged.ts`, `restrict-to-kind.ts`,
+`first-capable.ts`, `fallback-transcriber.ts`, `hedged-transcriber.ts`, `restrict-to-kind.ts`,
 `packages/ribo-core/src/index.ts`, and the four implementations' signatures in
 `ribo-transcriber-ondevice/src/index.ts`, `-managed/src/index.ts`, `-managed-docs/src/index.ts`,
 `-pdfjs/src/index.ts`.
@@ -83,11 +83,11 @@ Do not forward the signal to any transport in this task. This is the seam and th
 `FakeTranscriber.callOptions` returning the per-call options in order.
 
 **Tests that must fail first:** For each of the four combinators — `firstCapable`,
-`fallbackTranscriber`, `hedged`, `restrictToKind` — assert the signal the caller passed is the
+`fallbackTranscriber`, `hedgedTranscriber`, `restrictToKind` — assert the signal the caller passed is the
 signal the selected transcriber received, by identity, using `FakeTranscriber`'s recorder. Break
 one forward, watch that combinator's test fail, restore, report the output.
 
-`hedged` needs its own thought: it races two transcribers, so both receive the caller's signal,
+`hedgedTranscriber` needs its own thought: it races two transcribers, so both receive the caller's signal,
 and the loser's cancellation is a separate concern from the caller's. State what you implemented.
 
 ## Task 2: Forward the signal in the two fetch-based transcribers

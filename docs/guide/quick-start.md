@@ -8,15 +8,15 @@ seam runs for real.
 ```ts
 import { z } from "zod";
 import {
-  baseRecordingSchema,
+  baseAudioCaptureSchema,
   enveloped,
   FakeExtractor,
   FakeTranscriber,
   isSpanGrounded,
 } from "@azx/ribo-core";
 
-// 1. A capture arrives. No microphone here — a bare `Recording` stands in for a real capture.
-const recording = baseRecordingSchema.parse({
+// 1. A capture arrives. No microphone here — a bare `AudioCapture` stands in for a real capture.
+const recording = baseAudioCaptureSchema.parse({
   id: "rec-1",
   capturedAt: new Date().toISOString(),
   mimeType: "audio/webm",

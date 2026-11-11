@@ -228,7 +228,7 @@ export function narrowToLeaves(value: unknown, leafKeys: readonly string[]): unk
  *   these keys via `narrowToLeaves` — the shape a partitioned piece
  *   (`ExtractionGroup.part`) actually asks the model for. Without this, a
  *   partitioned call's few-shot example would show the model an assistant turn
- *   carrying the WHOLE group's fields while its `response_format` accepts only a
+ *   carrying the WHOLE group's fields while its `responseFormat` accepts only a
  *   subset — a strict-mode schema mismatch between what the example imitates and
  *   what the call is pinned to. Omitted (or `undefined`) keeps today's behaviour:
  *   the example carries every leaf of the group.
@@ -264,7 +264,7 @@ export function buildGroupMessages<V extends Record<string, unknown>, P = NoProv
  * one platform route (Helix) rejects anything else — a colon included — with a
  * generic `400 validation_failed` that reads identically to an over-cap schema
  * and costs an afternoon to tell apart. Every name a request's
- * `response_format.json_schema.name` carries is built from a target's `name`
+ * `responseFormat.json_schema.name` carries is built from a target's `name`
  * plus schema-derived group keys, so the guard runs where those names are BUILT
  * — at construction, where the schema author is present — never on the wire.
  *

@@ -130,8 +130,8 @@ describe("spanPhase — run", () => {
       const output = await def.run(item!, draft, ctx);
 
       expect(requests).toHaveLength(1);
-      expect(requests[0]!.response_format.json_schema.name).toBe("hvac-spans");
-      const schema = requests[0]!.response_format.json_schema.schema;
+      expect(requests[0]!.responseFormat.json_schema.name).toBe("hvac-spans");
+      const schema = requests[0]!.responseFormat.json_schema.schema;
       // Only the ACTIVE leaf is asked about — the false leaves are not in the schema.
       expect(schema).toEqual({
         type: "object",

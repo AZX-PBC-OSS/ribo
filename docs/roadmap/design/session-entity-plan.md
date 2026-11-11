@@ -4,11 +4,11 @@
 > review. Steps use checkbox (`- [ ]`) syntax so progress is trackable. Every task's final step runs
 > a mutation and reports what it saw — a test nobody has watched fail is not a gate.
 
-**Goal:** Split the single `OutboxItem` into two entities — a `Recording` that carries capture and
+**Goal:** Split the single `OutboxItem` into two entities — an `AudioCapture` that carries capture and
 transcription, and a `Session` that owns extraction, review and write-back — so a house with two
 HVAC systems can be extracted, reviewed and written as one job, not N independent recordings.
 
-**Architecture:** A `Session` owns N `Recording`s. The relay transcribes recordings to `transcribed`
+**Architecture:** A `Session` owns N `AudioCapture`s. The relay transcribes recordings to `transcribed`
 and stops; session-level extraction joins every transcribed recording's text in capture order
 (excluding `discarded`), keyed by recording set, and re-runs when the set changes. Review addresses
 one session, submits once, and writes once. Two RxDB collections (`outbox` for recordings, `sessions`

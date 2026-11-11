@@ -107,7 +107,7 @@ function fakeChat(respond: (requestName: string) => unknown): {
       complete: async (request) => {
         requests.push(request);
         return {
-          content: JSON.stringify(respond(request.response_format.json_schema.name)),
+          content: JSON.stringify(respond(request.responseFormat.json_schema.name)),
           finishReason: "stop",
         };
       },
@@ -181,8 +181,8 @@ describe("presenceFillPhase — run", () => {
 
       expect(requests).toHaveLength(1);
       const request = requests[0]!;
-      expect(request.response_format.json_schema.name).toBe("pf-demo-hvac");
-      const properties = node(node(request.response_format.json_schema.schema)["properties"]);
+      expect(request.responseFormat.json_schema.name).toBe("pf-demo-hvac");
+      const properties = node(node(request.responseFormat.json_schema.schema)["properties"]);
       // THE narrowing pin, on the actual request: the collection group is asked
       // for the ARRAY the full schema carries — every instance the transcript
       // describes — each element carrying exactly the active leaves.
@@ -210,7 +210,7 @@ describe("presenceFillPhase — run", () => {
       const [item] = def.plan(draft, ctx);
       await def.run(item!, draft, ctx);
       expect(itemOf(item).group.key).toBe("site");
-      const properties = node(node(requests[0]!.response_format.json_schema.schema)["properties"]);
+      const properties = node(node(requests[0]!.responseFormat.json_schema.schema)["properties"]);
       expect(Object.keys(node(node(properties["site"])["properties"]))).toEqual(["yearBuilt"]);
     });
   });

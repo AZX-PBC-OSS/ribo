@@ -1,4 +1,10 @@
-import type { LiveSegment, LiveSession, LiveTranscriber, Storage, Recording } from "@azx/ribo-core";
+import type {
+  LiveSegment,
+  LiveSession,
+  LiveTranscriber,
+  Storage,
+  AudioCapture,
+} from "@azx/ribo-core";
 import { OnDeviceLiveTranscriber } from "@azx/ribo-transcriber-ondevice";
 
 import { getOutbox } from "./storage-handle.js";
@@ -14,8 +20,8 @@ import { getOutbox } from "./storage-handle.js";
  * ## Why the playground manages the session, not the hook
  *
  * `useRecorder` calls `recorder.start()`, and the `captureSession` factory —
- * which the recorder handle owns — is where the `Recording` metadata is
- * available. The hook never sees the `Recording` object, so it cannot call
+ * which the recorder handle owns — is where the `AudioCapture` metadata is
+ * available. The hook never sees the `AudioCapture` object, so it cannot call
  * `liveTranscriber.openSession(recording)` directly. Instead, the capture
  * session factory calls {@link openLiveSession} after inserting the row, and
  * the `createSampleTap` teardown calls {@link closeLiveSession} when recording
@@ -129,7 +135,7 @@ let liveGeneration = 0;
  * is open.
  */
 export async function openLiveSession(
-  recording: Recording,
+  recording: AudioCapture,
   itemId: string,
   storage: Storage,
 ): Promise<void> {
@@ -258,7 +264,7 @@ export function feedFrame(frame: Float32Array): void {
  * handle, so the `captureSession` factory in `recorder-handle.ts` can call it
  * without awaiting `getOutbox()` separately.
  */
-export async function openLiveForCapture(recording: Recording, itemId: string): Promise<void> {
+export async function openLiveForCapture(recording: AudioCapture, itemId: string): Promise<void> {
   try {
     const storage = await getOutbox();
     await openLiveSession(recording, itemId, storage);

@@ -15,7 +15,7 @@ import {
  * owns scheduling and stamping, the arbiter owns the accept/reject/give-up decision.
  *
  * Keeping `raceExtractor` a separate constructor rather than a flag on a shared one is the
- * same structural guarantee `hedged` provides: concurrency is opt-in by name, not a boolean
+ * same structural guarantee `hedgedTranscriber` provides: concurrency is opt-in by name, not a boolean
  * somebody can flip. See `docs/roadmap/design/extractor-arbitration-design.md` §3.1 and §4.5.
  */
 

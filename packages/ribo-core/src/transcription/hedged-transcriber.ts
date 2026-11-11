@@ -5,7 +5,7 @@ import {
   type EngineCapability,
 } from "./first-capable.js";
 import { TerminalError } from "../storage/backoff.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import type { Transcript } from "../capture/transcript.js";
 import {
   isPermanentlyUnavailable,
@@ -17,18 +17,20 @@ import {
 } from "./transcriber.js";
 
 /**
- * @file `hedged` — the hedged-request combinator, a sibling of `firstCapable`.
+ * @file `hedgedTranscriber` — the hedged-request combinator, a sibling of
+ * `firstCapable`.
  *
  * Where `firstCapable` is strictly sequential (pick one engine, run it to
- * completion), `hedged` races a preferred engine against a fallback on a
- * latency budget. Start the primary; if it has not finished within a delay,
- * start the hedge too and take whichever finishes first. This is the
+ * completion), `hedgedTranscriber` races a preferred engine against a fallback
+ * on a latency budget. Start the primary; if it has not finished within a
+ * delay, start the hedge too and take whichever finishes first. This is the
  * "hedged request" pattern from Dean & Barroso's *The Tail at Scale*.
  *
  * It sits **beside** `firstCapable`, not inside it. `firstCapable`'s rule 5 —
  * that an ordinary error propagates untouched rather than falling through to
  * the next engine — stays untouched. A deployment that will not let audio
- * leave the device simply never calls `hedged`; the default composition stays
+ * leave the device simply never calls `hedgedTranscriber`; the default
+ * composition stays
  * privacy-preserving.
  *
  * **`ribo-core` does not know what a real-time factor is.** The delay policy
@@ -63,11 +65,11 @@ const defaultScheduleTimer: ScheduleTimer = (fn, delayMs) => {
  * `undefined` when no prediction is available (before calibration).
  *
  * The host computes this from whatever it measured — typically a real-time
- * factor multiplied by `Recording.durationMs`. `ribo-core` never sees
+ * factor multiplied by `AudioCapture.durationMs`. `ribo-core` never sees
  * the RTF; it sees only the resulting number.
  * @category Arbitration & Fallback
  */
-export type PredictedDurationMs = (recording: Recording) => number | undefined;
+export type PredictedDurationMs = (recording: AudioCapture) => number | undefined;
 
 /**
  * A delay policy: given a recording, how many milliseconds to wait before
@@ -75,7 +77,7 @@ export type PredictedDurationMs = (recording: Recording) => number | undefined;
  * host can supply its own function instead.
  * @category Arbitration & Fallback
  */
-export type HedgeDelayPolicy = (recording: Recording) => number;
+export type HedgeDelayPolicy = (recording: AudioCapture) => number;
 
 /**
  * Provisional default for {@link HedgeDelayOptions.factor}. 1.5 — the value
@@ -200,7 +202,7 @@ export interface TranscriberHedgeEvent {
 // ---------------------------------------------------------------------------
 
 /** @category Arbitration & Fallback */
-export interface HedgedOptions {
+export interface HedgedTranscriberOptions {
   /** `Transcriber.engine` for the composite itself. Defaults to `"hedged"`. */
   readonly engine?: string;
   /**
@@ -247,10 +249,10 @@ export interface HedgedOptions {
  * the primary may itself be a `firstCapable` composite.
  * @category Arbitration & Fallback
  */
-export function hedged(
+export function hedgedTranscriber(
   primary: Transcriber,
   hedge: Transcriber,
-  options: HedgedOptions,
+  options: HedgedTranscriberOptions,
 ): CompositeTranscriber {
   return new HedgedTranscriber(primary, hedge, options);
 }
@@ -273,7 +275,7 @@ class HedgedTranscriber implements CompositeTranscriber {
   readonly #scheduleTimer: ScheduleTimer;
   readonly #onHedge: ((event: TranscriberHedgeEvent) => void) | undefined;
 
-  constructor(primary: Transcriber, hedge: Transcriber, options: HedgedOptions) {
+  constructor(primary: Transcriber, hedge: Transcriber, options: HedgedTranscriberOptions) {
     this.#primary = primary;
     this.#hedge = hedge;
     this.engine = options.engine ?? "hedged";
@@ -301,7 +303,7 @@ class HedgedTranscriber implements CompositeTranscriber {
   }
 
   async transcribe(
-    recording: Recording,
+    recording: AudioCapture,
     audio: Blob,
     options?: TranscribeOptions,
   ): Promise<Transcript> {
@@ -331,7 +333,7 @@ class HedgedTranscriber implements CompositeTranscriber {
    * paths: whoever runs, runs with the caller's context.
    */
   async #delegate(
-    recording: Recording,
+    recording: AudioCapture,
     audio: Blob,
     options?: TranscribeOptions,
   ): Promise<Transcript> {
@@ -371,7 +373,11 @@ class HedgedTranscriber implements CompositeTranscriber {
    * exactly what the caller passed: "this transcription is cancelled" delivered
    * to both, never "one of you lost".
    */
-  async #race(recording: Recording, audio: Blob, options?: TranscribeOptions): Promise<Transcript> {
+  async #race(
+    recording: AudioCapture,
+    audio: Blob,
+    options?: TranscribeOptions,
+  ): Promise<Transcript> {
     const primaryPromise = this.#primary.transcribe(recording, audio, options);
 
     // Attach a handler immediately so a late rejection is never unhandled.
@@ -416,7 +422,7 @@ class HedgedTranscriber implements CompositeTranscriber {
    * race them, handling every resolution combination from the design table.
    */
   async #raceAfterTimer(
-    recording: Recording,
+    recording: AudioCapture,
     audio: Blob,
     options: TranscribeOptions | undefined,
     primaryPromise: Promise<Transcript>,

@@ -6,7 +6,7 @@ import type { AnnotatedTranscript } from "../capture/annotated-transcript.js";
 import type { ExtractOptions } from "../extraction/extractor.js";
 import { createDefaultTranscriptCombiner } from "../capture/transcript-combiner.js";
 import type { TranscriptCombiner } from "../capture/transcript-combiner.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import { FakeTranscriber } from "../transcription/fake-transcriber.js";
 import { firstCapable } from "../transcription/first-capable.js";
 import { restrictToKind } from "../transcription/restrict-to-kind.js";
@@ -36,7 +36,7 @@ import type { ScheduleTimer } from "../async/schedule-timer.js";
 // `FakeTranscriber` (Phase 1) supplies the transcription step, including its
 // built-in persistent and one-shot failure injection, so no model is loaded.
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",
@@ -280,7 +280,7 @@ const acceptReview = async (
  */
 async function seedReviewedWriting(
   storage: Storage,
-  options: { recording?: Recording; fields?: ExtractedFieldMap } = {},
+  options: { recording?: AudioCapture; fields?: ExtractedFieldMap } = {},
 ): Promise<{ session: SessionItem; recordingItem: Capture }> {
   const session = await storage.sessions.open({ ctx: { jobId: "job-7" }, ref: "job-7" });
   const rec = options.recording ?? recording;

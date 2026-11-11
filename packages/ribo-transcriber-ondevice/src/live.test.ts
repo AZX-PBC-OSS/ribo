@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import type { LiveSegment, LiveSession, Recording } from "@azx/ribo-core";
+import type { LiveSegment, LiveSession, AudioCapture } from "@azx/ribo-core";
 
 import { OnDeviceLiveTranscriber } from "./index.js";
 import { DEFAULT_MODEL_ID, STREAMING_VAD_MODEL_ID } from "./config.js";
@@ -13,7 +13,7 @@ import type { MainToWorkerMessage, WorkerToMainMessage } from "./protocol.js";
 // double. No model loads, no browser needed — the double emits canned replies on
 // a schedule that makes the non-blocking and late-reply properties assertable.
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-live-1",
   capturedAt: "2026-08-12T10:00:00.000Z",
   kind: "audio",

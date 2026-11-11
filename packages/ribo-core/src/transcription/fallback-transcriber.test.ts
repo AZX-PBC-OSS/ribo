@@ -3,12 +3,12 @@ import { describe, expect, test } from "vitest";
 import { FakeTranscriber } from "./fake-transcriber.js";
 import { fallbackTranscriber } from "./fallback-transcriber.js";
 import { isTransientFailure, TerminalError } from "../storage/backoff.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import { type Transcriber } from "./transcriber.js";
 import { unsupportedFallsThrough, type TranscriptionArbiter } from "./transcription-arbitration.js";
 import { UnsupportedItemError } from "./unsupported-item.js";
 
-const recording = (id = "rec-1"): Recording => ({
+const recording = (id = "rec-1"): AudioCapture => ({
   id,
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",
@@ -24,7 +24,7 @@ const fake = (engine: string, opts?: ConstructorParameters<typeof FakeTranscribe
 
 // Compile-time check that fallbackTranscriber returns a Transcriber for a
 // concrete item type, not just CapturePayload.
-const _typeCheck: Transcriber<Recording> = fallbackTranscriber<Recording>(
+const _typeCheck: Transcriber<AudioCapture> = fallbackTranscriber<AudioCapture>(
   [new FakeTranscriber()],
   unsupportedFallsThrough,
 );

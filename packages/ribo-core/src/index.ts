@@ -4,7 +4,7 @@
  * @file The public surface of `@azx/ribo-core`.
  *
  * This barrel **re-exports only** — it defines nothing. Everything lives in the small module
- * that owns the concept (`provenance.ts`, `recording.ts`, …); this file is the list of what
+ * that owns the concept (`provenance.ts`, `audio-capture.ts`, …); this file is the list of what
  * consumers are allowed to depend on. Adding a definition here would make the barrel a place
  * where behavior hides, and would make "what is public?" un-answerable by reading one file.
  *
@@ -151,8 +151,8 @@ export type {
 } from "./provenance/enveloped.js";
 
 // Capture records and their transcripts.
-export { baseRecordingSchema, recordingSchema } from "./capture/recording.js";
-export type { Recording } from "./capture/recording.js";
+export { baseAudioCaptureSchema, audioCaptureSchema } from "./capture/audio-capture.js";
+export type { AudioCapture } from "./capture/audio-capture.js";
 export {
   basePayloadSchema,
   documentCaptureSchema,
@@ -237,15 +237,15 @@ export {
   DEFAULT_HEDGE_FACTOR,
   DEFAULT_HEDGE_FLOOR_MS,
   hedgeDelay,
-  hedged,
-} from "./transcription/hedged.js";
+  hedgedTranscriber,
+} from "./transcription/hedged-transcriber.js";
 export type {
   HedgeDelayOptions,
   HedgeDelayPolicy,
-  HedgedOptions,
+  HedgedTranscriberOptions,
   PredictedDurationMs,
   TranscriberHedgeEvent,
-} from "./transcription/hedged.js";
+} from "./transcription/hedged-transcriber.js";
 
 // Transcription arbitration: the decision vocabulary that lets a host
 // classify transcriber candidate outcomes — the sibling of the extractor
@@ -294,7 +294,7 @@ export type {
   FakeTranscriberResponse,
 } from "./transcription/fake-transcriber.js";
 
-// Microphone capture: negotiated container in, a `Recording` plus its bytes out.
+// Microphone capture: negotiated container in, an `AudioCapture` plus its bytes out.
 export { negotiateMimeType, Recorder, RecorderError } from "./recorder.js";
 export type {
   RecorderCapture,
@@ -394,13 +394,10 @@ export type {
 // decides whether to accept, continue, or give up. The two defaults are the
 // conservative policy (terminal errors fall through, transient ones stop) and the
 // degraded-experience policy (any success is accepted). The shared engine
-// underpins `fallbackExtractor`, the reimplemented `compositeExtractor`, and
-// `raceExtractor`; it is exported because Task 3's `compositeExtractor` consumes
-// the sequential engine directly.
+// underpins `fallbackExtractor`, `compositeExtractor` and `raceExtractor` and
+// stays internal — hosts compose the public combinators, not the engines.
 export {
   acceptAnySuccess,
-  createConcurrentExtractor,
-  createSequentialExtractor,
   errorOutcome,
   resultOutcome,
   terminalFallsThrough,
@@ -460,7 +457,7 @@ export type { TimeoutExtractorOptions } from "./extraction/timeout-extractor.js"
 
 // Strategy hedge: start a primary and fire a hedge on a delay, taking whichever
 // settles first and cancelling the loser so the usual case bills for one. The
-// extraction counterpart of `hedged`, keeping `timeoutExtractor`'s signal and
+// extraction counterpart of `hedgedTranscriber`, keeping `timeoutExtractor`'s signal and
 // deadline discipline; deliberately not built on the concurrent engine, which
 // forwards options unchanged and constructs no controller, so a loser there
 // runs to completion and bills.

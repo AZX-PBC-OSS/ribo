@@ -82,7 +82,7 @@ export interface GapFillOptions<
    * `extractionSchema` and builds on `instructions`. Few-shot `examples` are NOT
    * projected into the follow-up — candidates can span groups arbitrarily, so no
    * coherent projection exists, and an unprojected example would imitate a shape
-   * the scoped `response_format` forbids (the mismatch the per-group extractor's
+   * the scoped `responseFormat` forbids (the mismatch the per-group extractor's
    * leaf narrowing exists to avoid).
    */
   readonly target: ExtractionTarget<V, P>;

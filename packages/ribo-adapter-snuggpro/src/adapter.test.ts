@@ -117,7 +117,7 @@ test("every example sourceSpan is verbatim in its transcript (grounding holds)",
 });
 
 // --- The context schema -----------------------------------------------------
-// `Recording.ctx` comes back out of IndexedDB, so the DESTINATION of a write crosses a
+// `AudioCapture.ctx` comes back out of IndexedDB, so the DESTINATION of a write crosses a
 // trust boundary and a type alone cannot parse it. These pin a real parser, not a
 // rubber stamp.
 
@@ -144,8 +144,8 @@ test("ctxSchema rejects a context that would target nowhere", () => {
   expect(snuggProAdapter.ctxSchema.safeParse({ assessmentId: "42" }).success).toBe(false);
 });
 
-test("ctxSchema tolerates host extras — a Recording.ctx may carry more than this adapter needs", () => {
-  // Deliberately not `.strict()`: a host owns `Recording.ctx` and may keep its own
+test("ctxSchema tolerates host extras — an AudioCapture.ctx may carry more than this adapter needs", () => {
+  // Deliberately not `.strict()`: a host owns `AudioCapture.ctx` and may keep its own
   // metadata in it. Zod strips extras rather than failing the write.
   const parsed = snuggProAdapter.ctxSchema.parse({ ...validCtx, hostBookkeeping: { seen: true } });
   expect(parsed).toEqual(validCtx);

@@ -20,14 +20,14 @@ import {
   fallbackTranscriber,
   firstCapable,
   hedgeDelay,
-  hedged,
-  type Recording,
+  hedgedTranscriber,
+  type AudioCapture,
   restrictToKind,
   unsupportedFallsThrough,
   UnsupportedItemError,
 } from "@azx/ribo-core";
 
-function recording(id: string): Recording {
+function recording(id: string): AudioCapture {
   return {
     id,
     capturedAt: new Date().toISOString(),
@@ -98,7 +98,7 @@ export async function hedgedRacesAFallbackOnALatencyBudget(): Promise<void> {
   // test observes when the hedge *would* have fired.
   let fireHedge: (() => void) | undefined;
   let hedgedAt: number | undefined;
-  const composite = hedged(primary, hedge, {
+  const composite = hedgedTranscriber(primary, hedge, {
     delay: hedgeDelay({ predictedDurationMs: () => 10_000 }),
     scheduleTimer: (fn, delayMs) => {
       hedgedAt = delayMs;
@@ -120,7 +120,7 @@ export async function hedgedRacesAFallbackOnALatencyBudget(): Promise<void> {
 
 export async function withoutAPredictionTheHedgeWaitsTheFullBudget(): Promise<void> {
   let hedgedAt: number | undefined;
-  const composite = hedged(
+  const composite = hedgedTranscriber(
     new FakeTranscriber({ engine: "fake-primary", text: "from the device" }),
     new FakeTranscriber({ engine: "fake-hedge", text: "from the cloud" }),
     {
@@ -177,7 +177,7 @@ export async function restrictToKindRefusesTheOtherKindAndDelegatesItsOwn(): Pro
 // #region defaults
 export async function theDefaultsThePageQuotesComeFromTheSource(): Promise<void> {
   // The exported defaults, read from
-  // packages/ribo-core/src/transcription/hedged.ts and first-capable.ts. The
+  // packages/ribo-core/src/transcription/hedged-transcriber.ts and first-capable.ts. The
   // page quotes these values in prose next to this region; a source change
   // that moved one fails here.
   assert.equal(DEFAULT_HEDGE_FACTOR, 1.5);

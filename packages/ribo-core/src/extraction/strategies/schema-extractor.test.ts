@@ -95,7 +95,7 @@ test("a schema under the caps is picked SINGLE-SHOT: one call, named after the t
   await extractor.extract(transcript);
 
   expect(requests).toHaveLength(1);
-  expect(requests[0]!.response_format.json_schema.name).toBe("visit");
+  expect(requests[0]!.responseFormat.json_schema.name).toBe("visit");
 });
 
 test("a schema past the caps is picked PER-GROUP: one call per piece, merged back together", async () => {
@@ -126,7 +126,7 @@ test("a schema past the caps is picked PER-GROUP: one call per piece, merged bac
     },
   });
   const { chat, requests } = fakeChat((request) => {
-    const name = request.response_format.json_schema.name;
+    const name = request.responseFormat.json_schema.name;
     const [, key, part] = /visit-(alpha|beta)(?:-(\d))?$/.exec(name) ?? [];
     const first = key === "alpha" ? "a" : "c";
     const second = key === "alpha" ? "b" : "d";
@@ -159,7 +159,7 @@ test("an already-enveloped schema is accepted under `extractionSchema` and used 
   });
 
   const { fields } = await extractor.extract(transcript);
-  expect(requests[0]!.response_format.json_schema.name).toBe("visit");
+  expect(requests[0]!.responseFormat.json_schema.name).toBe("visit");
   expect(enveloped(visitPatch).parse(fields)).toEqual(fields);
 });
 

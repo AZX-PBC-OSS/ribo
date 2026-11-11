@@ -14,7 +14,7 @@ import { openAiChat } from "./openai-chat.js";
 const sampleRequest: ChatRequest = {
   model: "gpt-test",
   messages: [{ role: "user", content: "hi" }],
-  response_format: {
+  responseFormat: {
     type: "json_schema",
     json_schema: { name: "t", schema: { type: "object" }, strict: true },
   },
@@ -71,7 +71,12 @@ describe("openAiChat — request wire shape", () => {
     expect(headers.authorization).toBe("Bearer sk-secret");
     expect(headers["content-type"]).toBe("application/json");
     // The wire body matches the request — no extra fields when maxTokens is unset.
-    expect(JSON.parse(call.init.body as string)).toEqual(sampleRequest);
+    // The seam member is `responseFormat`, but the OpenAI wire field stays
+    // `response_format`: each transport owns the wire spelling, so pin it here.
+    const body = JSON.parse(call.init.body as string) as Record<string, unknown>;
+    const { responseFormat, ...rest } = sampleRequest;
+    expect(body).toEqual({ ...rest, response_format: responseFormat });
+    expect(body).not.toHaveProperty("responseFormat");
   });
 
   test("returns choices[0].message.content with finishReason and usage", async () => {
@@ -325,7 +330,7 @@ describe("openAiChat — prefix cache accounting", () => {
       await chat.complete({
         model: "m",
         messages: [{ role: "user", content: "hi" }],
-        response_format: {
+        responseFormat: {
           type: "json_schema",
           json_schema: { name: "n", schema: { type: "object" }, strict: true },
         },

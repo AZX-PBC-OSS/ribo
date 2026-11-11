@@ -1,6 +1,6 @@
 import type { Observable } from "rxjs";
 
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import type { TranscriberCapability } from "./transcriber.js";
 
 /**
@@ -205,5 +205,5 @@ export interface LiveTranscriber {
    * utterance text. Rejects if the VAD model cannot be loaded — the caller should
    * treat that as "no preview for this recording", not as a recording failure.
    */
-  openSession: (recording: Recording) => Promise<LiveSession>;
+  openSession: (recording: AudioCapture) => Promise<LiveSession>;
 }

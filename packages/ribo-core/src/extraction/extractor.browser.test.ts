@@ -6,7 +6,7 @@ import { FakeTranscriber } from "../transcription/fake-transcriber.js";
 import { restrictToKind } from "../transcription/restrict-to-kind.js";
 import { openStorage, type Storage } from "../storage/storage.js";
 import { createRelay } from "../storage/relay.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 
 // Browser mode, for the same reason as `queue/relay.browser.test.ts`: this is the
 // acceptance criterion for the extraction seam — a `FakeExtractor` substituting
@@ -23,7 +23,7 @@ interface AtticFields extends Record<string, unknown> {
   rValue: number;
 }
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",

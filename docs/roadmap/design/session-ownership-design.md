@@ -139,7 +139,7 @@ break it. `instance-write-step.ts:71` already apologises for the arrangement in 
 `openSession` takes a required `ctx`. The write step reads `session.ctx`; the recording hunt is
 deleted.
 
-**`Recording.ctx` stays.** It is redundant for writing once the session owns the destination, and
+**`AudioCapture.ctx` stays.** It is redundant for writing once the session owns the destination, and
 deleting it is tempting for that reason. It lives on the outbox collection, which is at v6 with real
 user data on devices, and removing it buys tidiness at the price of a migration on the one
 collection where migrations hurt. The session becomes authoritative for the write; the recording
@@ -223,7 +223,7 @@ inventing one.
 | D2  | `writtenInstances` is **deleted**, not repaired                         | It defends a resume that cannot happen, carries a live bug, and every repair substitutes for the identifier we discard          |
 | D3  | Amend does not re-extract                                               | Keys come off the same snapshot, so receipts and decisions keep meaning what they meant                                         |
 | D4  | `openSession` takes a required `ctx`; the write step reads it           | The session owns the write; recovering the destination from an arbitrary recording is unenforced and the field app can break it |
-| D5  | `Recording.ctx` stays                                                   | Deleting it means a migration on the v6 collection with real user data, to buy tidiness                                         |
+| D5  | `AudioCapture.ctx` stays                                                | Deleting it means a migration on the v6 collection with real user data, to buy tidiness                                         |
 | D6  | `openSession` takes a required indexed `ref`; the id stays generated    | `ctx` is opaque and unindexable; id-as-assessment-id makes a second session for a job unrepresentable                           |
 | D7  | The tree goes on `ReviewRequest`, not `useReview`                       | The structure exists in core's schema walk; non-React hosts need it too                                                         |
 | D8  | The flat `ReviewFields` map is retained as the decision channel         | Its ordering is contractual and `resolveReview` is path-keyed; the tree is a second view, never a second source                 |
@@ -241,7 +241,7 @@ inventing one.
   `rankCandidates` plus a human decision. `recordingSetChanged` (`session-extract.ts:45`) is defined
   with zero callers and there is no path back to `open`, so none of it exists yet regardless.
 - **Reading records created elsewhere** — another device, the Snugg Pro web UI. Needs the vendor read.
-- **Deleting `Recording.ctx`** (D5).
+- **Deleting `AudioCapture.ctx`** (D5).
 
 ## 8. Testing
 

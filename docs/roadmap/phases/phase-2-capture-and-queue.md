@@ -16,7 +16,7 @@ Everything in [`AGENTS.md`](../../../AGENTS.md) applies, plus:
 - **`ribo-core` stays headless** — browser APIs yes, `document`/`window` no (ESLint-enforced). A recorder needs `navigator.mediaDevices`; it does not need the DOM.
 - **Dependencies get declared properly** — catalog-pinned exact, added to the right manifest. Phase 1 shipped zod on disk with no manifest entry and nearly broke a clean checkout.
 - **New dependencies mean worktree isolation.** Tasks that add packages run in their own worktree so concurrent agents do not race the lockfile.
-- Build on the Phase 1 vocabulary (`Recording`, `Transcript`, `Extracted`). Do not invent parallel types.
+- Build on the Phase 1 vocabulary (`AudioCapture`, `Transcript`, `Extracted`). Do not invent parallel types.
 
 ## Target platform (decided)
 
@@ -38,8 +38,8 @@ The Phase 0 config has a single `unit` project and a comment saying the browser 
 
 **Files:** `packages/ribo-core/src/recorder.ts` + `recorder.browser.test.ts`
 
-- **Mime-type negotiation first.** `MediaRecorder` emits different containers per browser — `audio/webm;codecs=opus` on Chromium, `audio/mp4` on Safari. Implement a capability probe using `MediaRecorder.isTypeSupported` that picks the best supported type from an ordered preference list, and record the chosen type onto the `Recording` (the field already exists and is documented as including the codecs parameter). **Downstream decoding depends entirely on this being accurate** — Phase 3 has to decode whatever this produces.
-- `Recorder` API: `start()`, `stop()` returning `{ recording, audio }` (metadata per Phase 1's `recordingSchema` + the `Blob`), plus a way to observe elapsed time and input level for the capture UI.
+- **Mime-type negotiation first.** `MediaRecorder` emits different containers per browser — `audio/webm;codecs=opus` on Chromium, `audio/mp4` on Safari. Implement a capability probe using `MediaRecorder.isTypeSupported` that picks the best supported type from an ordered preference list, and record the chosen type onto the `AudioCapture` (the field already exists and is documented as including the codecs parameter). **Downstream decoding depends entirely on this being accurate** — Phase 3 has to decode whatever this produces.
+- `Recorder` API: `start()`, `stop()` returning `{ recording, audio }` (metadata per Phase 1's `audioCaptureSchema` + the `Blob`), plus a way to observe elapsed time and input level for the capture UI.
 - Handle the failure modes explicitly and test them: permission denied, no input device, `stop()` before `start()`, `start()` twice.
 - Browser-mode tests. Chromium supports `--use-fake-device-for-media-stream` / `--use-fake-ui-for-media-stream`; configure the Playwright launch so `getUserMedia` resolves without a human clicking a permission prompt, and say so in a comment.
 

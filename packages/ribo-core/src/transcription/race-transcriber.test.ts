@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { FakeTranscriber } from "./fake-transcriber.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import { preferEngineOrder } from "./transcription-arbitration.js";
 import type {
   TranscriptionArbiter,
@@ -17,7 +17,7 @@ import {
 } from "./transcriber.js";
 import type { Transcript } from "../capture/transcript.js";
 
-const recording = (id = "rec-1"): Recording => ({
+const recording = (id = "rec-1"): AudioCapture => ({
   id,
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",
@@ -74,7 +74,7 @@ class DeferredTranscriber implements Transcriber {
     this.capability = () => Promise.resolve(capability);
   }
 
-  transcribe(item: Recording, _bytes: Blob, options?: TranscribeOptions): Promise<Transcript> {
+  transcribe(item: AudioCapture, _bytes: Blob, options?: TranscribeOptions): Promise<Transcript> {
     this.receivedOptions.push(options);
     const deferred = makeDeferred<Transcript>();
     this.#pending = deferred;

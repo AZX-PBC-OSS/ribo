@@ -117,12 +117,12 @@ Specifically, all of these are violations:
   number, a model year from the homeowner's move-in date).
 - Supplying a typical or standard value because the auditor gestured at one ("whatever the standard
   water heater is on these" means the type was **not stated**).
-- Recording an auditor's explicitly-labelled assumption as an observation ("there's a gas meter out
+- AudioCapture an auditor's explicitly-labelled assumption as an observation ("there's a gas meter out
   front, so I'm assuming gas heat, but I never got to the unit" is **not** a heating fuel).
 - Taking a number from one topic and parking it in a field it does not belong to. Transcripts are
   full of numbers that are not field values: house numbers, outdoor temperatures, tank gallons, joist
   sizes, house volumes, ppm readings, dates, drive times.
-- Recording a value from a different metric or a different reference than the field asks for. A
+- AudioCapture a value from a different metric or a different reference than the field asks for. A
   CFM25 duct-blaster reading is not a blower-door CFM50. A depth in inches is not an R-value.`,
   },
   {

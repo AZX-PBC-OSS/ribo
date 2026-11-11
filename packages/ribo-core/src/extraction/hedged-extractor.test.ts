@@ -204,7 +204,7 @@ describe("hedgedExtractor", () => {
     const returned = await pending;
 
     // Deterministic, not principled: the primary wins because the caller named it
-    // first. `hedged` breaks this tie on privacy — audio not leaving the device —
+    // first. `hedgedTranscriber` breaks this tie on privacy — audio not leaving the device —
     // and nothing analogous applies here, so the pin is the outcome alone.
     expect(returned).toBe(primaryResult);
     expect(returned).not.toBe(hedgeResult);

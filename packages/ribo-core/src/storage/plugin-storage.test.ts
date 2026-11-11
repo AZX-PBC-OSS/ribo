@@ -1,7 +1,7 @@
 import { createMemoryBackend, removeMemoryDatabase } from "./memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import { openStorage, type Storage } from "./storage.js";
 
 // Plugin-scoped storage: isolation and sweep, proven with memory storage.
@@ -22,7 +22,7 @@ afterEach(async () => {
   }
 });
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-09-11T10:00:00.000Z",
   kind: "audio",

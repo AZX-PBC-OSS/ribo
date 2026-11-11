@@ -85,7 +85,7 @@ After a failure: rethrow a `TerminalQueueError` untouched; rethrow a cancellatio
 
 **Per-phase event emission starts here, not in Task 5.** The spine emits a `PhaseUnit` `start` and a `done`/`error` per item, with `phaseId` from the phase's metadata, `pass` from its position, `id` from `nextUnitId()`, and `attempt` fixed at 1 (there are no retries yet). Task 5 refines the rest. Without this, Task 2's "a phase with an empty plan emits no event" assertion passes against an engine that emits nothing at all, and the `ExtractionObserver<PhaseUnit>` option this task declares would be dead until Task 5.
 
-**Defaults, all matching `groupedExtractor`:** `concurrency` 4, `maxRetries` 2, `stepTimeoutMs` 900_000, `perCallCeilingMs` from `PER_CALL_CEILING_MS`. Add `now?: () => number` defaulting to `Date.now`, matching `compositeExtractor` and `hedged` — Task 4's tests need a clock seam and there is otherwise nothing to inject.
+**Defaults, all matching `groupedExtractor`:** `concurrency` 4, `maxRetries` 2, `stepTimeoutMs` 900_000, `perCallCeilingMs` from `PER_CALL_CEILING_MS`. Add `now?: () => number` defaulting to `Date.now`, matching `compositeExtractor` and `hedgedTranscriber` — Task 4's tests need a clock seam and there is otherwise nothing to inject.
 
 **The closing sequence, in this order:** run `normalize` on the merged fields if supplied, then parse against `target.extractionSchema` (the trust boundary), then assemble the `ExtractionResult` — `fields` from the parse, `usage` summed from every `PhaseOutput`, `raw` from the draft if present, and `statedEmptyGroups` **omitted entirely when empty** rather than emitted as `{}`, because `extractor.ts` documents its absence as meaning "this extractor ran no roster pass".
 

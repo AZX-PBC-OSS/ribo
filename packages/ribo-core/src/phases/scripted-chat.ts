@@ -131,7 +131,7 @@ export interface ScriptedChatClient extends CapableChatClient {
  * counterpart to `FakeExtractor` and `FakeTranscriber`.
  *
  * Pass a fixed reply for a client that answers the same thing every call, or a callback for
- * per-call behaviour: dispatching on `request.response_format.json_schema.name` (the extraction
+ * per-call behaviour: dispatching on `request.responseFormat.json_schema.name` (the extraction
  * target's name), asserting on what the extractor sent, failing the Nth call, simulating
  * latency with `delay`. Every request is recorded on `calls`, in order, before the reply is
  * produced — failed and aborted calls included.
@@ -142,8 +142,8 @@ export interface ScriptedChatClient extends CapableChatClient {
  * import { scriptedChat, singleShotExtractor } from "@azx/ribo-core";
  *
  * const chat = scriptedChat((request) => {
- *   if (request.response_format.json_schema.name !== "contact") {
- *     throw new Error(`unexpected schema: ${request.response_format.json_schema.name}`);
+ *   if (request.responseFormat.json_schema.name !== "contact") {
+ *     throw new Error(`unexpected schema: ${request.responseFormat.json_schema.name}`);
  *   }
  *   return { content: { contact: { value: "Acme", confidence: 0.9, sourceSpan: "Acme" } } };
  * });

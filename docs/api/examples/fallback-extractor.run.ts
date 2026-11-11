@@ -166,7 +166,7 @@ export async function hedgedExtractorCancelsTheLoser(): Promise<void> {
   const winners: string[] = [];
   let scheduledDelay: number | undefined;
 
-  const hedged = hedgedExtractor(stalled, hedge, {
+  const hedgedRun = hedgedExtractor(stalled, hedge, {
     delay: 50,
     // The injected timer fires immediately: the hedge is dispatched, the
     // still-stalled primary is cancelled, and the hedge's result wins.
@@ -178,7 +178,7 @@ export async function hedgedExtractorCancelsTheLoser(): Promise<void> {
     onHedge: (event) => winners.push(event.winner ?? "none"),
   });
 
-  const result = await hedged.extract(transcript());
+  const result = await hedgedRun.extract(transcript());
   assert.equal(scheduledDelay, 50);
   assert.equal(result.fields.name.value, "Acme Heating");
   assert.deepEqual(winners, ["hedge"]);

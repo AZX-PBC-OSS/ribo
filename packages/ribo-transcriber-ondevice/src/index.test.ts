@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 
 import { TerminalError, isTransientFailure } from "@azx/ribo-core";
-import type { Recording, Transcriber } from "@azx/ribo-core";
+import type { AudioCapture, Transcriber } from "@azx/ribo-core";
 
 import { buildHintPrompt, DEFAULT_MODEL_ID } from "./config.js";
 import { ondeviceEngineId } from "./engine-id.js";
@@ -290,7 +290,7 @@ test("buildHintPrompt joins vocabulary and prompt, or returns undefined when emp
 // mid-flight mechanics are protocol-level and covered in worker.test.ts (the
 // chunk loop) and transcribe.browser.test.ts (the main thread's cancel message).
 
-const REC: Recording = {
+const REC: AudioCapture = {
   id: "rec-cancel",
   capturedAt: "2026-09-15T10:00:00.000Z",
   kind: "audio",

@@ -65,7 +65,7 @@ export async function extractInventory<R>(
       { role: "system", content: instructions },
       { role: "user", content: transcript },
     ],
-    response_format: {
+    responseFormat: {
       type: "json_schema",
       json_schema: {
         name,

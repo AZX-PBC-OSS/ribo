@@ -5,8 +5,8 @@ surface), §4.1–§4.3 (the arbiter, the defaults, the fall-through direction) 
 before starting any task. §4.2 was corrected after this plan was drafted; read the current text, not
 a cached copy.
 
-**Scope.** The extractor seam only. `hedged.ts`, `first-capable.ts` and every transcriber path are
-out of scope, per design §3.1 — a single engine spanning both seams would turn `hedged`'s privacy
+**Scope.** The extractor seam only. `hedged-transcriber.ts`, `first-capable.ts` and every transcriber path are
+out of scope, per design §3.1 — a single engine spanning both seams would turn `hedgedTranscriber`'s privacy
 property from a type fact into a boolean.
 
 **What this does not build.** The tiered segmentation strategies themselves. This plan delivers the
@@ -355,7 +355,7 @@ on a shared constructor. No admission hook.
 
 - Every discarded promise has a rejection handler: a losing candidate that rejects after another has
   been accepted must not surface as an unhandled rejection. Assert this explicitly with a process-level
-  handler or vitest's unhandled-rejection detection — this is the guard `hedged` documents and the one
+  handler or vitest's unhandled-rejection detection — this is the guard `hedgedTranscriber` documents and the one
   most easily lost.
 - An arbiter that accepts the first landed outcome returns before the slower candidate settles.
 - An arbiter that waits sees outcomes accumulate in **settlement** order, not dispatch order — with

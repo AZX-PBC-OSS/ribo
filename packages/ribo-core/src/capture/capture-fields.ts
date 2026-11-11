@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * @file The four fields both capture branches share.
  *
- * `Recording` (audio) and `DocumentCapture` (document) each spread this bag
+ * `AudioCapture` (audio) and `DocumentCapture` (document) each spread this bag
  * into their own `z.strictObject`. It exists so the two branch declarations
  * cannot drift: a shared field added to one and forgotten in the other would
  * be a union whose common shape is narrower than it reads.

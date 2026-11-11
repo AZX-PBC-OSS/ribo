@@ -314,7 +314,7 @@ const document = outboxDocumentSchema.parse({
   attempts: 0,
   nextAttemptAt: this.#nowIso(),
   enqueuedAt: this.#nowIso(),
-  recording: baseRecordingSchema.parse(recording),
+  recording: baseAudioCaptureSchema.parse(recording),
   // The non-durable enqueue path has no `capture` — audio is committed in
   // one write, not chunked.
 } satisfies OutboxDocument);
@@ -723,7 +723,7 @@ In `outbox.ts`, add the four methods:
     recording,
     sourceId,
   }: {
-    recording: Recording;
+    recording: AudioCapture;
     sourceId: string;
   }): Promise<OutboxItem> {
     return this.#serialized(async () => {
@@ -735,7 +735,7 @@ In `outbox.ts`, add the four methods:
         attempts: 0,
         nextAttemptAt: this.#nowIso(),
         enqueuedAt: this.#nowIso(),
-        recording: baseRecordingSchema.parse(recording),
+        recording: baseAudioCaptureSchema.parse(recording),
         capture: { sourceId },
       } satisfies OutboxDocument);
       const doc = await this.#collection.insert(document);
@@ -832,9 +832,9 @@ import { firstValueFrom } from "rxjs";
 
 import { openCaptureSession, type CaptureHealth } from "./capture-session.js";
 import type { Outbox } from "./outbox.js";
-import type { Recording } from "../recording.js";
+import type { AudioCapture } from "../audio-capture.js";
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   durationMs: 0,
@@ -852,7 +852,7 @@ function fakeOutbox(): Pick<
   const chunkNames: string[] = [];
   return {
     chunkNames,
-    async beginRecording({ sourceId }: { recording: Recording; sourceId: string }) {
+    async beginRecording({ sourceId }: { recording: AudioCapture; sourceId: string }) {
       return {
         id: "item-1",
         seq: 0,
@@ -969,7 +969,7 @@ import type { Observable } from "rxjs";
 import { Subject } from "rxjs";
 
 import type { Outbox, OutboxItem } from "./outbox.js";
-import type { Recording } from "../recording.js";
+import type { AudioCapture } from "../audio-capture.js";
 import { chunkName, isChunkOf, sliceOversized } from "./chunk-names.js";
 
 /**
@@ -991,7 +991,7 @@ const MAX_CHUNK_BYTES = 10_000_000;
 
 export interface CaptureSessionOptions {
   outbox: Outbox;
-  recording: Recording;
+  recording: AudioCapture;
   sourceId: string;
   mimeType: string;
   /** Injectable clock, in epoch milliseconds. Defaults to `Date.now`. */
@@ -1249,9 +1249,9 @@ import { openOutbox, type Outbox } from "./outbox.js";
 import { removeOutboxDatabase } from "./database.js";
 import { chunkName, CAPTURE_LOCK, holdLock } from "./chunk-names.js";
 import { recoverInterrupted } from "./recovery.js";
-import type { Recording } from "../recording.js";
+import type { AudioCapture } from "../audio-capture.js";
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   durationMs: 0,
@@ -1791,7 +1791,7 @@ export interface RecorderOptions<C = EmptyContext> {
    * absent, the recorder works as before — non-durable, one blob at `stop()`.
    */
   readonly captureSession?: (opts: {
-    recording: Omit<Recording, "ctx"> & { ctx: C };
+    recording: Omit<AudioCapture, "ctx"> & { ctx: C };
     sourceId: string;
     mimeType: string;
   }) => Promise<CaptureSession>;
@@ -1807,7 +1807,7 @@ export interface RecorderOptions<C = EmptyContext> {
 3. `#openMicrophone()`.
 4. `#beginSession(stream, mimeType)` — constructs `MediaRecorder`.
 5. Read `session.recorder.mimeType` — the live, negotiated value.
-6. If `captureSession` is configured: create `Recording` with `durationMs: 0`, open a capture session (calls `beginRecording`), wire `dataavailable` to `session.ingest`, start `MediaRecorder` with `timesliceMs`. Store the capture session on the session object.
+6. If `captureSession` is configured: create `AudioCapture` with `durationMs: 0`, open a capture session (calls `beginRecording`), wire `dataavailable` to `session.ingest`, start `MediaRecorder` with `timesliceMs`. Store the capture session on the session object.
 7. If not: start `MediaRecorder` with no timeslice (as today), wire `dataavailable` to push to `session.chunks`.
 8. Return the item id (or `undefined` in non-durable mode).
 
@@ -1855,7 +1855,7 @@ export interface RecorderOptions<C = EmptyContext> {
     this.#emit();
 
     if (this.#captureSessionFactory && lockHeld) {
-      const recording = baseRecordingSchema.parse({
+      const recording = baseAudioCaptureSchema.parse({
         id: this.#createId(),
         capturedAt: new Date().toISOString(),
         durationMs: 0,
@@ -1898,7 +1898,7 @@ export interface RecorderOptions<C = EmptyContext> {
       if (session.captureSession) {
         // Durable path: finalize merges, decode-verifies, and commits.
         const result = await session.captureSession.finalize();
-        const recording = baseRecordingSchema.parse({
+        const recording = baseAudioCaptureSchema.parse({
           id: this.#createId(),
           capturedAt: new Date().toISOString(),
           durationMs: result.durationMs,
@@ -1910,7 +1910,7 @@ export interface RecorderOptions<C = EmptyContext> {
 
       // Non-durable path: assemble from in-memory chunks, as today.
       const audio = new Blob(session.chunks, { type: mimeType });
-      const recording = baseRecordingSchema.parse({
+      const recording = baseAudioCaptureSchema.parse({
         id: this.#createId(),
         capturedAt: new Date().toISOString(),
         durationMs,

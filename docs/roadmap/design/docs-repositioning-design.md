@@ -11,7 +11,7 @@ SDK** for field data collection."_ It appears in `README.md`, `docs/index.md`'s 
 
 It is no longer what the library is. The evidence is in the tree, not in ambition:
 
-- `CaptureItem` is a union of `Recording` and `DocumentCapture`. Two of the four transcriber
+- `CaptureItem` is a union of `AudioCapture` and `DocumentCapture`. Two of the four transcriber
   packages (`ribo-transcriber-pdfjs`, `ribo-transcriber-managed-docs`) never touch audio.
 - The session layer speaks text. `joinSessionTranscript()` returns `{ text, recordingIds }` and has
   no idea whether audio was involved, which is precisely why the document tranche reused
@@ -135,7 +135,7 @@ evidence, not asserted:
 5. **One pipeline, mixed sources, one session.** No parser accepts dictation; no STT vendor accepts
    a PDF. The unification is the product, and it is the reason "voice" stopped being the noun.
 6. **Engine plurality behind a measured seam.** `capability()`, `firstCapable`,
-   `fallbackTranscriber`, `hedged`, and on the extractor side `fallbackExtractor`, `raceExtractor`
+   `fallbackTranscriber`, `hedgedTranscriber`, and on the extractor side `fallbackExtractor`, `raceExtractor`
    and `ExtractionArbiter`. The on-device transcriber measures the device's real-time factor at
    `prime()` and can therefore report `too-slow` — before that gate existed, a slow device always
    reported `ready` and the fallback was unreachable at any threshold. Selection is made from a

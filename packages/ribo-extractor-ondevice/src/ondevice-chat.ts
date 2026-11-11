@@ -84,7 +84,7 @@ export class OnDeviceChat implements CapableChatClient {
     }
 
     const { initialPrompts, input } = splitMessages(request.messages);
-    const responseConstraint = request.response_format.json_schema.schema;
+    const responseConstraint = request.responseFormat.json_schema.schema;
 
     const holder = new SessionHolder({
       languageModel: this.#languageModel,

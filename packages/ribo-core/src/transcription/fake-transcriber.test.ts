@@ -5,11 +5,11 @@ import {
   DEFAULT_FAKE_TRANSCRIPT_TEXT,
   FakeTranscriber,
 } from "./fake-transcriber.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import { UnsupportedItemError } from "./unsupported-item.js";
 import { TranscriberUnavailableError, type Transcriber } from "./transcriber.js";
 
-const recording = (id = "rec-1"): Recording => ({
+const recording = (id = "rec-1"): AudioCapture => ({
   id,
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",

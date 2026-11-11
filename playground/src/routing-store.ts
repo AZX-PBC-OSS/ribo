@@ -3,7 +3,7 @@ import type { TranscriberFallback } from "@azx/ribo-core";
 /**
  * @file Where the transcriber roster's routing events go, so they go somewhere.
  *
- * `firstCapable`'s `onFallback` and `hedged`'s `onHedge` exist to surface the one failure that
+ * `firstCapable`'s `onFallback` and `hedgedTranscriber`'s `onHedge` exist to surface the one failure that
  * is otherwise invisible: the roster quietly stops using the engine everyone believes it is
  * using. `first-capable.ts` says so directly — the event is "loud on exactly the failure that
  * is otherwise invisible: every recording silently going to cloud STT while everyone believes

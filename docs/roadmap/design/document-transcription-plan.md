@@ -40,17 +40,17 @@ contract are reusable **untouched**.
 Do not reopen these mid-task. Each is either a repo principle or a fact verified against this tree
 on 2026-09-09.
 
-### D1. `Recording` is the audio branch; `CaptureItem` is the union
+### D1. `AudioCapture` is the audio branch; `CaptureItem` is the union
 
-`Recording` keeps `durationMs` and gains `kind: "audio"`. A new `DocumentCapture` carries
+`AudioCapture` keeps `durationMs` and gains `kind: "audio"`. A new `DocumentCapture` carries
 `pageCount` and `kind: "document"`. `CaptureItem` is the union of the two.
 
-**`Recording` is not renamed and does not become the union.** This follows from the target
-signature itself — `Transcriber<S extends CaptureItem = Recording>` — whose default argument only
-means "exactly what it means today" if `Recording` is still the audio thing. It also keeps every
-existing `.durationMs` access on a `Recording`-typed value compiling.
+**The audio type does not become the union.** This follows from the target
+signature itself — `Transcriber<S extends CaptureItem = AudioCapture>` — whose default argument only
+means "exactly what it means today" if `AudioCapture` is still the audio thing. It also keeps every
+existing `.durationMs` access on an `AudioCapture`-typed value compiling.
 
-**Do not model a PDF as a `Recording` with `durationMs: 0`.** That lies to every consumer, to the
+**Do not model a PDF as an `AudioCapture` with `durationMs: 0`.** That lies to every consumer, to the
 capture UI and to anything that formats an elapsed time. `z.strictObject` on each branch is what
 makes writing that lie impossible rather than merely discouraged.
 
@@ -89,7 +89,7 @@ row that has **no `kind` key at all**, and leaves a row carrying an unrecognised
 fails as a bad discriminator rather than being quietly rewritten to `audio`.
 
 Both mechanisms ship, and each has a distinct job: the branch `.default("audio")` serves a direct
-`recordingSchema.parse(...)` (which is what `recorder.ts` and roughly two dozen test fixtures do,
+`audioCaptureSchema.parse(...)` (which is what `recorder.ts` and roughly two dozen test fixtures do,
 and it is why they need no edit), and the preprocess serves every parse that goes through the
 union. Task 1 pins the zod behaviour itself, so that if a later zod applies branch defaults during
 discrimination the test goes red and the preprocess can go.
@@ -211,22 +211,22 @@ reach pdf.js.
 **This is a type error, and the only reason it is not caught is how the interface is declared.**
 `transcriber.ts` writes `transcribe` with **method** syntax, and TypeScript exempts method
 parameters from `strictFunctionTypes`, comparing them bivariantly — a deliberate concession for
-things like `Array<T>.push`, and the reason `Transcriber<Recording>` slides into a
+things like `Array<T>.push`, and the reason `Transcriber<AudioCapture>` slides into a
 `Transcriber<CaptureItem>` slot unchallenged. Declared as a function-typed **property** instead, the
-same assignment is rejected: `TS2322: Type 'CaptureItem' is not assignable to type 'Recording'`.
+same assignment is rejected: `TS2322: Type 'CaptureItem' is not assignable to type 'AudioCapture'`.
 
 Measured on this tree under TypeScript 6.0.3 with the repo's own `strict` settings:
 
-| `transcribe` declared as | `Transcriber<Recording>` → `Transcriber<CaptureItem>` |
-| ------------------------ | ----------------------------------------------------- |
-| method                   | accepted, silently                                    |
-| function-typed property  | **TS2322**                                            |
+| `transcribe` declared as | `Transcriber<AudioCapture>` → `Transcriber<CaptureItem>` |
+| ------------------------ | -------------------------------------------------------- |
+| method                   | accepted, silently                                       |
+| function-typed property  | **TS2322**                                               |
 
 **So Task 2 declares it as a property.** Two further results from the same probe say this is cheap
 rather than disruptive: a class written with an ordinary `async transcribe(…)` **method** still
 satisfies the property-typed interface (variance only matters when comparing two _instantiations_
 of the interface), so `OnDeviceTranscriber`, `ManagedTranscriber` and `FakeTranscriber` need no
-edit; and the safe direction — a `Transcriber<CaptureItem>` into a `Transcriber<Recording>` slot —
+edit; and the safe direction — a `Transcriber<CaptureItem>` into a `Transcriber<AudioCapture>` slot —
 still compiles, as it should.
 
 **What a host does about it: `restrictToKind`.** A composition root wiring an audio-only roster into
@@ -244,9 +244,9 @@ character and it makes the contract honest; the machinery that would sit on top 
 earlier draft of this plan carried a page of it. If a mixed queue becomes real, the compiler will
 raise it at the composition root, which is the right place and the right time.
 
-One related note, unchanged by any of this: `hedged()`'s delay policy is typed
-`(recording: Recording) => number | undefined` (`hedged.ts:66`), so `hedged` is audio-shaped by
-construction and needs `restrictToKind` for the same reason.
+One related note, unchanged by any of this: `hedgedTranscriber()`'s delay policy is typed
+`(recording: AudioCapture) => number | undefined` (`hedged-transcriber.ts:66`), so
+`hedgedTranscriber` is audio-shaped by construction and needs `restrictToKind` for the same reason.
 
 ### D8. The pdf.js package
 
@@ -310,7 +310,7 @@ Every task inherits these.
   defect. Keep them terse: do not bake leaf or field counts into prose, because they go stale and
   cause pure-churn merge conflicts — let tests pin counts.
 - **No existing package renamed.** Do not rename `Transcriber`, `Transcript`, `transcribe`, or any
-  package. Do **not** introduce an alias like `type Transcriber = TextSource<Recording>` — that is
+  package. Do **not** introduce an alias like `type Transcriber = TextSource<AudioCapture>` — that is
   two names for one thing (`extractor.ts:114`). The word already fits: transcription's older meaning
   is documents, so a PDF transcriber is using it more literally than an audio one.
 - **Leave `Transcript` and `transcriptSchema` alone, `recordingId` included.** It is persisted; a
@@ -370,7 +370,7 @@ Every task inherits these.
 `recording.ts`, `recording.test.ts`, `queue/schema.ts` (the `recording` field only),
 `queue/schema.test.ts`, `index.ts`.
 
-**Intent.** Land D1, D2 and D3. `recordingSchema` keeps every field it has, gains
+**Intent.** Land D1, D2 and D3. `audioCaptureSchema` keeps every field it has, gains
 `kind: z.literal("audio").default("audio")`, and takes its four shared fields from
 `capture-fields.ts`. `documentCaptureSchema` is the same shared fields plus
 `kind: z.literal("document")` (no default — there are no legacy document rows to be tolerant of)
@@ -388,7 +388,7 @@ in TypeScript, and a helper would be a second way to ask one question.
 **Interfaces produced.** `captureFields(ctx)`; `documentCaptureSchema(ctx)`,
 `baseDocumentCaptureSchema`, `DocumentCapture<C>`; `captureItemSchema(ctx)`,
 `baseCaptureItemSchema`, `CaptureItem<C>`. All exported from the `ribo-core` barrel. Later tasks
-depend on `CaptureItem`, `DocumentCapture` and `Recording` by these exact names.
+depend on `CaptureItem`, `DocumentCapture` and `AudioCapture` by these exact names.
 
 **Must-fail tests.**
 
@@ -437,7 +437,7 @@ Production:
   audio chunks, which is meaningless for anything else. Guard on `kind`, and on a non-audio item
   mark the row `dead` with a reason naming the kind — mirroring the file's existing
   `unrecoverable: no capture.sourceId` branch rather than inventing a new shape.
-- `packages/ribo-transcriber-ondevice/src/calibration.ts:25` — a production `const … : Recording`
+- `packages/ribo-transcriber-ondevice/src/calibration.ts:25` — a production `const … : AudioCapture`
   literal. Add `kind: "audio"`.
 - `packages/ribo-transcriber-ondevice/src/live.ts:285` (TS2345) — same, at a call site.
 - `playground/src/QueuePanel.tsx:197` (TS2339) reads `item.recording.durationMs` for its
@@ -456,7 +456,7 @@ all). Its input field stays `audio: Blob` and the attachment id stays `AUDIO_ATT
 `Transcript.recordingId`, and worth one doc comment saying so, since Task 2 renames the transcriber
 parameter to `bytes` for exactly the reason these two cannot be renamed.
 
-`beginRecording` stays `Recording` and keeps parsing with `baseRecordingSchema` — it is the durable
+`beginRecording` stays `AudioCapture` and keeps parsing with `baseAudioCaptureSchema` — it is the durable
 microphone path. Then `commitRecording` (line ~370) spreads `durationMs` onto
 `data.recording`, and **that spread produces no typecheck error** while writing a document row
 carrying a bogus `durationMs` — which `outboxDocumentSchema` (strict) then rejects on the next
@@ -485,7 +485,7 @@ here so the enumeration is usable rather than merely historical:
   wrap — eight call sites, spanning `write-step.test.ts`, `instance-write-step.test.ts` and
   `extractor.browser.test.ts` as well as the relay and playground files named below.
 
-Finally, roughly twenty test fixtures declare `const recording: Recording = { … }` with no `kind`
+Finally, roughly twenty test fixtures declare `const recording: AudioCapture = { … }` with no `kind`
 and need `kind: "audio"` added, because `z.infer` gives the _output_ type where `kind` is required.
 Mechanical. The branch default (D3) is what keeps the far larger number of `schema.parse({ … })`
 call sites — including both in `recorder.ts` — unchanged.
@@ -498,14 +498,14 @@ call sites — including both in `recorder.ts` — unchanged.
 transcriber's type only), `restrict-to-kind.ts` + test (new, but it needs Task 3's error — see
 Ordering below).
 
-**Intent.** `Transcriber<S extends CaptureItem = Recording>`, declaring
+**Intent.** `Transcriber<S extends CaptureItem = AudioCapture>`, declaring
 `transcribe: (item: S, bytes: Blob) => Promise<Transcript>` — **a function-typed property, not a
 method.** Per D7a that one character is what makes the contract enforceable: method parameters are
 exempt from `strictFunctionTypes` and compared bivariantly, so with method syntax an audio-only
 engine slides unchallenged into a slot that can see documents.
 
 The default type argument means bare `Transcriber` keeps meaning **exactly** what it means today, so
-`ribo-transcriber-ondevice`, `ribo-transcriber-managed`, `firstCapable`, `hedged` and
+`ribo-transcriber-ondevice`, `ribo-transcriber-managed`, `firstCapable`, `hedgedTranscriber` and
 `FakeTranscriber` satisfy it **unchanged** — a class written with an ordinary `async transcribe(…)`
 method still satisfies a property-typed interface, verified. Rename the parameter `audio` → `bytes`:
 a parameter name, not an exported symbol, so nothing importing this breaks, and the Blob was always
@@ -541,13 +541,13 @@ unused-directive error (TS2578) _is_ the assertion. A runtime test cannot reach 
 are invisible to `pnpm test`. A green test run says nothing about them. That is the same deal the
 existing precedent makes, but it is worth knowing before you go looking for a red test.
 
-- **A `Transcriber<Recording>` is NOT assignable to `Transcriber<CaptureItem>`.** This is the D7a
+- **A `Transcriber<AudioCapture>` is NOT assignable to `Transcriber<CaptureItem>`.** This is the D7a
   property and the reason for the property-syntax declaration. Write it, then flip the declaration
   back to method syntax once and watch the `@ts-expect-error` go unused — that is the only way to
   know the test is testing the syntax choice rather than something incidental.
-- A `Transcriber<CaptureItem>` **is** assignable to `Transcriber<Recording>`. The safe direction must
+- A `Transcriber<CaptureItem>` **is** assignable to `Transcriber<AudioCapture>`. The safe direction must
   keep working; a test that only pins the rejection would also pass if the type were simply broken.
-- Bare `Transcriber` still accepts a `Recording` and still **rejects** a `DocumentCapture`, so the
+- Bare `Transcriber` still accepts an `AudioCapture` and still **rejects** a `DocumentCapture`, so the
   default argument has not silently widened the existing contract.
 - A class written with an ordinary `async transcribe(…)` **method** satisfies the property-typed
   interface. Pin it: it is what makes this change cost nothing at every existing implementation, and
@@ -648,7 +648,7 @@ Do **not** export outcome constructors. The extractor side exports `resultOutcom
 because `compositeExtractor` drives that engine directly; nothing outside this module builds a
 transcription outcome, and those two names are already taken in the barrel.
 
-**Make `FakeTranscriber` generic** — `FakeTranscriber<S extends CaptureItem = Recording>` — rather
+**Make `FakeTranscriber` generic** — `FakeTranscriber<S extends CaptureItem = AudioCapture>` — rather
 than adding a second document-shaped fake. Non-negotiable #1 decides this: two fakes for one seam is
 two names for one thing. `new FakeTranscriber()` stays identical for every existing caller. Add a
 setter for a one-shot and a persistent `UnsupportedItemError`, beside the existing
@@ -696,7 +696,7 @@ substitutes in with zero changes elsewhere is non-negotiable #3, and it is what 
   Per D7a this is now the compiler's problem rather than an ordering rule — a rung that cannot read
   an item does not typecheck into the ladder — so this test guards the arbiter, not composition.
 - `FakeTranscriber` with no type argument still compiles against everything that used it before —
-  run the existing `first-capable`, `hedged` and `relay` suites as the assertion.
+  run the existing `first-capable`, `hedged-transcriber` and `relay` suites as the assertion.
 
 **Two of the tests above pass today and are fences, not must-fails** — the last one, and (in Task 3)
 the `TranscriberUnavailableError`-is-transient pin. Both are deliberate regression guards; the rest
@@ -867,14 +867,14 @@ incomplete. Add the entry; do not claim it makes typedoc current.
 
 ## Self-review — spec coverage
 
-| Prompt step                                      | Task                                                                  |
-| ------------------------------------------------ | --------------------------------------------------------------------- |
-| 1 — `Recording` gains `kind`; migration verified | 1 (D1, D2, D3)                                                        |
-| 2 — `Transcriber` generic; `audio` → `bytes`     | 2 — **committed together with Task 1**                                |
-| 3 — third failure class                          | 3 (D4, D5)                                                            |
-| 3 — `fallbackTranscriber` + arbiter + Fake       | 4 (D6, D7)                                                            |
-| 4 — `@azx/ribo-transcriber-pdfjs`                | 5 (skeleton, cheap `capability()`) and 6 (extraction, markers, guard) |
-| Changeset                                        | every task                                                            |
+| Prompt step                                         | Task                                                                  |
+| --------------------------------------------------- | --------------------------------------------------------------------- |
+| 1 — `AudioCapture` gains `kind`; migration verified | 1 (D1, D2, D3)                                                        |
+| 2 — `Transcriber` generic; `audio` → `bytes`        | 2 — **committed together with Task 1**                                |
+| 3 — third failure class                             | 3 (D4, D5)                                                            |
+| 3 — `fallbackTranscriber` + arbiter + Fake          | 4 (D6, D7)                                                            |
+| 4 — `@azx/ribo-transcriber-pdfjs`                   | 5 (skeleton, cheap `capability()`) and 6 (extraction, markers, guard) |
+| Changeset                                           | every task                                                            |
 
 **This plan was reviewed before execution** by a second model (kimi-k3, cross-family, 2026-09-09),
 and revised against that review. Five of its findings are folded in above: the real typecheck

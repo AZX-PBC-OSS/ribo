@@ -10,7 +10,7 @@ import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
 import { firstValueFrom } from "rxjs";
 import { afterEach, expect, test, vi } from "vitest";
 
-import type { Recording } from "@azx/ribo-core";
+import type { AudioCapture } from "@azx/ribo-core";
 import { summarizeWork } from "@azx/ribo-core";
 import { FINISHED_SESSION_STATUSES } from "@azx/ribo-core";
 import { openStorage, type Storage } from "@azx/ribo-core";
@@ -64,7 +64,7 @@ afterEach(async () => {
   for (const name of usedNames.splice(0)) await removeStorageDatabase(name);
 });
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",
@@ -614,7 +614,7 @@ test("v5 recordings with no assessmentId get singleton sessions", async () => {
 });
 
 test("a v5 recording whose ctx is a primitive migrates to a session storage can still open", async () => {
-  // `Recording["ctx"]` is `unknown` and `baseRecordingSchema` leaves it
+  // `AudioCapture["ctx"]` is `unknown` and `baseAudioCaptureSchema` leaves it
   // unconstrained, so a host could legally enqueue `ctx: "job-42"` under v5.
   // `sessionRxSchema` types the session's `ctx` as an object, so minting a
   // session from that recording without a substitute produces a document the
@@ -624,7 +624,7 @@ test("a v5 recording whose ctx is a primitive migrates to a session storage can 
   // write step and died there with a readable error.
   //
   // A recording carrying NO ctx key at all is a different and older problem:
-  // `baseRecordingSchema` requires the key, so such a row fails to parse as an
+  // `baseAudioCaptureSchema` requires the key, so such a row fails to parse as an
   // Capture long before any session is minted. That is out of scope here.
   const name = uniqueName();
   await seedVersionZeroOutbox(name, {

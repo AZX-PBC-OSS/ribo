@@ -8,10 +8,10 @@
  * behaviour is covered by the package's own unit tests.
  */
 
-import { type LiveSession, type LiveTranscriber, type Recording } from "@azx/ribo-core";
+import { type LiveSession, type LiveTranscriber, type AudioCapture } from "@azx/ribo-core";
 import { OnDeviceLiveTranscriber } from "@azx/ribo-transcriber-ondevice";
 
-function recording(id: string): Recording {
+function recording(id: string): AudioCapture {
   return {
     id,
     capturedAt: new Date().toISOString(),

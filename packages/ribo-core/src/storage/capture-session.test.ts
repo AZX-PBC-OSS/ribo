@@ -5,9 +5,9 @@ import { firstValueFrom } from "rxjs";
 import { openCaptureSession } from "./capture-session.js";
 import type { Storage } from "./storage.js";
 import type { Capture } from "./capture-schema.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",
@@ -39,7 +39,7 @@ function fakeOutbox(): Pick<
     async beginRecording({
       sourceId,
     }: {
-      recording: Recording;
+      recording: AudioCapture;
       sourceId: string;
       sessionId: string;
     }) {

@@ -156,7 +156,7 @@ const clamp = (n: number): number => Math.max(0, Math.min(1, n));
 
 /**
  * A ChatClient that records every request and replays a canned response per
- * group, dispatching by `response_format.json_schema.name`. The name is
+ * group, dispatching by `responseFormat.json_schema.name`. The name is
  * `${target.name}-${group.key}` for grouped schemas, or just `target.name` for
  * the non-grouped fallback.
  */
@@ -168,7 +168,7 @@ function fakeGroupChat(
   const chat: ChatClient = {
     complete: (request) => {
       requests.push(request);
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       const content = responses[name] ?? "{}";
       return Promise.resolve({ content, finishReason });
     },
@@ -185,7 +185,7 @@ const groupedName = (key: string): string => `${groupedTarget.name}-${key}`;
 
 /**
  * A {@link ChatClient} that tracks per-group call counts and delegates to a
- * per-group handler, dispatching by `response_format.json_schema.name`. The
+ * per-group handler, dispatching by `responseFormat.json_schema.name`. The
  * handler receives the 1-based attempt number and the `AbortSignal`, so a
  * test can fail the first N attempts, succeed on attempt N+1, or check whether
  * the signal was passed. If a handler throws, the error propagates as a
@@ -204,7 +204,7 @@ function fakeRetryChat(
   const signals: (AbortSignal | undefined)[] = [];
   const chat: ChatClient = {
     complete: async (request, options) => {
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       callCounts[name] = (callCounts[name] ?? 0) + 1;
       requests.push(request);
       signals.push(options?.signal);
@@ -232,7 +232,7 @@ describe("perGroupExtractor — N groups produce N calls", () => {
     const chat: ChatClient = {
       complete: (request) => {
         requests.push(request);
-        const name = request.response_format.json_schema.name;
+        const name = request.responseFormat.json_schema.name;
         const content = name.endsWith("-hvac")
           ? JSON.stringify(hvacResponse)
           : JSON.stringify(atticResponse);
@@ -277,7 +277,7 @@ describe("perGroupExtractor — N groups produce N calls", () => {
     // whose real answer is "this endpoint does not say".
     const chat: ChatClient = {
       complete: (request) => {
-        const name = request.response_format.json_schema.name;
+        const name = request.responseFormat.json_schema.name;
         return Promise.resolve({
           content: name.endsWith("-hvac")
             ? JSON.stringify(hvacResponse)
@@ -331,18 +331,18 @@ describe("perGroupExtractor — N groups produce N calls", () => {
     expect(requests).toHaveLength(2);
     expect(result.usage.calls).toBe(2);
 
-    // Each request's response_format is pinned to ITS group's schema, not the
+    // Each request's responseFormat is pinned to ITS group's schema, not the
     // full schema. The name identifies the group; the schema is the group's
     // strict one-key JSON Schema, not the whole extraction schema.
     const groups = splitExtractionSchema(groupedExtraction);
     for (const group of groups) {
       const req = requests.find(
-        (r) => r.response_format.json_schema.name === groupedName(group.key),
+        (r) => r.responseFormat.json_schema.name === groupedName(group.key),
       );
       expect(req, `request for group "${group.key}"`).toBeDefined();
-      expect(req!.response_format.type).toBe("json_schema");
-      expect(req!.response_format.json_schema.strict).toBe(true);
-      expect(req!.response_format.json_schema.schema).toEqual(
+      expect(req!.responseFormat.type).toBe("json_schema");
+      expect(req!.responseFormat.json_schema.strict).toBe(true);
+      expect(req!.responseFormat.json_schema.schema).toEqual(
         z.toJSONSchema(group.schema, { target: "draft-2020-12" }),
       );
     }
@@ -398,11 +398,9 @@ describe("perGroupExtractor — N groups produce N calls", () => {
       { text: transcript, annotations: {} },
     );
 
-    const hvacReq = requests.find(
-      (r) => r.response_format.json_schema.name === groupedName("hvac"),
-    );
+    const hvacReq = requests.find((r) => r.responseFormat.json_schema.name === groupedName("hvac"));
     const atticReq = requests.find(
-      (r) => r.response_format.json_schema.name === groupedName("attic"),
+      (r) => r.responseFormat.json_schema.name === groupedName("attic"),
     );
     expect(hvacReq, "hvac request").toBeDefined();
     expect(atticReq, "attic request").toBeDefined();
@@ -649,10 +647,10 @@ describe("perGroupExtractor — non-grouped fallback", () => {
     expect(requests).toHaveLength(1);
     expect(result.usage.calls).toBe(1);
 
-    // The single request's response_format carries the FULL extraction schema,
+    // The single request's responseFormat carries the FULL extraction schema,
     // not a one-key slice — the fallback entry's schema IS the whole schema.
-    expect(requests[0]!.response_format.json_schema.name).toBe(flatTarget.name);
-    expect(requests[0]!.response_format.json_schema.schema).toEqual(
+    expect(requests[0]!.responseFormat.json_schema.name).toBe(flatTarget.name);
+    expect(requests[0]!.responseFormat.json_schema.schema).toEqual(
       z.toJSONSchema(flatExtraction, { target: "draft-2020-12" }),
     );
 
@@ -767,7 +765,7 @@ describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () 
     const result = await extractor.extract({ text: "the transcript", annotations: {} });
 
     // One call per piece: the group with its infix, the loose piece without.
-    expect(requests.map((r) => r.response_format.json_schema.name).sort()).toEqual([
+    expect(requests.map((r) => r.responseFormat.json_schema.name).sort()).toEqual([
       "demo-mixed",
       "demo-mixed-hvac",
     ]);
@@ -776,8 +774,8 @@ describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () 
     // sends for this target: the target's own instructions, and the FULL
     // unprojected example — no projection exists for leaves that belong to no
     // group, and none is invented (design §6).
-    const looseReq = requests.find((r) => r.response_format.json_schema.name === "demo-mixed")!;
-    const looseSchema = looseReq.response_format.json_schema.schema as {
+    const looseReq = requests.find((r) => r.responseFormat.json_schema.name === "demo-mixed")!;
+    const looseSchema = looseReq.responseFormat.json_schema.schema as {
       properties: Record<string, unknown>;
     };
     expect(Object.keys(looseSchema.properties)).toEqual(["note", "yearBuilt"]);
@@ -822,11 +820,11 @@ describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () 
     // The group gets its own instructions and a projected example; the loose
     // piece keeps the target's instructions and full example (design §6).
     expect(seen).toEqual(["hvac"]);
-    const hvacReq = requests.find((r) => r.response_format.json_schema.name === "demo-mixed-hvac")!;
+    const hvacReq = requests.find((r) => r.responseFormat.json_schema.name === "demo-mixed-hvac")!;
     expect(hvacReq.messages[0]).toEqual({ role: "system", content: "Rules for hvac." });
     const hvacFields = JSON.parse(hvacReq.messages[2]!.content) as Record<string, unknown>;
     expect(Object.keys(hvacFields)).toEqual(["hvac"]);
-    const looseReq = requests.find((r) => r.response_format.json_schema.name === "demo-mixed")!;
+    const looseReq = requests.find((r) => r.responseFormat.json_schema.name === "demo-mixed")!;
     expect(looseReq.messages[0]).toEqual({ role: "system", content: mixedTarget.instructions });
     expect(JSON.parse(looseReq.messages[2]!.content)).toEqual(mixedExample.fields);
   });
@@ -892,7 +890,7 @@ describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () 
     for (const piece of looseTargets) {
       const assistantFields = piece.examples?.[0]?.fields as Record<string, unknown> | undefined;
       // Each piece's example carries exactly its own leaf subset — never the
-      // full example, which the response_format's strict mode would reject.
+      // full example, which the responseFormat's strict mode would reject.
       const expected = Object.keys((piece.extractionSchema as unknown as z.ZodObject).shape).sort();
       expect(Object.keys(assistantFields ?? {}).sort()).toEqual(expected);
     }
@@ -926,7 +924,7 @@ describe("perGroupExtractor — a mixed schema: groups beside loose leaves", () 
       'singleShotExtractor: model response for "demo-mixed"',
     );
     expect((rejection as Error).message).not.toContain("merged response");
-    expect(requests.map((r) => r.response_format.json_schema.name)).toContain("demo-mixed");
+    expect(requests.map((r) => r.responseFormat.json_schema.name)).toContain("demo-mixed");
   });
 });
 
@@ -1069,7 +1067,7 @@ describe("perGroupExtractor — flat partitioning under the byte cap", () => {
 
     // N requests, one per piece (the per-name dispatch is what proves the
     // pieces' schemas parse their per-piece responses).
-    const requestNames = requests.map((r) => r.response_format.json_schema.name).sort();
+    const requestNames = requests.map((r) => r.responseFormat.json_schema.name).sort();
     expect(requestNames).toEqual([...expectedNames].sort());
 
     // Every GroupUnit event is keyed `""`, with `part: i+1` and the same
@@ -1090,9 +1088,9 @@ describe("perGroupExtractor — flat partitioning under the byte cap", () => {
     expect(result.usage.calls).toBe(piecesMeta.length);
   });
 
-  test("a partitioned flat piece's few-shot example carries only that piece's leaves — the narrowing the response_format strict-mode requires", async () => {
+  test("a partitioned flat piece's few-shot example carries only that piece's leaves — the narrowing the responseFormat strict-mode requires", async () => {
     // The argument transfers verbatim from partitioned grouped pieces: shows the
-    // model an assistant turn wider than the piece's response_format accepts and
+    // model an assistant turn wider than the piece's responseFormat accepts and
     // either it stops imitating (the assistant turn's wider shape is off-mode) or
     // it starts inventing absent leaves to fill the example, neither of which
     // anyone wanted. The shipped path runs against `examples: []`; the narrowing
@@ -1162,7 +1160,7 @@ describe("perGroupExtractor — flat partitioning under the byte cap", () => {
       const assistantFields = piece.examples?.[0]?.fields as Record<string, unknown> | undefined;
       // Every piece carries exactly its subset of leaves — never the full
       // eight, which would show the model an assistant turn wider than its
-      // response_format accepts.
+      // responseFormat accepts.
       const present = Object.keys(assistantFields ?? {}).sort();
       const expected = Object.keys((piece.extractionSchema as unknown as z.ZodObject).shape).sort();
       expect(present, `piece name=${piece.name} expected=${JSON.stringify(expected)}`).toEqual(
@@ -1510,7 +1508,7 @@ describe("perGroupExtractor — bounded retry (Task 3)", () => {
 });
 
 test("every per-group schema name is within the structured-output name charset", async () => {
-  // Platform routes constrain `response_format.json_schema.name` to
+  // Platform routes constrain `responseFormat.json_schema.name` to
   // [A-Za-z0-9_-]{1,64}. A name outside it is rejected with a generic validation
   // error that reads identically to an over-cap schema — an expensive thing to
   // diagnose, so pin the charset here rather than rediscover it against a route.
@@ -1526,7 +1524,7 @@ test("every per-group schema name is within the structured-output name charset",
 
   expect(requests.length).toBeGreaterThan(1);
   for (const request of requests) {
-    expect(request.response_format.json_schema.name).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
+    expect(request.responseFormat.json_schema.name).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
   }
 });
 
@@ -1624,10 +1622,10 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
     expect(requests).toHaveLength(2);
     expect(result.usage.calls).toBe(2);
 
-    // Each call's response_format schema carries only its own 5 leaves, not all 10
+    // Each call's responseFormat schema carries only its own 5 leaves, not all 10
     // — the whole point of the partition.
     for (const request of requests) {
-      const schema = request.response_format.json_schema.schema as {
+      const schema = request.responseFormat.json_schema.schema as {
         properties: { big: { properties: Record<string, unknown> } };
       };
       expect(Object.keys(schema.properties.big.properties)).toHaveLength(5);
@@ -1733,7 +1731,7 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
     // Each call's schema still carries the array wrapper — the split narrows the
     // per-instance leaf set, never the array itself.
     for (const request of requests) {
-      const schema = request.response_format.json_schema.schema as {
+      const schema = request.responseFormat.json_schema.schema as {
         properties: { items: { type: string; items: { properties: Record<string, unknown> } } };
       };
       expect(schema.properties.items.type).toBe("array");
@@ -1812,12 +1810,12 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
       const assistantTurn = request.messages[2]!;
       expect(assistantTurn.role).toBe("assistant");
       const exampleFields = JSON.parse(assistantTurn.content) as { big: Record<string, unknown> };
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       const expectedKeys = name.endsWith("-0")
         ? ["f1", "f2", "f3", "f4", "f5"]
         : ["f6", "f7", "f8", "f9", "f10"];
       // The example carries EXACTLY this piece's leaves — not all ten, which
-      // would show the model an assistant turn its own response_format (pinned
+      // would show the model an assistant turn its own responseFormat (pinned
       // to 5 leaves) could never actually produce.
       expect(Object.keys(exampleFields.big).sort()).toEqual([...expectedKeys].sort());
     }
@@ -1845,8 +1843,8 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
 
     expect(requests).toHaveLength(1);
     expect(result.usage.calls).toBe(1);
-    expect(requests[0]!.response_format.json_schema.name).toBe("demo-big-big");
-    const schema = requests[0]!.response_format.json_schema.schema as {
+    expect(requests[0]!.responseFormat.json_schema.name).toBe("demo-big-big");
+    const schema = requests[0]!.responseFormat.json_schema.schema as {
       properties: { big: { properties: Record<string, unknown> } };
     };
     expect(Object.keys(schema.properties.big.properties)).toHaveLength(10);
@@ -1888,7 +1886,7 @@ describe("perGroupExtractor — leaf-count partitioning (over the 8-enveloped-le
 
     expect(requests).toHaveLength(4);
     for (const request of requests) {
-      expect(request.response_format.json_schema.name).toMatch(/-([01])$/);
+      expect(request.responseFormat.json_schema.name).toMatch(/-([01])$/);
     }
 
     // Both groups recombined from their single-leaf pieces.
@@ -2068,7 +2066,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
     const eventsWithUsage: GroupUnit[] = [];
     const chatWithUsage: ChatClient = {
       complete: (request) => {
-        const name = request.response_format.json_schema.name;
+        const name = request.responseFormat.json_schema.name;
         return Promise.resolve({
           content: name.endsWith("-hvac")
             ? JSON.stringify(hvacResponse)
@@ -2144,7 +2142,7 @@ describe("perGroupExtractor — progress units (extraction observability)", () =
     const events: GroupUnit[] = [];
     const chat: ChatClient = {
       complete: async (request) => {
-        if (request.response_format.json_schema.name === groupedName("hvac")) {
+        if (request.responseFormat.json_schema.name === groupedName("hvac")) {
           throw new Error("transient");
         }
         await new Promise((resolve) => setTimeout(resolve, 20));

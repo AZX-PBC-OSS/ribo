@@ -87,9 +87,9 @@ describe("presencePhase — run", () => {
       const output = await def.run(item!, emptyDraft<Values>(), ctx);
 
       expect(requests).toHaveLength(1);
-      expect(requests[0]!.response_format.json_schema.name).toBe("hvac-presence");
+      expect(requests[0]!.responseFormat.json_schema.name).toBe("hvac-presence");
       // The presence schema: one boolean property per leaf, all required.
-      const schema = requests[0]!.response_format.json_schema.schema;
+      const schema = requests[0]!.responseFormat.json_schema.schema;
       expect(schema).toEqual({
         type: "object",
         properties: {
