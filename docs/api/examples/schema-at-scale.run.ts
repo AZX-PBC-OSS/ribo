@@ -58,7 +58,7 @@ const bigPatchSchema = z.object({
 /** Dispatch on the structured-output schema name — one chat serving many groups. */
 const answering =
   (reply: (schemaName: string) => object): ScriptedChatResponder =>
-  (request: ChatRequest) => ({ content: reply(request.response_format.json_schema.name) });
+  (request: ChatRequest) => ({ content: reply(request.responseFormat.json_schema.name) });
 
 export function theSplitGivesOneEntryPerTopLevelGroup(): void {
   // #region usage

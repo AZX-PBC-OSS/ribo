@@ -61,7 +61,7 @@ populate it — a response whose finish reason is missing or unknown is a `ChatE
 absent/zero distinction: absent means "not reported", never "zero".
 
 `ChatRequest` is the smallest slice that supports single-shot structured extraction: `model`, an
-ordered list of role-tagged `messages`, `response_format` pinning output to a JSON Schema with
+ordered list of role-tagged `messages`, `responseFormat` pinning output to a JSON Schema with
 `strict: true`, and an optional `maxTokens` — camelCase deliberately, because the wire spelling
 depends on the model and the implementation owns it.
 

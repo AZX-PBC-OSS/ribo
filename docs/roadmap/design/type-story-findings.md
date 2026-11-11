@@ -73,7 +73,7 @@ P>` satisfies the bound (it is a mapped type over `keyof V`), so no real caller 
 `{@link}` targets that exist in source but are not on any barrel — `assertStopFinishReason`,
 `parseWithSchema`, `buildMessages`, `mergeGroupPieces`, `narrowToLeaves`, `projectSingletonExample`,
 `partitionGroup`, `DEFAULT_MAX_RETRIES` (twice, two packages), `GranularityOf`, `collectFields`,
-`completenessIssues`, `buildInstanceKeys`, `Recording.durationMs`, and the DOM's `Response` /
+`completenessIssues`, `buildInstanceKeys`, `AudioCapture.durationMs`, and the DOM's `Response` /
 `AbortSignal`. 16 more are relative-path links (`./transcribe.ts`, `./worker.ts`) TypeDoc cannot
 resolve, and 7 are the `@file` block tag it does not know. `post-docs-findings.md`'s open
 question counted 21 + 7; the number has grown with the recent extractor work.
@@ -267,7 +267,7 @@ so `T` holds. None of these is papering.
 
 ### O2. Two conventions for the "context" generic — **read**
 
-`Recording<C extends z.ZodType>` and `CaptureItem<C extends z.ZodType>` take the **schema** type;
+`AudioCapture<C extends z.ZodType>` and `CaptureItem<C extends z.ZodType>` take the **schema** type;
 `ToolAdapter<V, C>` and `Recorder<C>` take the **value** type and carry a `ctxSchema: ZodType<C>`
 beside it. Both work. A reader meeting `C` in two files must check which it is.
 
@@ -287,7 +287,7 @@ recorded so the next reader does not report it as a defect.
 `OpenSessionInput.ctx: unknown` (`outbox.ts:87`), `SessionWriteInput.ctx: unknown` (`relay.ts`),
 parsed by `adapter.ctxSchema.safeParse` only in the write step (`write-step.ts:75`,
 `instance-write-step.ts:73`), where a mismatch is terminal. `ToolAdapter<V, C>`'s `C` never meets
-the session at open time. Structural — the outbox is adapter-agnostic — and `recordingSchema(ctx)`
+the session at open time. Structural — the outbox is adapter-agnostic — and `audioCaptureSchema(ctx)`
 shows the pattern that would type it (the host hands a schema at open). Accepted as-is; noted
 because the type parameter reads as stronger than it is.
 

@@ -12,7 +12,7 @@
  * therefore ready", so the device degrades to today's behaviour instead of a
  * broken prime.
  */
-import type { Recording, Transcript } from "@azx/ribo-core";
+import type { AudioCapture, Transcript } from "@azx/ribo-core";
 
 import {
   CALIBRATION_CLIP_DURATION_MS,
@@ -22,7 +22,7 @@ import {
 import { writeRtfVerdict } from "./rtf-verdict.js";
 
 /** The synthetic recording the calibration clip is transcribed under. */
-const CALIBRATION_RECORDING: Recording = {
+const CALIBRATION_RECORDING: AudioCapture = {
   id: "ribo-calibration",
   capturedAt: "2026-08-17T00:00:00.000Z",
   kind: "audio",
@@ -55,7 +55,7 @@ const CALIBRATION_RECORDING: Recording = {
  *   Injected so tests can control the clock and assert the arithmetic exactly.
  */
 export async function measureRtf(
-  transcribe: (recording: Recording, audio: Blob) => Promise<Transcript>,
+  transcribe: (recording: AudioCapture, audio: Blob) => Promise<Transcript>,
   engineId: string,
   cacheStorage: CacheStorage | undefined,
   now: () => number,

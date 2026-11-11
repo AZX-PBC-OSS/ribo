@@ -25,7 +25,7 @@ export function fakeChat(
       },
       complete: async (request) => {
         requests.push(request);
-        const entry = respond(request.response_format.json_schema.name, request);
+        const entry = respond(request.responseFormat.json_schema.name, request);
         if (typeof entry === "string") {
           return { content: entry, finishReason: "stop" };
         }

@@ -8,7 +8,7 @@ import {
   restrictToKind,
   TerminalError,
   type Storage,
-  type Recording,
+  type AudioCapture,
   type SessionExtractStep,
   type SessionWriteStep,
   type Transcriber,
@@ -110,7 +110,7 @@ function transcribeReply(text: string) {
       : [{ type: "primed", requestId: message.requestId }];
 }
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",

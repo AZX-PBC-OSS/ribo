@@ -242,7 +242,7 @@ vocabulary (`UnsupportedItemError`, `TranscriberUnavailableError`) is not the ex
   asks "did running this engine on _this_ item work" — a question `capability()` cannot answer,
   because a `ready` engine can still fail on one specific document, and there is no capability
   bucket for "this engine, this item."
-- **`hedged`** races a preferred engine against a fallback on a latency budget — a sibling of
+- **`hedgedTranscriber`** races a preferred engine against a fallback on a latency budget — a sibling of
   `firstCapable`, not a scheduling flag inside it, for the same reason `raceExtractor` is a separate
   constructor from `fallbackExtractor`: concurrency opted into by name stays visible in a way a
   boolean does not.
@@ -269,5 +269,5 @@ the retry/timeout/hedge/consensus/cache/budget family as one overview.
 phased composition inside one.
 [Schema at Scale](/guide/schema-at-scale) covers `instanceLadder`, the concrete `fallbackExtractor`
 ladder that turns a partitioned schema into real per-instance data. [Captures & Sources](/guide/captures-and-sources)
-covers `firstCapable`, `fallbackTranscriber`, and `hedged` from the transcription side, composing
+covers `firstCapable`, `fallbackTranscriber`, and `hedgedTranscriber` from the transcription side, composing
 audio and document engines into one roster.

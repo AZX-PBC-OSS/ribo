@@ -141,7 +141,7 @@ function fakeChat(respond: (requestName: string) => unknown): {
       complete: (request): Promise<ChatCompletion> => {
         requests.push(request);
         return Promise.resolve({
-          content: JSON.stringify(respond(request.response_format.json_schema.name)),
+          content: JSON.stringify(respond(request.responseFormat.json_schema.name)),
           finishReason: "stop",
         });
       },
@@ -149,7 +149,7 @@ function fakeChat(respond: (requestName: string) => unknown): {
   };
 }
 
-const requestName = (request: ChatRequest): string => request.response_format.json_schema.name;
+const requestName = (request: ChatRequest): string => request.responseFormat.json_schema.name;
 
 describe("the partition pair through the real pipeline", () => {
   test("a proposed partition drives batched fill end to end: review sees each part's values on the right instance", async () => {

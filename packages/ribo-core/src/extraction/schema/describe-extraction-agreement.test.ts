@@ -149,10 +149,10 @@ function pieceChat(
     chat: {
       complete: (request) => {
         requests.push(request);
-        const answer = content.get(JSON.stringify(request.response_format.json_schema.schema));
+        const answer = content.get(JSON.stringify(request.responseFormat.json_schema.schema));
         if (answer === undefined) {
           throw new Error(
-            `unexpected request schema (name "${request.response_format.json_schema.name}") — the ` +
+            `unexpected request schema (name "${request.responseFormat.json_schema.name}") — the ` +
               `construction sent a piece this test did not predict: ${labels.join(", ")}`,
           );
         }

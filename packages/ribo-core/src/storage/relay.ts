@@ -208,7 +208,7 @@ export interface RelayOptions extends BackoffOptions {
   /**
    * The transcriber draining the queue. Widened to `Transcriber<CapturePayload>`
    * because `Capture.recording` is now the union — an audio-only
-   * `Transcriber<Recording>` no longer typechecks into this slot (the
+   * `Transcriber<AudioCapture>` no longer typechecks into this slot (the
    * property-typed `transcribe` makes that assignment a type error, which is
    * the point). Wrap with `restrictToKind("audio", …)` to lift a narrow
    * engine.

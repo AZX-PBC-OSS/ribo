@@ -197,7 +197,7 @@ adapter (§9).
 `RecorderPhase` is `idle | recording | stopping` today. `MediaRecorder` supports pause and resume
 natively; `Recorder` does not expose them. A field auditor being interrupted mid-dictation is an
 ordinary event, and a hook cannot synthesise the capability — stopping and restarting produces a
-second `Recording` with a new id and separate audio, so one paused dictation would become two queue
+second `AudioCapture` with a new id and separate audio, so one paused dictation would become two queue
 items.
 
 It lands in Phase A rather than a later task because it changes the same invariants Phase A is
@@ -207,7 +207,7 @@ Three details make it more than a phase flag:
 
 1. **Elapsed time must accumulate.** `elapsedMs` is `performance.now() - session.startedAt`
    (`recorder.ts:240`), which keeps counting through a pause — a 30-second dictation paused for two
-   minutes would report 2:30, and that wrong number is written to `Recording.durationMs` at stop. The
+   minutes would report 2:30, and that wrong number is written to `AudioCapture.durationMs` at stop. The
    session needs `accumulatedMs` plus a `resumedAt`, with `elapsedMs` summing the two.
 2. **Level must read zero while paused.** The tick keeps firing and the analyser keeps reading a live
    stream, so a paused recorder would otherwise show input level bouncing while recording nothing —

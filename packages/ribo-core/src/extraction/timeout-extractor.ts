@@ -9,7 +9,7 @@ import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js
  * A thin combinator over the core `Extractor` seam, following `fallbackExtractor` /
  * `raceExtractor`'s positional shape: an `F`-only generic takes its extractor first and an
  * options object second. The timer seam is the same injectable `ScheduleTimer`
- * `async/schedule-timer.ts` exports and `hedged.ts` uses, so tests drive time without sleeping.
+ * `async/schedule-timer.ts` exports and `hedged-transcriber.ts` uses, so tests drive time without sleeping.
  *
  * **It narrows the options bag's `ExtractOptions.deadline`.** This is the first combinator
  * that holds a budget of its own, so it is the first that must narrow: its effective
@@ -183,7 +183,7 @@ export function timeoutExtractor<F>(
         });
         // Reap the losing promise: when the timer wins, the inner promise is still
         // outstanding and will often reject once its abort lands. An unhandled
-        // rejection fails the suite (`hedged.ts` documents this exact trap for the
+        // rejection fails the suite (`hedged-transcriber.ts` documents this exact trap for the
         // same reason). Attached where the race is set up, not conditionally after.
         innerPromise.catch(() => {});
         return await Promise.race([innerPromise, timerPromise]);

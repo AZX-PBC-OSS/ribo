@@ -427,7 +427,7 @@ describe("proposer — repair", () => {
     expect(inventoryLines[0]!.content).not.toContain("[dropped]");
   });
 
-  test("a repair reuses the same response_format the initial attempt used", async () => {
+  test("a repair reuses the same responseFormat the initial attempt used", async () => {
     const { chat, requests } = scriptedChat([
       completion({ operations: [{ op: "drop", path: "missing.path" }] }),
       completion({ operations: [{ op: "drop", path: "vessel.notes" }] }),
@@ -438,7 +438,7 @@ describe("proposer — repair", () => {
       context: "repair-schema-stable",
       instructions: "",
     });
-    expect(requests[0]?.response_format).toEqual(requests[1]?.response_format);
+    expect(requests[0]?.responseFormat).toEqual(requests[1]?.responseFormat);
   });
 
   test("exhaustion returns [] — the honest default for a newcomer", async () => {
@@ -921,9 +921,9 @@ describe("end-to-end: schema in → propose → apply → schemaExtractor → re
 
     // Step 1 done: the propose call composed on the first attempt.
     expect(requests).toHaveLength(1);
-    // The first chat call is the proposer's — its response_format names the
+    // The first chat call is the proposer's — its responseFormat names the
     // proposer's wire schema (`shape-proposal`, not the target's).
-    expect(requests[0]!.response_format.json_schema.name).toBe("shape-proposal");
+    expect(requests[0]!.responseFormat.json_schema.name).toBe("shape-proposal");
     expect(
       Object.values(shape.mapping.leaves).some((entry) => entry.source === "visit.notes"),
     ).toBe(false);
@@ -952,9 +952,9 @@ describe("end-to-end: schema in → propose → apply → schemaExtractor → re
 
     // Step 2 done: the extraction call followed.
     expect(requests).toHaveLength(2);
-    // The second chat call is the extractor's — its response_format names the
+    // The second chat call is the extractor's — its responseFormat names the
     // target's wire schema (`visit-e2e`, the caller's name).
-    expect(requests[1]!.response_format.json_schema.name).toBe("visit-e2e");
+    expect(requests[1]!.responseFormat.json_schema.name).toBe("visit-e2e");
 
     // The review request built on the parsed fields carries grounded
     // envelopes — the whole point of the chain surviving the proposer's

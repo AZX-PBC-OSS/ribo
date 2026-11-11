@@ -1,6 +1,6 @@
 # Phase 1 — Contracts Implementation Plan
 
-The plan for the core contracts — the provenance envelope, `Recording`/`Transcript`, `Transcriber`, `ToolAdapter`, `ReviewPresenter` — that every later phase is written against. Phase 1 is complete.
+The plan for the core contracts — the provenance envelope, `AudioCapture`/`Transcript`, `Transcriber`, `ToolAdapter`, `ReviewPresenter` — that every later phase is written against. Phase 1 is complete.
 
 **Goal:** the real types and zod schemas in `@azx/ribo-core` — the vocabulary every later phase is written against. No I/O, no browser APIs called, no behavior beyond validation and small pure helpers.
 
@@ -41,14 +41,14 @@ Four reviewers (codex, opencode, a cold-read agent, an extraction spike) changed
 
 > Document at the definition site _why_ `confidence` exists but is not used for flagging, with the spike numbers. Someone will otherwise wire a threshold to it.
 
-### Task 2: `Recording` and `Transcript`
+### Task 2: `AudioCapture` and `Transcript`
 
 **Files:** create `src/recording.ts`, `src/transcript.ts` + colocated tests
 
-**Produces:** `Recording`, `Transcript`, and their schemas.
+**Produces:** `AudioCapture`, `Transcript`, and their schemas.
 
 - **Step 1: failing tests** — a well-formed record parses; a missing required field is rejected; an unknown extra key is rejected (be strict at the boundary); ids are non-empty.
-- **Step 2:** confirm red. **Step 3:** implement. `Recording`: `id`, `capturedAt`, `durationMs`, `mimeType`, plus a typed opaque `ctx` slot. `Transcript`: `recordingId`, `text`, optional `confidence`. **Audio bytes are NOT in `Recording`** — the blob is held by the queue, and this type is the metadata record; note that where someone would look for it. **Step 4:** green. **Step 5:** commit.
+- **Step 2:** confirm red. **Step 3:** implement. `AudioCapture`: `id`, `capturedAt`, `durationMs`, `mimeType`, plus a typed opaque `ctx` slot. `Transcript`: `recordingId`, `text`, optional `confidence`. **Audio bytes are NOT in `AudioCapture`** — the blob is held by the queue, and this type is the metadata record; note that where someone would look for it. **Step 4:** green. **Step 5:** commit.
 
 ### Task 3: `Transcriber`
 

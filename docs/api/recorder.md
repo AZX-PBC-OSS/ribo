@@ -1,9 +1,9 @@
 # Recorder
 
-A `Recorder` turns microphone input into a `Recording` plus its audio `Blob` — one dictation at a
+A `Recorder` turns microphone input into an `AudioCapture` plus its audio `Blob` — one dictation at a
 time, reusable across captures. Two things are load-bearing beyond "record some audio": the
 container is **negotiated** per browser (`MediaRecorder` emits WebM/Opus on Chromium, MP4/AAC on
-Safari, and a `Recording` whose `mimeType` does not describe its bytes fails later, somewhere
+Safari, and an `AudioCapture` whose `mimeType` does not describe its bytes fails later, somewhere
 else), and the stream is **released on every exit path** — a microphone left open in a field tool
 is a privacy problem, not a resource leak.
 
@@ -25,7 +25,7 @@ behaviour is covered by the core package's own tests.
 ## Options
 
 `new Recorder(options?)` takes `RecorderOptions<C>` — `C` is the host context copied onto every
-`Recording` this recorder produces.
+`AudioCapture` this recorder produces.
 
 None of the constructor defaults is an exported constant, so this page names its source instead
 of quoting a checked value: all defaults below are read from
@@ -33,7 +33,7 @@ of quoting a checked value: all defaults below are read from
 
 | Name              | Type                                                     | Default                                 | What it does                                                                                                                                                                                                                   |
 | ----------------- | -------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ctx`             | `C`                                                      | `{}`                                    | Host association copied onto every `Recording`. Defaults to an empty object — never `undefined` — so "no context" stays distinguishable from "forgot".                                                                         |
+| `ctx`             | `C`                                                      | `{}`                                    | Host association copied onto every `AudioCapture`. Defaults to an empty object — never `undefined` — so "no context" stays distinguishable from "forgot".                                                                      |
 | `mimeTypes`       | `readonly string[]`                                      | the preference list in `recorder.ts:59` | Container preference, best first; codec outranks container, so every Opus entry beats every AAC one. The negotiated type is what the live `MediaRecorder` _reports_, read back at `stop()`.                                    |
 | `tickMs`          | `number`                                                 | `100`                                   | How often `subscribe` listeners are notified while recording.                                                                                                                                                                  |
 | `audio`           | `boolean \| MediaTrackConstraints`                       | `true`                                  | Constraints for the audio track; `true` takes the browser default device.                                                                                                                                                      |
@@ -68,7 +68,7 @@ Capture failures throw `RecorderError`, carrying a machine-readable `code` (stab
 may switch on) and the original `DOMException` as `cause`:
 
 - `unsupported-mime-type` — `negotiateMimeType` found no supported container in the preference
-  list. Deliberately louder than falling back to the browser default: a `Recording` whose
+  list. Deliberately louder than falling back to the browser default: an `AudioCapture` whose
   `mimeType` does not describe its bytes fails later and somewhere else.
 - `permission-denied`, `no-input-device` — `getUserMedia` rejections, classified by name.
 - `already-recording`, `not-recording` — misuse of the one-capture-at-a-time lifecycle.

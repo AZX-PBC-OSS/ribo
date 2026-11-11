@@ -15,7 +15,7 @@ that make a long input tractable.
 **Depends on:** `phased-extraction-design.md` (SP1, which records this scope),
 `sp2-judging-combinators-design.md` (SP2, whose injected-policy discipline this follows),
 `extractor-arbitration-design.md` (the arbiter contract and the shared concurrent engine),
-`managed-transcription-design.md` §5.3 (`hedged`'s resolution rules and the RTF delay policy).
+`managed-transcription-design.md` §5.3 (`hedgedTranscriber`'s resolution rules and the RTF delay policy).
 **Scope:** SP3 of four. SP4 (the agentic layer) is separate.
 
 ---
@@ -30,7 +30,7 @@ writes it themselves — and the last of those is not a small thing to write cor
 **Recommendation: four combinators, and one deliberate deferral.**
 
 - **`hedgedExtractor`** — start a primary extraction, and if it has not finished within a delay,
-  start a hedge and take whichever finishes first. The counterpart of `hedged`.
+  start a hedge and take whichever finishes first. The counterpart of `hedgedTranscriber`.
 - **`raceTranscriber`** — start every transcriber at once and let a policy decide which transcript
   to take. The counterpart of `raceExtractor`.
 - **`chunkedExtractor`** — split a long transcript, extract from each chunk, merge the results
@@ -43,7 +43,7 @@ writes it themselves — and the last of those is not a small thing to write cor
   codec there or reduce to an interface the host fills in anyway.
 
 **Neither lift is a port, and that is the main finding of this design.** Both look mechanical and
-neither is. `hedged` justifies two of its five resolution rules on the grounds that **audio must not
+neither is. `hedgedTranscriber` justifies two of its five resolution rules on the grounds that **audio must not
 leave the device**; a transcript reaching an extractor has already been produced, so that argument
 does not transfer and the tie-break has to be re-derived (§4.1). `raceExtractor` is built on the
 shared concurrent engine with an `ExtractionArbiter`; the transcriber side deliberately does not
@@ -61,15 +61,15 @@ whole cost question_ for a hedge, whose entire value proposition is "usually you
 
 ### 2.1 The seam is asymmetric, and the asymmetry is not by design
 
-Transcription has `firstCapable` (sequential selection) and `hedged` (two lanes, delayed second).
+Transcription has `firstCapable` (sequential selection) and `hedgedTranscriber` (two lanes, delayed second).
 Extraction has `fallbackExtractor` (sequential), `raceExtractor` (N lanes, simultaneous) and
 `compositeExtractor`. So:
 
-| Pattern             | Extraction          | Transcription  |
-| ------------------- | ------------------- | -------------- |
-| Sequential ladder   | `fallbackExtractor` | `firstCapable` |
-| All lanes at once   | `raceExtractor`     | **missing**    |
-| Delayed second lane | **missing**         | `hedged`       |
+| Pattern             | Extraction          | Transcription       |
+| ------------------- | ------------------- | ------------------- |
+| Sequential ladder   | `fallbackExtractor` | `firstCapable`      |
+| All lanes at once   | `raceExtractor`     | **missing**         |
+| Delayed second lane | **missing**         | `hedgedTranscriber` |
 
 Nothing in either design argues for the gaps. They are the order the two sides happened to be
 built in.
@@ -144,14 +144,14 @@ the joined text. An input's own bag is still not a channel through combination (
 **Shape.** `hedgedExtractor(primary, hedge, options): Extractor<F>` with a required `delay` (ms, or a
 function of the transcript returning ms), an injectable `scheduleTimer`, and `onHedge`.
 
-**What it does not carry, against `hedged`.** No capability probe, no TTL, no cache, no `now` for
+**What it does not carry, against `hedgedTranscriber`.** No capability probe, no TTL, no cache, no `now` for
 capabilities. `Transcriber` has a `capability()` contract; `Extractor` is documented as "a plain
 builder, not a capability contract". Nothing to probe. It returns a plain `Extractor<F>`.
 
-**All eight of `hedged`'s rules, mapped — the draft inventoried five.** `hedged.ts` documents eight,
+**All eight of `hedgedTranscriber`'s rules, mapped — the draft inventoried five.** `hedged-transcriber.ts` documents eight,
 and three were never considered for whether they transfer:
 
-| `hedged`                                                            | Transfers?                 | Here                                                                                                                                                                                  |
+| `hedgedTranscriber`                                                 | Transfers?                 | Here                                                                                                                                                                                  |
 | ------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Primary settles before the timer → primary, hedge never invoked  | yes                        | Rule 1, unchanged. The case the combinator exists for                                                                                                                                 |
 | 2. Timer fired, primary first → primary, hedge discarded            | yes, **strengthened**      | Rule 2 — and the hedge is **cancelled**, not merely discarded                                                                                                                         |
@@ -177,7 +177,7 @@ own, composed with the caller's signal via **`AbortSignal.any`, never `??`** —
 alone; the loser's is aborted.
 
 **Every discarded promise gets a rejection handler**, or a losing failure surfaces as an unhandled
-rejection — `hedged.ts` states this and the draft omitted it. And a loser's abort rejection must
+rejection — `hedged-transcriber.ts` states this and the draft omitted it. And a loser's abort rejection must
 never surface as the run's result: `isCancellation` answers true for anything named `AbortError`
 even while the caller's signal is intact, so a leaked loser rejection would report a **successful**
 run as cancelled and the relay would re-queue and re-bill it.
@@ -215,7 +215,7 @@ it was shaped for exactly this. §3's claim that `raceTranscriber` "needs its ow
 is withdrawn, and §2.1's table should list `fallbackTranscriber` in the transcription column.
 
 **Shape.** `raceTranscriber(transcribers, options): CompositeTranscriber` — a composite, like
-`hedged` and `firstCapable`, because a host's download screen renders from `capabilities()`.
+`hedgedTranscriber` and `firstCapable`, because a host's download screen renders from `capabilities()`.
 
 **One new default, not two.** `acceptFirstTranscript` is withdrawn: `unsupportedFallsThrough`
 already accepts the first success and, at exhaustion, prefers a retryable error over a terminal one
@@ -240,8 +240,8 @@ a rejection. This matters beyond cost: dispatching to a managed engine means upl
 and an engine that cannot serve the item should not receive it.
 
 **The capability cache is the one honest cost (F13).** It is a private member of
-`FirstCapableTranscriber`, and `hedged` already had to duplicate it. `raceTranscriber` makes three,
-so this wave extracts it into a shared module and uses it — leaving `firstCapable` and `hedged` on
+`FirstCapableTranscriber`, and `hedgedTranscriber` already had to duplicate it. `raceTranscriber` makes three,
+so this wave extracts it into a shared module and uses it — leaving `firstCapable` and `hedgedTranscriber` on
 their own copies, which changes no shipped behaviour and leaves the duplication declining rather
 than growing.
 
@@ -324,7 +324,7 @@ inspection they are not one story, and this is the deferral's whole argument.
 `chunkedExtractor` chunks `AnnotatedTranscript.text` — a plain string, in core, with no
 capability requirement. `chunkedTranscriber` would chunk a `CapturePayload`, and:
 
-- **A `Recording` is metadata only.** The audio bytes are not on it; they live in storage keyed by
+- **An `AudioCapture` is metadata only.** The audio bytes are not on it; they live in storage keyed by
   `id`. Splitting audio means fetching and decoding the blob, which puts a codec in core.
 - **On-device transcription has no timestamps to split on.** The transformers.js path exposes
   timestamps only for Whisper; the default engine has none. So a split cannot be aligned to speech
@@ -412,7 +412,7 @@ in wave 5.
   dead weight; if it is terrible, the hedge fires every time and the combinator is a
   double-bill with extra steps. `onHedge` is the instrument and nothing here reads it. The cheapest
   refutation is wiring it in the playground against the managed strategy and counting.
-- **Nobody wants a raced transcription.** The privacy posture that makes `hedged` opt-in applies
+- **Nobody wants a raced transcription.** The privacy posture that makes `hedgedTranscriber` opt-in applies
   more strongly to a race: racing an on-device engine against a managed one sends the audio every
   time, which is exactly what `firstCapable`'s design avoids. `raceTranscriber` may be a combinator
   whose only honest use is racing two managed engines, which is a narrow case.
@@ -491,12 +491,12 @@ never described. This was the reason instance identity became a first-class core
 (`instance-identity.ts` — `InstanceFacts`, `InstanceMatcher`, `contradictionMatcher`), and the
 chunk merge became align-then-merge, as described above.
 
-**F3 — §4.1's resolution rules are incomplete, and the source has eight, not five.** `hedged.ts`
+**F3 — §4.1's resolution rules are incomplete, and the source has eight, not five.** `hedged-transcriber.ts`
 documents rules 1–8; this draft inventoried five and never decided whether 6 (primary errors after
 the hedge succeeded), 7 (both throw → primary's error) or 8 (primary not ready → straight
 delegation) transfer. The source also states a requirement this draft omits: "every discarded
 promise has a rejection handler attached, or a losing failure surfaces as an unhandled rejection."
-Separately, §4.1's rule 4 fires the hedge on _any_ primary rejection where `hedged`'s rule 5 fires
+Separately, §4.1's rule 4 fires the hedge on _any_ primary rejection where `hedgedTranscriber`'s rule 5 fires
 only on `TranscriberUnavailableError` — a real divergence, stated nowhere. **A caller abort is a
 primary rejection**, so as written an aborted run dispatches a hedge into an already-aborted signal.
 
@@ -538,7 +538,7 @@ lacking the disambiguating context. Grounding is verbatim presence, not occurren
 
 **F8 — §4.1's `onHedge` fires at dispatch, so it cannot report a winner.** §5.1 and §8 both lean on
 separating hedge fire rate from hedge win rate to decide whether the combinator is worth keeping.
-As specified the instrument cannot answer the question it exists for. `hedged` fires at settlement
+As specified the instrument cannot answer the question it exists for. `hedgedTranscriber` fires at settlement
 with a `winner` field for exactly this reason.
 
 **F9 — §4.3 never classifies a chunk failure as terminal or transient.** **RESOLVED** —
@@ -573,7 +573,7 @@ outlives the caller's deadline dispatches a call that cannot succeed.
 ### 10.3 Findings worth recording but not blocking
 
 **F13** — §4.2's "reused rather than reimplemented" has no mechanism: the capability TTL cache is a
-private member of `FirstCapableTranscriber`, and `hedged` already had to duplicate it.
+private member of `FirstCapableTranscriber`, and `hedgedTranscriber` already had to duplicate it.
 `raceTranscriber` would be copy three unless a shared helper is extracted, which contradicts §6's
 "nothing existing changes behaviour."
 

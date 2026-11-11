@@ -84,7 +84,7 @@ The core runs **one schema-constrained extraction call** (official `openai` SDK 
 
 ```ts
 export interface Transcriber {
-  transcribe(rec: Recording): Promise<Transcript>;
+  transcribe(rec: AudioCapture): Promise<Transcript>;
 }
 export class OnDeviceTranscriber implements Transcriber {
   /* OSS Whisper via WASM — primary */

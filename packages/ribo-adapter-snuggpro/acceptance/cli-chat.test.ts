@@ -27,7 +27,7 @@ const sampleRequest: ChatRequest = {
     { role: "system", content: "SYSTEM-INSTRUCTIONS-MARKER" },
     { role: "user", content: "TRANSCRIPT-TEXT-MARKER" },
   ],
-  response_format: {
+  responseFormat: {
     type: "json_schema",
     json_schema: {
       name: "t",
@@ -100,7 +100,7 @@ describe("cliChat — prompt carries the schema and the conversation", () => {
     expect(prompt).toContain("SYSTEM-INSTRUCTIONS-MARKER");
     expect(prompt).toContain("TRANSCRIPT-TEXT-MARKER");
     expect(prompt).toContain(
-      JSON.stringify(sampleRequest.response_format.json_schema.schema, null, 2),
+      JSON.stringify(sampleRequest.responseFormat.json_schema.schema, null, 2),
     );
     expect(prompt).toMatch(/conforms EXACTLY|MUST be a single JSON object/);
   });

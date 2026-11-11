@@ -4,18 +4,14 @@ import { captureFields } from "./capture-fields.js";
 
 /**
  * The metadata record for one captured **audio** dictation — the audio branch
- * of the {@link @azx/ribo-core!CapturePayload} union.
+ * of the {@link @azx/ribo-core!CapturePayload} union. Pairs with
+ * {@link @azx/ribo-core!DocumentCapture}.
  *
- * **The audio bytes are not here.** A `Recording` is metadata only; the `Blob` lives in the
+ * **The audio bytes are not here.** An `AudioCapture` is metadata only; the `Blob` lives in the
  * capture queue (Phase 2), keyed by `id`, and is handed to a {@link Transcriber} alongside the
- * record. Keeping the two apart is what lets a `Recording` be serialized, logged, persisted and
- * passed around freely — a record carrying megabytes of audio cannot be. If you came here
+ * record. Keeping the two apart is what lets an `AudioCapture` be serialized, logged, persisted
+ * and passed around freely — a record carrying megabytes of audio cannot be. If you came here
  * looking for the audio, you want the queue's `getAudio(recording.id)`, not this type.
- *
- * `Recording` is not renamed and does not become the union — that follows from the target
- * signature `Transcriber<S extends CapturePayload = Recording>`, whose default argument only means
- * "exactly what it means today" if `Recording` is still the audio thing. It also keeps every
- * existing `.durationMs` access on a `Recording`-typed value compiling.
  *
  * ## The `ctx` slot
  *
@@ -24,7 +20,7 @@ import { captureFields } from "./capture-fields.js";
  * queue. `ctx` is that slot: opaque to core, meaningful to the host.
  *
  * The session is now authoritative for the write destination (`SessionDocument.ctx`,
- * set at `openSession`); nothing reads `Recording.ctx` for writing. This field is the
+ * set at `openSession`); nothing reads `AudioCapture.ctx` for writing. This field is the
  * capture-time copy and stays because it lives on the v6 storage collection with real
  * user data — deleting it would mean a migration on the one collection where migrations hurt.
  *
@@ -34,17 +30,17 @@ import { captureFields } from "./capture-fields.js";
  *
  * ```ts
  * const jobContext = z.object({ jobId: z.string().min(1) });
- * const schema = recordingSchema(jobContext);
- * type JobRecording = Recording<typeof jobContext>; // ctx: { jobId: string }
+ * const schema = audioCaptureSchema(jobContext);
+ * type JobAudioCapture = AudioCapture<typeof jobContext>; // ctx: { jobId: string }
  * ```
  *
  * Because zod is the source of truth, the generic lives on the *schema factory* and the type is
- * inferred back off it — there is no hand-written `Recording` interface to drift. `Recording`
+ * inferred back off it — there is no hand-written `AudioCapture` interface to drift. `AudioCapture`
  * with no type argument defaults to `ctx: unknown`, which is the right shape for core-internal
  * code that carries the slot through without ever reading it.
  * @category Captures & Sources
  */
-export const recordingSchema = <C extends z.ZodType>(ctx: C) =>
+export const audioCaptureSchema = <C extends z.ZodType>(ctx: C) =>
   z.strictObject({
     ...captureFields(ctx),
     /** Discriminant: this is the audio branch of {@link @azx/ribo-core!CapturePayload}. */
@@ -54,19 +50,19 @@ export const recordingSchema = <C extends z.ZodType>(ctx: C) =>
   });
 
 /**
- * A `Recording` whose context is carried but not validated.
+ * An `AudioCapture` whose context is carried but not validated.
  *
  * For core-internal code and tests that must parse a record without knowing the host's context
  * shape. Still strict about every field it does own, and still requires the `ctx` key to exist.
  * @category Captures & Sources
  */
-export const baseRecordingSchema = recordingSchema(z.unknown());
+export const baseAudioCaptureSchema = audioCaptureSchema(z.unknown());
 
 /**
- * Inferred from {@link recordingSchema} — never hand-declared alongside it.
+ * Inferred from {@link audioCaptureSchema} — never hand-declared alongside it.
  *
  * @category Captures & Sources
  */
-export type Recording<C extends z.ZodType = z.ZodUnknown> = z.infer<
-  ReturnType<typeof recordingSchema<C>>
+export type AudioCapture<C extends z.ZodType = z.ZodUnknown> = z.infer<
+  ReturnType<typeof audioCaptureSchema<C>>
 >;

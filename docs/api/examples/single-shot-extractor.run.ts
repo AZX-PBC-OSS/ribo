@@ -73,9 +73,9 @@ export async function theRequestPinsTheSchemaOnTheTransport(): Promise<void> {
   assert.equal(request.model, "fake-mini");
   // Structured output, strict: the endpoint rejects a response that omits a key
   // or adds one. The target's name IS the json_schema name.
-  assert.equal(request.response_format.type, "json_schema");
-  assert.equal(request.response_format.json_schema.name, "contact");
-  assert.equal(request.response_format.json_schema.strict, true);
+  assert.equal(request.responseFormat.type, "json_schema");
+  assert.equal(request.responseFormat.json_schema.name, "contact");
+  assert.equal(request.responseFormat.json_schema.strict, true);
 }
 
 export async function aTruncatedResponseIsTerminalNotAParseError(): Promise<void> {
@@ -111,7 +111,7 @@ export async function aSchemaViolationIsRetryableAndRecognisable(): Promise<void
 export async function theDefaultsThePageStatesComeFromTheSource(): Promise<void> {
   // `normalize` defaults to identity — observable: the fields come back exactly
   // as the schema parsed them. `fieldDescriptions` defaults to `"schema"` (the
-  // descriptions ride `response_format`, not the prompt) — read from
+  // descriptions ride `responseFormat`, not the prompt) — read from
   // packages/ribo-core/src/extraction/field-guidance.ts, not retyped here.
   // `maxTokens` is capped only when the caller passes one.
   const chat = scriptedChat(goodReply());

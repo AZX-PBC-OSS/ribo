@@ -7,7 +7,7 @@
  *
  * The shape mirrors the OpenAI-compatible `/chat/completions` contract the Helix
  * proxy exposes (A2): a `model`, an ordered list of role-tagged `messages`, and a
- * `response_format` pinning structured JSON output to a JSON Schema. It is
+ * `responseFormat` pinning structured JSON output to a JSON Schema. It is
  * deliberately the smallest slice that supports single-shot structured extraction
  * — no streaming, no tools, no temperature knobs — so a test can implement it with
  * a fake and neither the extractor packages nor a host depends on a provider SDK.
@@ -58,16 +58,17 @@ export interface ChatResponseFormat {
 export interface ChatRequest {
   readonly model: string;
   readonly messages: readonly ChatMessage[];
-  readonly response_format: ChatResponseFormat;
+  readonly responseFormat: ChatResponseFormat;
   /**
-   * Cap on generated tokens. **camelCase, deliberately**, even though
-   * `response_format` beside it is snake_case: the wire field name depends on the
-   * model (OpenAI's chat surface has moved to `max_completion_tokens`, and
-   * `max_tokens` is the legacy spelling the current default still accepts). A seam
-   * field that pinned one wire spelling would need widening again the first time a
-   * model wants the other — so the seam carries the *intent* and the implementation
-   * owns the wire spelling. `response_format` keeps its name: it is existing public
-   * API and renaming it would be a breaking change for no gain.
+   * Cap on generated tokens. **camelCase, deliberately** — like every member of
+   * this seam now: the seam is TypeScript, not a wire body, and each transport
+   * owns the wire spelling (`response_format` on OpenAI's chat surface, where
+   * `max_tokens` is likewise the legacy spelling the current default still
+   * accepts). A seam field that pinned one wire spelling would need widening
+   * again the first time a model wants the other — so the seam carries the
+   * *intent* and the implementation owns the wire field. Only the members of
+   * `ChatResponseFormat.json_schema` keep their snake_case names: those mirror
+   * the provider's JSON verbatim.
    *
    * Validate at the point of use: a positive integer. `number` otherwise admits
    * `NaN`, `Infinity`, `0`, negatives and fractions, each of which becomes either a

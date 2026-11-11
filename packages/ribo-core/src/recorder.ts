@@ -1,15 +1,15 @@
-import { baseRecordingSchema, type Recording } from "./capture/recording.js";
+import { baseAudioCaptureSchema, type AudioCapture } from "./capture/audio-capture.js";
 import { CAPTURE_LOCK, holdLock } from "./storage/capture-lock.js";
 import type { CaptureSession } from "./storage/capture-session.js";
 
 /**
- * @file Microphone capture: `MediaRecorder` in, a {@link Recording} plus its audio `Blob` out.
+ * @file Microphone capture: `MediaRecorder` in, a {@link AudioCapture} plus its audio `Blob` out.
  *
  * Two things here are load-bearing beyond "record some audio".
  *
  * **1. The container is negotiated, not assumed.** `MediaRecorder` emits a different container per
  * browser — Opus-in-WebM on Chromium, MP4/AAC on Safari — and if the `mimeType` written onto the
- * `Recording` does not match the bytes, Phase 3's decoder fails on one browser only, far from the
+ * `AudioCapture` does not match the bytes, Phase 3's decoder fails on one browser only, far from the
  * line that caused it. {@link negotiateMimeType} probes `MediaRecorder.isTypeSupported` against an
  * ordered preference list, and the recorder then records the type the live `MediaRecorder`
  * *reports*, not the one that was requested.
@@ -106,7 +106,7 @@ export class RecorderError extends Error {
  * Returns the first supported type in `preferences`.
  *
  * @throws {RecorderError} `unsupported-mime-type` if none is supported. Deliberately louder than
- * falling back to the browser default: a `Recording` whose `mimeType` does not describe its bytes
+ * falling back to the browser default: an `AudioCapture` whose `mimeType` does not describe its bytes
  * is worse than a capture that refused to start, because it fails later and somewhere else.
  * @category Captures & Sources
  */
@@ -185,7 +185,7 @@ export type Unsubscribe = () => void;
  * @category Captures & Sources
  */
 export interface RecorderCapture<C = EmptyContext> {
-  readonly recording: Omit<Recording, "ctx"> & { ctx: C };
+  readonly recording: Omit<AudioCapture, "ctx"> & { ctx: C };
   readonly audio: Blob;
   /**
    * The storage item this capture is ALREADY committed to, when durable capture ran.
@@ -210,7 +210,7 @@ export type EmptyContext = Record<string, never>;
 /** @category Captures & Sources */
 export interface RecorderOptions<C = EmptyContext> {
   /**
-   * Host association copied onto every `Recording` this recorder produces (see `recording.ts`).
+   * Host association copied onto every `AudioCapture` this recorder produces (see `audio-capture.ts`).
    * Defaults to `{}` so the key always exists — "no context" stays distinguishable from "forgot".
    */
   readonly ctx?: C;
@@ -220,7 +220,7 @@ export interface RecorderOptions<C = EmptyContext> {
   readonly tickMs?: number;
   /** Constraints for the audio track. `true` takes the browser default device. */
   readonly audio?: boolean | MediaTrackConstraints;
-  /** Recording id factory. Defaults to `crypto.randomUUID()`. */
+  /** AudioCapture id factory. Defaults to `crypto.randomUUID()`. */
   readonly createId?: () => string;
   /**
    * Seam for the microphone. Defaults to `navigator.mediaDevices.getUserMedia`. Injectable so the
@@ -237,7 +237,7 @@ export interface RecorderOptions<C = EmptyContext> {
    * recorder works as before — non-durable, one blob at `stop()`.
    */
   readonly captureSession?: (opts: {
-    recording: Omit<Recording, "ctx"> & { ctx: C };
+    recording: Omit<AudioCapture, "ctx"> & { ctx: C };
     sourceId: string;
     mimeType: string;
     sessionId: string;
@@ -358,7 +358,7 @@ export class Recorder<C = EmptyContext> {
   readonly #createRecorder: (stream: MediaStream, options: MediaRecorderOptions) => MediaRecorder;
   readonly #captureSessionFactory:
     | ((opts: {
-        recording: Recording;
+        recording: AudioCapture;
         sourceId: string;
         mimeType: string;
         sessionId: string;
@@ -393,10 +393,10 @@ export class Recorder<C = EmptyContext> {
       ((stream, recorderOptions) => new MediaRecorder(stream, recorderOptions));
     // Erase C → unknown in the stored factory so Recorder<C> stays covariant
     // in C (C appears only in output positions). The cast is safe: a function
-    // accepting Recording (ctx: unknown) can accept Omit<Recording,"ctx"> & { ctx: C }.
+    // accepting AudioCapture (ctx: unknown) can accept Omit<AudioCapture,"ctx"> & { ctx: C }.
     this.#captureSessionFactory = options.captureSession as
       | ((opts: {
-          recording: Recording;
+          recording: AudioCapture;
           sourceId: string;
           mimeType: string;
         }) => Promise<CaptureSession>)
@@ -415,7 +415,7 @@ export class Recorder<C = EmptyContext> {
    *
    * Sums banked segments with the live one, so a paused span is not counted. A
    * naive `now - startedAt` would keep running through a pause and hand a wrong
-   * `durationMs` to every `Recording` that was ever paused.
+   * `durationMs` to every `AudioCapture` that was ever paused.
    */
   get elapsedMs(): number {
     if (this.#session === undefined) return 0;
@@ -521,7 +521,7 @@ export class Recorder<C = EmptyContext> {
       this.#emit();
 
       if (this.#captureSessionFactory) {
-        const recording = baseRecordingSchema.parse({
+        const recording = baseAudioCaptureSchema.parse({
           id: this.#createId(),
           capturedAt: new Date().toISOString(),
           durationMs: 0,
@@ -590,7 +590,7 @@ export class Recorder<C = EmptyContext> {
   }
 
   /**
-   * Resumes a paused capture on the same stream and the same `Recording`.
+   * Resumes a paused capture on the same stream and the same `AudioCapture`.
    *
    * @throws {RecorderError} `already-recording` if capture is already running,
    * `not-recording` if there is nothing paused.
@@ -678,7 +678,7 @@ export class Recorder<C = EmptyContext> {
 
       // Non-durable path: assemble from in-memory chunks, as today.
       const audio = new Blob(session.chunks, { type: mimeType });
-      const recording = baseRecordingSchema.parse({
+      const recording = baseAudioCaptureSchema.parse({
         id: this.#createId(),
         capturedAt: new Date().toISOString(),
         durationMs,

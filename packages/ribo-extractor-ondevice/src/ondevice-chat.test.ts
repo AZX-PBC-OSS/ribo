@@ -19,7 +19,7 @@ function makeRequest(overrides: Partial<ChatRequest> & { transcript?: string } =
       { role: "assistant", content: '{"example": "value"}' },
       { role: "user", content: transcript },
     ],
-    response_format: {
+    responseFormat: {
       type: "json_schema",
       json_schema: {
         name: "test-schema",

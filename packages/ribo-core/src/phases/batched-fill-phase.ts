@@ -344,7 +344,7 @@ export function batchedFillPhase<V extends Record<string, unknown>, P = NoProven
       const request: ChatRequest = {
         model: options.model,
         messages: item.messages,
-        response_format: {
+        responseFormat: {
           type: "json_schema",
           json_schema: {
             name: item.requestName,

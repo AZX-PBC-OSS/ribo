@@ -111,7 +111,7 @@ export const sessionDocumentSchema = z.strictObject({
    */
   closedAt: z.iso.datetime().optional(),
   /**
-   * The write destination — opaque to core, same posture as `Recording.ctx`.
+   * The write destination — opaque to core, same posture as `AudioCapture.ctx`.
    * Authoritative for writing: the relay reads `session.ctx`, not a
    * recording's. Set once at `openSession` and never patched.
    */

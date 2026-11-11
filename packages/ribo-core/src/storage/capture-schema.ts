@@ -158,7 +158,7 @@ export const captureDocumentSchema = z
     /** Message from the most recent failure, for the "needs attention" UI. */
     lastError: z.string().optional(),
     /**
-     * Capture metadata — the audio branch (`Recording`) or the document branch
+     * Capture metadata — the audio branch (`AudioCapture`) or the document branch
      * (`DocumentCapture`), discriminated by `kind`. The bytes live in the
      * attachment, not here.
      *

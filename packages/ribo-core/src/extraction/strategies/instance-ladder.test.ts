@@ -83,7 +83,7 @@ function tier1FillChat(): {
   const chat: ChatClient = {
     complete: async (request) => {
       requests.push(request);
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-widgets-fill-0") {
         return {
           content: JSON.stringify({
@@ -125,7 +125,7 @@ function tier2ArrayChat(): {
   const chat: ChatClient = {
     complete: async (request) => {
       requests.push(request);
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-widgets") {
         return {
           content: JSON.stringify({
@@ -162,7 +162,7 @@ function tier3SingletonChat(): {
   const chat: ChatClient = {
     complete: async (request) => {
       requests.push(request);
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       if (name === "demo-widgets") {
         return {
           content: JSON.stringify({
@@ -295,10 +295,10 @@ describe("instanceLadder", () => {
 
     // The model was asked for an array shape (the request schema is the array group schema).
     const widgetsRequest = arrayChat.requests.find(
-      (r) => r.response_format.json_schema.name === "demo-widgets",
+      (r) => r.responseFormat.json_schema.name === "demo-widgets",
     );
     expect(widgetsRequest).toBeDefined();
-    const widgetsSchema = widgetsRequest!.response_format.json_schema.schema as {
+    const widgetsSchema = widgetsRequest!.responseFormat.json_schema.schema as {
       properties: Record<string, { type: string }>;
     };
     expect(widgetsSchema.properties.widgets?.type).toBe("array");
@@ -317,10 +317,10 @@ describe("instanceLadder", () => {
     expect(singletonResult.fields.widgets).toHaveLength(1);
 
     const singletonWidgetsRequest = singletonChat.requests.find(
-      (r) => r.response_format.json_schema.name === "demo-widgets",
+      (r) => r.responseFormat.json_schema.name === "demo-widgets",
     );
     expect(singletonWidgetsRequest).toBeDefined();
-    const singletonWidgetsSchema = singletonWidgetsRequest!.response_format.json_schema.schema as {
+    const singletonWidgetsSchema = singletonWidgetsRequest!.responseFormat.json_schema.schema as {
       properties: Record<string, { type: string }>;
     };
     expect(singletonWidgetsSchema.properties.widgets?.type).toBe("object");

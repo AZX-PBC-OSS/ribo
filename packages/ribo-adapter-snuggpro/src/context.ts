@@ -8,17 +8,17 @@
  * accepted fields are written into.
  *
  * It is also a real SCHEMA, and the schema is the source of truth. A type alone
- * cannot parse `Recording.ctx`, which comes back out of IndexedDB and therefore
+ * cannot parse `AudioCapture.ctx`, which comes back out of IndexedDB and therefore
  * crosses a trust boundary — the destination of a write is exactly the thing that
  * must not be taken on trust from a persisted row. So the shape is declared once
  * as {@link snuggCtxSchema} and {@link SnuggWriteContext} is inferred back off it,
- * the pattern `recording.ts` documents for `recordingSchema(jobContext)`: "because
+ * the pattern `recording.ts` documents for `audioCaptureSchema(jobContext)`: "because
  * zod is the source of truth, the generic lives on the schema factory and the type
  * is inferred back off it — there is no hand-written interface to drift".
  *
  * The `readonly` modifiers the hand-written interface used to carry are KEPT, via
  * `Readonly<>` over the inferred type. Inferring the shape and marking it readonly
- * are independent choices, and only the first is what the `recordingSchema` pattern
+ * are independent choices, and only the first is what the `audioCaptureSchema` pattern
  * is about — there is still no hand-written interface to drift from. Dropping
  * `readonly` would have been a silent regression from the interface this replaced,
  * and it would put this type out of step with every sibling at the same public
@@ -34,7 +34,7 @@
  * `assessmentId` here.
  *
  * Deliberately NOT `.strict()`, unlike every field schema in this package. A host
- * owns `Recording.ctx` and may reasonably keep more in it than this adapter needs
+ * owns `AudioCapture.ctx` and may reasonably keep more in it than this adapter needs
  * (its own job metadata, UI state); zod strips the extras, and rejecting them
  * would turn a harmless host convenience into a terminal write failure. What is
  * checked is that the three things a write cannot proceed without are present and

@@ -185,7 +185,7 @@ test("the seam: a hand-written mapping through the passthrough and the combinato
   // The passthrough used the DERIVED schema as-is: one call, carrying the
   // regrouped structure the model was asked for — not a second derivation.
   expect(requests).toHaveLength(1);
-  const wireSchema = requests[0]!.response_format.json_schema.schema as {
+  const wireSchema = requests[0]!.responseFormat.json_schema.schema as {
     properties: Record<string, { properties: Record<string, unknown> }>;
   };
   const basedataKeys = Object.keys(wireSchema.properties.basedata!.properties);
@@ -534,7 +534,7 @@ test("end to end through a nest: the model answers the grouped schema, review se
 
   // The wire carried the GROUPED schema — the nest group is what the model was
   // asked about.
-  const wireSchema = requests[0]!.response_format.json_schema.schema as {
+  const wireSchema = requests[0]!.responseFormat.json_schema.schema as {
     properties: Record<string, unknown>;
   };
   expect(Object.keys(wireSchema.properties).sort()).toEqual(["construction", "heatingType"]);

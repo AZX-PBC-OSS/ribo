@@ -100,7 +100,7 @@ test("the request's response schema asks for plain leaves and one row span", asy
     annotations: {},
   });
 
-  const schema = requests[0]!.response_format.json_schema.schema as {
+  const schema = requests[0]!.responseFormat.json_schema.schema as {
     properties: { rooms: { items: { properties: Record<string, unknown>; required: string[] } } };
   };
   const item = schema.properties.rooms.items;

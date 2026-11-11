@@ -40,7 +40,7 @@
  *   the worst possible reason.
  */
 import { TerminalError, TranscriberUnavailableError } from "@azx/ribo-core";
-import type { Recording, Transcript } from "@azx/ribo-core";
+import type { AudioCapture, Transcript } from "@azx/ribo-core";
 
 import { buildDefinition } from "./definition.js";
 
@@ -114,7 +114,7 @@ function cancellationError(engine: string, endpoint: string, cause: unknown): Te
  * boundary), so it is not set explicitly either.
  */
 export async function transcribeViaManagedAzure(
-  recording: Recording,
+  recording: AudioCapture,
   audio: Blob,
   options: TranscribeViaManagedAzureOptions,
 ): Promise<Transcript> {

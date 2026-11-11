@@ -7,7 +7,7 @@ import { captureFields } from "./capture-fields.js";
  *
  * Lands D1, D2 and D3 of the document-transcription plan:
  *
- * - **D1** — `Recording` is the audio branch; `DocumentCapture` is the document
+ * - **D1** — `AudioCapture` is the audio branch; `DocumentCapture` is the document
  *   branch; `CapturePayload` is the union of the two, discriminated by `kind`.
  * - **D2** — no RxDB version bump. The storage schema's `recording` field is
  *   `{ type: "object" }` with no nested `properties`, so RxDB neither validates
@@ -26,7 +26,7 @@ import { captureFields } from "./capture-fields.js";
  * The document capture branch: a PDF (or other document) enqueued for
  * transcription.
  *
- * Same shared fields as {@link recordingSchema}, plus `kind: "document"` (no
+ * Same shared fields as {@link audioCaptureSchema}, plus `kind: "document"` (no
  * default — there are no legacy document rows to be tolerant of) and `pageCount`.
  *
  * `pageCount` is `.int().positive()` where `durationMs` is `.int().nonnegative()`:
@@ -71,8 +71,8 @@ export type DocumentCapture<C extends z.ZodType = z.ZodUnknown> = z.infer<
  * unrecognised `kind` alone so it fails as a bad discriminator rather than being
  * quietly rewritten to `audio`.
  *
- * Both mechanisms ship: the branch `.default("audio")` (in `recordingSchema`)
- * serves a direct `recordingSchema.parse(...)` — which is what `recorder.ts` and
+ * Both mechanisms ship: the branch `.default("audio")` (in `audioCaptureSchema`)
+ * serves a direct `audioCaptureSchema.parse(...)` — which is what `recorder.ts` and
  * roughly two dozen test fixtures do — and this preprocess serves every parse
  * that goes through the union. If a later zod applies branch defaults during
  * discrimination, the preprocess can go, and the test that pins the behaviour

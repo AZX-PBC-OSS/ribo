@@ -106,7 +106,7 @@ export class Storage {
    *
    * This is what the relay puts in `TranscribeOptions.storage`: it knows the
    * capture being transcribed but cannot know which engine a selection
-   * combinator (`firstCapable`, `fallbackTranscriber`, `hedged`) will pick, so
+   * combinator (`firstCapable`, `fallbackTranscriber`, `hedgedTranscriber`) will pick, so
    * the capture is fixed here and the owner is supplied by the transcriber — its
    * own `engine` id being the natural choice.
    */

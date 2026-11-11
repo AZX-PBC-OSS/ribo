@@ -4810,7 +4810,7 @@ export type SnuggExtraction = Enveloped<SnuggValues>;
 
 /**
  * The maximum serialized character count the structured-output route accepts in
- * `response_format.json_schema.schema`.
+ * `responseFormat.json_schema.schema`.
  *
  * The vendor's own error text: `schema must serialize to <= 32768 characters and
  * nest <= 12 levels`. Only the nesting half was ever checked (by

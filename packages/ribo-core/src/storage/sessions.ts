@@ -38,7 +38,7 @@ export interface OpenSessionInput {
    * The write destination — opaque to core in what it MEANS, but it must be an
    * object: it is stored as one, and the adapter parses it through
    * `ToolAdapter.ctxSchema` at write time. `unknown` rather than a type
-   * parameter for the same reason `Recording.ctx` is: core has no business
+   * parameter for the same reason `AudioCapture.ctx` is: core has no business
    * knowing what a session is about.
    * Required: the session owns its destination, so the relay does not recover
    * it from a recording.

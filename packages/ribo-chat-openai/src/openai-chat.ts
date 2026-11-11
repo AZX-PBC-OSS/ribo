@@ -94,7 +94,7 @@ export function openAiChat({ apiKey, baseUrl, fetchImpl }: OpenAiChatOptions): C
       const wireBody: Record<string, unknown> = {
         model: request.model,
         messages: request.messages,
-        response_format: request.response_format,
+        response_format: request.responseFormat,
       };
       if (request.maxTokens !== undefined) {
         wireBody[MAX_TOKENS_WIRE_FIELD] = request.maxTokens;

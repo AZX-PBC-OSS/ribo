@@ -404,7 +404,7 @@ PDF.
 Transcribers report what they can do _right now_. The on-device engine measures the device's actual
 real-time factor when it primes, which is what lets it report `too-slow` and hand off to a managed
 engine — before that measurement existed, a slow device always reported ready and the fallback was
-unreachable at any threshold. `firstCapable`, `fallbackTranscriber` and `hedged` compose engines;
+unreachable at any threshold. `firstCapable`, `fallbackTranscriber` and `hedgedTranscriber` compose engines;
 `fallbackExtractor` and `raceExtractor` do the same for extraction strategies.
 
 ### 7. It ends in a write

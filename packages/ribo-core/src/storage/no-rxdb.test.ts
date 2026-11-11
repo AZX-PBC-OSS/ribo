@@ -2,7 +2,7 @@ import { createMemoryBackend, removeMemoryDatabase } from "./memory-backend.js";
 import { afterEach, expect, test } from "vitest";
 
 import type { DocumentCapture } from "../capture/capture-item.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import type { PersistedReviewOutcome } from "../review/review.js";
 import { openStorage, type Storage } from "./storage.js";
 
@@ -31,7 +31,7 @@ afterEach(async () => {
   }
 });
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",
@@ -166,7 +166,7 @@ test("commitRecording refuses a non-audio row — the spread the compiler does n
   // that the strict schema then rejects on the next read. Silent persistence
   // corruption on a path the compiler blessed — so the guard is runtime.
   // The state is unreachable through the public API (`beginRecording` takes
-  // `Recording`, so a document cannot enter `recording` status that way), so
+  // `AudioCapture`, so a document cannot enter `recording` status that way), so
   // the test casts to construct it. The cast is not laziness — it is the only
   // way to reach the code path the guard protects.
   const name = `ribo-storage-memory-${crypto.randomUUID()}`;

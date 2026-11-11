@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * The text a {@link Transcriber} produced for one {@link Recording}.
+ * The text a {@link Transcriber} produced for one {@link AudioCapture}.
  *
  * Flat and boring on purpose: this is the input to extraction and the text that
  * `isSpanGrounded` checks extracted spans against, so it must be text as a human
@@ -31,7 +31,7 @@ import { z } from "zod";
  * @category Captures & Sources
  */
 export const transcriptSchema = z.strictObject({
-  /** The `Recording.id` this text came from. */
+  /** The `AudioCapture.id` this text came from. */
   recordingId: z.string().min(1),
   /**
    * The full transcript. May be empty — silence transcribes to nothing, which is a legitimate

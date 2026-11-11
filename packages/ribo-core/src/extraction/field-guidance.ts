@@ -5,7 +5,7 @@
  * A description on an adapter leaf is prompt material: guidance written for the
  * model ("fuel is a separate field, so decompose 'oil boiler'…"). Hosted
  * structured-output routes cap the *schema*, not the messages, so carrying that
- * text in `response_format` spends the wrong budget — one measured route
+ * text in `responseFormat` spends the wrong budget — one measured route
  * rejects a schema past 32,768 serialized characters with the adapters'
  * descriptions at roughly half of it. The fix is a pair, not a preference:
  * `toJsonSchemaForWire` (beside the split) strips the descriptions from the
@@ -44,7 +44,7 @@ import { renderLeafInventory, walkLeafInventory } from "./shape/leaf-inventory.j
 
 /**
  * Where a schema's field descriptions travel. `"schema"` (the default) keeps
- * them in `response_format` and the prompt carries none; `"prompt"` strips them
+ * them in `responseFormat` and the prompt carries none; `"prompt"` strips them
  * from the wire schema (`toJsonSchemaForWire`) and renders them into the system
  * message. Opt-in because it changes every prompt, and no accuracy comparison
  * between the two placements has been run (ADR 0030).

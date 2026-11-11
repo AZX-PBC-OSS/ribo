@@ -228,7 +228,7 @@ export function chatRequest(
   return {
     model,
     messages: messages,
-    response_format: {
+    responseFormat: {
       type: "json_schema",
       json_schema: { name, schema, strict: true },
     },

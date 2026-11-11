@@ -48,7 +48,7 @@ The number this design is still uncomfortable about is the **53% miss rate** (§
 | `PER_CALL_CEILING_MS`         | `per-group.ts:170`                                  | Module constant, 120,000. **Must become configurable** — see §3.5.                                            |
 | `helixChat()`                 | `helix-chat.ts:98`                                  | Managed transport. Returns a bare `ChatClient`, no capability notion.                                         |
 | `firstCapable`                | `ribo-core/src/first-capable.ts`                    | Sequential selection, TTL cache, `invalidate()`, never auto-selects `needs-download`.                         |
-| `hedged`                      | `ribo-core/src/hedged.ts`                           | Races primary against fallback on a latency budget. **Does not apply** — §3.4.                                |
+| `hedgedTranscriber`           | `ribo-core/src/transcription/hedged-transcriber.ts` | Races primary against fallback on a latency budget. **Does not apply** — §3.4.                                |
 | `OnDeviceTranscriber.prime()` | `ribo-transcriber-ondevice/src/index.ts`            | Download-on-explicit-request, with progress. Copied in spirit.                                                |
 | RTF verdict / `too-slow`      | `ribo-transcriber-ondevice/src/rtf-verdict.ts`      | A measured-throughput capability gate. Lesson transfers; remedy does not — §3.5.                              |
 
@@ -258,7 +258,7 @@ when the alternative is nothing. `firstCapable`'s comment reasons about fallback
 _online_ path; here selection rescues the _offline_ path. **Write that into the code** — it
 reads like a bug otherwise.
 
-`hedged` does not apply: it races two engines on a latency budget, which presumes both can run.
+`hedgedTranscriber` does not apply: it races two engines on a latency budget, which presumes both can run.
 Here they never can simultaneously, since Helix needs exactly the network whose absence is the
 reason on-device exists.
 
@@ -442,7 +442,7 @@ rather than in a parallel one.
 - **`perGroupExtractor`'s structure.** Two instances are _configured_ differently. One genuine
   edit is required: `PER_CALL_CEILING_MS` becomes a per-instance option (§3.5). Earlier
   revisions claimed no edit at all; that was wrong.
-- **`firstCapable` and `hedged`.** Untouched; the composite is a sibling.
+- **`firstCapable` and `hedgedTranscriber`.** Untouched; the composite is a sibling.
 - **`score.mjs`.** Reused verbatim.
 
 ## 6. Open questions and risks
@@ -557,7 +557,7 @@ boundary: model output is still parsed through the adapter's schema before it be
 
 ## 8. Sources
 
-- `packages/ribo-core/src/{extractor,first-capable,hedged,transcriber,connectivity}.ts`,
+- `packages/ribo-core/src/{extractor,first-capable,hedged-transcriber,transcriber,connectivity}.ts`,
   `queue/{relay,schema}.ts` — seams, drain policy, outbox shape.
 - `packages/ribo-extractor-openai/src/{chat-client,per-group,helix-chat,split-schema}.ts` —
   transport seam, pipeline, retry-budget derivation.

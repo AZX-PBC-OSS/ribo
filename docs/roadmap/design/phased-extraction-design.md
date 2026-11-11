@@ -516,7 +516,8 @@ Described rather than typed in full; the shapes that are load-bearing:
   runs it today; all three ported strategies expose it and the live playground wiring passes one, so
   omitting it would silently drop a configured transform. The name matches every
   extractor-side sibling (`groupedExtractor`, `fallbackExtractor`, `raceExtractor`) and its own
-  options type; the bare-adjective precedents (`hedged`, `firstCapable`) are all transcriber-side.
+  options type; the transcriber side has the same convention (`firstCapable`, and `hedgedTranscriber` before
+  it became `hedgedTranscriber`).
 - `Phase<V, P>` — the phase type a `phases` list holds. Its item and contribution types are
   **existentially quantified rather than cast away**: the type exposes `with: <R>(use: <I, C>(def:
 PhaseDef<V, P, I, C>) => R) => R`, with `id`, `requires`, `produces`, `concurrency` and

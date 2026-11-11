@@ -1322,7 +1322,7 @@ resolveReview, reviewOutcomeSchema -- is what review actually runs on."
 
 **The invariant this must not break:** `elapsedMs` is `performance.now() - session.startedAt`, which
 keeps counting through a pause — so a 30-second dictation paused for two minutes would report 2:30,
-and `stop()` writes that number to `Recording.durationMs`. Design §2.6.
+and `stop()` writes that number to `AudioCapture.durationMs`. Design §2.6.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1461,7 +1461,7 @@ Rewrite the getter:
    *
    * Sums banked segments with the live one, so a paused span is not counted. A
    * naive `now - startedAt` would keep running through a pause and hand a wrong
-   * `durationMs` to every `Recording` that was ever paused.
+   * `durationMs` to every `AudioCapture` that was ever paused.
    */
   get elapsedMs(): number {
     if (this.#session === undefined) return 0;
@@ -1508,7 +1508,7 @@ In `#beginSession`, drop `startedAt` from the returned session and set the two f
   }
 
   /**
-   * Resumes a paused capture on the same stream and the same `Recording`.
+   * Resumes a paused capture on the same stream and the same `AudioCapture`.
    *
    * @throws {RecorderError} `already-recording` if capture is already running,
    * `not-recording` if there is nothing paused.
@@ -1576,7 +1576,7 @@ git add packages/ribo-core/src/recorder.ts packages/ribo-core/src/recorder.brows
 git commit -m "Add pause and resume to Recorder
 
 Duration now accumulates across run-segments rather than being now - startedAt,
-so a paused span is excluded from Recording.durationMs. Level reads zero while
+so a paused span is excluded from AudioCapture.durationMs. Level reads zero while
 paused, and stop() works from paused. Pause keeps the microphone open because
 MediaRecorder.resume() requires the same stream -- documented, since the
 recording indicator stays lit."

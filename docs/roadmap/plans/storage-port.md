@@ -372,10 +372,10 @@ the capture store's noun — `CAPTURE_STATUSES`, `ACTIVE_CAPTURE_STATUSES`, `Cap
 `backoff.ts`.
 
 Then the pair that needs care (§5.1): the persisted row becomes `Capture`, and today's
-`CaptureItem` — the payload union of `Recording` and `DocumentCapture` — becomes `CapturePayload`.
-`Transcriber<S extends CapturePayload = Recording>` is the signature that has to read correctly at
+`CaptureItem` — the payload union of `AudioCapture` and `DocumentCapture` — becomes `CapturePayload`.
+`Transcriber<S extends CapturePayload = AudioCapture>` is the signature that has to read correctly at
 the end. Every code reference is inside `ribo-core`; the four transcriber packages never name it
-and ride the `= Recording` default, so if this rename reaches them, something is wrong.
+and ride the `= AudioCapture` default, so if this rename reaches them, something is wrong.
 
 Names free of both "outbox" and RxDB do not move: `relay.ts`, `chunk-names.ts`, `capture-lock.ts`,
 `capture-session.ts`, `recovery.ts`, `session-extract.ts`, the backoff helpers, and the entire

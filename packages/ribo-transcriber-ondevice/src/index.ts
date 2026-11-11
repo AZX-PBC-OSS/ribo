@@ -17,7 +17,7 @@
  */
 import { TerminalError } from "@azx/ribo-core";
 import type {
-  Recording,
+  AudioCapture,
   Transcript,
   Transcriber,
   TranscriberCapability,
@@ -352,7 +352,7 @@ export class OnDeviceTranscriber implements Transcriber {
    * use — so the queue does not burn its retry budget re-running work the caller withdrew.
    */
   async transcribe(
-    recording: Recording,
+    recording: AudioCapture,
     audio: Blob,
     options?: TranscribeOptions,
   ): Promise<Transcript> {

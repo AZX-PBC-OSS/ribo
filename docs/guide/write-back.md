@@ -40,7 +40,7 @@ that would fail at the host becomes a question asked while the auditor is still 
 `write` function itself.
 
 **What must never leak out of one:** anything about the pipeline that got the values here. An
-adapter's `write` receives a plain `V` and a plain `C` — never a `Recording`, a `Transcript`, a
+adapter's `write` receives a plain `V` and a plain `C` — never an `AudioCapture`, a `Transcript`, a
 `ReviewOutcome`, or storage document. It does not know whether the fields it's writing came from a
 microphone or a scanned PDF, whether the session had one capture or five, or what a human rejected
 along the way; all of that was already resolved before `write` is ever called. An adapter that

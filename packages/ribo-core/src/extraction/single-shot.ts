@@ -86,7 +86,7 @@ export interface SingleShotOptions<
   readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
   /**
    * Where the schema's field descriptions travel. Defaults to `"schema"`:
-   * they ride `response_format`. `"prompt"` renders the wire schema without
+   * they ride `responseFormat`. `"prompt"` renders the wire schema without
    * them and carries the same text in the system message, for a route whose
    * cap is on the schema rather than the messages. See `field-guidance.ts`.
    */
@@ -99,7 +99,7 @@ export interface SingleShotOptions<
  * On each `extract`:
  *   1. Convert the target's `extractionSchema` to a strict JSON Schema
  *      (`z.toJSONSchema`, draft-2020-12) and send one chat call with
- *      `response_format: json_schema`.
+ *      `responseFormat: json_schema`.
  *   2. **Pre-parse check.** If the completion carries a `finishReason` that is not
  *      `"stop"`, reject immediately — a truncated (`"length"`) or content-filtered
  *      (`"content_filter"`) response is not a complete result, and letting it
@@ -149,7 +149,7 @@ export function singleShotExtractor<V extends Record<string, unknown>, P = NoPro
           {
             model,
             messages: buildMessages(target, transcript.text, { fieldDescriptions }),
-            response_format: {
+            responseFormat: {
               type: "json_schema",
               json_schema: { name: target.name, schema: jsonSchema, strict: true },
             },

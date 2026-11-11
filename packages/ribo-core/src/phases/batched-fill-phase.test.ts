@@ -202,7 +202,7 @@ function fakeChat(respond: (requestName: string) => unknown): {
       complete: (request): Promise<ChatCompletion> => {
         requests.push(request);
         return Promise.resolve({
-          content: JSON.stringify(respond(request.response_format.json_schema.name)),
+          content: JSON.stringify(respond(request.responseFormat.json_schema.name)),
           finishReason: "stop",
         });
       },
@@ -210,14 +210,14 @@ function fakeChat(respond: (requestName: string) => unknown): {
   };
 }
 
-const requestName = (request: ChatRequest): string => request.response_format.json_schema.name;
+const requestName = (request: ChatRequest): string => request.responseFormat.json_schema.name;
 
 /** The `instanceId` member of a batched request's element schema, navigated structurally. */
 const instanceIdSchemaOf = (
   request: ChatRequest,
   key: string,
 ): { readonly enum?: unknown } | undefined => {
-  const schema = request.response_format.json_schema.schema as {
+  const schema = request.responseFormat.json_schema.schema as {
     properties?: Record<string, { items?: { properties?: Record<string, { enum?: unknown }> } }>;
   };
   return schema.properties?.[key]?.items?.properties?.instanceId;

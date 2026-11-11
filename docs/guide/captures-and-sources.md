@@ -9,7 +9,7 @@ seam costs more than it buys.
 
 ## `CapturePayload`: two branches, one union
 
-`Recording` (audio) and `DocumentCapture` (a PDF, today) share four fields — `id`, `capturedAt`,
+`AudioCapture` (audio) and `DocumentCapture` (a PDF, today) share four fields — `id`, `capturedAt`,
 `mimeType`, and a host-supplied `ctx` — and each adds exactly one field of its own on top of a
 `kind` discriminant:
 
@@ -40,7 +40,7 @@ const dictation = basePayloadSchema.parse({
 transcriber engine below can narrow on it directly — there is no `instanceof`, no duck-typing on
 "does this have `durationMs`."
 
-**Why a PDF is not a `Recording` with `durationMs: 0`.** `durationMs` is `.int().nonnegative()`
+**Why a PDF is not an `AudioCapture` with `durationMs: 0`.** `durationMs` is `.int().nonnegative()`
 because a silent, empty recording is still a legitimate capture — zero is real. `pageCount` is
 `.int().positive()` because a zero-page document isn't a thin document, it's a parse that already
 went wrong upstream, and the schema says so at the boundary rather than downstream where the zero
@@ -56,13 +56,13 @@ capture kind and the transport differ.
 
 | Package                              | Capture kind      | What it does                                                                                                                                   |
 | ------------------------------------ | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@azx/ribo-transcriber-ondevice`     | `Recording`       | On-device transcription (Moonshine by default), run through `@huggingface/transformers` in a Web Worker — no network once the model is cached. |
-| `@azx/ribo-transcriber-managed`      | `Recording`       | Azure AI Speech Fast Transcription, proxied through the host's own transport.                                                                  |
+| `@azx/ribo-transcriber-ondevice`     | `AudioCapture`    | On-device transcription (Moonshine by default), run through `@huggingface/transformers` in a Web Worker — no network once the model is cached. |
+| `@azx/ribo-transcriber-managed`      | `AudioCapture`    | Azure AI Speech Fast Transcription, proxied through the host's own transport.                                                                  |
 | `@azx/ribo-transcriber-pdfjs`        | `DocumentCapture` | PDF text extraction via pdf.js, entirely in-browser — the reference document engine.                                                           |
 | `@azx/ribo-transcriber-managed-docs` | `DocumentCapture` | A hosted document-understanding API behind the host's transport — the engine to fall back to when `pdfjs` can't read a page.                   |
 
 They compose the same way audio-only engines always did — `firstCapable` for preference order,
-`hedged` to race a fallback on a latency budget, `fallbackTranscriber` to let an arbiter decide
+`hedgedTranscriber` to race a fallback on a latency budget, `fallbackTranscriber` to let an arbiter decide
 whether an outcome is acceptable — none of that machinery changed to make room for documents.
 
 ## The capability model
@@ -147,7 +147,7 @@ has none to give, so it is optional, and an engine that needs storage must handl
 ## `restrictToKind`: lifting a narrow engine into a wider slot
 
 `Transcriber.transcribe` is a function-typed property, not a method, so an audio-only
-`Transcriber<Recording>` does **not** silently satisfy `Transcriber<CapturePayload>` — method syntax is
+`Transcriber<AudioCapture>` does **not** silently satisfy `Transcriber<CapturePayload>` — method syntax is
 bivariant even under `strict`, and would let a recording-only engine slide into a slot that can also
 see a `DocumentCapture`. `RelayOptions.transcriber` wants `Transcriber<CapturePayload>` because the
 queue holds either kind: the compiler rejects an audio-only roster, and `restrictToKind` is the fix:
@@ -161,7 +161,7 @@ const audioEngine = firstCapable([
   new OnDeviceTranscriber(onDeviceOptions),
   new ManagedTranscriber(managedOptions),
 ]);
-// `audioEngine` is `Transcriber<Recording>` — it does not typecheck as
+// `audioEngine` is `Transcriber<AudioCapture>` — it does not typecheck as
 // `RelayOptions.transcriber`, which is `Transcriber<CapturePayload>`.
 
 const transcriber = restrictToKind("audio", audioEngine);

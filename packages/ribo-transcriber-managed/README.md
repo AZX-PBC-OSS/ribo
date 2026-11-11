@@ -2,7 +2,7 @@
 
 Managed speech transcription for Ribo — Azure AI Speech Fast Transcription, proxied through the
 host's transport. It implements `@azx/ribo-core`'s `Transcriber` contract with engine id
-`managed-azure-speech`, and composes through `firstCapable` or `hedged` alongside an on-device
+`managed-azure-speech`, and composes through `firstCapable` or `hedgedTranscriber` alongside an on-device
 engine.
 
 ## When to use it

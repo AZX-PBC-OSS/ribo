@@ -54,7 +54,7 @@ const transcript = {
 // are `<group>-presence` (a flat leaf-to-boolean map), fill calls are
 // `<target.name>-<group>` (the group's enveloped value).
 const answering: ScriptedChatResponder = (request: ChatRequest) => {
-  const name = request.response_format.json_schema.name;
+  const name = request.responseFormat.json_schema.name;
   if (name === "hvac-presence") return { content: { fuel: true, efficiency: true } };
   if (name === "site-presence") return { content: { yearBuilt: false } };
   if (name.includes("hvac")) {
@@ -93,7 +93,7 @@ export async function thePresetRunsPresenceThenFillsOnlyPresentGroups(): Promise
   assert.equal(result.fields.site?.yearBuilt.value, null);
   // Two presence calls (one per group), one fill call (hvac only).
   assert.deepEqual(
-    chat.calls.map((call) => call.response_format.json_schema.name),
+    chat.calls.map((call) => call.responseFormat.json_schema.name),
     ["hvac-presence", "site-presence", "presence-demo-hvac"],
   );
 }

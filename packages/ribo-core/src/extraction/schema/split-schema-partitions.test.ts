@@ -233,7 +233,7 @@ describe("splitExtractionSchema — partitions", () => {
       complete: (request) => {
         requests.push(request);
         return Promise.resolve({
-          content: bodies[request.response_format.json_schema.name] ?? "{}",
+          content: bodies[request.responseFormat.json_schema.name] ?? "{}",
           finishReason: "stop",
         });
       },
@@ -254,7 +254,7 @@ describe("splitExtractionSchema — partitions", () => {
       partitions: TWO_PARTS,
     }).extract({ text: "the transcript", annotations: {} });
 
-    const piece = requests.find((r) => r.response_format.json_schema.name === "demo-basedata-0");
+    const piece = requests.find((r) => r.responseFormat.json_schema.name === "demo-basedata-0");
     expect(piece).toBeDefined();
     const system = piece!.messages[0]!.content;
     const base = system.indexOf("Base instructions for basedata.");

@@ -153,7 +153,7 @@ export {
 export type { SnuggExtraction, SnuggValues } from "./schema.js";
 
 // The write context — the real `C` the adapter's `write` needs, as the schema a
-// persisted `Recording.ctx` is parsed through and the type inferred off it.
+// persisted `AudioCapture.ctx` is parsed through and the type inferred off it.
 export { snuggCtxSchema } from "./context.js";
 export type { SnuggWriteContext } from "./context.js";
 

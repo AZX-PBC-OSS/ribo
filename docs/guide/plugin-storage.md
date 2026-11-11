@@ -58,7 +58,7 @@ export class MyDocumentTranscriber implements Transcriber<DocumentCapture> {
 ```
 
 The capture is baked in by the relay — it knows which capture it's draining — but the relay cannot
-know which engine a selection combinator (`firstCapable`, `fallbackTranscriber`, `hedged`) will
+know which engine a selection combinator (`firstCapable`, `fallbackTranscriber`, `hedgedTranscriber`) will
 pick, so the plugin names itself: `forPlugin(pluginId)` mints the actual handle, and the convention
 is to pass the transcriber's own `engine` id. Two engines picked for the same capture land in
 separate namespaces and cannot read or clobber each other's keys.

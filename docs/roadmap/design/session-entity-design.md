@@ -94,7 +94,7 @@ absent and nothing in review flags it as pre-instance.
 
 ## 5. Entity and naming
 
-A **`Session`** owns N **`Recording`s**. Not "job": the host's assessment id, company id and API base
+A **`Session`** owns N **`AudioCapture`s**. Not "job": the host's assessment id, company id and API base
 stay in `recording.ctx`, so ribo keeps knowing nothing about what a session is _about_.
 
 The field app opens a session when the auditor activates a job. `jobs.ts` keeps the Snugg Pro

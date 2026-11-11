@@ -38,7 +38,7 @@
  * about content accuracy, never shape. A CLI has no such mode: it is free text out. This client
  * therefore does three things `openAiChat` never has to:
  *
- *   1. Puts `response_format.json_schema.schema` INTO the prompt, in words, as the contract the
+ *   1. Puts `responseFormat.json_schema.schema` INTO the prompt, in words, as the contract the
  *      reply must satisfy (see {@link buildPrompt}) — there is no wire-level keyword to lean on.
  *   2. Pulls the last balanced top-level JSON object out of the CLI's stdout — both CLIs print a
  *      banner or reasoning before the reply (see {@link extractLastJsonObject}).
@@ -175,7 +175,7 @@ function messageOf(cause: unknown): string {
  * `response_format` keyword, so this prompt does the job that keyword does over the API.
  */
 function buildPrompt(request: ChatRequest): string {
-  const schema = request.response_format.json_schema.schema;
+  const schema = request.responseFormat.json_schema.schema;
   const conversation = request.messages
     .map((message: ChatMessage) => `### ${message.role.toUpperCase()}\n${message.content}`)
     .join("\n\n");
@@ -365,7 +365,7 @@ export function cliChat(options: CliChatOptions): ChatClient {
       const ajv = new Ajv2020({ strict: false, allErrors: true });
       let validate: ValidateFunction;
       try {
-        validate = ajv.compile(request.response_format.json_schema.schema);
+        validate = ajv.compile(request.responseFormat.json_schema.schema);
       } catch (cause) {
         throw new Error(
           `cliChat(${backend}): the request's JSON Schema did not compile: ${messageOf(cause)}`,

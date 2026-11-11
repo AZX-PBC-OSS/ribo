@@ -6,7 +6,7 @@
  * Managed transcription: Azure AI Speech Fast Transcription, proxied
  * through the host's transport. It implements `@azx/ribo-core`'s `Transcriber`
  * seam with engine id `managed-azure-speech`, and composes through `firstCapable`
- * or `hedged` alongside the on-device engine with no queue changes.
+ * or `hedgedTranscriber` alongside the on-device engine with no queue changes.
  *
  * **The package has no capacity to authenticate.** It takes the Azure transcribe
  * endpoint and an injected `fetch`, and knows nothing about how the call is routed
@@ -15,7 +15,7 @@
  */
 import { TranscriberUnavailableError } from "@azx/ribo-core";
 import type {
-  Recording,
+  AudioCapture,
   Transcript,
   Transcriber,
   TranscriberCapability,
@@ -99,7 +99,7 @@ export class ManagedTranscriber implements Transcriber {
   }
 
   async transcribe(
-    recording: Recording,
+    recording: AudioCapture,
     audio: Blob,
     options?: TranscribeOptions,
   ): Promise<Transcript> {

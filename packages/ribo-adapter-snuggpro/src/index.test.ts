@@ -13,7 +13,7 @@ test("re-exports the adapter, both schemas, the ctx schema, instructions, exampl
   expect(typeof api.snuggExtractionSchema.parse).toBe("function");
   expect(api.snuggExtractionSchema).not.toBe(api.snuggValuesSchema);
   // The write context is exported as a schema now, not only as a type — a type
-  // cannot parse a `Recording.ctx` off a persisted row.
+  // cannot parse a `AudioCapture.ctx` off a persisted row.
   expect(typeof api.snuggCtxSchema.parse).toBe("function");
   expect(typeof api.snuggProInstructions).toBe("string");
   expect(api.snuggExamples).toHaveLength(1);

@@ -38,7 +38,7 @@ The rest of the decision:
   the fields. For `fillPhase` that is usually an abstention, but a narrowed re-ask that fails keeps
   the earlier answer and is still reported. The consumer's message, "we asked and could not get
   it, check this", is true either way.
-- **Composition keeps it.** The pass-through combinators already did (fallback, race, hedged,
+- **Composition keeps it.** The pass-through combinators already did (fallback, race, hedgedTranscriber,
   retry, timeout, budget, validate, corroborate), because they return or spread the accepted
   result. The ones that rebuild a result now carry it:
   - `groupedExtractor` concatenates its entries' reports in schedule order.

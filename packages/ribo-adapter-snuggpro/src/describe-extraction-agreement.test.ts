@@ -57,10 +57,10 @@ function pieceChat(
     chat: {
       complete: (request) => {
         requests.push(request);
-        const answer = content.get(request.response_format.json_schema.name);
+        const answer = content.get(request.responseFormat.json_schema.name);
         if (answer === undefined) {
           throw new Error(
-            `unexpected request name "${request.response_format.json_schema.name}" — the ` +
+            `unexpected request name "${request.responseFormat.json_schema.name}" — the ` +
               "construction sent a piece this test did not predict",
           );
         }

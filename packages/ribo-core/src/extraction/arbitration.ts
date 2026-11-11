@@ -338,7 +338,8 @@ function applyVerdict<F>(
 }
 
 /**
- * What the caller supplies to {@link createSequentialExtractor}.
+ * What the caller supplies to the sequential engine behind {@link fallbackExtractor}
+ * and {@link compositeExtractor}.
  *
  * @category Arbitration & Fallback
  */
@@ -427,7 +428,7 @@ export function createSequentialExtractor<F>(options: SequentialExtractorOptions
 }
 
 /**
- * What the caller supplies to {@link createConcurrentExtractor}.
+ * What the caller supplies to the concurrent engine behind {@link raceExtractor}.
  *
  * @category Arbitration & Fallback
  */
@@ -470,7 +471,7 @@ export function createConcurrentExtractor<F>(options: ConcurrentExtractorOptions
 
       for (const candidate of candidates) {
         // Attach both branches immediately so a late rejection is never unhandled, even if we
-        // return early on another candidate's success. `hedged.ts` documents the same discipline
+        // return early on another candidate's success. `hedged-transcriber.ts` documents the same discipline
         // for transcribers; the same hazard exists here for any race.
         candidate.extractor.extract(transcript, options).then(
           (result) => {

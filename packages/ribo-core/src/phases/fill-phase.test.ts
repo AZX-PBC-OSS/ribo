@@ -179,7 +179,7 @@ function fakeChat(respond: (requestName: string) => unknown): {
       complete: async (request) => {
         requests.push(request);
         return {
-          content: JSON.stringify(respond(request.response_format.json_schema.name)),
+          content: JSON.stringify(respond(request.responseFormat.json_schema.name)),
           finishReason: "stop",
         };
       },
@@ -400,7 +400,7 @@ describe("fillPhase — run", () => {
       const [item] = def.plan(draft, ctx);
       const output = await def.run(item!, draft, ctx);
       expect(requests).toHaveLength(1);
-      expect(requests[0]!.response_format.json_schema.name).toBe("demo-widgets-fill-0");
+      expect(requests[0]!.responseFormat.json_schema.name).toBe("demo-widgets-fill-0");
       expect(output.usage?.calls).toBe(1);
     });
   });
@@ -494,7 +494,7 @@ describe("fillPhase — merge", () => {
     // arrival order.
     const chat = {
       complete: async (request: ChatRequest) => {
-        const name = request.response_format.json_schema.name;
+        const name = request.responseFormat.json_schema.name;
         const content = name.startsWith("demo-house-fill")
           ? houseResponse()
           : widgetResponse(name.endsWith("1") ? "blue" : "red");
@@ -605,7 +605,7 @@ describe("fillPhase — merge", () => {
 
     // buildMessages, not the scoped builder: the loose request's system
     // message is the target's instructions verbatim, with no scope block.
-    const looseReq = requests.find((r) => r.response_format.json_schema.name === "demo-fill")!;
+    const looseReq = requests.find((r) => r.responseFormat.json_schema.name === "demo-fill")!;
     expect(looseReq.messages[0]).toEqual({
       role: "system",
       content: "Demo extraction instructions.",
@@ -1269,7 +1269,7 @@ describe("fillPhase — onItemFailure", () => {
       requests,
       chat: {
         complete: async (request) => {
-          const name = request.response_format.json_schema.name;
+          const name = request.responseFormat.json_schema.name;
           requests.push(request);
           if (fails(name)) throw new Error(`transport failure for ${name}`);
           return { content: JSON.stringify(respond(name)), finishReason: "stop" as const };
@@ -1496,7 +1496,7 @@ describe("fillPhase — onItemFailure", () => {
 
     // The narrowed pass re-issued exactly the one uncommitted slot (each
     // attempt of its retry loop appears; the name set is the pin).
-    const reasked = new Set(second.requests.map((r) => r.response_format.json_schema.name));
+    const reasked = new Set(second.requests.map((r) => r.responseFormat.json_schema.name));
     expect([...reasked]).toEqual(["demo-widgets-fill-0"]);
 
     const widgets = (result.fields as Record<string, unknown>).widgets as {

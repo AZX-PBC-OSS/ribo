@@ -64,7 +64,7 @@ const ONE_QUESTION = null;
  */
 export interface AskPhaseBase<V extends Record<string, unknown>, P = NoProvenance, T = unknown> {
   /**
-   * The caller's own zod schema for the answer — the response_format the model is pinned
+   * The caller's own zod schema for the answer — the responseFormat the model is pinned
    * to AND the trust boundary its response is parsed against. The answer's type `T` is
    * inferred from here, so the schema is written once and everything else follows it.
    */

@@ -10,12 +10,12 @@
  */
 
 import assert from "node:assert/strict";
-import { type Recording, TranscriberUnavailableError } from "@azx/ribo-core";
+import { type AudioCapture, TranscriberUnavailableError } from "@azx/ribo-core";
 import { MANAGED_AZURE_SPEECH_ENGINE, ManagedTranscriber } from "@azx/ribo-transcriber-managed";
 
 const ENDPOINT = "https://example.invalid/transcribe?api-version=2024-11-15";
 
-function recording(id: string): Recording {
+function recording(id: string): AudioCapture {
   return {
     id,
     capturedAt: new Date().toISOString(),

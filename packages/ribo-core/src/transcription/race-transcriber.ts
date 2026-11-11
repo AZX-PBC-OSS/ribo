@@ -1,7 +1,7 @@
 import { CapabilityCache } from "./capability-cache.js";
 import type { CompositeTranscriber, EngineCapability } from "./first-capable.js";
 import { TerminalError } from "../storage/backoff.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import type { Transcript } from "../capture/transcript.js";
 import {
   isPermanentlyUnavailable,
@@ -88,7 +88,7 @@ export interface RaceTranscriberOptions {
  * gives up, which is the same "race over, no lane may keep spending" decision —
  * every other lane is aborted. **Every lane promise has a rejection handler
  * attached**, or a losing failure surfaces as an unhandled rejection (the
- * discipline `hedged.ts` states).
+ * discipline `hedged-transcriber.ts` states).
  *
  * **A loser's abort must never surface as the run's outcome.** `isCancellation`
  * answers true for anything named `AbortError` even while the caller's signal
@@ -98,7 +98,7 @@ export interface RaceTranscriberOptions {
  * to the arbiter at all.
  *
  * Returns a {@link CompositeTranscriber} so it is drop-in interchangeable with
- * `firstCapable` and `hedged`: a host's download screen renders from
+ * `firstCapable` and `hedgedTranscriber`: a host's download screen renders from
  * `capabilities()`.
  * @category Arbitration & Fallback
  */
@@ -165,7 +165,7 @@ class RaceTranscriberComposite implements CompositeTranscriber {
   }
 
   async transcribe(
-    recording: Recording,
+    recording: AudioCapture,
     audio: Blob,
     options?: TranscribeOptions,
   ): Promise<Transcript> {
@@ -286,7 +286,7 @@ class RaceTranscriberComposite implements CompositeTranscriber {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers — duplicated from first-capable.ts because firstCapable and hedged
+// Helpers — duplicated from first-capable.ts because firstCapable and hedgedTranscriber
 // keep their own copies (capability-cache.ts's header records why), and these
 // are small, stable utilities.
 // ---------------------------------------------------------------------------

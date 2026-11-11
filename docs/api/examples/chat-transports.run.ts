@@ -22,7 +22,7 @@ const responseFormat: ChatResponseFormat = {
 const request = (): ChatRequest => ({
   model: "fake-mini",
   messages: [{ role: "user", content: "Caller is Acme Heating" }],
-  response_format: responseFormat,
+  responseFormat: responseFormat,
 });
 
 export async function scriptedChatAnswersFromAScriptAndRecordsEveryCall(): Promise<void> {
@@ -46,13 +46,13 @@ export async function scriptedChatAnswersFromAScriptAndRecordsEveryCall(): Promi
   // Every request is recorded before the reply is produced — failed and
   // aborted calls included.
   assert.equal(chat.calls.length, 1);
-  assert.equal(chat.calls[0]?.response_format.json_schema.name, "contact");
+  assert.equal(chat.calls[0]?.responseFormat.json_schema.name, "contact");
 }
 
 export async function aCallbackResponderDispatchesPerCall(): Promise<void> {
   const chat = scriptedChat((req, _context) => {
-    if (req.response_format.json_schema.name !== "contact") {
-      throw new Error(`unexpected schema: ${req.response_format.json_schema.name}`);
+    if (req.responseFormat.json_schema.name !== "contact") {
+      throw new Error(`unexpected schema: ${req.responseFormat.json_schema.name}`);
     }
     return { content: { name: { value: "Acme", confidence: 0.9, sourceSpan: "Acme" } } };
   });

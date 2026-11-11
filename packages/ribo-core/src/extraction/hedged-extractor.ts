@@ -4,7 +4,7 @@ import type { ScheduleTimer } from "../async/schedule-timer.js";
 import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js";
 
 /**
- * @file `hedgedExtractor` — the extraction counterpart of `hedged`: start the
+ * @file `hedgedExtractor` — the extraction counterpart of `hedgedTranscriber`: start the
  * primary; if it has not settled within a delay, start the hedge too and take
  * whichever finishes first — cancelling the loser, so the usual case bills for
  * one (§4.1 REVISED of the SP3 parity-and-scale design, which maps every
@@ -19,9 +19,9 @@ import type { ExtractOptions, Extractor, ExtractionResult } from "./extractor.js
  * discipline instead of the arbitration engine's scheduling.
  *
  * **No capability probe, no TTL, no cache.** `Transcriber` has a
- * `capability()` contract and `hedged` caches it; `Extractor` is documented as
+ * `capability()` contract and `hedgedTranscriber` caches it; `Extractor` is documented as
  * "a plain builder, not a capability contract". Nothing to probe — this
- * returns a plain `Extractor<F>`, and rule 8 of `hedged` (primary not ready →
+ * returns a plain `Extractor<F>`, and rule 8 of `hedgedTranscriber` (primary not ready →
  * straight delegation) has no analogue and is dropped: readiness is a
  * capability concept.
  */
@@ -39,7 +39,7 @@ export interface ExtractionHedgeEvent {
   /**
    * Which lane's result was used. Separating the hedge's fire rate from its
    * win rate is the only way to learn whether this combinator earns its cost;
-   * `hedged`'s own event carries a winner for exactly this reason.
+   * `hedgedTranscriber`'s own event carries a winner for exactly this reason.
    */
   readonly winner: "primary" | "hedge" | undefined;
 }
@@ -91,7 +91,7 @@ const defaultScheduleTimer: ScheduleTimer = (fn, delayMs) => {
 /**
  * Race a primary extraction against a hedge on a latency budget.
  *
- * The resolution rules, mapped from `hedged`'s eight (§4.1 REVISED):
+ * The resolution rules, mapped from `hedgedTranscriber`'s eight (§4.1 REVISED):
  *
  * 0. **A cancellation is not a rejection.** The relay aborts the extract
  *    step's signal on timeout, so a caller abort arrives as a primary
@@ -113,13 +113,13 @@ const defaultScheduleTimer: ScheduleTimer = (fn, delayMs) => {
  * 3. Timer fired, hedge settles first → **hedge**, and the primary is
  *    **cancelled**.
  * 4. Both already settled → **primary**. Deterministic, not principled:
- *    `hedged` breaks this tie on privacy — audio not leaving the device — and
+ *    `hedgedTranscriber` breaks this tie on privacy — audio not leaving the device — and
  *    nothing analogous applies here, so the primary wins because the caller
  *    named it first. (No branch implements this: with both tags settled, the
  *    race resolves with the primary's because it was attached first.)
  * 5. A **non-cancellation** primary rejection dispatches the hedge
  *    immediately, without waiting out the remaining delay. Narrowed from
- *    `hedged`'s rule 5, which fires only on `TranscriberUnavailableError`;
+ *    `hedgedTranscriber`'s rule 5, which fires only on `TranscriberUnavailableError`;
  *    there is no extractor analogue of "this engine cannot serve this item".
  * 6. An ordinary primary rejection after the hedge already succeeded → the
  *    hedge's result.
@@ -134,7 +134,7 @@ const defaultScheduleTimer: ScheduleTimer = (fn, delayMs) => {
  * aborted the moment a winner is known.
  *
  * **Every discarded promise gets a rejection handler**, or a losing failure
- * surfaces as an unhandled rejection — `hedged.ts` states this requirement
+ * surfaces as an unhandled rejection — `hedged-transcriber.ts` states this requirement
  * explicitly. And a loser's abort rejection must never surface as the run's
  * result: `isCancellation` answers true for anything named `AbortError` even
  * while the caller's signal is intact, so a leaked loser rejection would

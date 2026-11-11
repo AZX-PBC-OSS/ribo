@@ -15,11 +15,11 @@ import {
   FakeExtractor,
   FakeTranscriber,
   TranscriberUnavailableError,
-  type Recording,
+  type AudioCapture,
   type Transcript,
 } from "@azx/ribo-core";
 
-function recording(id: string): Recording {
+function recording(id: string): AudioCapture {
   return {
     id,
     capturedAt: new Date().toISOString(),

@@ -77,7 +77,7 @@ function fakeChat(respond: (requestName: string) => unknown): {
       complete: async (request) => {
         requests.push(request);
         return {
-          content: JSON.stringify(respond(request.response_format.json_schema.name)),
+          content: JSON.stringify(respond(request.responseFormat.json_schema.name)),
           finishReason: "stop",
         };
       },
@@ -126,13 +126,13 @@ describe("presenceNarrowedExtractor — the composition", () => {
 
     // Two presence calls (presence asks per group, always) plus ONE fill call:
     // site's map is all false, so no request ever carries its fill name.
-    expect(requests.map((r) => r.response_format.json_schema.name).sort()).toEqual([
+    expect(requests.map((r) => r.responseFormat.json_schema.name).sort()).toEqual([
       "hvac-presence",
       "pf-demo-hvac",
       "site-presence",
     ]);
     expect(
-      requests.filter((r) => r.response_format.json_schema.name === "pf-demo-site"),
+      requests.filter((r) => r.responseFormat.json_schema.name === "pf-demo-site"),
     ).toHaveLength(0);
   });
 
@@ -186,7 +186,7 @@ describe("presenceNarrowedExtractor — the composition", () => {
       orientation: nullEnvelope(),
     });
     expect(
-      requests.filter((r) => r.response_format.json_schema.name === "pf-demo-hvac"),
+      requests.filter((r) => r.responseFormat.json_schema.name === "pf-demo-hvac"),
     ).toHaveLength(1);
     // The failed item's calls are not counted by the engine — usage sums
     // PhaseOutputs, and a failed item reports none.

@@ -16,11 +16,11 @@ import {
   type CaptureSession,
   openCaptureSession,
   openStorage,
-  type Recording,
+  type AudioCapture,
   type Storage,
 } from "@azx/ribo-core";
 
-function recording(): Recording {
+function recording(): AudioCapture {
   return {
     id: "cap-rec",
     capturedAt: new Date().toISOString(),

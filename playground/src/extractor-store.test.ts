@@ -77,7 +77,7 @@ const session: SessionItem = {
 const snuggPieces = splitExtractionSchema(snuggExtractionSchema, MAX_NULLABLE_UNIONS_PER_CALL);
 
 /**
- * The `response_format.json_schema.name` `perGroupExtractor` sends for one
+ * The `responseFormat.json_schema.name` `perGroupExtractor` sends for one
  * prepared entry — mirrors its own construction exactly (`per-group.ts`):
  * `${target.name}-${group.key}` for an unpartitioned group, with a `-${part}`
  * suffix appended for a partitioned piece.
@@ -120,7 +120,7 @@ function narrowToLeaves(value: unknown, leafKeys: readonly string[]): unknown {
 /**
  * A fake {@link ChatClient} that returns a valid response for each request,
  * projected from the Delgado fixture. Dispatches by
- * `response_format.json_schema.name` against {@link snuggPieces}, so a
+ * `responseFormat.json_schema.name` against {@link snuggPieces}, so a
  * partitioned piece (e.g. `hvac`'s two calls) gets back exactly its own leaf
  * subset — the same shape `perGroupExtractor` narrows its few-shot examples to,
  * and the only shape a `z.strictObject` piece schema accepts. The single-shot
@@ -135,7 +135,7 @@ function fakeGroupChat(): { chat: ChatClient; requests: ChatRequest[] } {
   const chat: ChatClient = {
     complete: (request: ChatRequest): Promise<ChatCompletion> => {
       requests.push(request);
-      const name = request.response_format.json_schema.name;
+      const name = request.responseFormat.json_schema.name;
       const group = byName.get(name);
       const response =
         group === undefined

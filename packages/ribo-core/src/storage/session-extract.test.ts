@@ -5,7 +5,7 @@ import type { DocumentCapture } from "../capture/capture-item.js";
 import { FakeExtractor, toSessionExtractStep } from "../extraction/extractor.js";
 import { isSpanGrounded } from "../provenance/provenance.js";
 import { createDefaultTranscriptCombiner } from "../capture/transcript-combiner.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import { openStorage, type Storage } from "./storage.js";
 import { joinSessionTranscript, listSessionTranscriptParts } from "./session-extract.js";
 
@@ -53,7 +53,7 @@ const document = (id: string): DocumentCapture => ({
   ctx: { jobId: "job-7" },
 });
 
-const dictation = (id: string): Recording => ({
+const dictation = (id: string): AudioCapture => ({
   kind: "audio",
   id,
   capturedAt: "2026-09-09T10:05:00.000Z",

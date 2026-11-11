@@ -1,11 +1,11 @@
 import { expect, test, vi } from "vitest";
 
 import { FakeTranscriber } from "./fake-transcriber.js";
-import { hedgeDelay, hedged } from "./hedged.js";
-import type { TranscriberHedgeEvent } from "./hedged.js";
+import { hedgeDelay, hedgedTranscriber } from "./hedged-transcriber.js";
+import type { TranscriberHedgeEvent } from "./hedged-transcriber.js";
 import type { ScheduleTimer } from "../async/schedule-timer.js";
 import { isTransientFailure, TerminalError } from "../storage/backoff.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import {
   TranscriberUnavailableError,
   type Transcriber,
@@ -13,7 +13,7 @@ import {
   type TranscribeOptions,
 } from "./transcriber.js";
 
-const recording = (id = "rec-1"): Recording => ({
+const recording = (id = "rec-1"): AudioCapture => ({
   id,
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",
@@ -38,7 +38,7 @@ const deferredTranscriber = (
   const transcriber: Transcriber = {
     engine,
     capability: () => Promise.resolve(capability),
-    transcribe: (rec: Recording, _bytes: Blob, options?: TranscribeOptions) => {
+    transcribe: (rec: AudioCapture, _bytes: Blob, options?: TranscribeOptions) => {
       calls++;
       callOptions.push(options);
       return new Promise((res, rej) => {
@@ -106,7 +106,7 @@ test("primary resolves before the timer: primary wins, hedge never invoked", asy
   const primary = deferredTranscriber("ondevice");
   const hedge = new FakeTranscriber({ engine: "managed", text: "managed text" });
   const timer = fakeTimer();
-  const composite = hedged(primary.transcriber, hedge, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge, {
     delay,
     scheduleTimer: timer.schedule,
   });
@@ -129,7 +129,7 @@ test("timer fires and the hedge wins: hedge transcript returned, onHedge reports
   const hedge = deferredTranscriber("managed");
   const timer = fakeTimer();
   const onHedge = vi.fn<(event: TranscriberHedgeEvent) => void>();
-  const composite = hedged(primary.transcriber, hedge.transcriber, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge.transcriber, {
     delay,
     scheduleTimer: timer.schedule,
     onHedge,
@@ -156,7 +156,7 @@ test("timer fires but the primary still resolves first: primary transcript retur
   const primary = deferredTranscriber("ondevice");
   const hedge = deferredTranscriber("managed");
   const timer = fakeTimer();
-  const composite = hedged(primary.transcriber, hedge.transcriber, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge.transcriber, {
     delay,
     scheduleTimer: timer.schedule,
   });
@@ -180,7 +180,7 @@ test("a hedge that fires and LOSES still reports — the fire rate is the number
   const hedge = deferredTranscriber("managed");
   const timer = fakeTimer();
   const onHedge = vi.fn<(event: TranscriberHedgeEvent) => void>();
-  const composite = hedged(primary.transcriber, hedge.transcriber, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge.transcriber, {
     delay,
     scheduleTimer: timer.schedule,
     onHedge,
@@ -210,7 +210,7 @@ test("the hedge never firing reports nothing at all", async () => {
   const hedge = deferredTranscriber("managed");
   const timer = fakeTimer();
   const onHedge = vi.fn<(event: TranscriberHedgeEvent) => void>();
-  const composite = hedged(primary.transcriber, hedge.transcriber, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge.transcriber, {
     delay,
     scheduleTimer: timer.schedule,
     onHedge,
@@ -230,7 +230,7 @@ test("both already resolved: the primary wins (privacy is the tie-break)", async
   const primary = deferredTranscriber("ondevice");
   const hedge = deferredTranscriber("managed");
   const timer = fakeTimer();
-  const composite = hedged(primary.transcriber, hedge.transcriber, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge.transcriber, {
     delay,
     scheduleTimer: timer.schedule,
   });
@@ -253,7 +253,7 @@ test("primary throws TranscriberUnavailableError: hedge takes over immediately, 
   const primary = deferredTranscriber("ondevice");
   const hedge = new FakeTranscriber({ engine: "managed", text: "managed text" });
   const timer = fakeTimer();
-  const composite = hedged(primary.transcriber, hedge, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge, {
     delay,
     scheduleTimer: timer.schedule,
   });
@@ -280,7 +280,7 @@ test("primary throws an ordinary error after the hedge succeeded: hedge transcri
   const primary = deferredTranscriber("ondevice");
   const hedge = deferredTranscriber("managed");
   const timer = fakeTimer();
-  const composite = hedged(primary.transcriber, hedge.transcriber, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge.transcriber, {
     delay,
     scheduleTimer: timer.schedule,
   });
@@ -302,7 +302,7 @@ test("both throw: the primary's error propagates", async () => {
   const primary = deferredTranscriber("ondevice");
   const hedge = deferredTranscriber("managed");
   const timer = fakeTimer();
-  const composite = hedged(primary.transcriber, hedge.transcriber, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge.transcriber, {
     delay,
     scheduleTimer: timer.schedule,
   });
@@ -328,7 +328,7 @@ test("a primary that is not ready delegates straight to the hedge with no race",
   });
   const hedge = new FakeTranscriber({ engine: "managed", text: "managed text" });
   const timer = fakeTimer();
-  const composite = hedged(primary.transcriber, hedge, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge, {
     delay,
     scheduleTimer: timer.schedule,
   });
@@ -367,7 +367,7 @@ test("a discarded loser that rejects does not surface as an unhandled rejection"
   const primary = deferredTranscriber("ondevice");
   const hedge = deferredTranscriber("managed");
   const timer = fakeTimer();
-  const composite = hedged(primary.transcriber, hedge.transcriber, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge.transcriber, {
     delay,
     scheduleTimer: timer.schedule,
   });
@@ -397,7 +397,7 @@ test("a discarded loser that rejects does not surface as an unhandled rejection"
 // ---------------------------------------------------------------------------
 
 test("capabilities() reports both engines in order", async () => {
-  const composite = hedged(
+  const composite = hedgedTranscriber(
     new FakeTranscriber({ engine: "ondevice" }),
     new FakeTranscriber({ engine: "managed" }),
     { delay },
@@ -411,7 +411,7 @@ test("capabilities() reports both engines in order", async () => {
 
 test("the composite's own capability is the best of its delegates'", async () => {
   await expect(
-    hedged(
+    hedgedTranscriber(
       new FakeTranscriber({
         engine: "ondevice",
         capability: { status: "unavailable", reason: "too-slow", detail: "RTF 3" },
@@ -427,7 +427,9 @@ test("invalidate re-probes the hedge — this is how an uplink return is announc
     engine: "managed",
     capability: { status: "unavailable", reason: "offline", detail: "no network" },
   });
-  const composite = hedged(new FakeTranscriber({ engine: "ondevice" }), hedge, { delay });
+  const composite = hedgedTranscriber(new FakeTranscriber({ engine: "ondevice" }), hedge, {
+    delay,
+  });
 
   // Primary is ready, so it runs — hedge's offline status does not matter yet.
   expect((await composite.transcribe(recording(), audio())).engine).toBe("ondevice");
@@ -438,14 +440,14 @@ test("invalidate re-probes the hedge — this is how an uplink return is announc
     capability: { status: "unavailable", reason: "too-slow", detail: "RTF 3" },
   });
   const readyHedge = new FakeTranscriber({ engine: "managed" });
-  const composite2 = hedged(primary, readyHedge, { delay });
+  const composite2 = hedgedTranscriber(primary, readyHedge, { delay });
   // Without invalidate, the cached offline verdict would stick.
   // With a fresh composite there is no cache, so delegation works.
   expect((await composite2.transcribe(recording(), audio())).engine).toBe("managed");
 });
 
 test("the composite is itself a Transcriber, so it nests inside firstCapable", async () => {
-  const inner = hedged(
+  const inner = hedgedTranscriber(
     new FakeTranscriber({ engine: "ondevice" }),
     new FakeTranscriber({ engine: "managed" }),
     { delay, engine: "hedged-inner" },
@@ -456,7 +458,7 @@ test("the composite is itself a Transcriber, so it nests inside firstCapable", a
 });
 
 test("nothing is ready: terminal when both are permanently unavailable", async () => {
-  const composite = hedged(
+  const composite = hedgedTranscriber(
     new FakeTranscriber({
       engine: "ondevice",
       capability: { status: "unavailable", reason: "unsupported-platform", detail: "no WebGPU" },
@@ -475,7 +477,7 @@ test("nothing is ready: terminal when both are permanently unavailable", async (
 });
 
 test("nothing is ready but something could be: transient, so the queue retries", async () => {
-  const composite = hedged(
+  const composite = hedgedTranscriber(
     new FakeTranscriber({
       engine: "ondevice",
       capability: { status: "unavailable", reason: "too-slow", detail: "RTF 3" },
@@ -503,7 +505,7 @@ test("the caller's options reach both racing candidates, by identity", async () 
   const primary = deferredTranscriber("ondevice");
   const hedge = new FakeTranscriber({ engine: "managed", text: "managed text" });
   const timer = fakeTimer();
-  const composite = hedged(primary.transcriber, hedge, {
+  const composite = hedgedTranscriber(primary.transcriber, hedge, {
     delay,
     scheduleTimer: timer.schedule,
   });
@@ -521,4 +523,17 @@ test("the caller's options reach both racing candidates, by identity", async () 
   expect(primary.callOptions[0]?.signal).toBe(controller.signal);
   expect(hedge.callOptions).toHaveLength(1);
   expect(hedge.callOptions[0]?.signal).toBe(controller.signal);
+});
+
+// The composite's own engine id is a PERSISTED name: it goes into extraction and
+// transcription provenance and lands in storage. The string literal must not
+// follow the export's identifier if that identifier is ever renamed.
+test("the composite's engine id defaults to 'hedged' and is overridable", () => {
+  const primary = deferredTranscriber("ondevice");
+  const hedge = new FakeTranscriber({ engine: "managed", text: "managed text" });
+
+  expect(hedgedTranscriber(primary.transcriber, hedge, { delay }).engine).toBe("hedged");
+  expect(
+    hedgedTranscriber(primary.transcriber, hedge, { delay, engine: "hedged-pair" }).engine,
+  ).toBe("hedged-pair");
 });

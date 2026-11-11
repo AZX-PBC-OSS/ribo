@@ -43,7 +43,7 @@ import type {
   LiveSegment,
   LiveSession,
   LiveTranscriber,
-  Recording,
+  AudioCapture,
   TranscriberCapability,
 } from "@azx/ribo-core";
 
@@ -296,7 +296,7 @@ export class OnDeviceLiveTranscriber implements LiveTranscriber {
     session.close();
   }
 
-  async openSession(_recording: Recording): Promise<LiveSession> {
+  async openSession(_recording: AudioCapture): Promise<LiveSession> {
     const worker = this.#ensureWorker();
     const sessionId = crypto.randomUUID();
 

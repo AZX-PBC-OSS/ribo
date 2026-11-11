@@ -1,7 +1,7 @@
 import { createMemoryBackend, removeMemoryDatabase } from "./memory-backend.js";
 import { afterEach, expect, test, vi } from "vitest";
 
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import type { Transcript } from "../capture/transcript.js";
 import { openStorage, type Storage } from "./storage.js";
 
@@ -21,7 +21,7 @@ afterEach(async () => {
   }
 });
 
-const recording: Recording = {
+const recording: AudioCapture = {
   id: "rec-1",
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",

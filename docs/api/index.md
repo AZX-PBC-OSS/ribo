@@ -87,7 +87,7 @@ Every page links the symbol's generated TypeDoc page. The confirmed URL shape is
 - [`ManagedDocsTranscriber`](/api/managed-docs-transcriber) — managed document transcription,
   the managed rung of a document ladder.
 - [Choosing and composing transcribers](/api/composing-transcribers) — `firstCapable`,
-  `fallbackTranscriber`, `raceTranscriber`, `hedged`, `restrictToKind`, and which one when.
+  `fallbackTranscriber`, `raceTranscriber`, `hedgedTranscriber`, `restrictToKind`, and which one when.
 - [Live transcription](/api/live-transcription) — utterance-level preview during recording; the
   `LiveTranscriber` seam and its tail/commit segments.
 - [`CaptureSession`](/api/capture-session) — one live recording against storage: chunked

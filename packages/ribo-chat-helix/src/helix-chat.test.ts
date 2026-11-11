@@ -51,7 +51,7 @@ const sampleRequest: ChatRequest = {
     { role: "system", content: "You are an extractor." },
     { role: "user", content: "hi" },
   ],
-  response_format: {
+  responseFormat: {
     type: "json_schema",
     json_schema: { name: "t", schema: { type: "object" }, strict: true },
   },
@@ -145,7 +145,7 @@ describe("helixChat — request wire shape", () => {
     expect(body.stream).toBe(false);
   });
 
-  test("response_format is flattened to responseFormat { type, name, schema } without strict", async () => {
+  test("responseFormat is flattened to the wire's { type, name, schema } without strict", async () => {
     const { fetchImpl, calls } = fakeFetch(Response.json(okBody("{}")));
     const chat = helixChat({
       token: "t",
@@ -163,6 +163,9 @@ describe("helixChat — request wire shape", () => {
     expect(rf.schema).toEqual({ type: "object" });
     expect(rf).not.toHaveProperty("strict");
     expect(rf).not.toHaveProperty("json_schema");
+    // The wire field is camelCase on the Helix route — the snake_case OpenAI
+    // spelling must never leak into this body.
+    expect(body).not.toHaveProperty("response_format");
   });
 
   test("maxTokens is passed through as camelCase", async () => {

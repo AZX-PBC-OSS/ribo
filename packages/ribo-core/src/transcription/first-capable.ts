@@ -1,5 +1,5 @@
 import { TerminalError } from "../storage/backoff.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import type { Transcript } from "../capture/transcript.js";
 import {
   isPermanentlyUnavailable,
@@ -190,7 +190,7 @@ class FirstCapableTranscriber implements CompositeTranscriber {
   }
 
   async transcribe(
-    recording: Recording,
+    recording: AudioCapture,
     audio: Blob,
     options?: TranscribeOptions,
   ): Promise<Transcript> {

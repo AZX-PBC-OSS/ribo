@@ -211,7 +211,7 @@ export function schemaRetryExtractor<V extends Record<string, unknown>, P = NoPr
           {
             model,
             messages,
-            response_format: {
+            responseFormat: {
               type: "json_schema",
               json_schema: { name, schema: jsonSchema, strict: true },
             },

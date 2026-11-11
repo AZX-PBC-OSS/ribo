@@ -265,11 +265,11 @@ export interface ToolAdapter<V extends Record<string, unknown>, C, P = NoProvena
    */
   readonly extractionSchema: ZodType<Enveloped<V, P>>;
   /**
-   * Parses `Recording.ctx` into the destination this adapter writes to.
+   * Parses `AudioCapture.ctx` into the destination this adapter writes to.
    *
-   * A schema and not merely the `C` type parameter, because `Recording.ctx` comes
+   * A schema and not merely the `C` type parameter, because `AudioCapture.ctx` comes
    * back out of IndexedDB and so crosses a trust boundary — a *type* cannot parse
-   * an `unknown` off a persisted row. `recordingSchema(jobContext)` already
+   * an `unknown` off a persisted row. `audioCaptureSchema(jobContext)` already
    * anticipates this shape: the host supplies its context as a zod schema and the
    * type is inferred back off it.
    */

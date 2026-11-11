@@ -18,7 +18,7 @@ of what was planned and why. It is excluded from the published docs site (via `s
 - **Phase 0** — pnpm workspace, three package skeletons, playground, lint/typecheck/test, `AGENTS.md`.
   → [plan](phases/phase-0-foundation.md)
 - **Phase 1** — core contracts in `@azx/ribo-core`: the provenance envelope (`extractedSchema`,
-  `isSpanGrounded`), `Recording`/`Transcript`, the `Transcriber` contract, `ToolAdapter<F, C>`, and the
+  `isSpanGrounded`), `AudioCapture`/`Transcript`, the `Transcriber` contract, `ToolAdapter<F, C>`, and the
   review contract. → [plan](phases/phase-1-contracts.md)
 - **Phase 2** — real audio capture (`MediaRecorder`) and the durable RxDB-backed outbox with its
   per-item state machine. → [plan](phases/phase-2-capture-and-queue.md)
@@ -356,7 +356,7 @@ So nobody re-litigates it:
   and what must survive a VAD feed boundary).
 - [Managed Transcription — Design](design/managed-transcription-design.md) — the transcription path for
   devices that cannot run the model, or cannot run it fast enough: a measured real-time-factor gate in
-  `prime()`, a managed Azure AI Speech engine behind the fetch-proxy, and an opt-in `hedged` combinator
+  `prime()`, a managed Azure AI Speech engine behind the fetch-proxy, and an opt-in `hedgedTranscriber` combinator
   that races the two on a latency budget. Nothing external blocks it — unlike write-back, the
   `azure-stt` secret is a plain header injection. Container support, latency and the phrase list are
   **measured against the real endpoint**, not assumed (§6, §7). Its

@@ -1,5 +1,5 @@
 import type { CapturePayload } from "../capture/capture-item.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import type { Transcript } from "../capture/transcript.js";
 import {
   TranscriberUnavailableError,
@@ -56,7 +56,7 @@ export interface FakeTranscriberOptions {
  *
  * @category Transcription
  */
-export interface FakeTranscribeCall<S extends CapturePayload = Recording> {
+export interface FakeTranscribeCall<S extends CapturePayload = AudioCapture> {
   readonly item: S;
   readonly bytes: Blob;
 }
@@ -79,7 +79,7 @@ export interface FakeTranscribeCall<S extends CapturePayload = Recording> {
  *   the third failure kind: terminal for the queue but not for the item.
  * @category Transcription
  */
-export class FakeTranscriber<S extends CapturePayload = Recording> implements Transcriber<S> {
+export class FakeTranscriber<S extends CapturePayload = AudioCapture> implements Transcriber<S> {
   readonly engine: string;
 
   readonly #calls: FakeTranscribeCall<S>[] = [];

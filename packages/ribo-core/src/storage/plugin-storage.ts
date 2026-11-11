@@ -56,7 +56,7 @@ export function createPluginStorage(
  *
  * This is what the relay puts in `TranscribeOptions.storage`: the relay knows
  * the capture being transcribed but cannot know which engine a selection
- * combinator (`firstCapable`, `fallbackTranscriber`, `hedged`) will pick, so
+ * combinator (`firstCapable`, `fallbackTranscriber`, `hedgedTranscriber`) will pick, so
  * the capture is baked in here and the plugin dimension is supplied by the
  * transcriber — its own `engine` id is the natural choice, and two transcribers
  * that name themselves differently cannot read or clobber each other's keys.

@@ -176,7 +176,7 @@ describe("proposer — the partition operation", () => {
 
     await proposeShapeOperations(schema, proposeOptions(chat, "wire-schema"));
 
-    const wireSchema = requests[0]!.response_format.json_schema.schema;
+    const wireSchema = requests[0]!.responseFormat.json_schema.schema;
     const branch = findPartitionBranch(wireSchema);
     expect(branch).toBeDefined();
     const branchProperties = branch!["properties"] as JsonSchemaNode;

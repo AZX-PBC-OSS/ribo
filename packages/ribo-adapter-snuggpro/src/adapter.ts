@@ -4,7 +4,7 @@
  * Ties together the spike-proven artifacts: the `schema` (the writable patch, and
  * the trust boundary a reviewed submission is parsed through before a write), the
  * derived `extractionSchema` (what the model is constrained to and what its
- * response is parsed with), the `ctxSchema` (what a persisted `Recording.ctx` is
+ * response is parsed with), the `ctxSchema` (what a persisted `AudioCapture.ctx` is
  * parsed into), the `instructions` (the normalization intent the extractor
  * assembles into its prompt), and the optional few-shot `examples`. `write` is the
  * write-back seam, typed with a real Snugg Pro context.

@@ -173,7 +173,7 @@ asserting that every recording in a session shares a `ctx`. Nothing enforces tha
 - Modify: `packages/ribo-core/src/queue/database.ts` — `buildSessionDocument` supplies both
 - Modify: `packages/ribo-core/src/queue/relay.ts` — read `session.ctx`, delete the recording hunt
 - Modify: `packages/ribo-core/src/instance-write-step.ts` and `write-step.ts` — error text
-- Modify: `packages/ribo-core/src/recording.ts` — a comment on `Recording.ctx` (see below)
+- Modify: `packages/ribo-core/src/recording.ts` — a comment on `AudioCapture.ctx` (see below)
 - Modify: `playground/src/recorder-handle.ts:130` — the one real `openSession()` call site
 - Test: `packages/ribo-core/src/queue/session-schema.test.ts`, `session-outbox.test.ts`,
   `outbox.browser.test.ts`, `relay.browser.test.ts`
@@ -187,7 +187,7 @@ asserting that every recording in a session shares a `ctx`. Nothing enforces tha
 - Produces: `SessionWriteInput.ctx` is unchanged in type and now sourced from the session.
 - Consumes: nothing from Task 1.
 
-**`Recording.ctx` is not removed** (design D5). It becomes redundant for writing and stays because it
+**`AudioCapture.ctx` is not removed** (design D5). It becomes redundant for writing and stays because it
 lives on the outbox collection, which is at v6 with real user data on devices; deleting it buys
 tidiness at the price of a migration on the one collection where migrations hurt. Add a comment on
 both sides saying which is authoritative, so the next reader does not re-derive the question.
@@ -212,7 +212,7 @@ Expected: FAIL — `openSession` accepts no-argument calls today.
 
 - [ ] **Step 3: Add the fields to both schema descriptions**
 
-`ctx` is `unknown` and unindexed — opaque to core, same posture as `Recording.ctx`. `ref` is a
+`ctx` is `unknown` and unindexed — opaque to core, same posture as `AudioCapture.ctx`. `ref` is a
 bounded string with an index; give it the same `maxLength` treatment the other indexed strings get,
 since RxDB needs bounded widths to build sortable index keys. Add `ref` to `indexes` alongside
 `openedAt`. Both are required, so both join `required`.
@@ -239,7 +239,7 @@ a comment that `ref` is now the field carrying that meaning.
 
 `relay.ts:401-408` lists the session's recordings, finds the first transcribed one, and throws a
 terminal error if there is none. All three go. Pass `session.ctx` straight through. Update the error
-text at `instance-write-step.ts:71` and `write-step.ts` — both blame `Recording.ctx` at enqueue, and
+text at `instance-write-step.ts:71` and `write-step.ts` — both blame `AudioCapture.ctx` at enqueue, and
 should now name the session's `ctx` at open.
 
 - [ ] **Step 7: Fix the playground call site**
@@ -432,7 +432,7 @@ Commit as `feat(core): a done session can be reviewed again`.
   and tracked as its own Asana ticket. Task 3 exists partly to avoid pre-building a substitute.
 - **Re-extraction after adding a recording.** `recordingSetChanged` (`session-extract.ts:45`) is
   defined with zero callers and there is no path back to `open`.
-- **Deleting `Recording.ctx`** (design D5).
+- **Deleting `AudioCapture.ctx`** (design D5).
 - **Renaming `FINISHED_SESSION_STATUSES`** (design §10.1).
 - **The stale D3 and §8 in `session-entity-design.md`**, which claim nothing about instance identity
   is stored while `linkTargets` is built and persisted. Worth a separate docs pass; it is not this

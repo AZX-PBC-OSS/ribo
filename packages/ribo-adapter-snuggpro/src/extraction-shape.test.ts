@@ -51,7 +51,7 @@ import fixtureSchema from "./__fixtures__/snugg-fields-json-schema.json" with { 
  *
  * Why capture via the real extractor, not `z.toJSONSchema(snuggExtractionSchema, ...)`
  * inline: `singleShotExtractor` (`@azx/ribo-core`'s `extraction/single-shot.ts`) is the ONLY
- * code path that produces the object landing in `response_format.json_schema.schema`.
+ * code path that produces the object landing in `responseFormat.json_schema.schema`.
  * Re-deriving that call by hand would silently stop catching it the day single-shot.ts
  * adds post-processing; running the real extractor against a fake `ChatClient`
  * (network-free, no key) captures whatever single-shot.ts actually builds.
@@ -155,7 +155,7 @@ test("the JSON Schema the derivation produces matches the frozen fixture, byte f
   // of that derivation. The default ("prompt") wire rendering is pinned against
   // this same fixture by the next test.
   const request = await captureRequest();
-  const actual = JSON.stringify(request.response_format.json_schema.schema); // canonical (compact) — see file-level comment
+  const actual = JSON.stringify(request.responseFormat.json_schema.schema); // canonical (compact) — see file-level comment
 
   // A MISMATCH HERE MEANS THE DERIVATION CHANGED WHAT IS SENT TO THE MODEL. Fix the
   // derivation; do not edit the fixture to silence this test.
@@ -164,12 +164,12 @@ test("the JSON Schema the derivation produces matches the frozen fixture, byte f
 
 test('the "prompt" wire schema is the fixture with field descriptions stripped', async () => {
   // The "prompt" mode strips the descriptions from
-  // `response_format` and carries the same text in the system message instead —
+  // `responseFormat` and carries the same text in the system message instead —
   // the guidance moves budgets, it does not disappear. The wire bytes are the
   // frozen fixture through `stripJsonSchemaDescriptions`, so this pin cannot
   // drift from the derivation pin above.
   const request = await captureRequest("prompt");
-  expect(JSON.stringify(request.response_format.json_schema.schema)).toBe(
+  expect(JSON.stringify(request.responseFormat.json_schema.schema)).toBe(
     JSON.stringify(stripJsonSchemaDescriptions(fixtureSchema)),
   );
 });
@@ -179,7 +179,7 @@ test("the fixture itself is well-formed strict-mode JSON Schema", () => {
 });
 
 test("the live schema is well-formed strict-mode JSON Schema (closed objects, no bare optionals)", async () => {
-  const schema = (await captureRequest()).response_format.json_schema.schema;
+  const schema = (await captureRequest()).responseFormat.json_schema.schema;
   assertStrictModeCompatible(schema, "$");
 });
 
@@ -189,7 +189,7 @@ test("the live schema sits inside OpenAI's structured-output limits, with room t
   // depth). This asserts the margin rather than assuming it — the field set has grown
   // several times, and growing past a ceiling fails as an API rejection at extraction
   // time, on a real recording, in the field.
-  const schema = (await captureRequest()).response_format.json_schema.schema;
+  const schema = (await captureRequest()).responseFormat.json_schema.schema;
 
   let properties = 0;
   let enumValues = 0;
@@ -252,9 +252,7 @@ function collectLeafDescriptions(schema: Record<string, unknown>): Map<string, s
 }
 
 test("every leaf reaches the model with the vendor's description and our prohibition", async () => {
-  const descs = collectLeafDescriptions(
-    (await captureRequest()).response_format.json_schema.schema,
-  );
+  const descs = collectLeafDescriptions((await captureRequest()).responseFormat.json_schema.schema);
 
   // Every leaf, not a subset: the vendor supplies authoritative text for each (or our own
   // note stands in where the vendor publishes none or junk), so none is deliberately bare.
@@ -283,7 +281,7 @@ test('under "prompt", every leaf description moves from the wire schema into the
   const system = request.messages[0]!;
   expect(system.role).toBe("system");
   expect(system.content).toContain("### Field guidance");
-  const wire = collectLeafDescriptions(request.response_format.json_schema.schema);
+  const wire = collectLeafDescriptions(request.responseFormat.json_schema.schema);
   expect(wire.size).toBe(441);
   expect([...wire.values()].filter((d) => d.length > 0)).toHaveLength(0);
 

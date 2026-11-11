@@ -2,7 +2,7 @@
 
 Managed speech-to-text: Azure AI Speech Fast Transcription, proxied through the **host's
 transport**. Implements the [`Transcriber`](/api/transcriber) seam with engine id
-`managed-azure-speech`, so it composes through `firstCapable` or `hedged` alongside the on-device
+`managed-azure-speech`, so it composes through `firstCapable` or `hedgedTranscriber` alongside the on-device
 engine with no queue changes. **The package has no capacity to authenticate** — no token option,
 no API-key option, no gateway URL. The credential lives in the transport the host supplies
 through `fetchImpl`.

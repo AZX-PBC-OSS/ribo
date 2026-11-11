@@ -353,7 +353,7 @@ const buildProposeRequest = (
   model,
   messages,
   maxTokens,
-  response_format: {
+  responseFormat: {
     type: "json_schema",
     json_schema: {
       name: "shape-proposal",

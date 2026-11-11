@@ -45,12 +45,12 @@ The recording half knows what a microphone is; the session half does not.
 Stage by stage:
 
 - **Capture** — `Recorder` negotiates a container and records from the microphone. `CapturePayload` is
-  a union of `Recording` and `DocumentCapture`, so a PDF enqueues through the same path as a
+  a union of `AudioCapture` and `DocumentCapture`, so a PDF enqueues through the same path as a
   dictation.
 - **Transcribe** — four engines implement `Transcriber`: on-device speech (`@azx/ribo-transcriber-ondevice`,
   Moonshine by default), managed speech (`@azx/ribo-transcriber-managed`), pdf.js against a PDF's
   existing text layer (`@azx/ribo-transcriber-pdfjs`), and a hosted document-understanding API
-  (`@azx/ribo-transcriber-managed-docs`). `firstCapable`, `fallbackTranscriber` and `hedged` compose
+  (`@azx/ribo-transcriber-managed-docs`). `firstCapable`, `fallbackTranscriber` and `hedgedTranscriber` compose
   them. On clean, authored text-to-speech audio, the on-device path's previous default
   (`whisper-base.en`) ran at ~6× real time with 8.0% WER — a floor, not a field forecast. Word-error
   rate against real field speech is not yet measured for either model

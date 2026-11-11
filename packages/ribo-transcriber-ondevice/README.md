@@ -2,7 +2,7 @@
 
 On-device speech transcription for Ribo — Moonshine by default, with Whisper models still
 selectable. It implements `@azx/ribo-core`'s `Transcriber` contract, so it swaps in for any other
-engine and composes through `firstCapable` or `hedged`. Inference runs in a Web Worker via
+engine and composes through `firstCapable` or `hedgedTranscriber`. Inference runs in a Web Worker via
 `@huggingface/transformers`; the model downloads once (explicitly, user-initiated) and is cached for
 offline use.
 

@@ -7,10 +7,10 @@ import {
   type TranscriberFallback,
 } from "./first-capable.js";
 import { isTransientFailure, TerminalError } from "../storage/backoff.js";
-import type { Recording } from "../capture/recording.js";
+import type { AudioCapture } from "../capture/audio-capture.js";
 import { TranscriberUnavailableError } from "./transcriber.js";
 
-const recording = (id = "rec-1"): Recording => ({
+const recording = (id = "rec-1"): AudioCapture => ({
   id,
   capturedAt: "2026-07-23T10:00:00.000Z",
   kind: "audio",

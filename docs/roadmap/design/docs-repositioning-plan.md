@@ -770,7 +770,7 @@ introduce "source" or "reader" as a competing noun for the interface — spec §
 
 - [ ] **Step 2: Write `docs/guide/captures-and-sources.md`**
 
-`CaptureItem` as the union of `Recording` and `DocumentCapture`, and why a PDF is not modelled as a
+`CaptureItem` as the union of `AudioCapture` and `DocumentCapture`, and why a PDF is not modelled as a
 recording with `durationMs: 0`. The four transcriber packages and what each is for. The capability
 model — `capability()`, the unavailable reasons, and `UnsupportedItemError` as the third failure
 class that is terminal for the queue but not for the item. `restrictToKind` for lifting a narrow
@@ -838,7 +838,7 @@ Why composition needed a decision vocabulary rather than a retry flag. `fallback
 `raceExtractor`, `compositeExtractor`; the `ExtractionArbiter` contract and the two defaults
 (`terminalFallsThrough`, `acceptAnySuccess`); `SchemaParseError` as the error that stays retryable
 while being recognisable to an arbiter. Then the transcriber siblings — `firstCapable`,
-`fallbackTranscriber`, `hedged`, `unsupportedFallsThrough` — and the point AGENTS.md makes about
+`fallbackTranscriber`, `hedgedTranscriber`, `unsupportedFallsThrough` — and the point AGENTS.md makes about
 them: `fallbackTranscriber` is **not** "firstCapable with retries", and a reader who thinks it is
 will wire it wrongly. Say that explicitly.
 
@@ -1141,7 +1141,7 @@ says another, on the same domain.
 
 Grep the package sources for framing that presumes audio is the only capture kind: `dictation`,
 `recording` used to mean "any capture", `auditor`, `contractor`, `voice`, `field app`. Read hits in
-context. **Most will be correct and must be left alone** — `Recording` genuinely is the audio
+context. **Most will be correct and must be left alone** — `AudioCapture` genuinely is the audio
 branch of `CaptureItem`, and `recorder.ts` genuinely is about a microphone. The target is only
 comments that describe a _general_ mechanism in audio-specific terms.
 
