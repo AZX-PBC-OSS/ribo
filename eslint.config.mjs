@@ -14,6 +14,11 @@ const typeAwareFiles = [
   // they get the type-aware tier — an un-floated promise in an example fails
   // `lint`, same as it would in a package.
   "docs/api/examples/**/*.{ts,tsx}",
+  // Example packages (examples/*) each carry their own tsconfig (include: the
+  // package root), and examples/tsconfig.json covers the root runner — the
+  // project service discovers the nearest one per file, so these get the
+  // type-aware tier like every other test file.
+  "examples/**/*.{ts,tsx}",
 ];
 
 export default tseslint.config(

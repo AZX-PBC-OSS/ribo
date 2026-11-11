@@ -123,12 +123,13 @@ Notes:
   (`vitest.config.ts`) and discovers `packages/*/src/**/*.test.{ts,tsx}`; select a subset with a
   path argument as shown above. (Each package still carries `"vitest": "catalog:"` in
   `devDependencies` — see §6 for why that is not cruft.)
-- `pnpm typecheck` prints `Scope: 12 of 13 workspace projects`: the thirteen are the root plus the
-  twelve members (`pnpm-workspace.yaml`'s `packages/*` plus `playground`), and `pnpm -r` excludes
-  the root. Of those twelve, only **eleven** actually run a typecheck — `packages/tsconfig` ships
-  JSON only and defines no `typecheck` script. A package without that script is silently absent
-  from the gate (§6). This number moves as packages are added; check `pnpm-workspace.yaml` and each
-  member's `package.json` rather than trusting this count.
+- `pnpm typecheck` prints a `Scope: N of M workspace projects` line: the members come from
+  `pnpm-workspace.yaml`'s globs (`packages/*`, `playground`, `examples/*`), and `pnpm -r` excludes
+  the root, so `M` is the members plus one for the root. Don't trust the count — read it as "the
+  globs resolved" and check `pnpm-workspace.yaml` and each member's `package.json` for what is
+  actually in the gate. Not every member runs a typecheck: `packages/tsconfig` ships JSON only, and
+  a package without a `typecheck` script is silently absent from the gate (§6). Examples are the
+  same story — see the examples convention below.
 - The playground consumes **every** library **from TypeScript source**, so editing
   `packages/ribo-core/src/index.ts` hot-updates the page with no build step. If that stops
   working, suspect the `@azx/source` condition (§5) rather than Vite.
@@ -170,6 +171,29 @@ composition check of the whole workspace). CI runs that production **build** via
 — real audio capture, an offline reload, IndexedDB/Cache eviction, storage persistence). So actual
 behavior in a browser **is** gated, not just bundling and module resolution — see §7's Definition of
 Done for the stage breakdown.
+
+### The `examples/` convention (docs Examples section)
+
+`examples/` holds the small, private, one-idea workspace projects behind the docs Examples section.
+Each example:
+
+- is a **private** workspace member (an `examples/*` glob entry) with its own `typecheck` script —
+  without one it is silently absent from `pnpm -r typecheck`, same as any package;
+- declares `@azx/ribo-core` (and any other `@azx/*` package it uses) plus `@azx/tsconfig` and
+  `typescript` as `devDependencies` (`workspace:*` / `catalog:`), and its tsconfig extends
+  `@azx/tsconfig/...` **by package name** (workspace members resolve it);
+- keeps its runnable code in a **`*.run.ts` at the package root**, whose every named export is a
+  zero-argument function ending in `node:assert/strict` assertions; and
+- carries **no `*.test.ts` of its own** — the root runner `examples/run-examples.test.ts` is the
+  only test file under `examples/`; it globs every `*.run.ts`, registers one test per export, and
+  fails when a folder's example sits where its glob cannot reach.
+
+`examples/typechecked-only.json` is the shared exemption list (folder names whose code is
+type-checked but deliberately not executed); both the runner and the docs check script read it, so
+edit it in one place. `examples/tsconfig.json` type-checks only the root-level mechanism files (the
+runner) and is wired into the existing `docs:examples` script — each example package is
+type-checked by its own tsconfig. Examples get no changesets (private packages). The smoke package
+(`examples/smoke/`) is the copyable skeleton.
 
 Design docs, one per tier: [`03-ribo-core.md`](docs/implementation/03-ribo-core.md) ·
 [`04-ribo-ui.md`](docs/implementation/04-ribo-ui.md) ·

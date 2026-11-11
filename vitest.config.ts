@@ -110,6 +110,10 @@ export default defineConfig({
             // this project's `ssr.resolve.conditions` above to resolve `@azx/*` example
             // imports to source.
             "docs/api/examples/**/*.test.ts",
+            // The examples/ execution gate: again the ONE file matching this glob is the
+            // runner (examples/run-examples.test.ts), for the same reasons — inside the
+            // project, not at the root, on the pinned Vitest 5.
+            "examples/**/*.test.ts",
           ],
           // `*.browser.test.ts` and `*.e2e.test.ts` both end in `.test.ts`, so they
           // match the includes above. Without these excludes every browser test

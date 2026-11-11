@@ -1,6 +1,7 @@
 packages:
   - "packages/*"
   - "playground"
+  - "examples/*"
 
 # Pinned EXACT (no carets) so upgrades are deliberate, reviewable, one-line changes.
 # See docs/implementation/10-build-and-packaging.md §9 (maintainability).
