@@ -54,13 +54,11 @@ right and wrong answers. A "flag anything under some threshold" rule against tha
 nothing — it reads as "the extraction is clean" when the real story is "the signal is absent."
 
 A `sourceSpan` is a factual claim about the source text, and factual claims can be checked without
-asking the model anything else.
+asking the model anything else. The [Quick Start](/guide/quick-start)'s pipeline ends in exactly
+this check — pulled here live from the `examples/no-key-pipeline/` example CI executes on every
+change:
 
-```ts
-import { isSpanGrounded } from "@azx/ribo-core";
-
-isSpanGrounded(fields.company.sourceSpan, transcript.text); // true or false, by string comparison
-```
+<<< @/../examples/no-key-pipeline/no-key-pipeline.run.ts#span-check
 
 `isSpanGrounded(span, transcript)` is a pure predicate: strip trailing whitespace from the span (it
 arrives trimmed; the transcript keeps its own line breaks), then check that the transcript contains

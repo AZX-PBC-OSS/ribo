@@ -192,8 +192,8 @@ Each example:
 type-checked but deliberately not executed); both the runner and the docs check script read it, so
 edit it in one place. `examples/tsconfig.json` type-checks only the root-level mechanism files (the
 runner) and is wired into the existing `docs:examples` script — each example package is
-type-checked by its own tsconfig. Examples get no changesets (private packages). The smoke package
-(`examples/smoke/`) is the copyable skeleton.
+type-checked by its own tsconfig. Examples get no changesets (private packages). The no-key-pipeline
+package (`examples/no-key-pipeline/`) is the copyable skeleton.
 
 Design docs, one per tier: [`03-ribo-core.md`](docs/implementation/03-ribo-core.md) ·
 [`04-ribo-ui.md`](docs/implementation/04-ribo-ui.md) ·

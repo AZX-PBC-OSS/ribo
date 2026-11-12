@@ -9,9 +9,9 @@ code from an example file, and the generalised example check
 (`scripts/check-api-examples.mjs`, a `docs:build` stage) keeps every include's
 path and region real and every example file referenced.
 
-| Example         | Idea                                                                                                                                               | `@azx/ribo-*` packages | Backs                                 | Source                                                                         |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------- | ------------------------------------------------------------------------------ |
-| `example-smoke` | The scaffolding skeleton every example copies — no idea of its own. It proves the `examples/*` wiring end to end and owns the include proof below. | `@azx/ribo-core`       | This page (the anatomy snippet below) | [examples/smoke](https://github.com/AZX-PBC-OSS/ribo/tree/main/examples/smoke) |
+| Example                   | Idea                                                                                                         | `@azx/ribo-*` packages | Backs                                                                                                 | Source                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `example-no-key-pipeline` | Provenance is checkable with no model — one credential-free capture → transcribe → extract → span-check arc. | `@azx/ribo-core`       | [Quick Start](/guide/quick-start), [Provenance](/guide/provenance), [Provenance API](/api/provenance) | [examples/no-key-pipeline](https://github.com/AZX-PBC-OSS/ribo/tree/main/examples/no-key-pipeline) |
 
 ::: warning About the source links
 Every source link is built uniformly as
@@ -27,13 +27,13 @@ is **internal**, so readers outside the org cannot open the links.
 
 A runnable example is a `*.run.ts` file at an example package's root whose
 every named export is a zero-argument function ending in `node:assert/strict`
-assertions. Here is the smoke package's whole body, pulled live from
-`examples/` — outside this docs site's root — by a VitePress snippet include:
+assertions. Here is the no-key-pipeline example's complete export, pulled live
+from `examples/` — outside this docs site's root — by a VitePress snippet
+include:
 
-<<< @/../examples/smoke/smoke.run.ts#smoke-opens-and-closes
+<<< @/../examples/no-key-pipeline/no-key-pipeline.run.ts#complete-export
 
 This include is the standing proof that snippet includes reach outside the docs
 root (`@` resolves to `docs/`, so `@/../examples/...` lands at the repo root).
-The **smoke package owns that proof until the no-key-pipeline example lands**,
-at which point — and only then — the smoke package is deleted and this include
-is retargeted in the same change, so the proof always has an owner.
+The **no-key-pipeline example owns that proof**: deleting its file turns this
+page's build red, the same way the example check turns a dangling include red.
