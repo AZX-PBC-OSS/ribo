@@ -1,4 +1,9 @@
-import { isExtractedSchema, stripOptionalNullable, walkLeafInventory } from "@azx/ribo-core";
+import {
+  isExtractedSchema,
+  ROW_SOURCE_SPAN_KEY,
+  stripOptionalNullable,
+  walkLeafInventory,
+} from "@azx/ribo-core";
 import type { LeafInventoryEntry } from "@azx/ribo-core";
 import { z } from "zod";
 
@@ -16,9 +21,12 @@ import { z } from "zod";
  * member, which carries the field's leaf kind and description. The walk
  * itself is never reimplemented: this file only reshapes the input to it.
  *
- * Under `"row"` or `"none"` granularity there are no envelopes and the unwrap
- * is the identity; the row unit's own `sourceSpan` string is counted as a
- * leaf, as the document that carries it states.
+ * Under `"row"` granularity there are no envelopes; the row unit's own
+ * citation — core appends it under `ROW_SOURCE_SPAN_KEY` and identifies a row
+ * unit by that key's presence — is dropped here, so one entry per real field.
+ * The same key is assumed never to be a real field: core's own `refuseGroup`
+ * makes the identical assumption and a row-granularity build refuses the
+ * collision.
  */
 
 /** `shape[key]`, narrowed once — the move core's own `fieldAt` makes. */
@@ -36,6 +44,9 @@ const unwrapField = (field: z.ZodType): z.ZodType => {
   if (isExtractedSchema(stripped)) return fieldAt(stripped.shape, "value");
   const unwrapped: Record<string, z.ZodType> = {};
   for (const key of Object.keys(stripped.shape)) {
+    // Core identifies a row unit by this key and refuses a real field of that
+    // name, so its citation string is provenance, never a field to count.
+    if (key === ROW_SOURCE_SPAN_KEY) continue;
     unwrapped[key] = unwrapField(fieldAt(stripped.shape, key));
   }
   return z.object(unwrapped);
