@@ -38,21 +38,22 @@ const valuesSchema = z.object({
   attic: z.object({ insulation: z.string().nullable().optional() }).optional(),
 });
 
-/** Every write the adapter was asked to make — the gate's observable. */
-const writes: { fields: Values; ctx: { jobId: string } }[] = [];
+type Write = { fields: Values; ctx: { jobId: string } };
 
-/** A tool-neutral adapter double: real schemas, a write that counts. */
-const adapter: ToolAdapter<Values, { jobId: string }> = {
-  name: "field-tool",
-  schema: valuesSchema,
-  extractionSchema: enveloped(valuesSchema),
-  ctxSchema: z.object({ jobId: z.string() }),
-  instructions: "a tool-neutral adapter double",
-  write: async (fields, ctx) => {
-    writes.push({ fields, ctx });
-    return { receipt: "record-1" };
-  },
-};
+/** A tool-neutral adapter double: real schemas, a write that records into `writes`. */
+function fieldToolAdapter(writes: Write[]): ToolAdapter<Values, { jobId: string }> {
+  return {
+    name: "field-tool",
+    schema: valuesSchema,
+    extractionSchema: enveloped(valuesSchema),
+    ctxSchema: z.object({ jobId: z.string() }),
+    instructions: "a tool-neutral adapter double",
+    write: async (fields, ctx) => {
+      writes.push({ fields, ctx });
+      return { receipt: "record-1" };
+    },
+  };
+}
 // #endregion adapter
 
 const EXTRACTED = {
@@ -78,6 +79,9 @@ function grantingLocks(): LockManager {
 export async function nothingIsWrittenUntilAHumanResolvesTheReview(): Promise<void> {
   const now = (): number => 1_700_000_000_000;
   const storage = await openStorage({ backend: createMemoryBackend("example-review-gate"), now });
+  // Every write the adapter was asked to make — the gate's observable.
+  const writes: Write[] = [];
+  const adapter = fieldToolAdapter(writes);
 
   // #region relay
   // The wiring a host actually runs: the write step is the adapter behind
