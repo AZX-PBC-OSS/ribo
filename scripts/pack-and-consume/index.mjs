@@ -309,7 +309,7 @@ function assertInspectReport(run, label) {
     readFileSync(join(REPO_ROOT, "packages", "ribo-core", "package.json"), "utf8"),
   ).version;
   const checks = [
-    ["contractVersion === 1", report.contractVersion === 1],
+    ["contractVersion === 2", report.contractVersion === 2],
     [`cliVersion === ${expectedCliVersion}`, report.cliVersion === expectedCliVersion],
     [`coreVersion === ${expectedCoreVersion}`, report.coreVersion === expectedCoreVersion],
     [

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vitest";
 
-import { SchemaInspectError, inspectSchema } from "./index.js";
+import { SchemaInspectReportSchema, SchemaInspectError, inspectSchema } from "./index.js";
 
 const manifest = JSON.parse(
   readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
@@ -37,12 +37,24 @@ const document = {
 
 test("inspectSchema returns the versioned report for an OpenAPI-3.0-form document", () => {
   const report = inspectSchema(document);
-  expect(report.contractVersion).toBe(1);
+  expect(report.contractVersion).toBe(2);
   expect(report.cliVersion).toBe(manifest.version);
+  // The contract names the version of the core that produced the numbers.
   expect(report.coreVersion).toBe(coreManifest.version);
   // Four leaves under the fixture shape: address, yearBuilt, completed, notes.
   expect(report.leafCount).toBe(4);
   expect(report.leafCount).toBeGreaterThanOrEqual(1);
+});
+
+test("the serialized report parses against its own exported zod schema", () => {
+  const report = inspectSchema(document);
+  const round = SchemaInspectReportSchema.parse(JSON.parse(JSON.stringify(report)));
+  // Compile-time: the zod schema's inferred shape and the report interface are
+  // the same contract — a field added to one and not the other fails here.
+  const asReport: typeof round = report;
+  const fromRound: typeof report = round;
+  expect(asReport).toEqual(fromRound);
+  expect(round.leafCount).toBe(4);
 });
 
 test("inspectSchema rejects an empty document", () => {

@@ -109,6 +109,29 @@ measurements, and the refusal construction would raise — synchronously and wit
 [Schema at Scale](/guide/schema-at-scale#ask-before-you-build-describeextraction) has the
 walkthrough.
 
+## Sizing a document: `ribo schema inspect`
+
+The `ribo` bin takes a JSON Schema **document**, not a zod schema — the form a host tool, an
+OpenAPI spec or a code generator produces. The inspect command takes that document in the
+**OpenAPI 3.0 form**: nullability written as `nullable: true`, not as `anyOf` with a `null` arm
+(the draft-2020-12 rendering). Zod's own exporter emits that form under the matching target
+option, so the path from a zod schema to a document is one line:
+
+```ts
+const document = z.toJSONSchema(schema, { target: "openapi-3.0" });
+```
+
+Write it to a file and size it before the first call:
+
+```sh
+ribo schema inspect schema.json
+```
+
+A document that speaks draft-2020-12 nullability is refused loudly rather than converted — the
+message names the form and points back at this page. The refusal is deliberate: nullability is
+precisely the rendering that shifts between zod versions, and silently guessing at what a null
+arm means would size a schema the caller does not have.
+
 ## The name is on the wire
 
 A structured-output schema name is constrained to `[A-Za-z0-9_-]` by at least one platform route —

@@ -424,6 +424,9 @@ importers:
       '@azx/build-config':
         specifier: workspace:*
         version: link:../build-config
+      '@azx/ribo-adapter-snuggpro':
+        specifier: workspace:*
+        version: link:../ribo-adapter-snuggpro
       '@azx/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

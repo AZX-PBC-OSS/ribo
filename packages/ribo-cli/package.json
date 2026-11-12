@@ -44,6 +44,7 @@
   "devDependencies": {
     "@arethetypeswrong/core": "catalog:",
     "@azx/build-config": "workspace:*",
+    "@azx/ribo-adapter-snuggpro": "workspace:*",
     "@azx/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "publint": "catalog:",
