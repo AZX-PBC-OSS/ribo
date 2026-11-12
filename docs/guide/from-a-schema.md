@@ -147,6 +147,43 @@ build output and is never hand-edited), with the target written explicitly in
 `generate-extraction-schema.mjs` (ADR 0039). If you need the same document for a schema of your
 own, the same one line produces it.
 
+### Sizing the shipped file in CI
+
+The same command sizes the **installed** document, which makes it a CI gate for schema fit: a
+schema edit that pushes the document past a route cap reddens CI instead of surfacing as a `400`
+in the field. Resolve the file through the package's own export subpath — never hardcode a
+`node_modules` path, which rots across package managers:
+
+```js
+import { fileURLToPath } from "node:url";
+
+const schemaPath = fileURLToPath(
+  import.meta.resolve("@azx/ribo-adapter-snuggpro/extraction.schema.json"),
+);
+```
+
+Then run the command with both thresholds supplied:
+
+```sh
+ribo schema inspect "$schemaPath" --max-depth 14 --max-piece-chars 32768
+```
+
+The exit codes are the contract for wiring it into your CI: **0** — the report was computed and
+neither threshold was breached, the schema fits; **1** — a threshold was breached, with a one-line
+diagnostic per breach on stderr and the full report still on stdout, so the log names the measured
+number against the limit; **2** — the command could not run (unreadable file, malformed JSON, not
+an OpenAPI-3.0-form document, a usage error), which in CI means a broken input, not an over-cap
+schema.
+
+One honest caveat before you copy the numbers: the route's documented caps (`nest <= 12 levels`,
+`<= 32768 characters`) bind the **per-call pieces** the split produces, while `--max-depth`
+measures the **whole derived schema** the report describes — a different measure that can read a
+couple of levels deeper than the per-piece number. Take your CI pin from a first measured run of
+the command against your document, not from the vendor's per-piece figure. This repo's own
+`snugg:inspect` stage in `check.sh` is the worked example: it runs the built bin against the
+Snugg adapter's generated document with the pins on the stage line, and fails the build on a
+breach.
+
 ### The zod pin, and the guard to run on a bump
 
 Zod is held at `4.4.3` in `pnpm-workspace.yaml`'s catalog — from 4.6, `toJSONSchema` renders a
