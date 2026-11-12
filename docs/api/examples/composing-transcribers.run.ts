@@ -53,6 +53,7 @@ const audio = (): Blob => new Blob(["not really audio"], { type: "audio/webm" })
 
 export async function firstCapableTakesTheFirstReadyEngineAndReportsSkips(): Promise<void> {
   // #region usage
+  // #region first-capable
   const onDevice = new FakeTranscriber({ engine: "fake-ondevice", text: "from the device" });
   const managed = new FakeTranscriber({ engine: "fake-managed", text: "from the cloud" });
   onDevice.setCapability({
@@ -66,6 +67,7 @@ export async function firstCapableTakesTheFirstReadyEngineAndReportsSkips(): Pro
     onFallback: (event) => fallbacks.push(event),
   });
   const transcript = await composite.transcribe(recording("cap-1"), audio());
+  // #endregion first-capable
   // #endregion usage
 
   // needs-download is never selected (rule 2): the ready engine ran instead.
@@ -91,6 +93,7 @@ export async function anAttemptFailurePropagatesInsteadOfFallingThrough(): Promi
 }
 
 export async function hedgedRacesAFallbackOnALatencyBudget(): Promise<void> {
+  // #region hedged-race
   const primary = new FakeTranscriber({ engine: "fake-primary", text: "from the device" });
   const hedge = new FakeTranscriber({ engine: "fake-hedge", text: "from the cloud" });
 
@@ -106,6 +109,7 @@ export async function hedgedRacesAFallbackOnALatencyBudget(): Promise<void> {
       return () => undefined;
     },
   });
+  // #endregion hedged-race
 
   const transcript = await composite.transcribe(recording("cap-2"), audio());
 
@@ -158,6 +162,7 @@ export async function fallbackTranscriberLetsAnArbiterDecide(): Promise<void> {
 }
 
 export async function restrictToKindRefusesTheOtherKindAndDelegatesItsOwn(): Promise<void> {
+  // #region restrict-to-kind
   const audioEngine = new FakeTranscriber({ engine: "fake-audio", text: "from the device" });
   const lifted = restrictToKind("audio", audioEngine);
 
@@ -172,6 +177,7 @@ export async function restrictToKindRefusesTheOtherKindAndDelegatesItsOwn(): Pro
 
   const transcript = await lifted.transcribe(recording("cap-1"), audio());
   assert.equal(transcript.engine, "fake-audio");
+  // #endregion restrict-to-kind
 }
 
 // #region defaults
