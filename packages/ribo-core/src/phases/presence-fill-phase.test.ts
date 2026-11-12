@@ -7,11 +7,13 @@ import { emptyNotes } from "./phase-notes.js";
 import { enveloped } from "../provenance/enveloped.js";
 import type { ExtractionTarget } from "../extraction/extractor.js";
 import { extractGroups, nullEnvelope, presenceNoteKey, wrapGroupEntry } from "./presence-phase.js";
-import type { Group, Leaf, PresenceMaps } from "./presence-phase.js";
+import type { Group, PresenceMaps } from "./presence-phase.js";
 import type { PhaseContext } from "./phase.js";
 import type { ChatClient, ChatRequest } from "./chat-client.js";
 
 import { presenceFillPhase } from "./presence-fill-phase.js";
+import { partitionedLeafKeys } from "../extraction/strategies/per-group.js";
+import type { ExtractionGroup } from "../extraction/schema/split-schema.js";
 
 /**
  * Phase-level tests for the presence-narrowed fill phase.
@@ -94,7 +96,7 @@ function seededDraft(maps: PresenceMaps): PhaseDraft<Values> {
 }
 
 /** The item type is existentially hidden; recover what the encoding hides for assertions. */
-const itemOf = (item: unknown) => item as { group: Group; activeLeaves: readonly Leaf[] };
+const itemOf = (item: unknown) => item as { group: Group; piece: ExtractionGroup };
 
 /** A ChatClient dispatching on the request name, recording every request. */
 function fakeChat(respond: (requestName: string) => unknown): {
@@ -146,12 +148,14 @@ describe("presenceFillPhase — plan", () => {
     });
   });
 
-  test("the item carries only the active leaves", () => {
+  test("the item's piece carries only the active leaves", () => {
     const { chat } = fakeChat(() => ({}));
     const phase = presenceFillPhase<Values>({ target, groups, chat, model: "m" });
     phase.with((def) => {
       const [item] = def.plan(seededDraft(partialMaps), ctx);
-      expect(itemOf(item).activeLeaves.map((leaf) => leaf.key)).toEqual(["fuel", "efficiency"]);
+      // Read off the piece's own schema, the way `run` reads it — the leaves
+      // the presence map marked present, and nothing else.
+      expect(partitionedLeafKeys(itemOf(item).piece)).toEqual(["fuel", "efficiency"]);
     });
   });
 

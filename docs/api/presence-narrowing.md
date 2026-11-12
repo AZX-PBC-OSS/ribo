@@ -32,17 +32,19 @@ call per group; the fill half reads the presence note, never the engine that wro
 `presenceNarrowedExtractor(presence, options)` takes the presence phase plus
 `PresenceFillPhaseOptions`.
 
-| Name                | Type                           | Default        | What it does                                                                                                                                      |
-| ------------------- | ------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `presence`          | `Phase<V, P>`                  | **required**   | The presence phase to run first. Must be named in the fill's `requires` (the default `["presence"]` matches the shipped phases' id).              |
-| `target`            | `ExtractionTarget<V, P>`       | **required**   | The field knowledge; each item's projected target is derived from it.                                                                             |
-| `groups`            | `readonly Group[]`             | **required**   | The walked groups — the same `extractGroups` walk the presence phase was handed, so the fill asks about exactly the groups presence mapped.       |
-| `chat`              | `ChatClient`                   | **required**   | The injected transport for the fill calls. A fake in tests; `openAiChat` in production.                                                           |
-| `model`             | `string`                       | **required**   | The model id passed through to the endpoint.                                                                                                      |
-| `maxTokens`         | `number`                       | —              | Cap on generated tokens, passed through to each call.                                                                                             |
-| `groupInstructions` | `(groupKey: string) => string` | —              | Per-group instructions assembly, mirrored from `perGroupPlan`. When omitted, every call uses the target's full instructions.                      |
-| `id`                | `string`                       | `"fill"`       | Overrides the fill phase's id.                                                                                                                    |
-| `requires`          | `readonly string[]`            | `["presence"]` | REPLACES the default — the complete list, not an addition. A renamed presence phase must be named here or construction throws on the dangling id. |
+| Name                         | Type                           | Default        | What it does                                                                                                                                                                |
+| ---------------------------- | ------------------------------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `presence`                   | `Phase<V, P>`                  | **required**   | The presence phase to run first. Must be named in the fill's `requires` (the default `["presence"]` matches the shipped phases' id).                                        |
+| `target`                     | `ExtractionTarget<V, P>`       | **required**   | The field knowledge; each item's projected target is derived from it.                                                                                                       |
+| `groups`                     | `readonly Group[]`             | **required**   | The walked groups — the same `extractGroups` walk the presence phase was handed, so the fill asks about exactly the groups presence mapped.                                 |
+| `chat`                       | `ChatClient`                   | **required**   | The injected transport for the fill calls. A fake in tests; `openAiChat` in production.                                                                                     |
+| `model`                      | `string`                       | **required**   | The model id passed through to the endpoint.                                                                                                                                |
+| `maxTokens`                  | `number`                       | —              | Cap on generated tokens, passed through to each call.                                                                                                                       |
+| `maxNullableUnionsPerGroup`  | `number`                       | `16`           | Max nullable unions per fill call before a group's narrowed schema is partitioned across calls — the same cap and default `perGroupPlan` packs against.                     |
+| `maxSerializedCharsPerGroup` | `number`                       | — (off)        | Max serialized JSON Schema characters per fill call, passed through to the split's byte cap. Narrowing runs first, so a group with few present leaves is never partitioned. |
+| `groupInstructions`          | `(groupKey: string) => string` | —              | Per-group instructions assembly, mirrored from `perGroupPlan`. When omitted, every call uses the target's full instructions.                                                |
+| `id`                         | `string`                       | `"fill"`       | Overrides the fill phase's id.                                                                                                                                              |
+| `requires`                   | `readonly string[]`            | `["presence"]` | REPLACES the default — the complete list, not an addition. A renamed presence phase must be named here or construction throws on the dangling id.                           |
 
 `systemOnePresencePhase(options)` takes `SystemOnePresencePhaseOptions`: the `client` and `schema`
 are required; `threshold` defaults to this page's one exported constant, `DEFAULT_PRESENCE_THRESHOLD`
@@ -70,9 +72,11 @@ An `Extractor<Enveloped<V, P>>` — the same seam as every strategy. On each `ex
    else looks at. Its merge seeds every group — failed items included — with the full null
    envelope, and stores the boolean map under the presence note key. Without the seed, an
    all-false group would go missing from the fields and the closing parse would reject the result.
-2. The fill phase plans one item per group with at least one present leaf, over a
-   `projectTarget`-narrowed target carrying exactly the active leaves; a group whose leaves are all
-   absent is never asked for values and reads as the nulled seed.
+2. The fill phase plans one call per PIECE of every present group's narrowed schema: the active
+   leaves are projected first, then split under the same caps `perGroupPlan` packs against — a
+   group whose narrowed schema exceeds a cap partitions across calls exactly as the per-group
+   strategy would partition it, and a group with few present leaves still costs one call. A group
+   whose leaves are all absent is never asked for values and reads as the nulled seed.
 3. The engine normalizes once and parses once against the full `extractionSchema` — the
    trust boundary.
 
@@ -81,7 +85,8 @@ An `Extractor<Enveloped<V, P>>` — the same seam as every strategy. On each `ex
 - **A dangling `requires` id throws at construction** — `validatePhases` rejects a mis-wired list
   before the first call is paid for, naming the phase and the id.
 - **A failed presence item is skipped, not fatal** — the phase declares `onItemFailure: "skip"`;
-  the seed's null envelopes cover the group, and the skip report says so on the session.
+  the seed's null envelopes cover the group, and the skip report says so on the session. A failed
+  fill PIECE nulls only that piece's leaves, under the same policy.
 
 Source: `packages/ribo-core/src/extraction/strategies/presence-narrowed.ts`,
 `packages/ribo-core/src/phases/presence-fill-phase.ts`, and

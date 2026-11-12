@@ -29,10 +29,17 @@ export interface CallsReport {
   perGroupReason?: string;
   /**
    * Upper bound, worded as one everywhere: the presence phase plans one item
-   * per group, always, and the fill phase makes at most one call per group —
-   * `2 × groupCount`. `null` when the schema has no groups (the presence
-   * preset refuses a zero-group walk). The common case is cheaper: groups
-   * presence found empty cost nothing in the fill.
+   * per group, always, and the fill phase makes at most one call per piece of
+   * every group's narrowed schema — the same split caps `perGroupPlan` packs
+   * against, so the all-present worst case's piece count is the split's own
+   * grouped-piece count (the unwrapped `""` pieces excluded: the fill only
+   * walks groups). `groupCount` presence calls plus that many fill calls.
+   * `null` when the bound cannot be derived: the schema has no groups (the
+   * presence preset refuses a zero-group walk), or construction over the same
+   * schema and caps refuses (a derive-, name- or split-stage refusal — the
+   * fill would throw where `perGroupPlan` does). The common case is cheaper:
+   * groups presence found empty cost nothing in the fill, and narrowing runs
+   * before the split, so a group with few present leaves is never partitioned.
    */
   presenceNarrowedAtMost: number | null;
   /**
@@ -109,7 +116,8 @@ export interface SplitCapOptions {
  * classification, the per-group count from a real `perGroupPlan` entry map
  * built with a never-called stub chat and a fixed wire-safe placeholder name,
  * the presence-narrowed upper bound from the presence phase's one-item-per-group
- * plan plus the fill phase's one-call-per-present-group, and the consensus
+ * plan plus the fill phase's per-piece cap partition (the split's own grouped
+ * pieces, all-present worst case), and the consensus
  * per-candidate count from the call-shape selection.
  */
 export function describeCalls(
@@ -156,11 +164,26 @@ export function describeCalls(
     }
   }
 
+  // The presence-narrowed bound: groupCount presence calls plus the fill's
+  // worst-case piece count. The worst case is every leaf of every group
+  // present, where each group's narrowed schema is the whole group — so the
+  // fill's pieces per group are exactly the split's own grouped pieces, read
+  // off the description rather than re-split. A single-shot schema fits whole,
+  // so every group is one piece. A refusal means the fill would throw where
+  // perGroupPlan does: no bound to report.
+  const fillPieceCount =
+    description.refusal !== undefined
+      ? null
+      : description.callShape === "single-shot"
+        ? groupCount
+        : (description.pieces ?? []).filter((piece) => piece.key !== "").length;
+
   return {
     singleShot,
     perGroup,
     ...(perGroupReason === undefined ? {} : { perGroupReason }),
-    presenceNarrowedAtMost: groupCount > 0 ? 2 * groupCount : null,
+    presenceNarrowedAtMost:
+      groupCount > 0 && fillPieceCount !== null ? groupCount + fillPieceCount : null,
     consensusPerCandidate: description.callShape === "single-shot" ? 1 : perGroup,
     maxRetriesDefault: 2,
   };

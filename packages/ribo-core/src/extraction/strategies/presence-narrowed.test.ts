@@ -5,6 +5,7 @@ import { enveloped } from "../../provenance/enveloped.js";
 import { extractGroups, nullEnvelope, presencePhase } from "../../phases/presence-phase.js";
 import { phasedExtractor } from "../../phases/phased-extractor.js";
 import { presenceFillPhase } from "../../phases/presence-fill-phase.js";
+import { perGroupPlan } from "./per-group.js";
 import type { CapableChatClient, ChatClient, ChatRequest } from "../../phases/chat-client.js";
 import type { ExtractionTarget } from "../extractor.js";
 import type { PhaseContext } from "../../phases/phase.js";
@@ -226,5 +227,207 @@ describe("presenceNarrowedExtractor — the composition", () => {
     expect(() =>
       presenceNarrowedExtractor(renamed, { ...options, requires: ["presence-strict"] }),
     ).not.toThrow();
+  });
+});
+
+/**
+ * The split caps. `perGroupExtractor` partitions a group whose serialized
+ * schema exceeds `maxSerializedCharsPerGroup` across several calls; the
+ * presence-narrowed fill builds its narrowed target per item, AFTER presence
+ * is known, and must partition THAT the same way — an over-cap narrowed group
+ * is a call the per-group path would never send, and the route refuses it.
+ * These tests run a collection group whose projected schema exceeds a small
+ * byte cap, so the partition is observable on the stub's requests.
+ */
+const bigLeaf = () => z.string().describe("d".repeat(150)).nullable().optional();
+const bigSchema = z.strictObject({
+  rooms: z
+    .array(
+      z.strictObject({
+        name: bigLeaf(),
+        floor: bigLeaf(),
+        volume: bigLeaf(),
+        windows: bigLeaf(),
+        door: bigLeaf(),
+        trim: bigLeaf(),
+        cove: bigLeaf(),
+        crown: bigLeaf(),
+        casing: bigLeaf(),
+        apron: bigLeaf(),
+        stool: bigLeaf(),
+        jamb: bigLeaf(),
+      }),
+    )
+    .optional(),
+  other: z.strictObject({ note: bigLeaf() }).optional(),
+});
+type BigValues = z.infer<typeof bigSchema>;
+
+const bigTarget: ExtractionTarget<BigValues> = {
+  name: "big-demo",
+  extractionSchema: enveloped(bigSchema),
+  instructions: "Extract the fields from the transcript.",
+  examples: [],
+};
+
+const bigGroups = extractGroups(
+  z.toJSONSchema(bigTarget.extractionSchema, { target: "draft-2020-12" }),
+);
+
+const BIG_CAP = 2500;
+const ROOM_LEAVES = [
+  "name",
+  "floor",
+  "volume",
+  "windows",
+  "door",
+  "trim",
+  "cove",
+  "crown",
+  "casing",
+  "apron",
+  "stool",
+  "jamb",
+] as const;
+
+/** How many pieces `perGroupPlan` splits one group into under the same caps. */
+function perGroupPieceCount(groupKey: string): number {
+  const plan = perGroupPlan({
+    target: bigTarget,
+    chat: { complete: () => Promise.reject(new Error("plan construction must not dial")) },
+    model: "m",
+    maxSerializedCharsPerGroup: BIG_CAP,
+  });
+  const entry = (plan.groups as Record<string, unknown>)[groupKey];
+  return Array.isArray(entry) ? entry.length : 1;
+}
+
+/** The request's one group key and the leaf keys its schema asks for. */
+function askedLeaves(request: ChatRequest): { key: string; leafKeys: readonly string[] } {
+  const schema = request.responseFormat.json_schema.schema;
+  const properties = schema["properties"] as Record<string, unknown>;
+  const [key] = Object.keys(properties);
+  const value = properties[key!] as Record<string, unknown>;
+  const element = value["type"] === "array" ? (value["items"] as Record<string, unknown>) : value;
+  return { key: key!, leafKeys: Object.keys(element["properties"] as Record<string, unknown>) };
+}
+
+describe("presenceNarrowedExtractor — the split caps", () => {
+  test("every room leaf present: the fill partitions under the byte cap exactly as per-group does, and the pieces merge back", async () => {
+    const maps: PresenceMaps = {
+      rooms: Object.fromEntries(ROOM_LEAVES.map((leafKey) => [leafKey, true])),
+      other: { note: false },
+    };
+    const { chat, requests } = fakeChat((name) => {
+      if (name === "rooms-presence") return maps.rooms;
+      if (name === "other-presence") return maps.other;
+      throw new Error(`unexpected request ${name}`);
+    });
+    // The fill responses must carry exactly the leaves each request's own
+    // schema asks for — the piece's subset — so the stub reads them off the
+    // request rather than predicting the partition.
+    const fillChat: ChatClient = {
+      complete: async (request) => {
+        requests.push(request);
+        const { key, leafKeys } = askedLeaves(request);
+        const leaves = Object.fromEntries(
+          leafKeys.map((leafKey) => [leafKey, envelope("v", "said so")]),
+        );
+        return {
+          content: JSON.stringify({ [key]: [leaves, leaves] }),
+          finishReason: "stop",
+        };
+      },
+    };
+
+    const extractor = presenceNarrowedExtractor(
+      presencePhase<BigValues>({ groups: bigGroups, chat: capable(chat), model: "fake-model" }),
+      {
+        target: bigTarget,
+        groups: bigGroups,
+        chat: fillChat,
+        model: "fake-model",
+        maxSerializedCharsPerGroup: BIG_CAP,
+      },
+    );
+    const result = await extractor.extract(ctx.transcript);
+
+    const fills = requests.filter((r) => !r.responseFormat.json_schema.name.endsWith("-presence"));
+    // Only rooms was present, and it was partitioned exactly as per-group
+    // would partition it under the same cap.
+    expect(fills).toHaveLength(perGroupPieceCount("rooms"));
+    for (const request of fills) {
+      const size = JSON.stringify(request.responseFormat.json_schema.schema).length;
+      expect(
+        size,
+        `fill call "${request.responseFormat.json_schema.name}" serializes to ${size} characters`,
+      ).toBeLessThan(BIG_CAP);
+    }
+    // The pieces tile the group's leaves exactly.
+    const asked = fills.flatMap((request) => askedLeaves(request).leafKeys);
+    expect(new Set(asked).size).toBe(asked.length);
+    expect([...asked].sort()).toEqual([...ROOM_LEAVES].sort());
+
+    // And the merge is total: the piece answers zip back into TWO instances,
+    // each carrying every leaf — presence decided which leaves, never how
+    // many instances (spike 0012), so no instance is lost across pieces.
+    expect(result.fields.rooms).toEqual([
+      Object.fromEntries(ROOM_LEAVES.map((leafKey) => [leafKey, envelope("v", "said so")])),
+      Object.fromEntries(ROOM_LEAVES.map((leafKey) => [leafKey, envelope("v", "said so")])),
+    ]);
+  });
+
+  test("only a few room leaves present: narrowing happens first — rooms still costs exactly one call", async () => {
+    const maps: PresenceMaps = {
+      rooms: {
+        name: true,
+        floor: true,
+        volume: false,
+        windows: false,
+        door: false,
+        trim: false,
+        cove: false,
+        crown: false,
+        casing: false,
+        apron: false,
+        stool: false,
+        jamb: false,
+      },
+      other: { note: false },
+    };
+    const { chat, requests } = fakeChat((name) => {
+      if (name === "rooms-presence") return maps.rooms;
+      if (name === "other-presence") return maps.other;
+      if (name === "big-demo-rooms") {
+        return {
+          rooms: [
+            { name: envelope("kitchen", "the kitchen"), floor: envelope("tile", "tile floor") },
+          ],
+        };
+      }
+      throw new Error(`unexpected request ${name}`);
+    });
+    const extractor = presenceNarrowedExtractor(
+      presencePhase<BigValues>({ groups: bigGroups, chat: capable(chat), model: "fake-model" }),
+      {
+        target: bigTarget,
+        groups: bigGroups,
+        chat,
+        model: "fake-model",
+        maxSerializedCharsPerGroup: BIG_CAP,
+      },
+    );
+    const result = await extractor.extract(ctx.transcript);
+
+    const fills = requests.filter((r) => !r.responseFormat.json_schema.name.endsWith("-presence"));
+    expect(fills).toHaveLength(1);
+    expect(fills[0]!.responseFormat.json_schema.name).toBe("big-demo-rooms");
+    expect(result.fields.rooms).toEqual([
+      {
+        name: envelope("kitchen", "the kitchen"),
+        floor: envelope("tile", "tile floor"),
+        ...Object.fromEntries(ROOM_LEAVES.slice(2).map((leafKey) => [leafKey, nullEnvelope()])),
+      },
+    ]);
   });
 });
