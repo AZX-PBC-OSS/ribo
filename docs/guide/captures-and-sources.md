@@ -64,6 +64,11 @@ capture kind and the transport differ.
 They compose the same way audio-only engines always did — `firstCapable` for preference order,
 `hedgedTranscriber` to race a fallback on a latency budget, `fallbackTranscriber` to let an arbiter decide
 whether an outcome is acceptable — none of that machinery changed to make room for documents.
+The hedged race, executed by the checked example behind
+[choosing and composing transcribers](/api/composing-transcribers) — the timer is injected, so the
+excerpt waits on no real clock:
+
+<<< @/api/examples/composing-transcribers.run.ts#hedged-race
 
 ## The capability model
 
@@ -83,7 +88,9 @@ screens — "165 MB has to come down first, with your say-so" is not "this canno
 `offline`, `not-configured`, `unknown`. Only the first two are permanent for the life of the page —
 a device without WebGPU won't grow one, and a measured real-time factor won't improve — everything
 else (an uplink, a download, a missing key) is a situation, re-probed on the next check rather than
-cached forever.
+cached forever. The [Transcriber API](/api/transcriber) page's checked example executes that closed
+set, scripting `too-slow` in its only real form — `{ status: "unavailable", reason: "too-slow" }` —
+and asserting it is permanent.
 
 ## `UnsupportedItemError`: the third failure class
 
@@ -152,23 +159,13 @@ bivariant even under `strict`, and would let a recording-only engine slide into 
 see a `DocumentCapture`. `RelayOptions.transcriber` wants `Transcriber<CapturePayload>` because the
 queue holds either kind: the compiler rejects an audio-only roster, and `restrictToKind` is the fix:
 
-```ts
-import { firstCapable, restrictToKind } from "@azx/ribo-core";
-import { OnDeviceTranscriber } from "@azx/ribo-transcriber-ondevice";
-import { ManagedTranscriber } from "@azx/ribo-transcriber-managed";
+The composition, pulled live from the checked example behind
+[choosing and composing transcribers](/api/composing-transcribers) — first the ordered roster
+`firstCapable` builds, then the lift:
 
-const audioEngine = firstCapable([
-  new OnDeviceTranscriber(onDeviceOptions),
-  new ManagedTranscriber(managedOptions),
-]);
-// `audioEngine` is `Transcriber<AudioCapture>` — it does not typecheck as
-// `RelayOptions.transcriber`, which is `Transcriber<CapturePayload>`.
+<<< @/api/examples/composing-transcribers.run.ts#usage
 
-const transcriber = restrictToKind("audio", audioEngine);
-// `transcriber` satisfies `Transcriber<CapturePayload>`: a document handed to it
-// throws `UnsupportedItemError` immediately, and an audio item is delegated
-// straight through to `audioEngine`.
-```
+<<< @/api/examples/composing-transcribers.run.ts#restrict-to-kind
 
 It changes no engine and asks nothing of the caller beyond naming the kind once. A composition root
 wiring both a document roster (`pdfjs` falling back to `managed-docs`) and an audio roster

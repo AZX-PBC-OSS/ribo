@@ -91,6 +91,7 @@ export async function anAttemptFailurePropagatesInsteadOfFallingThrough(): Promi
 }
 
 export async function hedgedRacesAFallbackOnALatencyBudget(): Promise<void> {
+  // #region hedged-race
   const primary = new FakeTranscriber({ engine: "fake-primary", text: "from the device" });
   const hedge = new FakeTranscriber({ engine: "fake-hedge", text: "from the cloud" });
 
@@ -106,6 +107,7 @@ export async function hedgedRacesAFallbackOnALatencyBudget(): Promise<void> {
       return () => undefined;
     },
   });
+  // #endregion hedged-race
 
   const transcript = await composite.transcribe(recording("cap-2"), audio());
 
@@ -158,8 +160,10 @@ export async function fallbackTranscriberLetsAnArbiterDecide(): Promise<void> {
 }
 
 export async function restrictToKindRefusesTheOtherKindAndDelegatesItsOwn(): Promise<void> {
+  // #region restrict-to-kind
   const audioEngine = new FakeTranscriber({ engine: "fake-audio", text: "from the device" });
   const lifted = restrictToKind("audio", audioEngine);
+  // #endregion restrict-to-kind
 
   await assert.rejects(
     lifted.transcribe(document("cap-doc"), new Blob(["%PDF-1.7 …"])),
