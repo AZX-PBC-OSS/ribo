@@ -14,14 +14,12 @@ provenance envelope and its own schema attached. `resolveReview` takes that requ
 with a `ReviewSubmission` — one `FieldDecision` per leaf, `"accepted"`, `"edited"`, or `"rejected"` —
 and classifies what happened into a `ReviewOutcome`: `accepted`, `edited`, or `discarded`.
 
-```ts
-import { buildReviewRequest, resolveReview } from "@azx/ribo-core";
+The same contract, composed with storage in the review-gate example — the
+request built from the extraction a parked session actually carries, and the
+submission resolved from a human's decisions (executed by the examples runner
+on every CI run):
 
-const request = buildReviewRequest(extracted, transcript, adapter.schema);
-
-// however a UI collects `decisions` and `instanceLinks`...
-const outcome = resolveReview(request, { status: "submitted", decisions, instanceLinks });
-```
+<<< @/../examples/review-gate/review-gate.run.ts#review
 
 What the human reported (`ReviewSubmission`) is split from what it means (`ReviewOutcome`). A UI can
 only be trusted to report what happened; deciding whether a draft was touched at all, and which
@@ -94,9 +92,14 @@ queue item discovered later.
 
 Review does not block anything while it waits for a human. A session that finishes extraction lands
 at `awaiting-review`. The relay does not treat it as active, so it drains past a parked session on
-every run instead of retrying it. There is nothing to retry — a person has not looked yet, and the
-relay processes a strictly ordered queue, so blocking on one parked session would stall every
-recording behind it.
+every run instead of retrying it. The review-gate example makes the guarantee positive: the relay
+is given its chance to write while the session sits parked, and the adapter's write count stays at
+zero:
+
+<<< @/../examples/review-gate/review-gate.run.ts#gate
+
+There is nothing to retry — a person has not looked yet, and the relay processes a strictly
+ordered queue, so blocking on one parked session would stall every recording behind it.
 
 **`storage.sessions.submitReview` is the only way out.** It takes the `id` and a
 `PersistedReviewOutcome` — the persisted mirror of what `resolveReview` returned — and only succeeds

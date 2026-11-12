@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Example packages are workspace members, so they extend @azx/tsconfig by package name (AGENTS.md §6). DOM lib comes from browser-library.json — ribo-core's public types reference DOM types — and node types cover node:assert/strict in *.run.ts files. Includes this package's own files only; the examples/ root mechanism files are owned by examples/tsconfig.json.",
+  "extends": "@azx/tsconfig/browser-library.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["*"]
+}

@@ -57,16 +57,12 @@ directly, an outcome written by an older build read back after a schema change, 
 persisting its own outcome shape. All of those are `unknown` by the time they reach the write step,
 and the adapter's schema is the last thing standing between them and a real write.
 
-`toWriteStep(adapter)` installs that boundary:
+`toWriteStep(adapter)` installs that boundary. Here is that wiring as the
+review-gate example actually runs it — a tool-neutral adapter double behind
+`toWriteStep`, driven by the relay (executed by the examples runner on every
+CI run):
 
-```ts
-import { createRelay, toWriteStep } from "@azx/ribo-core";
-
-const relay = createRelay({
-  // ...
-  sessionWrite: toWriteStep(adapter),
-});
-```
+<<< @/../examples/review-gate/review-gate.run.ts#relay
 
 Per session, it parses `ctx` with `adapter.ctxSchema`, parses the reviewed patch with `adapter.schema`,
 and only then calls `adapter.write(fields, ctx, { idempotencyKey })`. Either parse failing throws a
