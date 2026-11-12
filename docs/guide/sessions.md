@@ -165,7 +165,7 @@ the only status with no automatic way out — reached once retries are exhausted
 needs correcting later.
 
 Watch sessions live rather than poll them — this is the durable-queue example's
-subscription, run in CI on every docs build:
+subscription, executed by the examples runner on every CI run:
 
 <<< @/../examples/durable-queue/durable-queue.run.ts#watch
 
