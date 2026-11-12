@@ -267,12 +267,16 @@ says "at most", in prose and in the JSON field's description, and never presents
 exact count. The composition is `presenceNarrowedExtractor` (re-exported at
 `packages/ribo-core/src/index.ts:868`): a presence phase whose plan returns **one item per group,
 always** (the file header of `phases/presence-phase.ts` states this as the phase's first named
-shape), then a fill phase making one call per group with at least one present leaf
+shape), then a fill phase making one call per PIECE of every group's narrowed schema
 (`phases/presence-fill-phase.ts`). So the bound is: the presence phase contributes exactly one
-item per group in the plan; the fill phase contributes at most one call per group, reached only in
-the worst case where every group has a present leaf. The common case is cheaper — groups presence
-found empty cost nothing in the fill — and the bound exists because the CLI cannot know presence's
-answer without making the calls it exists to predict.
+item per group in the plan; the fill phase contributes one call per piece of the split it runs
+over each group's active-leaf projection — under the same caps `perGroupPlan` packs against, so
+the all-present worst case's pieces are exactly the split's own grouped pieces, read off the
+description the report already carries (the unwrapped `""` pieces excluded: the fill only walks
+groups). `groupCount` presence calls plus that piece count. The common case is cheaper — groups
+presence found empty cost nothing in the fill, and narrowing runs BEFORE the split, so a group
+with few present leaves is never partitioned — and the bound exists because the CLI cannot know
+presence's answer without making the calls it exists to predict.
 
 **Consensus.** The sum over candidates: `consensusExtractor` (re-exported at
 `packages/ribo-core/src/index.ts:136`) runs every candidate and its usage is summed across the
@@ -307,7 +311,8 @@ run that drives nothing can never pass vacuously.
   of the reported plan — pieces and the unwrapped entry both.
 - **Presence-narrowed:** the real composition (`presenceNarrowedExtractor` over core's
   `presencePhase` and the fill phase) run in the **all-present worst case** receives exactly the
-  reported bound — the only case where the bound is an equality, and the case the test pins.
+  reported bound — the only case where the bound is an equality, and the case the test pins,
+  partition included.
 - **Consensus:** the real `consensusExtractor` over the counting stub receives exactly the
   reported sum across its candidates.
 

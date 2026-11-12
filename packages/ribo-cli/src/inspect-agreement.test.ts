@@ -196,14 +196,22 @@ test("per-group: perGroupExtractor receives exactly one request per reported pla
 });
 
 test("presence-narrowed: the all-present worst case receives exactly the reported bound", async () => {
-  const report = inspectSchema(allGroupsDocument);
+  // A union cap that partitions every group: the bound must count the fill's
+  // PIECES, not one call per group — the same partition per-group sends.
+  const caps = { maxNullableUnionsPerGroup: 3 };
+  const report = inspectSchema(allGroupsDocument, caps);
   const groups = extractGroups(
     z.toJSONSchema(derived(allGroupsDocument), { target: "draft-2020-12" }),
   );
   expect(groups.length).toBeGreaterThanOrEqual(1);
-  expect(report.calls?.presenceNarrowedAtMost).toBe(groups.length * 2);
+  // Presence asks once per group, always; the fill sends one call per piece of
+  // every group's narrowed schema — here home and site each partition into two
+  // pieces under the cap, so the bound is groupCount + grouped-piece count.
+  const groupedPieces = (report.pieces ?? []).filter((piece) => piece.key !== "").length;
+  expect(groupedPieces).toBeGreaterThan(groups.length);
+  expect(report.calls?.presenceNarrowedAtMost).toBe(groups.length + groupedPieces);
 
-  const { chat, requests } = countingChat("visit-agreement", allGroupsDocument, {});
+  const { chat, requests } = countingChat("visit-agreement", allGroupsDocument, caps);
   const extractor = presenceNarrowedExtractor(
     presencePhase({
       groups,
@@ -214,12 +222,19 @@ test("presence-narrowed: the all-present worst case receives exactly the reporte
       },
       model: "fake-model",
     }),
-    { target: targetFor("visit-agreement", allGroupsDocument), groups, chat, model: "fake-model" },
+    {
+      target: targetFor("visit-agreement", allGroupsDocument),
+      groups,
+      chat,
+      model: "fake-model",
+      ...caps,
+    },
   );
   await extractor.extract(transcript);
 
   // Every group present: one presence call per group (the phase's plan is
-  // never empty) plus one fill call per group — the bound as an equality.
+  // never empty) plus one fill call per piece of the split — the bound as an
+  // equality, partition included.
   expect(requests.length).toBeGreaterThanOrEqual(1);
   expect(requests.length).toBe(report.calls?.presenceNarrowedAtMost);
 });
