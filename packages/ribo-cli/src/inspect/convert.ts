@@ -148,7 +148,10 @@ export function convertDocument(document: unknown): z.ZodObject {
     schema = z.fromJSONSchema(document, { defaultTarget: "openapi-3.0" });
   } catch (error) {
     throw new SchemaInspectError(
-      `the document could not be converted from OpenAPI 3.0 form: ${faultMessage(error)}`,
+      `the document could not be converted from OpenAPI 3.0 form: ${faultMessage(error)} ` +
+        "— the limit is z.fromJSONSchema, which does not convert every JSON Schema construct; " +
+        "rewrite the construct out of the document before inspecting it " +
+        "(see docs/guide/from-a-schema.md)",
     );
   }
   if (!(schema instanceof z.ZodObject)) {

@@ -375,14 +375,17 @@ function runCliBinStep(tarballs) {
   const binFile = join(distDir, "bin.js");
   const installedBin = join(APP_DIR, "node_modules", ".bin", CLI_BIN_NAME);
 
+  // Both invocations pass --json: the human rendering is the command's
+  // default (design §1), and this step parses stdout as JSON — the contract
+  // is what --json emits.
   log("cli-bin-run: running the extracted dist bin against the fixture...");
   assertInspectReport(
-    runCaptured(process.execPath, [binFile, "schema", "inspect", fixtureName], isolated),
+    runCaptured(process.execPath, [binFile, "schema", "inspect", fixtureName, "--json"], isolated),
     "the extracted dist/bin.js",
   );
   log("cli-bin-run: running the installed node_modules/.bin/ribo against the fixture...");
   assertInspectReport(
-    runCaptured(installedBin, ["schema", "inspect", fixtureName], isolated),
+    runCaptured(installedBin, ["schema", "inspect", fixtureName, "--json"], isolated),
     "the installed node_modules/.bin/ribo",
   );
 
