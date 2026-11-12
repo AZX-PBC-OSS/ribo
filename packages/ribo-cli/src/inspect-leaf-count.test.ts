@@ -52,6 +52,21 @@ function enumerateEnvelopes(schema: z.ZodType, prefix = ""): string[] {
   return leaves;
 }
 
+/** Derive the enveloped extraction schema from a patch document, with a
+ * provenance map, the way the pipeline does with per-group granularity. */
+const envelopedDocumentWithProvenance = (
+  patch: object,
+  provenance: NonNullable<Parameters<typeof enveloped>[1]>["provenance"],
+): unknown =>
+  toDocument(
+    enveloped(
+      z.fromJSONSchema(patch as Parameters<typeof z.fromJSONSchema>[0], {
+        defaultTarget: "openapi-3.0",
+      }) as z.ZodObject,
+      { provenance },
+    ),
+  );
+
 /** Render a zod schema to the OpenAPI-3.0 document form the command takes. */
 const toDocument = (schema: z.ZodType): Parameters<typeof z.fromJSONSchema>[0] =>
   z.toJSONSchema(schema, { target: "openapi-3.0" });
@@ -103,6 +118,49 @@ test("a reformat finding's path names the field, not the envelope's value member
   expect(report.reformatFindings.map((finding) => finding.path)).toEqual(["notes"]);
 });
 
+// A row-provenance patch: an array-of-rows group with two fields, a singleton
+// object group with one field, every field described — so the right answer is
+// visible by eye and the row citation cannot hide in it. Core appends the row
+// unit's own citation under the key ROW_SOURCE_SPAN_KEY; the field inventory
+// must count one field per real field there too, not the citation string.
+const rowPatch = {
+  type: "object",
+  description: "Home overview",
+  properties: {
+    rooms: {
+      type: "array",
+      description: "Conditioned rooms",
+      items: {
+        type: "object",
+        description: "A room",
+        properties: {
+          name: { type: "string", description: "Room name" },
+          heatingLoad: { type: "number", description: "Heating load" },
+        },
+        required: ["name", "heatingLoad"],
+      },
+    },
+    basedata: {
+      type: "object",
+      description: "Base data",
+      properties: {
+        yearBuilt: { type: "number", description: "Year built" },
+      },
+      required: ["yearBuilt"],
+    },
+  },
+  required: ["rooms", "basedata"],
+};
+
+test("a row-provenance schema reports one leaf per real field, not its row citation", () => {
+  const document = envelopedDocumentWithProvenance(rowPatch, { rooms: "row", basedata: "row" });
+  const report = inspectSchema(document);
+
+  // Three real fields: two per room row plus the singleton group's one field.
+  expect(report.leafCount).toBe(3);
+  expect(report.guidanceCoverage).toEqual({ described: 3, total: 3, ratio: 1 });
+});
+
 test("on the real Snugg schema the leaf count is the field count the adapter pins", () => {
   const document = toDocument(snuggExtractionSchema);
   const fieldCount = enumerateEnvelopes(
@@ -124,4 +182,24 @@ test("on the real Snugg schema the leaf count is the field count the adapter pin
   for (const finding of report.reformatFindings) {
     expect(finding.path.endsWith(".value")).toBe(false);
   }
+});
+
+test("under leaf provenance a real field named sourceSpan is still a field", () => {
+  const document = envelopedDocument({
+    type: "object",
+    description: "Visit",
+    properties: {
+      visit: {
+        type: "object",
+        description: "Visit",
+        properties: {
+          sourceSpan: { type: "string", description: "Where the auditor heard it" },
+          notes: { type: "string", description: "Notes" },
+        },
+        required: ["sourceSpan", "notes"],
+      },
+    },
+    required: ["visit"],
+  });
+  expect(inspectSchema(document).leafCount).toBe(2);
 });

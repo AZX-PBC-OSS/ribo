@@ -1,4 +1,9 @@
-import { isExtractedSchema, stripOptionalNullable, walkLeafInventory } from "@azx/ribo-core";
+import {
+  isExtractedSchema,
+  ROW_SOURCE_SPAN_KEY,
+  stripOptionalNullable,
+  walkLeafInventory,
+} from "@azx/ribo-core";
 import type { LeafInventoryEntry } from "@azx/ribo-core";
 import { z } from "zod";
 
@@ -16,27 +21,34 @@ import { z } from "zod";
  * member, which carries the field's leaf kind and description. The walk
  * itself is never reimplemented: this file only reshapes the input to it.
  *
- * Under `"row"` or `"none"` granularity there are no envelopes and the unwrap
- * is the identity; the row unit's own `sourceSpan` string is counted as a
- * leaf, as the document that carries it states.
+ * Under `"row"` granularity there are no envelopes; the row unit's own
+ * citation — core appends it under `ROW_SOURCE_SPAN_KEY` — is dropped where
+ * core's shape walk skips it: on a row unit (a top-level group object or a
+ * collection element), and only when it is not itself a leaf envelope.
  */
 
 /** `shape[key]`, narrowed once — the move core's own `fieldAt` makes. */
 const fieldAt = (shape: z.ZodObject["shape"], key: string): z.ZodType => shape[key] as z.ZodType;
 
 /** One field of the schema, with any envelope unwrapped to its `value` member. */
-const unwrapField = (field: z.ZodType): z.ZodType => {
+const unwrapField = (field: z.ZodType, isRow = false): z.ZodType => {
   const stripped = stripOptionalNullable(field);
   if (!(stripped instanceof z.ZodObject)) {
     return stripped instanceof z.ZodArray
-      ? z.array(unwrapField(stripped.element as z.ZodType))
+      ? z.array(unwrapField(stripped.element as z.ZodType, true))
       : stripped;
   }
   // Core's envelope recognition, verbatim — never a re-declared key set.
   if (isExtractedSchema(stripped)) return fieldAt(stripped.shape, "value");
   const unwrapped: Record<string, z.ZodType> = {};
   for (const key of Object.keys(stripped.shape)) {
-    unwrapped[key] = unwrapField(fieldAt(stripped.shape, key));
+    const member = fieldAt(stripped.shape, key);
+    // A row unit's own citation, exactly where core's shape walk skips it: on an
+    // array element, and not an envelope (a leaf field may be named the same).
+    if (isRow && key === ROW_SOURCE_SPAN_KEY && !isExtractedSchema(stripOptionalNullable(member))) {
+      continue;
+    }
+    unwrapped[key] = unwrapField(member);
   }
   return z.object(unwrapped);
 };
@@ -56,11 +68,11 @@ export function walkFieldInventory(schema: z.ZodObject): LeafInventoryEntry[] {
     // document itself carries ("value") — the only name a root envelope has.
     return walkLeafInventory(z.object({ value: unwrapField(stripped) }));
   }
-  const unwrapped = unwrapField(schema);
-  if (!(unwrapped instanceof z.ZodObject)) {
-    // Unreachable — the root is an object and not an envelope, so the unwrap
-    // rebuilds an object. Guarded for the type, never silently reshaped.
-    throw new Error("walkFieldInventory(): the unwrapped root is not an object schema");
+  // Each top-level group object is a row unit, as are collection elements —
+  // the rule core's shape walk and `enveloped()` apply.
+  const groups: Record<string, z.ZodType> = {};
+  for (const key of Object.keys(schema.shape)) {
+    groups[key] = unwrapField(fieldAt(schema.shape, key), true);
   }
-  return walkLeafInventory(unwrapped);
+  return walkLeafInventory(z.object(groups));
 }
