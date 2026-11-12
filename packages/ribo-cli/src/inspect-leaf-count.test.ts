@@ -183,3 +183,23 @@ test("on the real Snugg schema the leaf count is the field count the adapter pin
     expect(finding.path.endsWith(".value")).toBe(false);
   }
 });
+
+test("under leaf provenance a real field named sourceSpan is still a field", () => {
+  const document = envelopedDocument({
+    type: "object",
+    description: "Visit",
+    properties: {
+      visit: {
+        type: "object",
+        description: "Visit",
+        properties: {
+          sourceSpan: { type: "string", description: "Where the auditor heard it" },
+          notes: { type: "string", description: "Notes" },
+        },
+        required: ["sourceSpan", "notes"],
+      },
+    },
+    required: ["visit"],
+  });
+  expect(inspectSchema(document).leafCount).toBe(2);
+});
