@@ -27,8 +27,8 @@
 import process from "node:process";
 
 import { Command, InvalidArgumentError } from "commander";
-import pc from "picocolors";
 
+import { colorsFor } from "./colors.js";
 import { inspectSchema, SchemaInspectError } from "./inspect-schema.js";
 import type { ThresholdRow } from "./inspect/report-schema.js";
 import { InputFault, readDocumentSource } from "./read-input.js";
@@ -36,7 +36,7 @@ import { renderHumanReport } from "./render-human.js";
 
 /** Reports a could-not-run fault and exits 2. Stdout stays empty. */
 function fail(message: string): never {
-  process.stderr.write(`ribo schema inspect: ${pc.red(message)}\n`);
+  process.stderr.write(`ribo schema inspect: ${colorsFor(process.stderr).red(message)}\n`);
   process.exit(2);
 }
 
@@ -109,14 +109,18 @@ function run(path: string | undefined, flags: InspectFlags): void {
     throw error;
   }
   process.stdout.write(
-    flags.json === true ? `${JSON.stringify(report, null, 2)}\n` : renderHumanReport(report),
+    flags.json === true
+      ? `${JSON.stringify(report, null, 2)}\n`
+      : renderHumanReport(report, colorsFor(process.stdout)),
   );
   const breached = report.thresholds?.filter((row) => row.breached) ?? [];
   if (breached.length > 0) {
     // The full report is already on stdout; the stderr lines make a CI log
     // self-explanatory when stdout was captured elsewhere (Decision D3).
     for (const row of breached)
-      process.stderr.write(`ribo schema inspect: ${pc.red(thresholdBreachLine(row))}\n`);
+      process.stderr.write(
+        `ribo schema inspect: ${colorsFor(process.stderr).red(thresholdBreachLine(row))}\n`,
+      );
     process.exit(1);
   }
 }

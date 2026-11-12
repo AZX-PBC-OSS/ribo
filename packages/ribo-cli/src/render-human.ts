@@ -8,11 +8,12 @@
  * split) — and stays package-internal (Decision D7: the public barrel gains
  * nothing).
  *
- * Every character of colour routes through picocolors, whose own detection
- * honours `NO_COLOR` and a non-TTY stream, so piped output carries no escape
- * bytes.
+ * Colour is the caller's decision (`colorsFor` in colors.ts); without one the
+ * rendering is plain, so piped output carries no escape bytes.
  */
-import pc from "picocolors";
+import { createColors } from "picocolors";
+
+import type { Colors } from "./colors.js";
 
 import type {
   FlatReasonReport,
@@ -24,10 +25,6 @@ import type {
 /** The worst piece's name, in the threshold vocabulary: `${key}` or `${key}-<part>`. */
 const pieceLabel = (piece: WorstPieceReport): string =>
   piece.part === undefined ? piece.key : `${piece.key}-${piece.part}`;
-
-const label = (text: string): string => pc.dim(text.padEnd(24, " "));
-
-const line = (name: string, value: string): string => `  ${label(name)}${value}\n`;
 
 const flatReasonText = (reason: FlatReasonReport): string => {
   if (reason.kind === "loose-keys") return `loose top-level keys: ${reason.keys.join(", ")}`;
@@ -60,7 +57,7 @@ const callsText = (calls: NonNullable<SchemaInspectReport["calls"]>): [string, s
   ["retry budget", `worst case 1 + ${calls.maxRetriesDefault} retries per call`],
 ];
 
-const thresholdText = (row: ThresholdRow): string => {
+const thresholdText = (pc: Colors, row: ThresholdRow): string => {
   const measured =
     row.measured === null
       ? "unavailable — a refusal left the measure unmeasured"
@@ -72,7 +69,12 @@ const thresholdText = (row: ThresholdRow): string => {
   return `${measured}${piece} — ${verdict}`;
 };
 
-export function renderHumanReport(report: SchemaInspectReport): string {
+export function renderHumanReport(
+  report: SchemaInspectReport,
+  pc: Colors = createColors(false),
+): string {
+  const line = (name: string, value: string): string =>
+    `  ${pc.dim(name.padEnd(24, " "))}${value}\n`;
   const out: string[] = [];
   // The title is a heading: it ends its own line (the empty-string spacer
   // below contributes nothing under the "" join).
@@ -155,7 +157,7 @@ export function renderHumanReport(report: SchemaInspectReport): string {
   }
   if (report.thresholds !== undefined) {
     for (const row of report.thresholds) {
-      out.push(line(`threshold ${row.measure}`, thresholdText(row)));
+      out.push(line(`threshold ${row.measure}`, thresholdText(pc, row)));
     }
   }
   return out.join("");
