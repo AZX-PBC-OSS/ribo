@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "description": "Home energy audit capture",
+  "properties": {
+    "home": {
+      "type": "object",
+      "description": "Home overview",
+      "properties": {
+        "address": { "type": "string", "description": "Street address" },
+        "yearBuilt": { "type": "number", "description": "Year built" },
+        "completed": {
+          "type": "boolean",
+          "description": "Audit completed",
+          "nullable": true
+        }
+      },
+      "required": ["address", "yearBuilt", "completed"]
+    },
+    "notes": { "type": "string", "description": "Freeform notes", "nullable": true }
+  },
+  "required": ["home", "notes"]
+}

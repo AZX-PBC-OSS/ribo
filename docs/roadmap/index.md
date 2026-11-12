@@ -378,6 +378,12 @@ So nobody re-litigates it:
   `Transcriber` seam), a TanStack-shaped information architecture with a Comparison page that marks
   Ribo down where it loses, the honesty rails for the three things that are not finished (npm
   publication, extraction measurement, write-back), and why `Transcriber` keeps its name.
+- [Ribo CLI — Schema Inspect — Design](design/ribo-cli-schema-inspect-design.md) — the `ribo schema
+inspect` command: a model-free sizing report over a JSON Schema document — measures, split path,
+  pieces, refusal from `describeExtraction`, counts and lint from `walkLeafInventory`, per-strategy
+  call counts with an agreement test apiece. Pins the versioned `--json` contract, the exit codes,
+  the OpenAPI 3.0 input contract (ADR 0038), the package (ADR 0037), and the round-trip guard that
+  keeps the conversion honest across zod bumps. The Tier 1 build tickets (T2–T6) implement it.
 
 ## Phase records
 

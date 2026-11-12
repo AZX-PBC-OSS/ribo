@@ -645,7 +645,7 @@ Checklist:
 
 ## 7. Definition of done
 
-**`./check.sh` is green.** It runs typecheck → lint → format:check → build:packages → resolve →
+**`./check.sh` is green.** It runs typecheck → lint → format:check → build:packages → snugg:inspect → resolve →
 build:app → docs:build → pkg:gates → snugg:drift → skips:tracked → score:mutations → test and prints a
 PASS/FAIL summary. Run it before you claim a task is finished, and paste the summary line rather than
 asserting success.

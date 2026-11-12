@@ -13,6 +13,7 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./extraction.schema.json": "./dist/extraction.schema.json",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -22,12 +23,13 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       },
+      "./extraction.schema.json": "./dist/extraction.schema.json",
       "./package.json": "./package.json"
     }
   },
   "scripts": {
     "typecheck": "tsc -b --force",
-    "build": "tsdown"
+    "build": "tsdown --no-publint --no-attw && node ./generate-extraction-schema.mjs && tsdown"
   },
   "dependencies": {
     "@azx/ribo-core": "workspace:^",
@@ -37,6 +39,7 @@
     "@arethetypeswrong/core": "catalog:",
     "@azx/build-config": "workspace:*",
     "@azx/ribo-chat-openai": "workspace:*",
+    "@azx/ribo-cli": "workspace:*",
     "@azx/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "ajv": "catalog:",

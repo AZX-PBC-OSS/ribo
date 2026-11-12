@@ -28,6 +28,7 @@ export function scratchPackageJson(tarballPaths) {
       "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
       "@azx/ribo-chat-helix": fileSpec("@azx/ribo-chat-helix"),
       "@azx/ribo-chat-openai": fileSpec("@azx/ribo-chat-openai"),
+      "@azx/ribo-cli": fileSpec("@azx/ribo-cli"),
       "@azx/ribo-extractor-systemone": fileSpec("@azx/ribo-extractor-systemone"),
       "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
       "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
@@ -60,6 +61,7 @@ export function scratchPackageJson(tarballPaths) {
         "@azx/ribo-adapter-snuggpro": fileSpec("@azx/ribo-adapter-snuggpro"),
         "@azx/ribo-chat-helix": fileSpec("@azx/ribo-chat-helix"),
         "@azx/ribo-chat-openai": fileSpec("@azx/ribo-chat-openai"),
+        "@azx/ribo-cli": fileSpec("@azx/ribo-cli"),
         "@azx/ribo-extractor-systemone": fileSpec("@azx/ribo-extractor-systemone"),
         "@azx/ribo-extractor-ondevice": fileSpec("@azx/ribo-extractor-ondevice"),
         "@azx/ribo-transcriber-ondevice": fileSpec("@azx/ribo-transcriber-ondevice"),
@@ -163,6 +165,10 @@ import {
   snuggExtractionSchema,
   snuggProAdapter,
 } from "@azx/ribo-adapter-snuggpro";
+// T2 (ADR 0039): the build-time-generated extraction schema document, resolved through the
+// published subpath export — not a relative path into the package. This is the consumer-side
+// half of the tier's artifact proof; index.mjs asserts the tarball carries the file.
+import extractionSchemaJson from "@azx/ribo-adapter-snuggpro/extraction.schema.json" with { type: "json" };
 import { helixChat } from "@azx/ribo-chat-helix";
 import { openAiChat } from "@azx/ribo-chat-openai";
 import { enumMembersAt } from "@azx/ribo-extractor-systemone";
@@ -199,6 +205,14 @@ async function run() {
 
     // ribo-adapter-snuggpro: the schema resolved and has real shape.
     checks.adapterSchemaKeyCount = Object.keys(snuggProAdapter.schema.shape).length;
+
+    // The generated extraction schema document resolved through the published
+    // ./extraction.schema.json subpath export and is a real JSON Schema object.
+    checks.adapterSchemaArtifactResolves =
+      typeof extractionSchemaJson === "object" &&
+      extractionSchemaJson !== null &&
+      extractionSchemaJson.type === "object" &&
+      typeof extractionSchemaJson.properties === "object";
 
     // The chat transports composed with the adapter across a tarball boundary (the
     // strategies now live in ribo-core, ADR 0028; the transports are the dialect

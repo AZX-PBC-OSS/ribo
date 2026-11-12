@@ -79,6 +79,9 @@ export default defineConfig({
         },
         test: {
           name: "unit",
+          // One token per run, so the CLI bin suites build dist/ once rather than
+          // racing each other through tsdown's clean (packages/ribo-cli/src/test-support).
+          globalSetup: ["packages/ribo-cli/src/test-support/run-token.global-setup.ts"],
           // Pure logic only: zod schemas, state machine, transcript post-processing,
           // and the playground's dev-only `/api/extract` backend resolution (a pure
           // function fed injected env/PATH — it never probes the real machine).

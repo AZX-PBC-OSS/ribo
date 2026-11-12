@@ -92,66 +92,76 @@ describe("describeExtraction agrees with construction over the real Snugg Pro sc
     both: { maxNullableUnionsPerGroup: 8, maxSerializedCharsPerGroup: SCHEMA_SERIALIZED_CHAR_CAP },
   };
 
+  // Each caps test splits and re-derives the real schema several times over —
+  // seconds of genuine work even warm, and several more when the full suite's workers
+  // contend for the machine. The default 5s budget times them out under that load, so
+  // each carries an explicit one sized to the work, not to a warm local run.
+  const agreementTimeout = 30_000;
+
   for (const [capsName, caps] of Object.entries(capSets)) {
-    test(`caps: ${capsName}`, async () => {
-      const report = describeExtraction({ extractionSchema: snuggExtractionSchema, ...caps });
+    test(
+      `caps: ${capsName}`,
+      async () => {
+        const report = describeExtraction({ extractionSchema: snuggExtractionSchema, ...caps });
 
-      // The real schema never refuses under its own route's caps.
-      expect(report.refusal).toBeUndefined();
-      expect(report.path).toBe("grouped");
-      expect(report.callShape).toBe("per-group");
-      expect(report.pieces).toBeDefined();
+        // The real schema never refuses under its own route's caps.
+        expect(report.refusal).toBeUndefined();
+        expect(report.path).toBe("grouped");
+        expect(report.callShape).toBe("per-group");
+        expect(report.pieces).toBeDefined();
 
-      // The report's pieces ARE the split's entries — key, part and parts in
-      // sequence — measured with the split's own measures.
-      const split = splitExtractionSchema(snuggExtractionSchema, effectiveCaps(caps));
-      expect(report.pieces?.map((p) => [p.key, p.part, p.parts])).toEqual(
-        split.map((entry) => [entry.key, entry.part, entry.parts]),
-      );
+        // The report's pieces ARE the split's entries — key, part and parts in
+        // sequence — measured with the split's own measures.
+        const split = splitExtractionSchema(snuggExtractionSchema, effectiveCaps(caps));
+        expect(report.pieces?.map((p) => [p.key, p.part, p.parts])).toEqual(
+          split.map((entry) => [entry.key, entry.part, entry.parts]),
+        );
 
-      // The plan constructs, and its per-key piece counts are the report's.
-      const plan = perGroupPlan({
-        target,
-        chat: pieceChat("snugg", caps).chat,
-        model: "m",
-        ...(caps.maxNullableUnionsPerGroup === undefined
-          ? {}
-          : { maxNullableUnionsPerGroup: caps.maxNullableUnionsPerGroup }),
-        ...(caps.maxSerializedCharsPerGroup === undefined
-          ? {}
-          : { maxSerializedCharsPerGroup: caps.maxSerializedCharsPerGroup }),
-      });
-      const planCounts = Object.fromEntries(
-        Object.entries(plan.groups as Record<string, unknown>).map(([key, entry]) => [
-          key,
-          Array.isArray(entry) ? entry.length : 1,
-        ]),
-      );
-      const reportCounts: Record<string, number> = {};
-      for (const piece of report.pieces ?? []) {
-        reportCounts[piece.key] = (reportCounts[piece.key] ?? 0) + 1;
-      }
-      expect(reportCounts).toEqual(planCounts);
+        // The plan constructs, and its per-key piece counts are the report's.
+        const plan = perGroupPlan({
+          target,
+          chat: pieceChat("snugg", caps).chat,
+          model: "m",
+          ...(caps.maxNullableUnionsPerGroup === undefined
+            ? {}
+            : { maxNullableUnionsPerGroup: caps.maxNullableUnionsPerGroup }),
+          ...(caps.maxSerializedCharsPerGroup === undefined
+            ? {}
+            : { maxSerializedCharsPerGroup: caps.maxSerializedCharsPerGroup }),
+        });
+        const planCounts = Object.fromEntries(
+          Object.entries(plan.groups as Record<string, unknown>).map(([key, entry]) => [
+            key,
+            Array.isArray(entry) ? entry.length : 1,
+          ]),
+        );
+        const reportCounts: Record<string, number> = {};
+        for (const piece of report.pieces ?? []) {
+          reportCounts[piece.key] = (reportCounts[piece.key] ?? 0) + 1;
+        }
+        expect(reportCounts).toEqual(planCounts);
 
-      // A schemaExtractor over a counting chat runs one request per reported
-      // piece — the per-group path; the Snugg schema is past every cap.
-      const { chat, requests } = pieceChat("snugg", caps);
-      const extractor = schemaExtractor<SnuggValues>({
-        extractionSchema: snuggExtractionSchema,
-        name: "snugg",
-        instructions: "Extract the audit fields.",
-        chat,
-        model: "m",
-        ...(caps.maxNullableUnionsPerGroup === undefined
-          ? {}
-          : { maxNullableUnionsPerGroup: caps.maxNullableUnionsPerGroup }),
-        ...(caps.maxSerializedCharsPerGroup === undefined
-          ? {}
-          : { maxSerializedCharsPerGroup: caps.maxSerializedCharsPerGroup }),
-      });
-      await extractor.extract(transcript);
-      expect(requests).toHaveLength(report.pieces?.length ?? 0);
-    });
+        // A schemaExtractor over a counting chat runs one request per reported
+        // piece — the per-group path; the Snugg schema is past every cap.
+        const { chat, requests } = pieceChat("snugg", caps);
+        const extractor = schemaExtractor<SnuggValues>({
+          extractionSchema: snuggExtractionSchema,
+          name: "snugg",
+          instructions: "Extract the audit fields.",
+          chat,
+          model: "m",
+          ...(caps.maxNullableUnionsPerGroup === undefined
+            ? {}
+            : { maxNullableUnionsPerGroup: caps.maxNullableUnionsPerGroup }),
+          ...(caps.maxSerializedCharsPerGroup === undefined
+            ? {}
+            : { maxSerializedCharsPerGroup: caps.maxSerializedCharsPerGroup }),
+        });
+        await extractor.extract(transcript);
+        expect(requests).toHaveLength(report.pieces?.length ?? 0);
+      },
+      agreementTimeout,
+    );
   }
 
   test("the tighter union cap produces strictly more pieces — the matrix cell matters", () => {

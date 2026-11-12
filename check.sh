@@ -38,6 +38,22 @@ run_stage "format:check" pnpm format:check
 # + attw (level: error) in-build, so a broken `exports` block fails here rather
 # than in a later job.
 run_stage "build:packages" pnpm build:packages
+# The user-facing sizing command, run by the built bin against the Snugg
+# adapter's generated JSON Schema document — the same file a consumer installs
+# — with the route's caps pinned on this line. Gates from the other side what
+# the adapter's internal cap tests guard: the command's own exit codes, output
+# discipline and report contract, so a T5 contract bump or schema drift reddens
+# CI here instead of un-gating. Sits immediately after `build:packages` because
+# both inputs (the bin, the artifact) are its products. The depth pin is 14, not
+# the vendor's 12: the command measures the DERIVED extraction schema
+# (`describeExtraction` derives before measuring) and reports 14 on today's
+# artifact, while the vendor's error text (`nest <= 12 levels`) binds the plain
+# split pieces — a different measure the adapter's per-group-cap.test.ts pins at
+# exactly 12. The character pin is the vendor cap verbatim. A legitimate schema
+# deepening re-pins 14 deliberately; the count is tied to the adapter's exported
+# cap by packages/ribo-cli/src/snugg-schema-gate.test.ts so it cannot drift
+# silently.
+run_stage "snugg:inspect" node scripts/check-snugg-schema.mjs --max-depth 14 --max-piece-chars 32768
 # Replaces the guard that building destroyed. Runs AFTER build:packages (for
 # diagnostic clarity — a resolve failure reads better against a built tree) and
 # BEFORE build:app because a resolution failure explains most bundling failures
@@ -111,7 +127,7 @@ run_stage "test" pnpm test
 printf '\n----------------------------------------\n'
 
 if [ -z "$failed" ]; then
-  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, resolve, build:app, docs:build, pkg:gates, snugg:drift, skips:tracked, score:mutations, test\n'
+  printf 'check.sh: PASS — typecheck, lint, format:check, build:packages, snugg:inspect, resolve, build:app, docs:build, pkg:gates, snugg:drift, skips:tracked, score:mutations, test\n'
   exit 0
 fi
 

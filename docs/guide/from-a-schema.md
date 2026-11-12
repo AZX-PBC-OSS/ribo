@@ -109,6 +109,104 @@ measurements, and the refusal construction would raise — synchronously and wit
 [Schema at Scale](/guide/schema-at-scale#ask-before-you-build-describeextraction) has the
 walkthrough.
 
+## Sizing a document: `ribo schema inspect`
+
+The `ribo` bin takes a JSON Schema **document**, not a zod schema — the form a host tool, an
+OpenAPI spec or a code generator produces. The inspect command takes that document in the
+**OpenAPI 3.0 form**: nullability written as `nullable: true`, not as `anyOf` with a `null` arm
+(the draft-2020-12 rendering). Zod's own exporter emits that form under the matching target
+option, so the path from a zod schema to a document is one line:
+
+```ts
+const document = z.toJSONSchema(schema, { target: "openapi-3.0" });
+```
+
+Write it to a file and size it before the first call:
+
+```sh
+ribo schema inspect schema.json
+```
+
+A document that speaks draft-2020-12 nullability is refused loudly rather than converted — the
+message names the form and points back at this page. The refusal is deliberate: nullability is
+precisely the rendering that shifts between zod versions, and silently guessing at what a null
+arm means would size a schema the caller does not have.
+
+The `target` is the whole difference: without it, zod emits the draft-2020-12 form — a nullable
+leaf as `anyOf` with a `null` arm — which the CLI refuses outright, and which
+`z.fromJSONSchema` would read back as unions, so the document would no longer describe the
+schema's nullability at all. With it, the same leaf renders as `"nullable": true`, the form
+OpenAPI 3.0 and this CLI share.
+
+### The Snugg adapter's published document
+
+`@azx/ribo-adapter-snuggpro` ships its extraction schema as exactly this kind of document:
+`@azx/ribo-adapter-snuggpro/extraction.schema.json`. It is generated during the package's own
+build from `snuggExtractionSchema` (the zod module is the single source of truth — the file is
+build output and is never hand-edited), with the target written explicitly in
+`generate-extraction-schema.mjs` (ADR 0039). If you need the same document for a schema of your
+own, the same one line produces it.
+
+### Sizing the shipped file in CI
+
+The same command sizes the **installed** document, which makes it a CI gate for schema fit: a
+schema edit that pushes the document past a route cap reddens CI instead of surfacing as a `400`
+in the field. Resolve the file through the package's own export subpath — never hardcode a
+`node_modules` path, which rots across package managers:
+
+```js
+import { fileURLToPath } from "node:url";
+
+const schemaPath = fileURLToPath(
+  import.meta.resolve("@azx/ribo-adapter-snuggpro/extraction.schema.json"),
+);
+```
+
+Then run the command with both thresholds supplied:
+
+```sh
+ribo schema inspect "$schemaPath" --max-depth 14 --max-piece-chars 32768
+```
+
+The thresholds are comparisons the CLI makes on the reported numbers — supplying them never
+changes the partition. The two **split caps** do: `--max-serialized-chars-per-group <n>` and
+`--max-nullable-unions-per-group <n>` are forwarded into the same split the extraction runs under,
+so the command reports the partition your route would actually produce. Both are validated as
+positive integers (anything else is a usage error, exit 2), and the `--json` report records the
+caps the partition was computed under (`splitCaps`, the union default included), so the numbers can
+be reproduced without re-deriving the defaults.
+
+The report's `leafCount` counts schema **fields**: on an enveloped extraction schema, each
+`{ value, confidence, sourceSpan }` envelope is one field — the same count core's group machinery
+splits by — and `guidanceCoverage` is described fields over that count, never envelope members.
+
+The exit codes are the contract for wiring it into your CI: **0** — the report was computed and
+neither threshold was breached, the schema fits; **1** — a threshold was breached, with a one-line
+diagnostic per breach on stderr and the full report still on stdout, so the log names the measured
+number against the limit; **2** — the command could not run (unreadable file, malformed JSON, not
+an OpenAPI-3.0-form document, a usage error), which in CI means a broken input, not an over-cap
+schema.
+
+One honest caveat before you copy the numbers: the route's documented caps (`nest <= 12 levels`,
+`<= 32768 characters`) bind the **per-call pieces** the split produces, while `--max-depth`
+measures the **whole derived schema** the report describes — a different measure that can read a
+couple of levels deeper than the per-piece number. Take your CI pin from a first measured run of
+the command against your document, not from the vendor's per-piece figure. This repo's own
+`snugg:inspect` stage in `check.sh` is the worked example: it runs the built bin against the
+Snugg adapter's generated document with the pins on the stage line, and fails the build on a
+breach.
+
+### The zod pin, and the guard to run on a bump
+
+Zod is held at `4.4.3` in `pnpm-workspace.yaml`'s catalog — from 4.6, `toJSONSchema` renders a
+nullable leaf as `type: [x, "null"]` instead of `anyOf`, which changes the wire schema and its
+measured depth (see the hold comment at the pin itself). Because `z.fromJSONSchema` is marked
+semi-experimental upstream, any zod bump must run the round-trip guard that pins this document:
+`packages/ribo-adapter-snuggpro/acceptance/schema-artifact-round-trip.test.ts`, which asserts
+the generated file and the live zod schema produce one identical `inspectSchema` report. If it
+goes red after a bump, the rendering changed — re-pin deliberately, with the wire form and the
+depth tests that pin the new shape.
+
 ## The name is on the wire
 
 A structured-output schema name is constrained to `[A-Za-z0-9_-]` by at least one platform route —

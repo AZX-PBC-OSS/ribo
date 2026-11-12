@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   check:
-    name: typecheck, lint, format:check, build:packages, resolve, build:app, docs:build, pkg gates, test # keep in sync with check.sh's stages
+    name: typecheck, lint, format:check, build:packages, snugg:inspect, resolve, build:app, docs:build, pkg gates, test # keep in sync with check.sh's stages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

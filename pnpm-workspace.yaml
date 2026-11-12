@@ -28,6 +28,10 @@ catalog:
   # collection APIs hand back rxjs Observables. Declared explicitly rather than
   # leaned on transitively — see the Phase 1 zod incident.
   rxjs: "7.8.2"
+  # The `ribo` bin's command parser and colour output (@azx/ribo-cli, ADR 0037).
+  # commander 15 requires node >=22.12, inside this repo's >=24 floor.
+  commander: "15.1.0"
+  picocolors: "1.1.1"
   # --- playground "Try it" extraction panel (Phase 4 local dev tool) ---
   # CodeMirror is the JSON Schema / source-text editor in the playground's
   # dev-only "Try it" panel. `@uiw/react-codemirror` is the React wrapper (it

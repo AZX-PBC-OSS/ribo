@@ -7,9 +7,13 @@
  *
  *   1. Every non-private package under packages/ — and every subpath export
  *      (`@azx/ribo-core/testing`, `@azx/ribo-core/worklet`,
- *      `@azx/ribo-transcriber-ondevice/worker`) — must be a TypeDoc entry point. The list
- *      is DERIVED from each package's own `exports`, so a package added next door is
- *      covered automatically rather than by editing this test.
+ *      `@azx/ribo-transcriber-ondevice/worker`) — must be a TypeDoc entry point. Subpath
+ *      exports whose resolved target ends in `.json` are data, not code, and are exempt:
+ *      they have no TypeDoc module to point at (motivated by
+ *      `@azx/ribo-adapter-snuggpro/extraction.schema.json`, ADR 0039 — the same rule
+ *      `./package.json` already encodes). The list is DERIVED from each package's own
+ *      `exports`, so a package added next door is covered automatically rather than by
+ *      editing this test.
  *   2. docs/typedoc.tsconfig.json's `include` must cover every entry-point package (the
  *      drift that silently dropped packages), and must set `jsx` once any included
  *      package ships .tsx (ribo-ui-react does).
@@ -114,6 +118,11 @@ function exportSourceFile(pkg, exportKey) {
   return path.relative(ROOT, path.resolve(pkg.dir, target));
 }
 
+/** A data subpath — resolved export target ends in `.json` — is not code, so not a TypeDoc entry point. */
+function isDataSubpath(pkg, exportKey) {
+  return exportSourceFile(pkg, exportKey).endsWith(".json");
+}
+
 /**
  * Entry points from docs/typedoc.json, normalized to repo-relative paths regardless of
  * whether the fix writes them docs-relative ("../packages/x/src/index.ts") or
@@ -181,6 +190,7 @@ test("every non-private package and every subpath export is a TypeDoc entry poin
     if (!entryPoints.includes(exportSourceFile(pkg, "."))) missing.push(`${pkg.name} (root)`);
     for (const exportKey of Object.keys(pkg.exports)) {
       if (exportKey === "." || exportKey === "./package.json") continue;
+      if (isDataSubpath(pkg, exportKey)) continue;
       if (!entryPoints.includes(exportSourceFile(pkg, exportKey))) {
         missing.push(`${pkg.name} subpath ${exportKey} (${exportSourceFile(pkg, exportKey)})`);
       }
@@ -266,6 +276,7 @@ test("each package's reference module is titled by its package name, not its fil
     }
     for (const exportKey of Object.keys(pkg.exports)) {
       if (exportKey === "." || exportKey === "./package.json") continue;
+      if (isDataSubpath(pkg, exportKey)) continue;
       const subName = `${bare}${exportKey.replace(/^\./, "")}`;
       const subScoped = `${pkg.name}${exportKey.replace(/^\./, "")}`;
       if (!h1s.has(subName) && !h1s.has(subScoped)) {

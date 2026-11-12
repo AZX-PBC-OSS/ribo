@@ -8,6 +8,7 @@
     "../packages/ribo-adapter-snuggpro/src/index.ts",
     "../packages/ribo-chat-helix/src/index.ts",
     "../packages/ribo-chat-openai/src/index.ts",
+    "../packages/ribo-cli/src/index.ts",
     "../packages/ribo-extractor-ondevice/src/index.ts",
     "../packages/ribo-extractor-systemone/src/index.ts",
     "../packages/ribo-systemone-managed/src/index.ts",
