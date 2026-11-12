@@ -1,9 +1,11 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, expect, test } from "vitest";
+
+import { buildCliOnce } from "./test-support/build-once.js";
 
 import { SCHEMA_NESTING_DEPTH_CAP, SCHEMA_SERIALIZED_CHAR_CAP } from "@azx/ribo-adapter-snuggpro";
 
@@ -64,10 +66,7 @@ const ARTIFACT = join(
 let dir: string;
 
 beforeAll(() => {
-  execFileSync("pnpm", ["--filter", "@azx/ribo-cli", "build"], {
-    cwd: REPO_ROOT,
-    stdio: "pipe",
-  });
+  buildCliOnce();
   dir = mkdtempSync(join(tmpdir(), "ribo-cli-snugg-gate-"));
 
   // Twenty nested object levels: the command's derived measure lands far past

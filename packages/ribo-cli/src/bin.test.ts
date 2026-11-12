@@ -1,9 +1,11 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, expect, test } from "vitest";
+
+import { buildCliOnce } from "./test-support/build-once.js";
 
 import { SchemaInspectReportSchema } from "./index.js";
 
@@ -15,7 +17,7 @@ import { SchemaInspectReportSchema } from "./index.js";
  * with an actionable diagnostic, and output discipline holds — stdout for
  * results, stderr for diagnostics, no colour when piped, never a prompt.
  *
- * The suite is self-sufficient: the `beforeAll` hook rebuilds `dist/bin.js`
+ * The suite is self-sufficient: the `beforeAll` hook builds `dist/bin.js` once per run (shared with the other bin suites)
  * (raising the hook timeout for a cold CI), so `pnpm vitest run
  * packages/ribo-cli` passes on a clean checkout and the suite tests the
  * artifact T6 runs — never a stale one. A build failure fails the file
@@ -38,10 +40,7 @@ const CORE_VERSION = (
 let dir: string;
 
 beforeAll(() => {
-  execFileSync("pnpm", ["--filter", "@azx/ribo-cli", "build"], {
-    cwd: REPO_ROOT,
-    stdio: "pipe",
-  });
+  buildCliOnce();
   dir = mkdtempSync(join(tmpdir(), "ribo-cli-bin-"));
 
   const grouped = {

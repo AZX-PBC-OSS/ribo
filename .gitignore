@@ -117,3 +117,6 @@ docs/spikes/0009-basedata-proposer/results/
 docs/spikes/0012-narrowing-end-to-end/results/
 docs/spikes/0008-typesafe-jev/results/jev/
 docs/spikes/0008-typesafe-jev/results/md-1/
+
+# The CLI bin suites' cross-process build lock (packages/ribo-cli/src/test-support).
+packages/ribo-cli/.build-lock/

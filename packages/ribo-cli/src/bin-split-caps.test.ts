@@ -1,10 +1,12 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { afterAll, beforeAll, expect, test } from "vitest";
+
+import { buildCliOnce } from "./test-support/build-once.js";
 
 import { describeExtraction } from "@azx/ribo-core";
 import { snuggExtractionSchema } from "@azx/ribo-adapter-snuggpro";
@@ -22,7 +24,7 @@ import { snuggExtractionSchema } from "@azx/ribo-adapter-snuggpro";
  * — the same core dry run the real split reads — produces for the same caps
  * over the real Snugg schema.
  *
- * The bin is driven as a subprocess (the `bin.test.ts` idiom) and rebuilt in
+ * The bin is driven as a subprocess (the `bin.test.ts` idiom) and built once per run in
  * `beforeAll`, so the suite tests the artifact the command runs, never a stale
  * one.
  */
@@ -34,10 +36,7 @@ let dir: string;
 let documentPath: string;
 
 beforeAll(() => {
-  execFileSync("pnpm", ["--filter", "@azx/ribo-cli", "build"], {
-    cwd: REPO_ROOT,
-    stdio: "pipe",
-  });
+  buildCliOnce();
   dir = mkdtempSync(join(tmpdir(), "ribo-cli-split-caps-"));
   documentPath = join(dir, "snugg.extraction.schema.json");
   writeFileSync(
