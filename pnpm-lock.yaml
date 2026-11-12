@@ -325,6 +325,9 @@ importers:
       '@azx/ribo-chat-openai':
         specifier: workspace:*
         version: link:../ribo-chat-openai
+      '@azx/ribo-cli':
+        specifier: workspace:*
+        version: link:../ribo-cli
       '@azx/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

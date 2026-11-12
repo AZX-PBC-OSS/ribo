@@ -214,6 +214,27 @@ function buildPackages() {
   execFileSync("pnpm", ["run", "build:packages"], { cwd: REPO_ROOT, stdio: "inherit" });
 }
 
+/**
+ * T2 (ADR 0039): the adapter publishes its extraction schema as a build-time-generated JSON
+ * Schema document at the `./extraction.schema.json` subpath. Membership in the real tarball
+ * is the one thing the workspace gates cannot see (`files: ["dist"]` covers it in theory;
+ * this proves it in the exact bytes `pnpm publish` would upload).
+ */
+function assertSchemaArtifactInTarball(tarballs) {
+  log("checking the @azx/ribo-adapter-snuggpro tarball carries dist/extraction.schema.json...");
+  const listing = execFileSync("tar", ["-tzf", tarballs["@azx/ribo-adapter-snuggpro"]], {
+    encoding: "utf8",
+  });
+  const entries = listing.split("\n");
+  if (!entries.includes("package/dist/extraction.schema.json")) {
+    throw new Error(
+      "the @azx/ribo-adapter-snuggpro tarball does not contain dist/extraction.schema.json " +
+        "(the build-time-generated extraction schema) — tarball entries:\n  " +
+        entries.join("\n  "),
+    );
+  }
+}
+
 /** Packs every publishable package with `pnpm pack --json` and returns { name -> tarball path }. */
 function packAll(packages) {
   mkdirSync(TARBALL_DIR, { recursive: true });
@@ -557,6 +578,7 @@ function assertResult({ result, consoleErrors, pageErrors, tarballCount }) {
     ["riboCoreGroundedSpanTrue", c.riboCoreGroundedSpanTrue === true],
     ["riboCoreGroundedSpanFalse", c.riboCoreGroundedSpanFalse === false],
     ["adapterSchemaKeyCount > 0", c.adapterSchemaKeyCount > 0],
+    ["adapterSchemaArtifactResolves", c.adapterSchemaArtifactResolves === true],
     ["extractorHasExtractFn", c.extractorHasExtractFn === true],
     ["helixEngineId", c.helixEngineId === true],
     ["helixCapabilityReady", c.helixCapabilityReady === true],
@@ -598,6 +620,7 @@ async function main() {
     }
     buildPackages();
     const tarballs = packAll(packages);
+    assertSchemaArtifactInTarball(tarballs);
     writeScratchApp(tarballs);
     installScratchApp();
     runCliBinStep(tarballs); // ADR 0037 — the packed bin is the artifact this tier must prove.

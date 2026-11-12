@@ -132,6 +132,32 @@ message names the form and points back at this page. The refusal is deliberate: 
 precisely the rendering that shifts between zod versions, and silently guessing at what a null
 arm means would size a schema the caller does not have.
 
+The `target` is the whole difference: without it, zod emits the draft-2020-12 form — a nullable
+leaf as `anyOf` with a `null` arm — which the CLI refuses outright, and which
+`z.fromJSONSchema` would read back as unions, so the document would no longer describe the
+schema's nullability at all. With it, the same leaf renders as `"nullable": true`, the form
+OpenAPI 3.0 and this CLI share.
+
+### The Snugg adapter's published document
+
+`@azx/ribo-adapter-snuggpro` ships its extraction schema as exactly this kind of document:
+`@azx/ribo-adapter-snuggpro/extraction.schema.json`. It is generated during the package's own
+build from `snuggExtractionSchema` (the zod module is the single source of truth — the file is
+build output and is never hand-edited), with the target written explicitly in
+`generate-extraction-schema.mjs` (ADR 0039). If you need the same document for a schema of your
+own, the same one line produces it.
+
+### The zod pin, and the guard to run on a bump
+
+Zod is held at `4.4.3` in `pnpm-workspace.yaml`'s catalog — from 4.6, `toJSONSchema` renders a
+nullable leaf as `type: [x, "null"]` instead of `anyOf`, which changes the wire schema and its
+measured depth (see the hold comment at the pin itself). Because `z.fromJSONSchema` is marked
+semi-experimental upstream, any zod bump must run the round-trip guard that pins this document:
+`packages/ribo-adapter-snuggpro/acceptance/schema-artifact-round-trip.test.ts`, which asserts
+the generated file and the live zod schema produce one identical `inspectSchema` report. If it
+goes red after a bump, the rendering changed — re-pin deliberately, with the wire form and the
+depth tests that pin the new shape.
+
 ## The name is on the wire
 
 A structured-output schema name is constrained to `[A-Za-z0-9_-]` by at least one platform route —

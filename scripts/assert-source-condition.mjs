@@ -115,6 +115,14 @@ TARGETS.push({
   sourceSuffix: "/src/testing.ts",
   distSuffix: "/dist/testing.js",
 });
+// A DATA subpath — a generated file with no source form (its source of truth is the zod
+// schema, reachable at the root export), so both directions resolve to the same dist file.
+// T2 (ADR 0039): the adapter's build-time-generated JSON Schema artifact.
+TARGETS.push({
+  specifier: "@azx/ribo-adapter-snuggpro/extraction.schema.json",
+  sourceSuffix: "/dist/extraction.schema.json",
+  distSuffix: "/dist/extraction.schema.json",
+});
 
 // Every package is a dependency of `playground`, so its node_modules is the only
 // directory from which all resolve by name.
@@ -299,7 +307,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `source condition: ${TARGETS.length} export targets (${publishedPackages.length} root + ./worker subpath) ` +
+  `source condition: ${TARGETS.length} export targets (${publishedPackages.length} root + published subpaths) ` +
     "resolve correctly in both directions, playground Vite requests @azx/source, and both Vitest " +
     "projects request @azx/source in their own required spelling",
 );
