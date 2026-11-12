@@ -1,0 +1,22 @@
+{
+  "extends": "@azx/tsconfig/base.json",
+  "compilerOptions": {
+    // The CLI is the workspace's first Node-platform package (ADR 0037). Node's
+    // types are widened HERE, in the one package that needs them, not in the
+    // shared config chain — the playground's tsconfig.node.json is the precedent.
+    // A second Node package is the signal to extract a shared node-library.json.
+    "types": ["node"],
+    // The DOM lib is NOT for this package's own source — bin.ts and the entry
+    // use no browser API. It is for the TRANSITIVE typecheck: `customConditions:
+    // ["@azx/source"]` (inherited from base.json) resolves `@azx/ribo-core` to
+    // its TypeScript source, and core is a browser library (MediaRecorder,
+    // AudioContext, LockManager...). Without the DOM lib those names are
+    // missing, and without the condition the typecheck would need core's
+    // dist/*.d.ts — which does not exist yet at ./check.sh's typecheck stage on
+    // a clean checkout. ADR 0037's "base.json plus Node types" holds for the
+    // package's own surface; the DOM lib here is the price of source-first
+    // resolution of a browser-typed dependency.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src"]
+}
