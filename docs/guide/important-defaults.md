@@ -28,7 +28,9 @@ in.
 **The symptom if you don't know this:** you watch storage, a session reaches `awaiting-review`,
 and then nothing happens — no error, no retry, no write. It looks exactly like the pipeline hung.
 It didn't; it is waiting for `storage.sessions.submitReview`, and every other extracted session behind it in
-the queue kept moving.
+the queue kept moving. The [durable-queue example](/examples/) executes exactly
+this arc — watch first, close the session, and stop at `awaiting-review` without submitting — so
+the parked state is something you can see run, not only read about.
 
 ## `open` and `transcribed` are inactive for the same reason: someone else owns the next step
 

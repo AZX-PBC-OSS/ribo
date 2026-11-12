@@ -164,14 +164,14 @@ the only status with no automatic way out — reached once retries are exhausted
 [`storage.sessions.reopenForReview`](/guide/review#the-gate-is-a-session-status-not-a-callback) if something
 needs correcting later.
 
-Watch sessions live rather than poll them:
+Watch sessions live rather than poll them — this is the durable-queue example's
+subscription, executed by the examples runner on every CI run:
 
-```ts
-storage.sessions.watch({ status: "awaiting-review" }).subscribe((sessions) => {
-  // re-renders whenever a session enters or leaves review — including a write
-  // from another tab.
-});
-```
+<<< @/../examples/durable-queue/durable-queue.run.ts#watch
+
+The same example drives a session all the way to `awaiting-review` and asserts
+the watch stream reports it — the host-observable half of the state machines
+above. ([Examples](/examples/))
 
 ## The worked example, end to end
 
