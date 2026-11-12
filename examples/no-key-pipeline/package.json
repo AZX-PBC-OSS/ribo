@@ -1,5 +1,5 @@
 {
-  "name": "example-smoke",
+  "name": "example-no-key-pipeline",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,7 @@
   "devDependencies": {
     "@azx/ribo-core": "workspace:*",
     "@azx/tsconfig": "workspace:*",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "zod": "catalog:"
   }
 }

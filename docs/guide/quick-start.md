@@ -5,81 +5,24 @@ network, and no model. `FakeTranscriber` and `FakeExtractor`, both exported from
 `@azx/ribo-core`, stand in for the real engines: nothing is transcribed or extracted, but every
 seam runs for real.
 
-```ts
-import { z } from "zod";
-import {
-  baseAudioCaptureSchema,
-  enveloped,
-  FakeExtractor,
-  FakeTranscriber,
-  isSpanGrounded,
-} from "@azx/ribo-core";
+The code below is pulled live from [`examples/no-key-pipeline/`](/examples/), where CI executes it
+on every change — it is not a static listing.
 
-// 1. A capture arrives. No microphone here — a bare `AudioCapture` stands in for a real capture.
-const recording = baseAudioCaptureSchema.parse({
-  id: "rec-1",
-  capturedAt: new Date().toISOString(),
-  mimeType: "audio/webm",
-  durationMs: 4_000,
-  ctx: {},
-});
+<<< @/../examples/no-key-pipeline/no-key-pipeline.run.ts#imports
 
-// 2. Transcribe. `FakeTranscriber` returns canned text instead of running a model.
-const transcriber = new FakeTranscriber({
-  text: "Jordan Lee from Acme Robotics called about renewing the contract.",
-});
-const transcript = await transcriber.transcribe(recording, new Blob());
+<<< @/../examples/no-key-pipeline/no-key-pipeline.run.ts#pipeline
 
-// 3. Declare the values a host writes back. Four leaves — small enough to read at a glance.
-const contactSchema = z.object({
-  name: z.string().nullable().optional(),
-  company: z.string().nullable().optional(),
-  reason: z.string().nullable().optional(),
-  followUpDate: z.string().nullable().optional(),
-});
-
-// 4. Derive the extraction schema from it. Every leaf gains { value, confidence, sourceSpan }.
-const extractionSchema = enveloped(contactSchema);
-
-// 5. Extract. A real engine would call a model and return this same shape; `FakeExtractor`
-//    returns it directly, so this runs with no key and no network. `followUpDate` is an
-//    explicit null — the model (fake or real) must say "not stated," never omit the key.
-const extractor = new FakeExtractor(
-  extractionSchema.parse({
-    name: { value: "Jordan Lee", confidence: 1, sourceSpan: "Jordan Lee" },
-    company: { value: "Acme Robotics", confidence: 1, sourceSpan: "Acme Robotics" },
-    reason: { value: "renewing the contract", confidence: 1, sourceSpan: "renewing the contract" },
-    followUpDate: { value: null, confidence: 1, sourceSpan: null },
-  }),
-);
-const { fields } = await extractor.extract({ text: transcript.text, annotations: {} });
-
-// 6. Check a field. `isSpanGrounded` confirms the quote is actually in the transcript —
-//    the same check a review screen runs before showing a field as trustworthy.
-isSpanGrounded(fields.name.sourceSpan, transcript.text); // true
-isSpanGrounded(fields.reason.sourceSpan, transcript.text); // true
-```
-
-Paste this into a `.ts` file in a project with `zod` and `@azx/ribo-core` installed (see
-[Installation](/guide/installation)) and it runs as written.
+Paste the two blocks together into a `.ts` file in a project with `zod` and `@azx/ribo-core`
+installed (see [Installation](/guide/installation)) and they run as written.
 
 ## Swapping in a real engine
 
 `FakeExtractor` and a real extractor both satisfy the same `Extractor` contract, so nothing above
 it — the schema, `enveloped()`, the `isSpanGrounded` check — changes when you swap one in. Only
 the construction line does. `@azx/ribo-core`'s `singleShotExtractor` builds one
-against an OpenAI-compatible chat endpoint:
-
-```ts
-import { singleShotExtractor } from "@azx/ribo-core";
-import { openAiChat } from "@azx/ribo-chat-openai";
-
-const extractor = singleShotExtractor({
-  target: { name: "contact", extractionSchema, instructions: "Extract the caller's details." },
-  chat: openAiChat({ apiKey, baseUrl }),
-  model: "gpt-4o-mini",
-});
-```
+against an OpenAI-compatible chat endpoint — that construction runs (against a scripted chat, no
+key) on the [`singleShotExtractor`](/api/single-shot-extractor) API page, and the chat transports
+it dials are covered on the [`ChatClient`](/api/chat-transports) page.
 
 `target` bundles what an extractor needs — the same `extractionSchema` from step 4, plus a name
 and instructions. A `ToolAdapter` supplies this already, so a real host wires its
@@ -87,10 +30,8 @@ adapter straight in rather than building a `target` literal by hand. Or skip the
 entirely: [From a Schema](/guide/from-a-schema) is the constructor that takes the plain zod
 schema you wrote and derives the rest.
 
-**API pages:** [`singleShotExtractor`](/api/single-shot-extractor) — the real strategy behind the
-swap-in above — plus the [`CaptureSession`](/api/capture-session) and
-[`ChatClient`](/api/chat-transports) pages, for the pieces this quick start drives through the
-[fakes](/api/test-doubles).
+**API pages:** the [`CaptureSession`](/api/capture-session) page, for the pieces this quick start
+drives through the [fakes](/api/test-doubles).
 
 ## Next
 
