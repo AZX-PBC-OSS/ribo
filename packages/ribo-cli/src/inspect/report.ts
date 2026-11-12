@@ -1,20 +1,18 @@
-import { describeExtraction, walkLeafInventory } from "@azx/ribo-core";
-import type {
-  ExtractionDescription,
-  ExtractionPieceDescription,
-  LeafInventoryEntry,
-} from "@azx/ribo-core";
+import { describeExtraction, MAX_NULLABLE_UNIONS_PER_CALL } from "@azx/ribo-core";
+import type { ExtractionDescription, ExtractionPieceDescription } from "@azx/ribo-core";
 import type { z } from "zod";
 
 import { cliVersion, coreVersion } from "../versions.js";
 import { SchemaInspectError } from "./error.js";
 import { describeCalls } from "./calls.js";
 import type { SplitCapOptions } from "./calls.js";
+import { walkFieldInventory } from "./field-inventory.js";
 import { schemaFingerprint } from "./fingerprint.js";
 import { collectGranularityViolations } from "./granularity.js";
 import { NOT_VISIBLE_CONSTRUCTS } from "./not-visible.js";
 import { findReformatFindings } from "./reformat-lint.js";
 import type { SchemaInspectOptions } from "./options.js";
+import { CONTRACT_VERSION } from "./report-schema.js";
 import type { SchemaInspectReport, ThresholdRow, WorstPieceReport } from "./report-schema.js";
 
 /** The message out of a thrown fault, reworded to the input's vocabulary. */
@@ -86,16 +84,16 @@ export function assembleReport(
   schema: z.ZodObject,
   options: SchemaInspectOptions,
 ): SchemaInspectReport {
-  let entries: LeafInventoryEntry[];
+  let entries;
   try {
-    entries = walkLeafInventory(schema);
+    entries = walkFieldInventory(schema);
   } catch (error) {
     // Convertible but unwalkable (a scalar array, a union, a record): the
-    // leaf/group foundation of the report does not exist, so this is
+    // field/group foundation of the report does not exist, so this is
     // could-not-run carrying the walk's own path-named message — never a
     // guessed count (Decision 9).
     throw new SchemaInspectError(
-      `the document converted, but its schema could not be walked for leaves: ${faultMessage(error)}`,
+      `the document converted, but its schema could not be walked for fields: ${faultMessage(error)}`,
     );
   }
 
@@ -114,11 +112,16 @@ export function assembleReport(
   const worst = worstPieceOf(description.pieces);
 
   const report: SchemaInspectReport = {
-    contractVersion: 2,
+    contractVersion: CONTRACT_VERSION,
     cliVersion,
     coreVersion,
     schemaFingerprint: schemaFingerprint(document),
     leafCount: entries.length,
+    splitCaps: {
+      maxSerializedCharsPerGroup: splitCaps.maxSerializedCharsPerGroup ?? null,
+      maxNullableUnionsPerGroup:
+        splitCaps.maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
+    },
     guidanceCoverage: {
       described,
       total: entries.length,

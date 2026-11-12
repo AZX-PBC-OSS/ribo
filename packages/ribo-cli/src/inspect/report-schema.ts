@@ -24,21 +24,44 @@ const Measures = z.object({
 });
 
 /**
+ * The version of the report's JSON contract (design §7). Owned by the CLI and
+ * bumped when a field is added or its meaning changes — numbers computed by
+ * unchanged core symbols do not bump it. v2 grew the v1 skeleton report
+ * (contract, versions, `leafCount`) to the full sizing report; v3 corrected
+ * the inventory to count schema FIELDS, not provenance-envelope members, and
+ * added `splitCaps` and the split-cap options.
+ *
+ * It lives beside the zod `contractVersion` literal below so the writer, the
+ * exported schema and the exported constant cannot drift apart.
+ */
+export const CONTRACT_VERSION = 3;
+
+/**
  * The report's serialized shape, as a zod schema. Exported so the bin, and
  * any consumer scripting against the contract, validate against the same
  * shape the entry parses every report through before returning.
  */
 export const SchemaInspectReportSchema = z.object({
   /** The version of this JSON contract itself — see `CONTRACT_VERSION`. */
-  contractVersion: z.literal(2),
+  contractVersion: z.literal(3),
   /** The `@azx/ribo-cli` version that produced the numbers. */
   cliVersion: z.string(),
   /** The `@azx/ribo-core` version the measures were computed with. */
   coreVersion: z.string(),
   /** 64 lowercase hex characters: SHA-256 over the document's canonical JSON. */
   schemaFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
-  /** Supported leaves the schema carries, per `walkLeafInventory`. */
+  /** Supported schema fields, one per provenance envelope — see `walkFieldInventory`. */
   leafCount: z.number(),
+  /**
+   * The split configuration the report's partition was computed under, for a
+   * consumer reproducing the numbers: the byte cap (`null` — off, the library
+   * carries no provider's number, ADR 0015) and the union cap (the supplied
+   * value, or core's `MAX_NULLABLE_UNIONS_PER_CALL` default).
+   */
+  splitCaps: z.object({
+    maxSerializedCharsPerGroup: z.number().nullable(),
+    maxNullableUnionsPerGroup: z.number(),
+  }),
   /** Top-level group keys — present whenever the derive stage survived. */
   groupCount: z.number().optional(),
   /** Top-level loose (non-group) keys — present whenever the derive survived. */
@@ -99,7 +122,7 @@ export const SchemaInspectReportSchema = z.object({
     })
     .optional(),
   /**
-   * Described leaves over walked leaves, by `renderFieldGuidance`'s own filter
+   * Described fields over walked fields, by `renderFieldGuidance`'s own filter
    * (`description !== undefined`); `ratio` is `0` when `total` is `0`.
    */
   guidanceCoverage: z.object({
@@ -107,7 +130,7 @@ export const SchemaInspectReportSchema = z.object({
     total: z.number(),
     ratio: z.number(),
   }),
-  /** One finding per leaf whose description asks for reformatting; empty when none. */
+  /** One finding per field whose description asks for reformatting; empty when none. */
   reformatFindings: z.array(
     z.object({ path: z.string(), description: z.string(), directive: z.string() }),
   ),
@@ -225,21 +248,26 @@ export interface RefusalReport {
 }
 
 /**
- * The versioned report `inspectSchema` returns (design §7). Grows additively
- * from v1 — `leafCount` stays exactly where v1 put it; `contractVersion` is
- * `2` because fields were added.
+ * The versioned report `inspectSchema` returns (design §7). v3 corrects the
+ * inventory to count schema fields (not provenance-envelope members) and adds
+ * `splitCaps` beside the split-cap options.
  */
 export interface SchemaInspectReport {
   /** The version of this JSON contract itself (see `CONTRACT_VERSION`). */
-  contractVersion: 2;
+  contractVersion: 3;
   /** The `@azx/ribo-cli` version that produced the numbers. */
   cliVersion: string;
   /** The `@azx/ribo-core` version the measures were computed with. */
   coreVersion: string;
   /** SHA-256 over the document's canonical JSON — 64 lowercase hex characters. */
   schemaFingerprint: string;
-  /** Supported leaves the schema carries, per `walkLeafInventory`. */
+  /** Supported schema fields, one per provenance envelope (see `walkFieldInventory`). */
   leafCount: number;
+  /** The split configuration the partition was computed under (see the zod copy above). */
+  splitCaps: {
+    maxSerializedCharsPerGroup: number | null;
+    maxNullableUnionsPerGroup: number;
+  };
   /** Top-level group keys, per `describeExtraction`'s classification. */
   groupCount?: number;
   /** Top-level loose keys, per the same classification. */
@@ -267,9 +295,9 @@ export interface SchemaInspectReport {
     consensusPerCandidate: number | null;
     maxRetriesDefault: number;
   };
-  /** Described leaves over walked leaves. */
+  /** Described fields over walked fields. */
   guidanceCoverage: GuidanceCoverage;
-  /** Leaves whose description asks for reformatting. */
+  /** Fields whose description asks for reformatting. */
   reformatFindings: ReformatFinding[];
   /** Every group not at `"leaf"` granularity — collected, not first-only. */
   granularityViolations: GranularityViolation[];

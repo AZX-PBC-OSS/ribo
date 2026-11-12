@@ -19,7 +19,7 @@
  *   2  could-not-run — unreadable file, empty input, malformed JSON, not a
  *      JSON Schema document, unconvertible document, a refused draft-2020-12
  *      document, or a usage error (unknown flag, surplus argument, invalid
- *      threshold value): stdout empty, diagnostic on stderr.
+ *      threshold or split-cap value): stdout empty, diagnostic on stderr.
  *
  * No credential-bearing option exists on this surface, and none may: secrets
  * never ride flags.
@@ -57,10 +57,25 @@ const parseThreshold = (value: string): number => {
   return Number(value);
 };
 
+/**
+ * Split-cap values are positive integers; anything else — zero, negative,
+ * fractional, non-numeric — is a usage error (Decision D5). A cap of zero can
+ * never fit a piece, so it is refused as the misuse it is rather than honored
+ * into a guaranteed split refusal.
+ */
+const parseCap = (value: string): number => {
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new InvalidArgumentError(`expected a positive integer, but got "${value}"`);
+  }
+  return Number(value);
+};
+
 interface InspectFlags {
   readonly json?: boolean;
   readonly maxDepth?: number;
   readonly maxPieceChars?: number;
+  readonly maxNullableUnionsPerGroup?: number;
+  readonly maxSerializedCharsPerGroup?: number;
 }
 
 function run(path: string | undefined, flags: InspectFlags): void {
@@ -82,6 +97,12 @@ function run(path: string | undefined, flags: InspectFlags): void {
     report = inspectSchema(document, {
       ...(flags.maxDepth === undefined ? {} : { maxDepth: flags.maxDepth }),
       ...(flags.maxPieceChars === undefined ? {} : { maxPieceChars: flags.maxPieceChars }),
+      ...(flags.maxNullableUnionsPerGroup === undefined
+        ? {}
+        : { maxNullableUnionsPerGroup: flags.maxNullableUnionsPerGroup }),
+      ...(flags.maxSerializedCharsPerGroup === undefined
+        ? {}
+        : { maxSerializedCharsPerGroup: flags.maxSerializedCharsPerGroup }),
     });
   } catch (error) {
     if (error instanceof SchemaInspectError) fail(error.message);
@@ -107,10 +128,16 @@ const inspectHelp = [
   "  2  the command could not run: unreadable file, empty input, malformed JSON, not a JSON Schema document,",
   "     an unconvertible document, a refused draft-2020-12-form document, or a usage error",
   "",
+  "Split caps (unlike the thresholds above, these ARE fed into the split):",
+  "  --max-serialized-chars-per-group <n>       pack pieces against this serialized-character cap",
+  "  --max-nullable-unions-per-group <n>        pack pieces against this nullable-union cap",
+  "  Absent, the split packs against the library's own union default with the byte cap off.",
+  "",
   "Examples:",
   "  ribo schema inspect ./snugg.schema.json",
   "  ribo schema inspect - < ./snugg.schema.json",
   "  cat ./snugg.schema.json | ribo schema inspect --json --max-depth 24 --max-piece-chars 12000",
+  "  ribo schema inspect --json --max-serialized-chars-per-group 32768 ./snugg.schema.json",
 ].join("\n");
 
 const program = new Command()
@@ -146,6 +173,16 @@ schema
     "--max-piece-chars <n>",
     "threshold on the worst piece's serialized character count; a breach exits 1 with the report still on stdout",
     parseThreshold,
+  )
+  .option(
+    "--max-nullable-unions-per-group <n>",
+    "split cap: the nullable unions a piece may carry — a group over it is partitioned across calls (absent, the library's own default stands)",
+    parseCap,
+  )
+  .option(
+    "--max-serialized-chars-per-group <n>",
+    "split cap: the serialized characters a piece may carry — a group over it is partitioned across calls (absent, the byte cap is off)",
+    parseCap,
   )
   .addHelpText("after", inspectHelp)
   .action(run);

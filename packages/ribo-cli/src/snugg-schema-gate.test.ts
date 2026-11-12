@@ -314,7 +314,7 @@ test("a stub bin emitting a drifted report fails the threshold class, naming the
 
   const fullReport = (overrides: Record<string, unknown>): string =>
     JSON.stringify({
-      contractVersion: 2,
+      contractVersion: 3,
       cliVersion: "0.0.0",
       coreVersion: "0.0.0",
       schemaFingerprint: "a".repeat(64),
@@ -332,7 +332,7 @@ test("a stub bin emitting a drifted report fails the threshold class, naming the
     });
 
   const cases: [string, string][] = [
-    ["a bumped contractVersion", stubReport(fullReport({ contractVersion: 3 }))],
+    ["a stale contractVersion", stubReport(fullReport({ contractVersion: 2 }))],
     [
       "a missing threshold row",
       stubReport(

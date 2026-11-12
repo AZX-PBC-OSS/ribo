@@ -1,7 +1,7 @@
 /**
  * The human rendering of the inspect report (design §1/§8): the same content
  * as the `--json` contract, different dressing — the fingerprint, both
- * versions, the leaf and group counts, the split path, the whole and
+ * versions, the field and group counts, the split caps, the split path, the whole and
  * worst-piece measures, the per-strategy call counts, the guidance coverage,
  * every finding list, any refusal, and the threshold outcomes. Presentation
  * is bin-side — the library owns the computation (the inspect-schema.ts
@@ -74,12 +74,14 @@ const thresholdText = (row: ThresholdRow): string => {
 
 export function renderHumanReport(report: SchemaInspectReport): string {
   const out: string[] = [];
-  out.push(pc.bold("ribo schema inspect — sizing report"));
+  // The title is a heading: it ends its own line (the empty-string spacer
+  // below contributes nothing under the "" join).
+  out.push(`${pc.bold("ribo schema inspect — sizing report")}\n`);
   out.push("");
   out.push(line("schema fingerprint", report.schemaFingerprint));
   out.push(line("cli version", report.cliVersion));
   out.push(line("core version", report.coreVersion));
-  out.push(line("leaves", `${report.leafCount}`));
+  out.push(line("fields", `${report.leafCount}`));
   if (report.groupCount !== undefined) {
     out.push(
       line("groups", `${report.groupCount} group key(s), ${report.looseKeyCount} loose key(s)`),
@@ -112,6 +114,14 @@ export function renderHumanReport(report: SchemaInspectReport): string {
   if (report.pieces !== undefined) {
     out.push(line("pieces", `${report.pieces.length} (one per chat call)`));
   }
+  out.push(
+    line(
+      "split caps",
+      report.splitCaps.maxSerializedCharsPerGroup === null
+        ? `nullable unions ${report.splitCaps.maxNullableUnionsPerGroup}, byte cap off`
+        : `nullable unions ${report.splitCaps.maxNullableUnionsPerGroup}, serialized chars ${report.splitCaps.maxSerializedCharsPerGroup}`,
+    ),
+  );
   if (report.calls !== undefined) {
     for (const [name, value] of callsText(report.calls)) out.push(line(name, value));
   }
@@ -120,7 +130,7 @@ export function renderHumanReport(report: SchemaInspectReport): string {
   out.push(
     line(
       "guidance coverage",
-      `${coverage.described} of ${coverage.total} leaves described (${pct}%)`,
+      `${coverage.described} of ${coverage.total} fields described (${pct}%)`,
     ),
   );
 

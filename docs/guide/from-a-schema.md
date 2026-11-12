@@ -168,6 +168,18 @@ Then run the command with both thresholds supplied:
 ribo schema inspect "$schemaPath" --max-depth 14 --max-piece-chars 32768
 ```
 
+The thresholds are comparisons the CLI makes on the reported numbers — supplying them never
+changes the partition. The two **split caps** do: `--max-serialized-chars-per-group <n>` and
+`--max-nullable-unions-per-group <n>` are forwarded into the same split the extraction runs under,
+so the command reports the partition your route would actually produce. Both are validated as
+positive integers (anything else is a usage error, exit 2), and the `--json` report records the
+caps the partition was computed under (`splitCaps`, the union default included), so the numbers can
+be reproduced without re-deriving the defaults.
+
+The report's `leafCount` counts schema **fields**: on an enveloped extraction schema, each
+`{ value, confidence, sourceSpan }` envelope is one field — the same count core's group machinery
+splits by — and `guidanceCoverage` is described fields over that count, never envelope members.
+
 The exit codes are the contract for wiring it into your CI: **0** — the report was computed and
 neither threshold was breached, the schema fits; **1** — a threshold was breached, with a one-line
 diagnostic per breach on stderr and the full report still on stdout, so the log names the measured

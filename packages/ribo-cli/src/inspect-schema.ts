@@ -16,13 +16,10 @@ import { assembleReport } from "./inspect/report.js";
 import { SchemaInspectReportSchema } from "./inspect/report-schema.js";
 import type { SchemaInspectReport } from "./inspect/report-schema.js";
 
-/**
- * The version of the report's JSON contract (design §7). Owned by the CLI and
- * bumped when a field is added or its meaning changes — numbers computed by
- * unchanged core symbols do not bump it. v2 grows the v1 skeleton report
- * (contract, versions, `leafCount`) to the full sizing report.
- */
-export const CONTRACT_VERSION = 2;
+// The version of the report's JSON contract — owned beside the contract's zod
+// schema in `report-schema.ts` (so writer and schema cannot drift), re-exported
+// here for the public barrel. See that file for the version history.
+export { CONTRACT_VERSION } from "./inspect/report-schema.js";
 
 // An import exported under its own name — not a `export … from` re-export,
 // which the single-file bundle's chunker answers with a shared runtime chunk
