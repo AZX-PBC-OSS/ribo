@@ -88,6 +88,11 @@ nothing that already reads a boolean groundedness needs to change to benefit fro
 blank span is always `"ungrounded"`, never near — every string contains `""`, so a normalized
 `.includes` would otherwise call an empty span a near miss of anything.
 
+What happens to a span that lands in the bottom tier is the point of the whole mechanism — the
+extraction is refused, not corrected. Pulled live from the `examples/ungrounded-rejected/` example:
+
+<<< @/../examples/ungrounded-rejected/ungrounded-rejected.run.ts#rejection
+
 ## Why granularity is a knob
 
 Wrapping every leaf is the right unit when a human reviews one field at a time — a health-check
