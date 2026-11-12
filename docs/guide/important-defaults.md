@@ -171,6 +171,11 @@ engine"), and at exhaustion prefer a retryable error over a terminal one. It ans
 question than the extraction pair, and the two are not interchangeable: they classify different
 errors.
 
+Both arbiters, executed: [Arbitration & Fallback](/guide/arbitration) walks the ladder and its
+arbiters, and the checked example behind [the fallback-extractor API page](/api/fallback-extractor)
+(`fallback-extractor.run.ts`) runs them — a terminal error falling through to the next rung under
+`terminalFallsThrough`, the same dead transport given up on, and `acceptAnySuccess` burning past it.
+
 ## The schema partition has a per-call ceiling, tunable but not unlimited
 
 `@azx/ribo-core` partitions a large schema into groups so each call's response schema
