@@ -45,17 +45,11 @@ lets the relay's own backoff handle it.
 Try a list of strategies sequentially. Each one runs to completion before the next is even started;
 the arbiter decides after each settlement whether to accept, move to the next strategy, or give up.
 
-```ts
-import { fallbackExtractor, terminalFallsThrough } from "@azx/ribo-core";
+The ladder, executed by the checked example behind
+[the fallbackExtractor API page](/api/fallback-extractor) — the strategies are fakes, so the excerpt
+asks no model for anything:
 
-const extractor = fallbackExtractor(
-  [
-    { strategy: "instance-fill", extractor: strongExtractor },
-    { strategy: "per-group-array", extractor: weakerExtractor },
-  ],
-  terminalFallsThrough,
-);
-```
+<<< @/api/examples/fallback-extractor.run.ts#ladder
 
 ## `raceExtractor`: strategies at once
 
@@ -140,7 +134,9 @@ load-bearing detail and it is the opposite of the intuition: `terminalFallsThrou
 terminal and _gives up_ on transient, so terminal is what makes the ladder try the next rung.
 Classifying it transient would make the ladder give up, the relay call the step failure retryable,
 and the whole extraction re-run — hallucinating rung included — on backoff until `dead`. A
-hallucination detector that becomes a full-price retry loop.
+hallucination detector that becomes a full-price retry loop. The
+[ungrounded-rejected example](/examples/) executes exactly this rejection — a terminal error the
+ladder falls through on under `terminalFallsThrough`.
 
 ### `consensusExtractor`: agreement is a signal a model cannot assert about itself
 

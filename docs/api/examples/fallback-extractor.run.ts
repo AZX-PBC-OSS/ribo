@@ -55,6 +55,7 @@ function succeeding(): Extractor<ContactFields> {
 }
 
 export async function fallbackExtractorStampsTheWinningStrategy(): Promise<void> {
+  // #region ladder
   // #region usage
   const managed = failing(new TerminalError("the request shape is structurally broken"));
   const ladder = fallbackExtractor(
@@ -71,6 +72,7 @@ export async function fallbackExtractorStampsTheWinningStrategy(): Promise<void>
   // fix — so the default arbiter falls through, and the winner is stamped.
   assert.equal(result.usage?.strategy, "on-device");
   assert.equal(result.fields.name.value, "Acme Heating");
+  // #endregion ladder
 }
 
 export async function aTransientErrorGivesUpInsteadOfBurningTheNextRung(): Promise<void> {
