@@ -1,0 +1,13 @@
+{
+  "name": "example-durable-queue",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@azx/ribo-core": "workspace:*",
+    "@azx/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

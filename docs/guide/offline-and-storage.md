@@ -197,7 +197,13 @@ mediaRecorder.onstop = () => session.finalize();
 
 `openCaptureSession` inserts the row in `recording` status up front and returns a session that
 ingests each `MediaRecorder` chunk as its own stored blob, named from an immutable
-`capture.sourceId`. `session.health$` reports `"flushing"` (chunks are landing, which is the normal
+`capture.sourceId`. The queue-side half of the same promise — an enqueued capture is persisted
+before transcription ever runs — is asserted by the durable-queue example from _inside the
+transcription call_, where a test-body read-back after enqueue could never catch a violation:
+
+<<< @/../examples/durable-queue/durable-queue.run.ts#ordering
+
+`session.health$` reports `"flushing"` (chunks are landing, which is the normal
 state of a live recording) or `"stalled"` (a chunk write failed, or nothing has arrived past a
 threshold) — and `workSafety` takes that health as an input, so a stalled capture reports `at-risk`
 regardless of what the persistence grant says. The stall threshold is a placeholder pending
