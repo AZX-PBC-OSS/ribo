@@ -161,9 +161,9 @@ queue holds either kind: the compiler rejects an audio-only roster, and `restric
 
 The composition, pulled live from the checked example behind
 [choosing and composing transcribers](/api/composing-transcribers) — first the ordered roster
-`firstCapable` builds, then the lift:
+`firstCapable` builds, then the lift, refusing a document and delegating audio:
 
-<<< @/api/examples/composing-transcribers.run.ts#usage
+<<< @/api/examples/composing-transcribers.run.ts#first-capable
 
 <<< @/api/examples/composing-transcribers.run.ts#restrict-to-kind
 
