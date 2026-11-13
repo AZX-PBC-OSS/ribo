@@ -375,3 +375,19 @@ test("every docs/api page is sidebar-linked", async () => {
     `docs/api/ holds pages the /api/ sidebar does not link:\n  ${orphaned.join("\n  ")}`,
   );
 });
+
+test("whole-file snippet includes render without #region marker lines", async () => {
+  // Through VitePress's own renderer, so the hook's ORDER is under test: wired after the snippet
+  // plugin, it would run before the file is loaded and strip nothing.
+  const { createMarkdownRenderer } = await import("vitepress");
+  const config = (await import(new URL("./.vitepress/config.ts", import.meta.url).href)).default;
+  const docsDir = fileURLToPath(new URL(".", import.meta.url));
+  const md = await createMarkdownRenderer(docsDir, config.markdown, "/");
+  const html = md.render("<<< @/api/examples/composing-transcribers.run.ts\n", {
+    path: path.join(docsDir, "guide/index.md"),
+    relativePath: "guide/index.md",
+    cleanUrls: false,
+  });
+  assert.match(html, /hedgedTranscriber/, "the include rendered the example file");
+  assert.doesNotMatch(html, /#(end)?region\b/);
+});
