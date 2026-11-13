@@ -58,8 +58,8 @@ be reviewed, diffed and version-controlled as ordinary files.
 - `description` (string, optional) — free text for a human reader. Nothing reads it.
 
 **The prompt inputs** are the objects core's `buildMessages`
-(`packages/ribo-core/src/extraction/extraction-common.ts:113`) assembles the prompt from, and
-nothing else:
+(`packages/ribo-core/src/extraction/extraction-common.ts:113`) and its per-group counterpart
+`buildGroupMessages` (same file) assemble the prompt from, and nothing else:
 
 - `instructions` (string, required) — the system instructions, passed verbatim to the extraction
   target.
@@ -70,6 +70,17 @@ nothing else:
   default) or `"prompt"`. Under `"prompt"` the schema's field guidance joins the system prompt;
   under `"schema"` the instructions pass through unchanged. It is part of the prompt inputs because
   it changes the prompt, and therefore changes what the run measures.
+- `groupInstructions` (object, optional) — a map from a group key to the full instructions for that
+  group's calls. An entry **replaces** the main `instructions` for that group's calls, the way
+  core's own `groupInstructions` hook does (`packages/ribo-core/src/phases/presence-fill-phase.ts:109`,
+  and `buildGroupMessages` in `packages/ribo-core/src/extraction/extraction-common.ts:240` for the
+  per-group path): that group's call carries the instructions named for it instead of the target's
+  full instructions, and its few-shot examples are projected to the group's own leaves. A group with
+  no entry uses the main `instructions`, and single-shot — which has no groups — always uses the
+  main `instructions`. **A key that names no group in the corpus's schema is refused as a corpus
+  error** (exit 2, the could-not-run class of §6), never ignored: a map entry for a group that
+  does not exist is a mistake in the corpus, and a corpus that silently ignored it would measure
+  something other than what it declares.
 
 **The manifest's schema reference is the only schema source.** There is no `--schema` flag, and no
 later ticket may add one: a run's schema is a property of its corpus, and a flag that overrides it
@@ -351,8 +362,8 @@ checks need, and absent when it did not. The section (13) gate wrapper consumes 
 
 ## 4. The versioned run-record JSON
 
-A run writes one record: a versioned JSON document describing what was run, what it produced and
-under which conditions. The record is a persisted artefact crossing a trust boundary — a
+Each arm of a run writes its own record (§8): a versioned JSON document describing what was run,
+what it produced and under which conditions. The record is a persisted artefact crossing a trust boundary — a
 hand-edited file, a half-written line, an artefact from an older format — so it is **zod-parsed on
 read, never cast**.
 
@@ -362,8 +373,9 @@ read, never cast**.
   name or meaning changes.
 - `capturedAt` — the ISO datetime the run was captured.
 - `fingerprint` — the run fingerprint (§ below).
-- `backend` — the backend identity the run used, in the form the backend reports it (an API
-  backend's identity carries its model, a CLI backend's is its own name).
+- `backend` — the backend identity the run used, in the form the backend reports it. The model is
+  never folded into it, because the model is the `model` field below and is required for every
+  backend.
 - `model` — the model id, **as its own field**. It is not folded into the backend's name and not
   implied by it: the record must say which model produced the numbers without the reader having to
   parse a composite identity string.
@@ -385,9 +397,13 @@ read, never cast**.
 `settings` is one object, never a flat set of top-level fields, because the settings are part of
 the record's identity and are compared as a unit:
 
-- `strategies` — the ordered list of strategy ids the run drove (§8). The whole ladder is recorded,
-  not only the rung that won, because the ladder is part of what was measured.
-- `consensusCandidates` — the consensus candidate count, when consensus is in the ladder.
+- `strategies` — the ordered ladder of strategy ids **that arm** drove (§8). The whole ladder is
+  recorded, not only the rung that won, because the ladder is part of what was measured.
+- `consensusCandidates` — the consensus candidate count, present **when the consensus modifier is
+  on** (§8). Consensus is a modifier applied to an arm, not a rung in its ladder, so the count is
+  not one of the arm's strategy ids.
+- `consensusArbiter` — the consensus arbiter's name, beside the count and present on the same
+  condition: `"unanimous"` or `"majority"` (§8).
 - `maxRetries` — the retry budget.
 - `responseCap` — the per-response token cap, when the run carried one.
 - `splitCaps` — the two split caps, `maxNullableUnionsPerGroup` and `maxSerializedCharsPerGroup`,
@@ -397,8 +413,14 @@ the record's identity and are compared as a unit:
 
 The fingerprint is a SHA-256 over the canonical serialisation of **the JSON Schema document
 together with the run's prompt inputs** — and of nothing else. The schema document is the corpus's
-schema, as loaded; the prompt inputs are the manifest's instructions, examples and field-descriptions
-mode (§1).
+schema, as loaded; the prompt inputs are the manifest's instructions, examples, field-descriptions
+mode and the `groupInstructions` map (§1).
+
+The `groupInstructions` map goes into the digest **exactly like the rest of the prompt text**: each
+entry's bytes are hashed as they are, with no case folding, no whitespace folding and no
+normalisation, and the map's presence or absence changes the fingerprint like any other prompt
+input. A map is hashed as a map, so two maps that differ only in key order agree, as two schemas
+that differ only in key order do.
 
 The canonicalisation is **the rule inspect already uses**, not a second canonicaliser:
 `canonicalJson` in `packages/ribo-cli/src/inspect/fingerprint.ts` — object keys recursively sorted
@@ -446,9 +468,9 @@ exports it; the accuracy-page generator (T14b) and the later T16 consume it. Thi
 describes the predicate; it does not claim the code exists.
 
 The generator reads **two required arguments** — the records directory and the corpus directory —
-and judges staleness against the corpus the second argument names. The argument pair, and what the
-generator does with it, are T14b's to specify; naming it here keeps the identity story in this
-document and the page's own staleness rule saying the same thing.
+and judges staleness against the corpus the second argument names. §10 fixes what the generator
+does with the pair; T14b builds it. Naming it here keeps the identity story in this document and
+the page's own staleness rule saying the same thing.
 
 ### Where records live
 
@@ -512,6 +534,11 @@ from a different strategy would price a run the guard has not measured.
 
 ### The rest of the estimate
 
+- **Arms, ladders and consensus.** The estimate is per arm and summed over the run's arms (§8). An
+  arm's worst case counts **every rung of its ladder**, because each rung can run and fail before the
+  next starts; pricing only the rung expected to win would undercount. Under the consensus modifier
+  the arm's worst case is multiplied by the candidate count, since every candidate runs the whole
+  ladder. A rung whose own bound is null makes the arm's bound null, and the refusal above applies.
 - **Retries.** The attempts are `1 + maxRetries`, the semantics `retry-async.ts`
   (`packages/ribo-core/src/async/retry-async.ts:22`) documents: a run's worst case multiplies its
   call count by the attempt count.
@@ -599,9 +626,21 @@ operator's CLI is not installed.
 
 ### Who wires what
 
+The flags a run carries are the ones that decide what was measured and whether two records are
+comparable, and they are read as the run's settings object (§4). `--model` is **required for every
+backend**, and it is the record's `model` field: the openai-compatible backend sends it in each
+request, and the CLI backends pass it to the binary they spawn (`claude --model`, `codex -m`).
+`--consensus <n>` and `--consensus-arbiter unanimous|majority` (the default is `unanimous`) are
+run-settings flags; the count and the arbiter are recorded in the settings object, which is part
+of the freshness key, so a run with a different candidate count is a different measurement even
+under the same schema and the same prompt (§8 for what the modifier does). The strategy flags are
+§8's.
+
 - **T9b** wires `ribo eval` into `packages/ribo-cli/src/bin.ts`: the `--corpus`, `--backend`, the
-  repeatable `--strategy` and `--out` parsing, the run-settings flags that form the freshness key
-  (the consensus candidate count, the max-retries budget, the response cap and the split caps —
+  repeatable `--strategy` and `--out` parsing, the comma syntax that turns one `--strategy` value
+  into a fallback ladder (§8), the `--model`, `--consensus` and `--consensus-arbiter` flags above,
+  the remaining run-settings flags that form the freshness key (the max-retries budget, the
+  response cap and the split caps —
   the split-cap pair reusing inspect's existing flag spellings, `--max-nullable-unions-per-group`
   and `--max-serialized-chars-per-group`, and their `parseCap` parser at
   `packages/ribo-cli/src/bin.ts:66`), and the exit codes above.
@@ -657,32 +696,181 @@ answers once.
 
 ## 8. Strategy selection
 
-A run is driven by an ordered ladder of strategies. The `--strategy` flag is **repeatable**, and the
-order of the flags is the order of the ladder.
+A run is driven by one or more **arms**, and each arm is measured separately, with its own record.
+The `--strategy` flag is **repeatable**, and one occurrence names one arm.
 
-The strategy names are the core presets the harness can drive — `single-shot`, `per-group`,
-`presence-narrowed` and `consensus`. The ladder is composed with core's own combinator,
-`fallbackExtractor` (`packages/ribo-core/src/extraction/fallback-extractor.ts:41`), over the named
-strategies with the default arbiter (`terminalFallsThrough`,
-`packages/ribo-core/src/extraction/arbitration.ts:159`): the first rung that settles
-acceptably wins, and a rung that fails terminally falls through to the next. The run records the
-whole ladder in its settings object (§4) and the rung that won in the result's own usage.
+**An arm's value is either a single strategy or an ordered ladder.** A plain value names one
+strategy. A **comma-separated** value makes that arm a fallback ladder, in the order written:
+`--strategy single-shot,per-group` runs per-group only when single-shot fails terminally. A ladder
+is composed with core's own combinator, `fallbackExtractor`
+(`packages/ribo-core/src/extraction/fallback-extractor.ts:41`), over the named strategies with the
+default arbiter (`terminalFallsThrough`,
+`packages/ribo-core/src/extraction/arbitration.ts:159`): the first rung that settles acceptably
+wins, and a rung that fails terminally falls through to the next. The run records the whole ladder
+in its settings object (§4) and the rung that won in the result's own usage.
 
-**Consensus picks an index; it never re-decides the answer.** `consensusExtractor`
-(`packages/ribo-core/src/extraction/consensus-extractor.ts:201`) runs every candidate and chooses
-the winning index — the arbiter judges the candidates, not the value. The harness therefore never
-wraps consensus in an arbiter that re-judges the extracted value: a run that measures consensus is
-measuring consensus's own choice, and a second opinion over it would be a different strategy with
-the same name. The candidate count is part of the settings object, because it multiplies the run's
-cost and changes what the run measured.
+The strategy names are the core presets the harness can drive — `single-shot`, `per-group` and
+`presence-narrowed` (`singleShotExtractor`, `perGroupExtractor` and `presenceNarrowedExtractor`,
+exported from `packages/ribo-core/src/index.ts`).
+
+**Consensus is a modifier, not a strategy.** `--consensus <n>` runs the whole arm — its ladder,
+every rung of it — as `n` candidates on the same backend and the same model, through
+`consensusExtractor` (`packages/ribo-core/src/extraction/consensus-extractor.ts:201`). The modifier
+applies to **every arm in the run**, so a run's arms are compared on equal terms; per-arm options
+and candidates drawn from mixed models are follow-ups, not this series.
+
+**Consensus decides field by field, and it never picks one whole answer.** The arbiter is consulted
+per leaf, and a leaf the candidates disagree on is **nulled with its citation kept** — the
+combinator writes a null value over the citation the policy's index names
+(`ConsensusVerdict` in `packages/ribo-core/src/extraction/consensus-arbiter.ts:41`). Under the
+default arbiter, `unanimousValues`
+(`packages/ribo-core/src/extraction/consensus-arbiter.ts:81`), a contested leaf therefore reaches
+the scorer as no value at all: it is counted as missed where the case asserts one, and as correct
+where the case declares the leaf absent. A second opinion over the whole answer — picking one
+candidate's envelope — would be a different strategy wearing consensus's name, and the harness
+never wraps consensus in one.
+
+The other shipped arbiter, `majorityValues`
+(`packages/ribo-core/src/extraction/consensus-arbiter.ts:116`), is **unsound over reordered
+collections** and says so in its own documentation: it can accept a value for an entity that
+another candidate does not have, carrying a citation from a sample quoting a different unit.
+`--consensus-arbiter majority` is therefore available but never the default, and the count and the
+arbiter are both recorded in the settings object (§4).
 
 ## 9. Document inputs under Node: the pdf.js spike framing
 
-This section is written by T7b.
+**The question.** Can pdf.js run under Node without a worker shim?
+
+**Why the question exists.** The document input kind (§1) reaches the model through a transcriber,
+and the transcriber that reads documents is `PdfjsTranscriber`. Its `capability()`
+(`packages/ribo-transcriber-pdfjs/src/index.ts:108`) reports `unsupported-platform` when the
+environment has no `Worker` constructor — the check at
+`packages/ribo-transcriber-pdfjs/src/index.ts:111` — because pdf.js cannot run at all without
+one. Node has no `Worker` constructor, so the document path is **unproven under the CLI's
+platform**: the package's browser-mode test drives real pdf.js with a real worker in a real
+browser, and nothing drives it under Node. The CLI is Node.
+
+**The check is free and local.** The spike runs no model, needs no key and spends nothing. It asks
+the dependency whether it can run on this platform, with and without a shim, and records what it
+finds. It is a question about a dependency's behaviour, which is what `docs/spikes/index.md`
+routes to a numbered spike entry: a `docs/spikes/NNNN-kebab-name/` directory whose README opens
+with Status and Date and states the answer before the method.
+
+**What each answer implies.**
+
+- **A shim-free route** unblocks the deferred document-path build: the transcriber becomes a
+  runtime dependency of the CLI, and document-kind cases run through the runner like any other
+  case. That build is an **open follow-up, explicitly not a ticket in this series** — it is
+  downstream of the answer, and this series does not schedule it.
+- **A shim requirement** leaves document corpora a **recorded gap**: the design doc and the guide
+  say that the document input kind is not measurable on the CLI's platform, instead of leaving a
+  reader to infer it from a kind that silently produces nothing.
+
+**Transcript and text corpora never depend on the answer.** They reach the model as text and are
+measured by the same runner either way, so a shim requirement costs the document kind and nothing
+else.
+
+This section prescribes no paid run and builds nothing.
 
 ## 10. The accuracy-page generator's scope
 
-This section is written by T7b.
+`scripts/generate-accuracy-page.mjs` generates the accuracy page from committed run records. The
+generalisation gives it a records directory and a corpus directory, and makes it read the §4
+record and nothing else. This section fixes that scope; the generalisation ticket implements it.
+
+**Two required arguments.** The generator takes the records directory and the corpus directory, and
+**both are required**: an omitted argument is a loud usage error that names the missing one on
+stderr, never a silent default. The hard-coded `RUNS` constant (`generate-accuracy-page.mjs:30`)
+goes. The root script at `package.json:27` becomes a script that passes **both** arguments
+explicitly. The records directory is the adapter's committed records directory,
+`packages/ribo-adapter-snuggpro/acceptance/runs/`, and the operator's Snugg baselines are
+written there with `ribo eval --out`. The corpus directory names the corpus the page's staleness
+is judged against; no corpus in the §1 format is committed in this series, so the path it names is
+the one the operator's corpus occupies when there is one — and on a clean checkout the guard below
+returns before any corpus is read.
+
+**The missing-directory guard is kept.** `if (!existsSync(RUNS)) return [];`
+(`generate-accuracy-page.mjs:210`) becomes the same guard on the argument-supplied directory. That
+guard is what renders the page's one empty state on a clean checkout, after the generalisation
+ticket deletes the two old-format records and git stops tracking the emptied directory. It is
+checked before any corpus is read, which is what keeps `docs:build` green on a clean checkout.
+
+**The record fields the generator reads.** The generalised generator knows **only the new record
+format** of §4 — no legacy reader, no one-off conversion of the old records — and it reads these
+fields and no others:
+
+- `contractVersion` — the format's own version, used to reject a record this generator cannot
+  read.
+- `capturedAt` — the run's date, rendered beside the run.
+- `fingerprint` — the run fingerprint, compared against the current corpus's key for staleness.
+- `backend` — the backend identity, which gives the page its per-backend lanes.
+- `model` — the model id, rendered beside the backend.
+- `totals` — the per-verdict counts and the three rates of §2, which are the page's numbers.
+- `leafPaths` — the leaf paths the grid is keyed on, which are the page's rows.
+- `grid` — the dense per-cell grid, which is the page's cells.
+- `history` — the earlier records' identities and totals, which is the page's trend.
+- `settings` — the run's settings object, rendered as what was run, and part of the freshness key.
+- `hazards` — the optional self-describing extension of §3, read **only** when a record carries
+  it. Hazards render only from records carrying the extension.
+
+Every number the page renders is computed from those fields, so the hard-coded corpus figures in
+today's page — the worked example's slot count at `generate-accuracy-page.mjs:367` and the
+legend's grid dimensions at `generate-accuracy-page.mjs:667` — cannot survive the generalisation,
+and the hard-coded Snugg banner (`measurementGapBanner`,
+`generate-accuracy-page.mjs:291`) goes with them. The two old-format Snugg records
+(`acceptance/runs/current-codex-cli.json` and `acceptance/runs/history-codex-cli.jsonl`) are
+deleted by the generalisation ticket; git history keeps them, and the directory that held them
+holds **only new-format records** afterwards.
+
+**Every verdict lookup goes through one function that throws on an unknown verdict.** Today the
+five bare `BUCKET[...]` reads (`generate-accuracy-page.mjs:337`, `:341`, `:386`, `:690` and `:840`)
+yield `undefined` for a verdict the table does not name, and the two
+`BUCKET[verdict] ?? "excused"` fallbacks (`generate-accuracy-page.mjs:735` and `:1018`) bucket an
+unknown verdict as excused instead of as unknown. Fixing one site leaves the others lying: the
+page would count a verdict it cannot place as excused in one table and drop it in another. The
+generalised generator therefore has **one** lookup function, it **throws** on an unknown verdict,
+every lookup path goes through it, and there is **one test per lookup path**. The table's own
+reverse index at `generate-accuracy-page.mjs:75` is not a verdict lookup and stays as it is.
+
+**Staleness is judged by the CLI's own function.** Each record's run fingerprint is compared
+against the current corpus's key, computed by the same exported CLI function `ribo eval` uses —
+the `runFingerprint` export that T13b adds to `@azx/ribo-cli`'s public entry
+(`packages/ribo-cli/src/index.ts`), imported by the `.mjs` generator **from the built package**.
+The Snugg-fixture-file hash `currentFingerprint()` (`generate-accuracy-page.mjs:229`) goes: it
+hashed one adapter's fixture file, which a generalised page cannot mean by. The currency
+predicate — "is this record current?", over backend, model, settings and fingerprint — is
+likewise defined and exported by T13b, and consumed here and by the later T16. Neither export
+exists in the tree yet; both are T13b's, and this section describes them as the plan, not as
+present code.
+
+**The build ordering is owned by the root `docs:accuracy` script.** It builds `@azx/ribo-cli`, the
+Snugg adapter — whose build produces the shipped schema file the corpus references
+(`dist/extraction.schema.json`, written by the adapter's own build script) — and the workspace
+packages they depend on, before running the generator. So `docs:build` works on a clean checkout
+and in the deploy workflow, and **no workflow file is edited**: the script owns the build it
+needs.
+
+**The gate-side moves.** Each of these belongs to the generalisation ticket:
+
+- The committed baseline files **stay exactly where they are** in `acceptance/`, and keep guarding
+  the untouched gate; `baseline.codex-cli.json` is the only one committed on main today.
+- The old gate's run-store output moves to the **separate gitignored legacy directory**
+  `packages/ribo-adapter-snuggpro/acceptance/runs-legacy/`, which the generator never reads.
+- `run-store.ts` gains **exactly one export** — the default-directory constant, today the
+  module-private `DEFAULT_DIR` at `run-store.ts:48` — so the redirect's test reads the constant
+  rather than opening the store against the repository, which would write into `runs-legacy/` on
+  every test run.
+- The legacy run history **starts empty**: the deleted `history-codex-cli.jsonl` is recreated
+  nowhere.
+- `gate.manual.ts` changes in **exactly one log line** — the one naming its output path
+  (`gate.manual.ts:380`) — and in nothing else.
+- The generalisation ticket updates the acceptance README and `.gitignore` to the new directories:
+  `runs-legacy/` ignored, `acceptance/runs/` still committed.
+
+**One empty state.** The generator's existing empty-state branch — the "No accuracy runs have been
+published yet." text at `generate-accuracy-page.mjs:1004`, which today directs readers to the
+manual acceptance gate — is rewritten to point at `ribo eval`, leaving **exactly one** empty
+state.
 
 ## 11. Reuse rules and wiring for the build tickets
 
@@ -737,4 +925,53 @@ never quoted here.
 
 ## 13. The gate wrapper
 
-This section is written by T7b.
+**What it becomes.** `packages/ribo-adapter-snuggpro/acceptance/gate.manual.ts` slims to **one
+corpus run through the eval library**. The runner T9a builds drives the corpus, the scorer T13a
+judges it, and the record T13b defines is the record that is written. The wrapper stops owning an
+extraction loop, a scorer and a record format of its own; what it keeps is what is specific to
+this tool.
+
+**What it keeps.**
+
+- **The four hazards** of §3, supplied with their declarations — the leaves each hazard concerns:
+  the axis pair, the band and its quantity, the fixed-state matrix, the looked-up leaf and its
+  exceptions. A hazard is a fact about one tool's schema rather than about a case's expected
+  answer (§1), so the declarations are the wrapper's to supply and the harness's to apply.
+- **The per-backend baselines.** Each backend keeps its own baseline file in `acceptance/`, and
+  the committed ones stay exactly where they are (§10).
+- **The spend guard**, in front of every paid run: a run whose worst case costs more than the
+  operator allows is refused before any model call is made (§5).
+
+**What it delegates to the eval library.** The run itself — the strategy arms and the consensus
+modifier (§8), the per-leaf scoring (§2), the record's shape and its fingerprint (§4), the spend
+guard's estimate (§5) and the currency predicate (§4) — comes from the library. The wrapper
+supplies the corpus, the backend, the model, the hazard declarations and the operator's ceilings,
+and it asserts.
+
+**The record it writes is the §4 record**, written through the library's own output directory — for
+the Snugg adapter, the committed records directory
+`packages/ribo-adapter-snuggpro/acceptance/runs/` (§10) — so the accuracy page reads what the
+wrapper measured.
+
+**The states a run can be in.**
+
+- **Not yet rebased.** ADR 0041
+  (`docs/adr/0041-eval-run-record-keys-freshness-on-backend-model-settings-fingerprint.md`) records
+  that one re-baseline is accepted and that it is performed in the held-out gate-wrapper run.
+  Until the operator's re-baseline lands, the wrapper says so **loudly**, rather than asserting
+  against a baseline it knows is incomparable: the old baseline's fingerprint was a hash over
+  three files' raw bytes, and it cannot match the eval fingerprint by construction.
+- **Fresh.** The currency predicate — "is this record current?", over backend + model + settings +
+  run fingerprint — holds for **all four** fields, so the baseline describes the same measurement
+  as this run, and the rate bands are asserted.
+- **Stale.** Any of the four differs, and the wrapper refuses to assert. An **options-only**
+  change stales a baseline as surely as a model change does: a different consensus candidate count
+  is a different measurement, and the settings are compared as one unit (§4).
+
+The currency predicate is the one T13b defines and exports; the wrapper neither writes its own
+nor re-implements the key.
+
+**What retiring the old gate removes.** The old gate's run-store output lives in the redirected
+legacy directory `packages/ribo-adapter-snuggpro/acceptance/runs-legacy/` (§10), which the
+generator never reads. Retiring the old gate removes that directory: it is created by the
+generalisation ticket, read by nobody, and deleted when the wrapper replaces the gate it served.
