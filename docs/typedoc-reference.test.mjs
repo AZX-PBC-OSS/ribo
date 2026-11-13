@@ -375,3 +375,28 @@ test("every docs/api page is sidebar-linked", async () => {
     `docs/api/ holds pages the /api/ sidebar does not link:\n  ${orphaned.join("\n  ")}`,
   );
 });
+
+test("rendered fences drop #region marker lines, so whole-file includes show none", async () => {
+  const config = (await import(new URL("./.vitepress/config.ts", import.meta.url).href)).default;
+  const md = { renderer: { rules: { fence: (tokens, idx) => tokens[idx].content } } };
+  config.markdown.config(md);
+
+  const source = [
+    "export function run(): void {",
+    "  // #region usage",
+    "  const kept = 1;",
+    "  /* #endregion usage */",
+    "}",
+    "<!-- #region page -->",
+    "const regionName = '#region in a string stays';",
+  ].join("\n");
+  assert.equal(
+    md.renderer.rules.fence([{ content: source }], 0),
+    [
+      "export function run(): void {",
+      "  const kept = 1;",
+      "}",
+      "const regionName = '#region in a string stays';",
+    ].join("\n"),
+  );
+});

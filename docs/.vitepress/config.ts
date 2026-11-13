@@ -81,8 +81,33 @@ const designSidebar: DefaultTheme.SidebarItem[] = [
 // of anything but this value: `DOCS_BASE=/ribo/ pnpm docs:build`. Defaults to root.
 const base = process.env.DOCS_BASE ?? "/";
 
+/**
+ * VitePress strips `#region` markers only from a region include (`<<< file#name`); a whole-file
+ * include (`<<< file`) renders them verbatim. Example files carry regions for the guides, so drop
+ * marker lines from every rendered fence.
+ */
+const REGION_MARKER = /^\s*(?:\/\/|\/\*|<!--)\s*#(?:end)?region\b.*$/;
+
+type FenceRule = (tokens: { content: string }[], idx: number, ...rest: never[]) => string;
+
+function stripRegionMarkers(md: { renderer: { rules: { fence?: FenceRule } } }): void {
+  const fence = md.renderer.rules.fence;
+  if (!fence) return;
+  md.renderer.rules.fence = (tokens, idx, ...rest) => {
+    const token = tokens[idx];
+    if (token) {
+      token.content = token.content
+        .split("\n")
+        .filter((line) => !REGION_MARKER.test(line))
+        .join("\n");
+    }
+    return fence(tokens, idx, ...rest);
+  };
+}
+
 export default defineConfig({
   base,
+  markdown: { config: stripRegionMarkers },
   lang: "en-US",
   title: "Ribo",
   description:
