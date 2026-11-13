@@ -82,3 +82,4 @@ receives.
 | [0038](./0038-inspect-takes-json-schema-in-openapi-3-0-form-and-nothing-else.md)        | The inspect command takes JSON Schema in OpenAPI 3.0 form, and nothing else                    | Accepted |
 | [0039](./0039-the-snugg-adapter-generates-its-json-schema-document-in-its-own-build.md) | The Snugg adapter generates its JSON Schema document in its own build                          | Accepted |
 | [0040](./0040-the-presence-narrowed-fill-honours-the-same-split-caps-as-per-group.md)   | The presence-narrowed fill honours the same split caps as per-group                            | Accepted |
+| [0041](./0041-eval-run-record-keys-freshness-on-backend-model-settings-fingerprint.md)  | The eval run record keys freshness on backend, model, settings, fingerprint                    | Accepted |
