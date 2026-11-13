@@ -84,7 +84,8 @@ const base = process.env.DOCS_BASE ?? "/";
 /**
  * VitePress strips `#region` markers only from a region include (`<<< file#name`); a whole-file
  * include (`<<< file`) renders them verbatim. Example files carry regions for the guides, so drop
- * marker lines from every rendered fence.
+ * marker lines from every rendered fence. Installed through `preConfig` so it wraps the fence rule
+ * innermost: the snippet plugin, added later, loads the file into the token and then calls it.
  */
 const REGION_MARKER = /^\s*(?:\/\/|\/\*|<!--)\s*#(?:end)?region\b.*$/;
 
@@ -107,7 +108,7 @@ function stripRegionMarkers(md: { renderer: { rules: { fence?: FenceRule } } }):
 
 export default defineConfig({
   base,
-  markdown: { config: stripRegionMarkers },
+  markdown: { preConfig: stripRegionMarkers },
   lang: "en-US",
   title: "Ribo",
   description:
