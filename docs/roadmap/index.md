@@ -384,6 +384,14 @@ inspect` command: a model-free sizing report over a JSON Schema document — mea
   call counts with an agreement test apiece. Pins the versioned `--json` contract, the exit codes,
   the OpenAPI 3.0 input contract (ADR 0038), the package (ADR 0037), and the round-trip guard that
   keeps the conversion honest across zod bumps. The Tier 1 build tickets (T2–T6) implement it.
+- [Ribo CLI — Eval — Design](design/ribo-cli-eval-design.md) — the `ribo eval` command and its
+  `ribo compare` companion: a corpus-driven extraction-accuracy harness. Pins the corpus
+  directory format (manifest, one directory per case, sparse expected answers with scoped
+  defaults), the scoring taxonomy (correct / wrong / missed / hallucinated, plus unscorable) and
+  the boundary against the spike scorer, the versioned run record with its prompt-covering
+  fingerprint and four-field freshness identity (ADR 0041), the spend guard's estimate model read
+  off inspect's own `describeCalls`, the two exit codes, and the compare alignment rule. The Tier 2
+  build tickets implement it.
 
 ## Phase records
 
