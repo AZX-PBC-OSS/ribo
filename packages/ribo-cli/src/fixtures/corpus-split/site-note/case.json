@@ -1,0 +1,16 @@
+{
+  "id": "site-note",
+  "kind": "transcript",
+  "expected": {
+    "equipment.assetTag": {
+      "status": "asserted",
+      "value": "EQ-4410",
+      "sourceSpan": "EQ-4410"
+    },
+    "site.siteName": {
+      "status": "asserted",
+      "value": "Riverside Clinic",
+      "sourceSpan": "Riverside Clinic"
+    }
+  }
+}

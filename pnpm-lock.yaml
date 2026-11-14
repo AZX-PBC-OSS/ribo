@@ -408,6 +408,9 @@ importers:
 
   packages/ribo-cli:
     dependencies:
+      '@azx/ribo-chat-openai':
+        specifier: workspace:^
+        version: link:../ribo-chat-openai
       '@azx/ribo-core':
         specifier: workspace:^
         version: link:../ribo-core

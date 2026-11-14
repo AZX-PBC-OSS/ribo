@@ -1,0 +1,19 @@
+{
+  "name": "clinic-equipment",
+  "schema": "schema.json",
+  "provenance": "synthetic",
+  "prompt": {
+    "instructions": "Read the technician's note and extract the equipment's details and the site's details.",
+    "examples": [
+      {
+        "transcript": "Serviced a centrifuge, asset tag EQ-8801, model Centrifuge 4.",
+        "fields": {
+          "equipment.assetTag": "EQ-8801",
+          "equipment.model": "Centrifuge 4"
+        }
+      }
+    ],
+    "fieldDescriptions": "schema"
+  },
+  "description": "A synthetic corpus whose groups are wide enough to split under a byte cap."
+}

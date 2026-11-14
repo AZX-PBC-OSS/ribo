@@ -40,7 +40,12 @@ const _modeParity: ModeParity = true;
 export const CorpusExampleSchema = z.strictObject({
   /** The example's input text, verbatim. */
   transcript: z.string(),
-  /** The fields the example demonstrates, as the nested JSON object the assistant turn carries. */
+  /**
+   * The fields the example demonstrates, as a flat map of dotted leaf paths to
+   * plain values (e.g. `"frame.material": "steel"`). The runner translates
+   * them into the extraction target's shape — nested by group, each leaf
+   * enveloped — before they reach the prompt.
+   */
   fields: z.record(z.string(), z.unknown()),
 });
 
