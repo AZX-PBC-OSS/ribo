@@ -1,0 +1,64 @@
+# The checks this repository runs, and how fast each one is.
+# Read by the azx pack: a correction round runs the fast checks, and the run
+# before the commit runs every speed listed in `final:` below.
+
+final:
+  - fast
+  - medium
+  - slow
+
+checks:
+  - name: the tests the change touches
+    command: "pnpm vitest run {{tests}}"
+    speed: fast
+    when_changed:
+      - packages/**
+      - scripts/**
+      - playground/**
+      - examples/**
+
+  - name: the workspace type check
+    command: "pnpm typecheck"
+    speed: medium
+    when_changed:
+      - packages/**
+      - playground/**
+      - scripts/**
+      - examples/**
+      - docs/api/examples/**
+
+  - name: lint
+    command: "pnpm lint"
+    speed: medium
+
+  - name: format check
+    command: "pnpm format:check"
+    speed: medium
+
+  - name: changeset status
+    command: "pnpm changeset status --since=origin/main"
+    speed: medium
+    when_changed:
+      - packages/**
+
+  - name: the TypeDoc reference test
+    command: "node --test docs/typedoc-reference.test.mjs"
+    speed: medium
+    when_changed:
+      - packages/**
+      - docs/**
+
+  - name: the full gate
+    command: "CI=true ./check.sh"
+    speed: slow
+
+  - name: pack and consume
+    command: "pnpm test:pack-and-consume"
+    speed: slow
+    when_changed:
+      - packages/**
+      - scripts/pack-and-consume/**
+
+  - name: the built docs size
+    command: 'test "$(du -sm docs/.vitepress/dist | cut -f1)" -lt 200'
+    speed: slow
