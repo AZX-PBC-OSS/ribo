@@ -42,7 +42,6 @@
     "@azx/ribo-cli": "workspace:*",
     "@azx/tsconfig": "workspace:*",
     "@types/node": "catalog:",
-    "ajv": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

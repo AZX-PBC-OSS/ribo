@@ -1,35 +1,35 @@
 /**
- * @file A Node-only, CLI-backed {@link ChatClient} — no API key needed. It shells out to an
- * installed agentic CLI (`claude` or `codex`) instead of calling an HTTP endpoint, so it can
+ * @file The published CLI-backed `ChatClient` — no API key needed. It shells out to
+ * an installed agentic CLI (`claude` or `codex`) instead of calling an HTTP endpoint, so it can
  * produce real extraction evidence against a rebuilt schema even when the only available API
- * key is dead. It is a DEVELOPER TEST HARNESS for {@link file://./gate.manual.ts}, not a shipped
- * transport — see the "Why this lives here" note below for what that means for where it lives.
+ * key is dead. It is the transport behind `ribo eval --backend claude-cli|codex-cli`, and it is
+ * Node-only by design.
  *
- * ## Why this lives in `acceptance/`, not in `@azx/ribo-core`
+ * ## Why this lives in `@azx/ribo-cli`
  *
  * This file imports `node:child_process`, `node:fs`, `node:os`, `node:path` and `ajv` — Node
- * built-ins and a runtime dependency with no browser equivalent. `@azx/ribo-core` (which owns
- * the `ChatClient` seam this transport implements) is a PUBLISHED, browser-targeted package
- * (its tsconfig extends `browser-library.json`, and `playground/src/extractor-store.ts`
- * imports its main entry by value into the browser bundle); putting a `node:child_process`
- * import anywhere in that package's dependency graph is a defect regardless of which entry
- * point carries it, because `child_process` can never run in a browser and every consumer of
- * the package would incur `ajv` as a dependency for a code path they cannot physically
- * execute. An earlier version of this file lived in a sibling extractor package behind its
- * own `./cli-chat` published subpath — the root cause was not that some entry point was
- * wrong, but that any entry point in a browser-targeted package was wrong for Node-only
- * code.
+ * built-ins and a runtime dependency with no browser equivalent. `@azx/ribo-cli` is the
+ * workspace's Node-platform package (ADR 0037): its tsconfig extends `@azx/tsconfig/base.json`
+ * with `types: ["node"]`, and its tsdown config builds `platform: "node"` into ONE single-file
+ * bin. `node:*` imports are therefore sound HERE, while the same import anywhere in a
+ * browser-targeted package's graph — `@azx/ribo-core`, `@azx/ribo-adapter-snuggpro`,
+ * `@azx/ribo-chat-openai` — is a defect regardless of which entry point carries it, because
+ * `child_process` can never run in a browser and every consumer of such a package would incur
+ * `ajv` as a dependency for a code path they cannot physically execute. An earlier version of
+ * this file lived in a sibling extractor package behind its own published subpath — the root
+ * cause was not that some entry point was wrong, but that any entry point in a
+ * browser-targeted package was wrong for Node-only code.
  *
- * `packages/ribo-adapter-snuggpro/acceptance/` is the right home instead: it is already Node-only
- * (every file here assumes a Node runtime), already manual/opt-in (this directory is excluded
- * from `ribo-adapter-snuggpro`'s own `tsconfig.json` `include` and from its `tsdown.config.ts`
- * entry and its published `files: ["dist"]`, so this file is never typechecked, built, or shipped
- * as part of that package either), and already the sole consumer of this transport
- * ({@link file://./gate.manual.ts}). It imports `ChatClient`/`ChatCompletion`/`ChatMessage`/
- * `ChatRequest`/`ChatCallOptions` from `@azx/ribo-core`'s PUBLISHED surface as
- * type-only imports (erased at build), and `ChatError` as a value — the typed error the transport
- * now throws. See the import comment below for the coupling that value import adds and why it is
- * confined to this harness.
+ * `ajv` is a RUNTIME dependency of this package, and it is BUNDLED into the single-file bin
+ * through the tsdown config's `deps.alwaysBundle` list (ADR 0037: the bin must run with nothing
+ * installed beside it). The pack-and-consume tier asserts that the shipped bin references only
+ * `node:*` specifiers, so an unbundled `ajv` fails that gate rather than the bin at run time.
+ * No browser-targeted package depends on `@azx/ribo-cli`.
+ *
+ * The transport imports `ChatClient`/`ChatCompletion`/`ChatMessage`/`ChatRequest`/
+ * `ChatCallOptions` from `@azx/ribo-core`'s PUBLISHED surface as type-only imports (erased at
+ * build), and `ChatError` as a value — the typed error the transport now throws. See the import
+ * comment below for the coupling that value import adds and why it is confined to this package.
  *
  * ## What makes this different from `openAiChat`
  *
@@ -39,9 +39,9 @@
  * therefore does three things `openAiChat` never has to:
  *
  *   1. Puts `responseFormat.json_schema.schema` INTO the prompt, in words, as the contract the
- *      reply must satisfy (see {@link buildPrompt}) — there is no wire-level keyword to lean on.
+ *      reply must satisfy (see `buildPrompt`) — there is no wire-level keyword to lean on.
  *   2. Pulls the last balanced top-level JSON object out of the CLI's stdout — both CLIs print a
- *      banner or reasoning before the reply (see {@link extractLastJsonObject}).
+ *      banner or reasoning before the reply (see `extractLastJsonObject`).
  *   3. Validates that object against the SAME schema with ajv, and — feeding the validation
  *      error back into the next prompt — retries up to `maxAttempts` times.
  *
@@ -59,6 +59,14 @@
  * dependency for a test harness to take on an unrelated app. `runCliOnce` and
  * `extractLastJsonObject` below are therefore deliberately re-implemented rather than imported —
  * small enough functions that duplicating them costs less than that coupling would.
+ *
+ * ## Deliberately not the vendor SDKs
+ *
+ * Anthropic's terms bar third-party tools from offering claude.ai subscription login through
+ * the Claude Agent SDK without approval, and the SDK ships the Claude Code binary as platform
+ * packages that cannot go in the single-file bin; the Codex SDK is declined for the same reason
+ * of size. This transport spawns the user's own installed binaries, under the user's own login,
+ * with no API key and no new dependency.
  */
 
 import { spawn } from "node:child_process";
@@ -71,9 +79,8 @@ import type { ValidateFunction } from "ajv";
 
 // `ChatError` is a VALUE import (the typed error this transport now throws); the
 // rest are type-only, erased at build. The value import adds runtime coupling, but
-// `ribo-adapter-snuggpro` already depends on `@azx/ribo-core`, and this
-// file is never shipped (see the file header), so that coupling is confined to the
-// acceptance harness.
+// `@azx/ribo-cli` already depends on `@azx/ribo-core`, so that coupling is confined
+// to this package — and to the Node-only bin it builds.
 import { ChatError } from "@azx/ribo-core";
 import type {
   ChatCallOptions,
@@ -85,7 +92,7 @@ import type {
 
 /** Which agentic CLI to shell out to. Both are used exactly as a developer would run them
  *  interactively — this client adds no credential and no flag beyond what keeps them from
- *  touching the filesystem (see {@link CLI_BACKENDS}). */
+ *  touching the filesystem (see `CLI_BACKENDS`). */
 export type CliBackendName = "claude" | "codex";
 
 /** A CLI backend descriptor: the command to shell and the argv to build around a prompt. */
@@ -151,7 +158,7 @@ export interface CliChatOptions {
   readonly maxAttempts?: number;
   /** Fired once per `complete()` call whose CLI could be started at all, with the
    *  shape-conformance verdict. NOT fired when the CLI itself could not be run (see
-   *  {@link CliUnavailableError}) — that is a harness problem, not a verdict on output shape. */
+   *  `CliUnavailableError`) — that is a harness problem, not a verdict on output shape. */
   readonly onShapeResult?: (result: CliShapeResult) => void;
   /** Override `child_process.spawn` (tests). Defaults to the real one. */
   readonly spawnImpl?: typeof spawn;
@@ -332,7 +339,7 @@ async function runCliOnce(
 }
 
 /**
- * Build a Node-only {@link ChatClient} that shells `claude` or `codex` instead of calling an
+ * Build a Node-only `ChatClient` that shells `claude` or `codex` instead of calling an
  * HTTP endpoint. See the file header for the full contract; in short: put the schema in the
  * prompt, pull the last JSON object out of stdout, validate it with ajv against that SAME
  * schema, and retry — feeding the validation error back in — up to `maxAttempts` times.

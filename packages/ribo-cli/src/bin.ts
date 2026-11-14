@@ -35,10 +35,19 @@ import process from "node:process";
 
 import { Command, InvalidArgumentError, Option } from "commander";
 
+import type { CapableChatClient, ChatClient } from "@azx/ribo-core";
+
 import { colorsFor } from "./colors.js";
 import { loadCorpus } from "./corpus.js";
-import { createOpenAiCompatibleChat } from "./eval/backend.js";
+import { preflightCliBackend } from "./cli-preflight.js";
+import { asCapableChat } from "./eval/chat.js";
+import {
+  cliBackendNameFor,
+  createCliBackendChat,
+  createOpenAiCompatibleChat,
+} from "./eval/backend.js";
 import { runEval } from "./eval/run.js";
+import type { EvalCliBackend } from "./eval/backend.js";
 import type {
   EvalCaseResult,
   EvalConsensusArbiter,
@@ -194,8 +203,31 @@ const API_KEY_VARIABLE = "OPENAI_API_KEY";
 /** The endpoint used when the base-URL variable is unset. */
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 
-/** The backends this build can run against (the CLI backends arrive with their own ticket). */
-const EVAL_BACKENDS = ["openai-compatible"] as const;
+/** The backends this build can run against. */
+const EVAL_BACKENDS = ["openai-compatible", "claude-cli", "codex-cli"] as const;
+
+/** One backend's name, as the `--backend` flag spells it. */
+type EvalBackend = (typeof EVAL_BACKENDS)[number];
+
+/** Is this flag value one of the CLI backends — the ones that need no credential? */
+function isCliBackend(backend: string): backend is EvalCliBackend {
+  return backend === "claude-cli" || backend === "codex-cli";
+}
+
+/**
+ * The backend the flag names.
+ *
+ * Commander's own choices validation has already refused anything else; this
+ * narrows the flag's string to the three accepted values, so a backend is
+ * never silently narrowed to a default.
+ */
+function evalBackendOf(value: string): EvalBackend {
+  if ((EVAL_BACKENDS as readonly string[]).includes(value)) return value as EvalBackend;
+  failEval(
+    `unknown backend "${value}" — the accepted backends are ${EVAL_BACKENDS.join(", ")} ` +
+      "(fix: pass --backend openai-compatible, --backend claude-cli or --backend codex-cli)",
+  );
+}
 
 /**
  * The eval command's flags, as commander parsed them.
@@ -289,6 +321,18 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
         "(fix: pass --strategy single-shot, or --strategy single-shot,per-group for a ladder)",
     );
   }
+  const backend = evalBackendOf(flags.backend);
+  // The preflight runs BEFORE planning: a missing binary is reported as a
+  // missing binary, never as a corpus fault or a spend refusal. The
+  // openai-compatible backend has no binary to check, so it skips this.
+  if (isCliBackend(backend)) {
+    try {
+      await preflightCliBackend(cliBackendNameFor(backend));
+    } catch (error) {
+      if (error instanceof SchemaInspectError) failEval(error.message);
+      throw error;
+    }
+  }
   let corpus;
   try {
     corpus = loadCorpus(flags.corpus);
@@ -296,15 +340,23 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
     if (error instanceof SchemaInspectError) failEval(error.message);
     throw error;
   }
-  const apiKey = process.env[API_KEY_VARIABLE];
-  if (apiKey === undefined || apiKey.length === 0) {
-    failEval(
-      `the environment variable ${API_KEY_VARIABLE} is not set — the backend needs a credential, ` +
-        "and secrets never ride flags (fix: export the credential before running the command)",
-    );
+  // The CLI backends carry no credential and no endpoint: they spawn the
+  // operator's own installed binary. The engine id is the flag's own value,
+  // so every case's usage names the transport that produced it.
+  let chat: ChatClient | CapableChatClient;
+  if (isCliBackend(backend)) {
+    chat = asCapableChat(createCliBackendChat(backend), backend);
+  } else {
+    const apiKey = process.env[API_KEY_VARIABLE];
+    if (apiKey === undefined || apiKey.length === 0) {
+      failEval(
+        `the environment variable ${API_KEY_VARIABLE} is not set — the backend needs a credential, ` +
+          "and secrets never ride flags (fix: export the credential before running the command)",
+      );
+    }
+    const baseUrl = process.env[BASE_URL_VARIABLE] ?? DEFAULT_BASE_URL;
+    chat = createOpenAiCompatibleChat({ baseUrl, apiKey });
   }
-  const baseUrl = process.env[BASE_URL_VARIABLE] ?? DEFAULT_BASE_URL;
-  const chat = createOpenAiCompatibleChat({ baseUrl, apiKey });
   const arms: EvalArmReport[] = [];
   for (const ladder of flags.strategy.map(splitLadder)) {
     const settings = buildEvalSettings(ladder, flags);
@@ -329,12 +381,21 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
 const evalHelp = [
   "Exit codes:",
   "  0  the run finished and its report is on stdout (a case that failed is a measurement, not a fault)",
-  "  2  the command could not run: a usage error, an unreadable corpus, an invalid setting, or a missing credential",
+  "  2  the command could not run: a usage error, an unreadable corpus, an invalid setting, a missing",
+  "     credential (openai-compatible only), or a missing or non-answering CLI binary",
+  "",
+  "Backends:",
+  "  --backend names the transport the run measures against:",
+  "    openai-compatible  an OpenAI-compatible /chat/completions endpoint (needs a credential)",
+  "    claude-cli         the installed claude CLI, under your own login (no key needed)",
+  "    codex-cli          the installed codex CLI, under your own login (no key needed)",
+  "  The two CLI backends spawn the binary you have installed and preflight it with",
+  "  `<binary> --version` before the run starts, so a missing binary is reported up front.",
   "",
   "Environment (secrets never ride flags):",
   `  ${BASE_URL_VARIABLE}   the endpoint's base URL, without the trailing /chat/completions`,
   `                     (default: ${DEFAULT_BASE_URL})`,
-  `  ${API_KEY_VARIABLE}    the bearer credential — required`,
+  `  ${API_KEY_VARIABLE}    the bearer credential — required by openai-compatible only`,
   "",
   "Arms:",
   "  --strategy names one arm; repeat it to measure more arms. A comma-separated value is that arm's",

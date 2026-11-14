@@ -38,6 +38,7 @@
   "dependencies": {
     "@azx/ribo-chat-openai": "workspace:^",
     "@azx/ribo-core": "workspace:^",
+    "ajv": "catalog:",
     "commander": "catalog:",
     "picocolors": "catalog:",
     "zod": "catalog:"

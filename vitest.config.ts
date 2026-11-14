@@ -97,10 +97,9 @@ export default defineConfig({
             // `ribo-adapter-snuggpro/acceptance/` is outside that package's `src/`, so the
             // first glob above does not reach it — deliberately: its sibling
             // `gate.manual.ts` is MANUAL (needs a backend, never runs here; see its own
-            // file header and `vitest.acceptance.config.ts`). `cli-chat.test.ts` is
-            // different: it is a key-free, hermetic unit test for a Node-only developer
-            // test harness (fake `spawn`, no real CLI, no network — same shape as
-            // `openai-chat.test.ts` in `@azx/ribo-extractor-openai`), and belongs in CI.
+            // file header and `vitest.acceptance.config.ts`). The run-record tests are
+            // different: they are key-free, hermetic unit tests over plain data (no
+            // backend, no network), and belong in CI.
             // The naming convention (`*.test.ts` vs `*.manual.ts`) is what keeps the two
             // apart without needing a narrower, hand-maintained glob.
             "packages/ribo-adapter-snuggpro/acceptance/*.test.{ts,tsx}",

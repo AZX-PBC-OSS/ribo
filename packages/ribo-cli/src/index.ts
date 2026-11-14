@@ -18,6 +18,12 @@
  * over the corpus, and resolves with one result per case. The corpus enters
  * only through `loadCorpus`, so a run can never happen over a corpus that was
  * not validated.
+ *
+ * The package's fourth surface is the CLI-backed chat transport: `cliChat`
+ * shells the operator's own installed `claude`/`codex` binary instead of
+ * calling an HTTP endpoint, under the operator's own login and with no
+ * credential at all. It is the transport behind `ribo eval --backend
+ * claude-cli|codex-cli`, and it is Node-only by design.
  */
 export { CONTRACT_VERSION, SchemaInspectError, inspectSchema } from "./inspect-schema.js";
 export type { SchemaInspectOptions, SchemaInspectReport } from "./inspect-schema.js";
@@ -58,6 +64,8 @@ export type {
 export { runEval } from "./eval/run.js";
 export { createOpenAiCompatibleChat } from "./eval/backend.js";
 export { EvalError } from "./eval/error.js";
+export { cliChat } from "./cli-chat.js";
+export type { CliBackendName, CliChatOptions, CliShapeResult } from "./cli-chat.js";
 export type { OpenAiCompatibleChatOptions } from "./eval/backend.js";
 export type {
   EvalCaseResult,

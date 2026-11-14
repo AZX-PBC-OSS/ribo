@@ -8,12 +8,12 @@ import { describe, expect, test } from "vitest";
 
 import { type ChatClient, singleShotExtractor } from "@azx/ribo-core";
 import { openAiChat } from "@azx/ribo-chat-openai";
-// The CLI-backed transport — a sibling developer test harness, not part of any published
-// package (see its file header for the full contract and why it lives here rather than in
-// `@azx/ribo-core`: that package is browser-targeted and published, and a
-// `node:child_process` import has no business anywhere in its graph).
-import type { CliShapeResult } from "./cli-chat.js";
-import { cliChat } from "./cli-chat.js";
+// The CLI-backed transport — a PUBLISHED part of `@azx/ribo-cli` (the transport
+// behind `ribo eval --backend claude-cli|codex-cli`), Node-only by design. It
+// lives there rather than in `@azx/ribo-core` because that package is
+// browser-targeted and published, and a `node:child_process` import has no
+// business anywhere in its graph.
+import { cliChat, type CliShapeResult } from "@azx/ribo-cli";
 // Densify + persist. Both are pure of `docs/spikes/` and are unit-tested in CI
 // (build-run-record.test.ts, run-store.test.ts) — this file only wires them up.
 import { buildRunRecord } from "./build-run-record.js";
@@ -63,8 +63,9 @@ import {
  *     `response_format: { json_schema, strict: true }`. The endpoint itself REJECTS
  *     a non-conforming reply, so this path only ever measures CONTENT accuracy —
  *     shape is enforced server-side and can never fail here. Needs `OPENAI_API_KEY`.
- *   - `claude-cli` / `codex-cli` -> `cliChat` (`./cli-chat.ts`, a sibling of this file),
- *     which shells the `claude`/`codex` CLI already installed and authenticated on
+ *   - `claude-cli` / `codex-cli` -> `cliChat` (published by `@azx/ribo-cli`, the transport
+ *     behind `ribo eval --backend claude-cli|codex-cli`), which shells the `claude`/`codex`
+ *     CLI already installed and authenticated on
  *     this machine — NO KEY NEEDED. A CLI has no strict mode: the schema goes into
  *     the PROMPT in words, and `cliChat` finds the JSON, validates it against that
  *     same schema, and retries (feeding the validation error back in) before giving

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
 
 import { buildCliOnce } from "./test-support/build-once.js";
 
@@ -31,6 +31,13 @@ import { snuggExtractionSchema } from "@azx/ribo-adapter-snuggpro";
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const BIN = join(REPO_ROOT, "packages", "ribo-cli", "dist", "bin.js");
+
+// The bin is driven with a BLOCKING `spawnSync`, so the test's budget covers
+// the whole child process — and the node default of five seconds is tight
+// when the unit project runs its files in parallel on a loaded machine. The
+// margin is for the machine, not for slower assertions; this is the same
+// setting the package's other bin-driving suites use.
+vi.setConfig({ testTimeout: 30_000 });
 
 let dir: string;
 let documentPath: string;

@@ -131,6 +131,15 @@ function nodeBundle(entry: { index: string } | { bin: string }) {
         "rxjs",
         "commander",
         "picocolors",
+        // The CLI-backed transport's validator. ajv generates validation code at
+        // RUN TIME, so an unbundled copy would be a runtime `import "ajv"` in
+        // the shipped bin — which the pack-and-consume gate refuses, and which
+        // would break the bin at run time besides. The DEEP specifier is
+        // listed as well as the package name: the transport imports
+        // `ajv/dist/2020.js` (the 2020-12 dialect), and the bundler matches
+        // the specifier it actually sees.
+        "ajv",
+        "ajv/dist/2020.js",
       ],
     },
     entry,
