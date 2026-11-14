@@ -27,6 +27,13 @@
  *      symbol into each of the ~780 pages (which made docs/.vitepress/dist ~379 MB).
  *   6. The hand-written docs/api section is wired into the VitePress config — a nav
  *      entry and a keyed /api/ sidebar — and every page the sidebar links exists.
+ *   7. The CLI entry point's exports must all carry documentation. TypeDoc's
+ *      `validation.notDocumented` is off by default (turning it on repo-wide reports
+ *      ~1,485 pre-existing warnings in other packages), so this rule runs a SCOPED
+ *      TypeDoc over the CLI entry point alone, with `notDocumented` on and
+ *      `notExported` off. A missing doc comment then fails the run (exit 4, "… does not
+ *      have any documentation"), which is what makes "the corpus loader is documented"
+ *      a checked property rather than a convention.
  *
  * Runs on Node's built-in test runner (`node --test`) because docs/ is not a workspace
  * member and matches no vitest glob; it drives the real scripts, so `pnpm install` must
@@ -38,7 +45,8 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -254,6 +262,95 @@ test("TypeDoc warnings are fatal and the current reference emits none", () => {
     [],
     `pnpm docs:api emitted ${warnings.length} TypeDoc warnings; fix them at their cause (broken links, dropped entry points):\n  ${warnings.slice(0, 5).join("\n  ")}`,
   );
+});
+
+test("the CLI entry point's exports are all documented — a scoped TypeDoc run reports none missing", () => {
+  // The repo-wide `--validation.notDocumented` alternative is dead (it reports ~1,485
+  // pre-existing warnings in other packages), so the rule runs over the CLI entry point
+  // ALONE, with `notDocumented` on and `notExported` off (the entry point's own
+  // references to other packages' symbols are not "not exported" faults here).
+  const outDir = mkdtempSync(path.join(tmpdir(), "ribo-typedoc-"));
+  try {
+    const result = spawnSync(
+      "pnpm",
+      [
+        "exec",
+        "typedoc",
+        "--options",
+        "docs/typedoc.json",
+        "--entryPoints",
+        "packages/ribo-cli/src/index.ts",
+        "--validation.notDocumented",
+        "true",
+        "--validation.notExported",
+        "false",
+        "--requiredToBeDocumented",
+        "Function",
+        "--requiredToBeDocumented",
+        "Variable",
+        "--requiredToBeDocumented",
+        "Class",
+        "--requiredToBeDocumented",
+        "Interface",
+        "--requiredToBeDocumented",
+        "TypeAlias",
+        "--requiredToBeDocumented",
+        "Enum",
+        "--out",
+        outDir,
+      ],
+      { cwd: ROOT, encoding: "utf8" },
+    );
+    const output = (result.stdout ?? "") + (result.stderr ?? "");
+    const warnings = output.split("\n").filter((line) => line.includes("[warning]"));
+    assert.deepEqual(
+      warnings,
+      [],
+      `the scoped TypeDoc run reported warnings — an export lost its documentation:\n  ${warnings.join("\n  ")}`,
+    );
+    assert.equal(result.status, 0, `the scoped TypeDoc run failed:\n${output}`);
+
+    // The generated reference names every export the CLI entry point publishes.
+    const documented = new Set(walkMarkdownFiles(outDir).map((file) => path.basename(file, ".md")));
+    const expected = [
+      "CorpusCaptureBlock",
+      "CorpusCaptureBlockSchema",
+      "CorpusCase",
+      "CorpusCaseKind",
+      "CorpusCaseSchema",
+      "CorpusError",
+      "CorpusExample",
+      "CorpusExampleSchema",
+      "CorpusManifest",
+      "CorpusManifestSchema",
+      "CorpusPromptInputs",
+      "CorpusPromptInputsSchema",
+      "CorpusProvenance",
+      "ExpectationEntry",
+      "ExpectationEntrySchema",
+      "ExpectationStatus",
+      "ExpectationValue",
+      "ExpectationValueSchema",
+      "LoadedCase",
+      "LoadedCaseInput",
+      "LoadedCorpus",
+      "ResolvedExpectation",
+      "ResolvedExpectationOrigin",
+      "ScopedDefault",
+      "ScopedDefaultSchema",
+      "ScopedDefaultStatus",
+      "loadCorpus",
+      "resolveExpectation",
+    ];
+    const missing = expected.filter((name) => !documented.has(name));
+    assert.deepEqual(
+      missing,
+      [],
+      `the scoped reference does not name these exports: ${missing.join(", ")}`,
+    );
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
 });
 
 test("each package's reference module is titled by its package name, not its file path", () => {

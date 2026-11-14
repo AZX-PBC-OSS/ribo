@@ -1,0 +1,11 @@
+{
+  "id": "written-ticket",
+  "kind": "text",
+  "expected": {
+    "service.date": {
+      "status": "asserted",
+      "value": "2026-02-04",
+      "sourceSpan": "2026-02-04"
+    }
+  }
+}

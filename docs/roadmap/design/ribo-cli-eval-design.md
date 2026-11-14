@@ -124,6 +124,13 @@ Inside a case directory:
   addresses, one per schema field — the same paths `walkFieldInventory`
   (`packages/ribo-cli/src/inspect/field-inventory.ts:64`) produces.
 - `defaults` (array, optional) — generic scoped defaults (below).
+- `capture` (object, **required for a `document` case, forbidden for the others**) — the capture
+  metadata of a document input: `capturedAt` (an ISO 8601 datetime string) and `pageCount` (a
+  positive integer). The corpus declares what was captured, so the loader never fabricates it:
+  the loader assembles the capture record around the declared values (the case's id, the
+  document kind, the PDF MIME type the format's filename implies, and an empty context) and
+  parses it against core's own document-capture schema. A case that is not a document may not
+  carry the block at all — a capture record belongs to a document.
 
 **An expectation entry** — the value at one dotted path inside `expected` — is an object with:
 
