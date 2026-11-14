@@ -40,7 +40,7 @@ const _modeParity: ModeParity = true;
 export const CorpusExampleSchema = z.strictObject({
   /** The example's input text, verbatim. */
   transcript: z.string(),
-  /** The fields the example demonstrates, keyed by dotted leaf path. */
+  /** The fields the example demonstrates, as the nested JSON object the assistant turn carries. */
   fields: z.record(z.string(), z.unknown()),
 });
 

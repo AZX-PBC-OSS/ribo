@@ -29,7 +29,7 @@
  *      entry and a keyed /api/ sidebar — and every page the sidebar links exists.
  *   7. The CLI entry point's exports must all carry documentation. TypeDoc's
  *      `validation.notDocumented` is off by default (turning it on repo-wide reports
- *      ~1,485 pre-existing warnings in other packages), so this rule runs a SCOPED
+ *      many pre-existing warnings in other packages), so this rule runs a SCOPED
  *      TypeDoc over the CLI entry point alone, with `notDocumented` on and
  *      `notExported` off. A missing doc comment then fails the run (exit 4, "… does not
  *      have any documentation"), which is what makes "the corpus loader is documented"
@@ -265,7 +265,7 @@ test("TypeDoc warnings are fatal and the current reference emits none", () => {
 });
 
 test("the CLI entry point's exports are all documented — a scoped TypeDoc run reports none missing", () => {
-  // The repo-wide `--validation.notDocumented` alternative is dead (it reports ~1,485
+  // The repo-wide `--validation.notDocumented` alternative is dead (it reports many
   // pre-existing warnings in other packages), so the rule runs over the CLI entry point
   // ALONE, with `notDocumented` on and `notExported` off (the entry point's own
   // references to other packages' symbols are not "not exported" faults here).
