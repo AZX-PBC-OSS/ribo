@@ -63,6 +63,24 @@ export function createOpenAiCompatibleChat(options: OpenAiCompatibleChatOptions)
  */
 export type EvalCliBackend = "claude-cli" | "codex-cli";
 
+/**
+ * Every backend the eval command accepts — the openai-compatible endpoint and
+ * the two CLI backends.
+ *
+ * The list lives here, beside the transports it names, so the flag's accepted
+ * values, the price table's rows and the transports themselves cannot drift
+ * apart: a backend that has no transport has no row, and a row that names no
+ * transport cannot be priced.
+ */
+export type EvalBackendName = "openai-compatible" | EvalCliBackend;
+
+/** The backends the `--backend` flag accepts, in the order the help text lists them. */
+export const EVAL_BACKENDS: readonly EvalBackendName[] = [
+  "openai-compatible",
+  "claude-cli",
+  "codex-cli",
+];
+
 /** The flag's value → the transport's backend name → the binary it spawns. */
 const CLI_BACKEND_NAMES: Record<EvalCliBackend, CliBackendName> = {
   "claude-cli": "claude",

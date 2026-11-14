@@ -32,7 +32,6 @@
  * never ride flags.
  */
 import process from "node:process";
-
 import { Command, InvalidArgumentError, Option } from "commander";
 
 import type { CapableChatClient, ChatClient } from "@azx/ribo-core";
@@ -42,12 +41,19 @@ import { loadCorpus } from "./corpus.js";
 import { preflightCliBackend } from "./cli-preflight.js";
 import { asCapableChat } from "./eval/chat.js";
 import {
+  EVAL_BACKENDS,
   cliBackendNameFor,
   createCliBackendChat,
   createOpenAiCompatibleChat,
 } from "./eval/backend.js";
 import { runEval } from "./eval/run.js";
-import type { EvalCliBackend } from "./eval/backend.js";
+import { enforceSpendCeiling } from "./eval/spend-ceiling.js";
+import { formatSpendEstimate } from "./eval/spend-display.js";
+import { terminalConfirmation } from "./eval/spend-prompt.js";
+import { DEFAULT_MAX_SPEND_USD, estimateSpend } from "./eval/spend-guard.js";
+import { lookupSecret } from "./eval/secrets.js";
+import { validateEvalSettings } from "./eval/settings.js";
+import type { EvalCliBackend, EvalBackendName } from "./eval/backend.js";
 import type {
   EvalCaseResult,
   EvalConsensusArbiter,
@@ -116,6 +122,18 @@ const parseThreshold = (value: string): number => {
 const parseCap = (value: string): number => {
   if (!/^[1-9]\d*$/.test(value)) {
     throw new InvalidArgumentError(`expected a positive integer, but got "${value}"`);
+  }
+  return Number(value);
+};
+
+/**
+ * A spend ceiling is a non-negative dollar amount: digits, optionally with a
+ * decimal part. Anything else — a negative amount, an exponent, a currency
+ * symbol, a word — is a usage error, named after the flag.
+ */
+const parseSpend = (value: string): number => {
+  if (!/^\d+(\.\d+)?$/.test(value)) {
+    throw new InvalidArgumentError(`expected a non-negative dollar amount, but got "${value}"`);
   }
   return Number(value);
 };
@@ -203,12 +221,6 @@ const API_KEY_VARIABLE = "OPENAI_API_KEY";
 /** The endpoint used when the base-URL variable is unset. */
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 
-/** The backends this build can run against. */
-const EVAL_BACKENDS = ["openai-compatible", "claude-cli", "codex-cli"] as const;
-
-/** One backend's name, as the `--backend` flag spells it. */
-type EvalBackend = (typeof EVAL_BACKENDS)[number];
-
 /** Is this flag value one of the CLI backends — the ones that need no credential? */
 function isCliBackend(backend: string): backend is EvalCliBackend {
   return backend === "claude-cli" || backend === "codex-cli";
@@ -221,8 +233,8 @@ function isCliBackend(backend: string): backend is EvalCliBackend {
  * narrows the flag's string to the three accepted values, so a backend is
  * never silently narrowed to a default.
  */
-function evalBackendOf(value: string): EvalBackend {
-  if ((EVAL_BACKENDS as readonly string[]).includes(value)) return value as EvalBackend;
+function evalBackendOf(value: string): EvalBackendName {
+  if ((EVAL_BACKENDS as readonly string[]).includes(value)) return value as EvalBackendName;
   failEval(
     `unknown backend "${value}" — the accepted backends are ${EVAL_BACKENDS.join(", ")} ` +
       "(fix: pass --backend openai-compatible, --backend claude-cli or --backend codex-cli)",
@@ -248,6 +260,8 @@ interface EvalFlags {
   readonly responseCap?: number;
   readonly maxNullableUnionsPerGroup?: number;
   readonly maxSerializedCharsPerGroup?: number;
+  readonly maxSpend?: number;
+  readonly yes?: boolean;
 }
 
 /** One arm's report: the settings it ran under, and one result per case. */
@@ -305,14 +319,20 @@ function buildEvalSettings(ladder: readonly string[], flags: EvalFlags): EvalSet
 }
 
 /**
- * Run the eval command: load the corpus, build the backend, and run every
- * arm the `--strategy` occurrences named.
+ * Run the eval command: load the corpus, build the backend, price the run,
+ * and run every arm the `--strategy` occurrences named.
  *
  * The corpus enters only through the loader, and every refusal the loader,
- * the runner and the settings validation raise is a `SchemaInspectError` — the
- * could-not-run class — so one catch maps them all to exit 2 with the
- * diagnostic naming the cause. The report is written only once every arm has
- * finished, so a refusal on the last arm leaves stdout empty.
+ * the runner, the settings validation and the spend guard raise is a
+ * `SchemaInspectError` — the could-not-run class — so one catch maps them
+ * all to exit 2 with the diagnostic naming the cause. The report is written
+ * only once every arm has finished, so a refusal on the last arm leaves
+ * stdout empty.
+ *
+ * The order is fixed: the preflight (a missing binary is a missing binary,
+ * never a spend refusal), then the corpus, then the settings, then the
+ * credential, then the estimate — printed before any model call — and only
+ * then the run.
  */
 async function runEvalCommand(flags: EvalFlags): Promise<void> {
   if (flags.strategy.length === 0) {
@@ -340,6 +360,17 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
     if (error instanceof SchemaInspectError) failEval(error.message);
     throw error;
   }
+  // Every arm's settings are built up front: the guard prices the whole run,
+  // and an invalid setting is refused before anything is priced.
+  const settings = flags.strategy.map((ladder) => buildEvalSettings(splitLadder(ladder), flags));
+  for (const arm of settings) {
+    try {
+      validateEvalSettings(arm);
+    } catch (error) {
+      if (error instanceof SchemaInspectError) failEval(error.message);
+      throw error;
+    }
+  }
   // The CLI backends carry no credential and no endpoint: they spawn the
   // operator's own installed binary. The engine id is the flag's own value,
   // so every case's usage names the transport that produced it.
@@ -347,27 +378,53 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
   if (isCliBackend(backend)) {
     chat = asCapableChat(createCliBackendChat(backend), backend);
   } else {
-    const apiKey = process.env[API_KEY_VARIABLE];
-    if (apiKey === undefined || apiKey.length === 0) {
+    // The credential comes from the environment, or from the working
+    // directory's gitignored `.env.local`; the environment wins. The refusal
+    // names the key and both places the CLI looked.
+    const secret = lookupSecret(API_KEY_VARIABLE);
+    if (secret.value === undefined) {
       failEval(
-        `the environment variable ${API_KEY_VARIABLE} is not set — the backend needs a credential, ` +
-          "and secrets never ride flags (fix: export the credential before running the command)",
+        `the ${API_KEY_VARIABLE} credential is not set — the backend needs one, and secrets never ` +
+          `ride flags. The CLI looked in the environment and in the file ${secret.filePath} ` +
+          `(fix: export ${API_KEY_VARIABLE}, or put ${API_KEY_VARIABLE}=<key> in that file)`,
       );
     }
     const baseUrl = process.env[BASE_URL_VARIABLE] ?? DEFAULT_BASE_URL;
-    chat = createOpenAiCompatibleChat({ baseUrl, apiKey });
+    chat = createOpenAiCompatibleChat({ baseUrl, apiKey: secret.value });
+  }
+  // The spend guard: the estimate is printed before any model call, and a run
+  // over the ceiling is refused before any model call. A bound the call model
+  // cannot state refuses here too, and no flag overrides that one.
+  let estimate;
+  try {
+    estimate = estimateSpend({ corpus, arms: settings, backend });
+  } catch (error) {
+    if (error instanceof SchemaInspectError) failEval(error.message);
+    throw error;
+  }
+  writeEvalErr(formatSpendEstimate(estimate, colorsFor(process.stderr)).join("\n"));
+  const confirmation = terminalConfirmation({ input: process.stdin, output: process.stderr });
+  try {
+    await enforceSpendCeiling({
+      estimate,
+      maxSpendUsd: flags.maxSpend ?? DEFAULT_MAX_SPEND_USD,
+      yes: flags.yes === true,
+      ...(confirmation === undefined ? {} : { confirmation }),
+    });
+  } catch (error) {
+    if (error instanceof SchemaInspectError) failEval(error.message);
+    throw error;
   }
   const arms: EvalArmReport[] = [];
-  for (const ladder of flags.strategy.map(splitLadder)) {
-    const settings = buildEvalSettings(ladder, flags);
+  for (const arm of settings) {
     let results: readonly EvalCaseResult[];
     try {
-      results = await runEval(corpus, chat, settings);
+      results = await runEval(corpus, chat, arm);
     } catch (error) {
       if (error instanceof SchemaInspectError) failEval(error.message);
       throw error;
     }
-    arms.push({ settings, results });
+    arms.push({ settings: arm, results });
   }
   const report = {
     name: corpus.manifest.name,
@@ -382,7 +439,7 @@ const evalHelp = [
   "Exit codes:",
   "  0  the run finished and its report is on stdout (a case that failed is a measurement, not a fault)",
   "  2  the command could not run: a usage error, an unreadable corpus, an invalid setting, a missing",
-  "     credential (openai-compatible only), or a missing or non-answering CLI binary",
+  "     credential (openai-compatible only), a missing or non-answering CLI binary, or a refused spend",
   "",
   "Backends:",
   "  --backend names the transport the run measures against:",
@@ -395,12 +452,20 @@ const evalHelp = [
   "Environment (secrets never ride flags):",
   `  ${BASE_URL_VARIABLE}   the endpoint's base URL, without the trailing /chat/completions`,
   `                     (default: ${DEFAULT_BASE_URL})`,
-  `  ${API_KEY_VARIABLE}    the bearer credential — required by openai-compatible only`,
+  `  ${API_KEY_VARIABLE}    the bearer credential — required by openai-compatible only. Read from`,
+  "                     the environment first, then from .env.local in the working directory",
+  "                     (the environment wins; the file is gitignored and never created).",
   "",
   "Arms:",
   "  --strategy names one arm; repeat it to measure more arms. A comma-separated value is that arm's",
   "  ordered fallback ladder: --strategy single-shot,per-group runs per-group only when single-shot",
   "  fails terminally.",
+  "",
+  "Spend:",
+  "  Every run prints an upper-bound cost estimate to stderr before the first model call, and",
+  "  refuses the run — exit 2 — when the estimate is above the ceiling.",
+  `  --max-spend <usd>   the ceiling on the estimated spend (default: USD ${DEFAULT_MAX_SPEND_USD.toFixed(2)})`,
+  "  --yes               proceed even when the estimate is above the ceiling",
   "",
   "Settings:",
   "  Every flag below is optional, and an absent flag means the strategies' own default stands.",
@@ -505,6 +570,12 @@ const evalCommand = program
     "split cap: the serialized characters a piece may carry — a group over it is partitioned across calls (absent, the byte cap is off)",
     parseCap,
   )
+  .option(
+    "--max-spend <usd>",
+    `the ceiling on the estimated spend, in US dollars (default: USD ${DEFAULT_MAX_SPEND_USD.toFixed(2)})`,
+    parseSpend,
+  )
+  .option("--yes", "proceed even when the estimate is above the ceiling")
   .addHelpText("after", evalHelp)
   .action(runEvalCommand);
 

@@ -20,6 +20,17 @@ export const FIXTURE_SPLIT_CORPUS = fileURLToPath(
   new URL("../../fixtures/corpus-split", import.meta.url),
 );
 
+/**
+ * The committed flat fixture corpus — a schema with no groups at all.
+ *
+ * It exists for the spend guard: the presence-narrowed strategy has no call
+ * bound over a schema with no groups, and a guard that read "no bound" as
+ * "no calls" would price the run at nothing.
+ */
+export const FIXTURE_FLAT_CORPUS = fileURLToPath(
+  new URL("../../fixtures/corpus-flat", import.meta.url),
+);
+
 /** The temp directories this suite created, so each test cleans up after itself. */
 const temporaries: string[] = [];
 

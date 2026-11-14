@@ -1,0 +1,16 @@
+{
+  "id": "flat-note",
+  "kind": "transcript",
+  "expected": {
+    "note": {
+      "status": "asserted",
+      "value": "pump the bike",
+      "sourceSpan": "pump the bike"
+    },
+    "author": {
+      "status": "asserted",
+      "value": "Robin",
+      "sourceSpan": "Robin"
+    }
+  }
+}

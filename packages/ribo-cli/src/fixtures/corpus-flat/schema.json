@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "A single note with no groups at all.",
+  "properties": {
+    "note": {
+      "type": "string",
+      "description": "The note's own text."
+    },
+    "author": {
+      "type": "string",
+      "description": "Who wrote the note."
+    }
+  },
+  "required": ["note", "author"]
+}

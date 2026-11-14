@@ -1,0 +1,10 @@
+{
+  "name": "flat-note",
+  "schema": "schema.json",
+  "provenance": "synthetic",
+  "prompt": {
+    "instructions": "Read the note and extract its text and its author.",
+    "fieldDescriptions": "schema"
+  },
+  "description": "A synthetic corpus whose schema declares no groups, so the presence-narrowed strategy has no bound."
+}
