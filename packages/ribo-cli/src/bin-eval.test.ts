@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
@@ -136,10 +137,15 @@ interface Run {
  * The endpoint and the credential are set explicitly on every run, and the
  * request counter is reset, so each run is measured on its own.
  */
-const runBin = async (args: readonly string[], env: NodeJS.ProcessEnv = {}): Promise<Run> => {
+const runBin = async (
+  args: readonly string[],
+  env: NodeJS.ProcessEnv = {},
+  cwd?: string,
+): Promise<Run> => {
   received.length = 0;
   const child = spawn(process.execPath, [BIN, ...args], {
     env: { ...process.env, OPENAI_BASE_URL: baseUrl, OPENAI_API_KEY: "test-key", ...env },
+    ...(cwd === undefined ? {} : { cwd }),
   });
   let stdout = "";
   let stderr = "";
@@ -159,8 +165,8 @@ const runBin = async (args: readonly string[], env: NodeJS.ProcessEnv = {}): Pro
 };
 
 /** Drive `ribo eval` with the given flags. */
-const run = (args: readonly string[], env: NodeJS.ProcessEnv = {}): Promise<Run> =>
-  runBin(["eval", ...args], env);
+const run = (args: readonly string[], env: NodeJS.ProcessEnv = {}, cwd?: string): Promise<Run> =>
+  runBin(["eval", ...args], env, cwd);
 
 /** The flags every run carries: the corpus, the backend and the model. */
 const baseArgs = (corpus: string): string[] => [
@@ -179,7 +185,10 @@ test("a run over a fixture corpus emits the report and exits 0", async () => {
   const result = await run([...baseArgs(corpus), "--strategy", "single-shot"]);
 
   expect(result.status).toBe(0);
-  expect(result.stderr).toBe("");
+  // The estimate is printed before the run spends anything, so stderr is not
+  // empty on a successful run.
+  expect(result.stderr).toContain("spend estimate");
+  expect(result.stderr).not.toContain("\x1b");
   const report = JSON.parse(result.stdout) as EvalReport;
   expect(report.name).toBe("workshop-bicycles");
   expect(report.backend).toBe("openai-compatible");
@@ -320,11 +329,14 @@ test("ribo eval --help teaches the surface: flags, environment, exit codes", asy
     "--response-cap",
     "--max-nullable-unions-per-group",
     "--max-serialized-chars-per-group",
+    "--max-spend",
+    "--yes",
   ]) {
     expect(help.stdout).toContain(flag);
   }
   expect(help.stdout).toContain("OPENAI_BASE_URL");
   expect(help.stdout).toContain("OPENAI_API_KEY");
+  expect(help.stdout).toContain(".env.local");
   expect(help.stdout).toContain("Exit codes:");
   expect(help.stdout).toContain("  0 ");
   expect(help.stdout).toContain("  2 ");
@@ -451,16 +463,28 @@ test("a run with no --strategy is a usage error naming the flag", async () => {
   expect(fault.stderr).toContain("--strategy");
 });
 
-test("a missing credential exits 2 naming the variable", async () => {
+test("a missing credential exits 2 naming the variable and the places it looked", async () => {
   const corpus = corpusWithoutDocuments();
-  const fault = await run([...baseArgs(corpus), "--strategy", "single-shot"], {
-    OPENAI_API_KEY: undefined,
-  });
+  // A fresh empty working directory, so the operator's own `.env.local` can
+  // neither leak in nor make this test pass vacuously.
+  const cwd = mkdtempSync(join(tmpdir(), "ribo-eval-cwd-"));
+  try {
+    const fault = await run(
+      [...baseArgs(corpus), "--strategy", "single-shot"],
+      {
+        OPENAI_API_KEY: undefined,
+      },
+      cwd,
+    );
 
-  expect(fault.status).toBe(2);
-  expect(fault.stdout).toBe("");
-  expect(fault.stderr).toContain("OPENAI_API_KEY");
-  expect(received.length).toBe(0);
+    expect(fault.status).toBe(2);
+    expect(fault.stdout).toBe("");
+    expect(fault.stderr).toContain("OPENAI_API_KEY");
+    expect(fault.stderr).toContain(join(cwd, ".env.local"));
+    expect(received.length).toBe(0);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 // --- Diagnostics (criterion 12) ---------------------------------------------------------

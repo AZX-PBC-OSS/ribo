@@ -243,7 +243,13 @@ test.each([
     );
 
     expect(result.status).toBe(0);
-    expect(result.stderr).toBe("");
+    // The spend guard prints its estimate before the run spends anything.
+    expect(result.stderr).toContain("spend estimate");
+    expect(result.stderr).not.toContain("\x1b");
+    // The subscription backends carry a stated token-equivalent assumption,
+    // so the reader can see what the number stands on.
+    expect(result.stderr).toContain("assumption:");
+    expect(result.stderr).toContain("subscription");
 
     const report = JSON.parse(result.stdout) as EvalReport;
     expect(report.backend).toBe(binary === "claude" ? "claude-cli" : "codex-cli");
