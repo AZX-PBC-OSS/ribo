@@ -92,6 +92,20 @@ const toUsage = (usage: ExtractionUsage): EvalUsage => ({
 export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseResult[]> {
   validateEvalSettings(run.settings);
 
+  // Core's presence fill phase takes no field-descriptions option, so under
+  // "prompt" the rung would run in schema mode while the record claims prompt.
+  if (
+    run.prompt.fieldDescriptions === "prompt" &&
+    run.settings.strategies.includes("presence-narrowed")
+  ) {
+    throw new EvalError(
+      'eval: the corpus declares fieldDescriptions "prompt", and the presence-narrowed strategy ' +
+        "cannot honour it — core's presence fill phase has no field-descriptions option, so the " +
+        "run would measure schema mode under a prompt-mode record (fix: drop presence-narrowed " +
+        'from the arm, or set the manifest\'s fieldDescriptions to "schema")',
+    );
+  }
+
   const { target, groups } = buildEvalTarget(
     run.schema,
     run.prompt,

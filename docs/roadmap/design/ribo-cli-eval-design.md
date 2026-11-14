@@ -64,7 +64,9 @@ be reviewed, diffed and version-controlled as ordinary files.
 - `instructions` (string, required) — the system instructions, passed verbatim to the extraction
   target.
 - `examples` (array, optional) — the few-shot examples, each an object with a `transcript` (string)
-  and `fields` (object). Each example becomes one user/assistant turn pair in the prompt.
+  and `fields` (object) — a flat map of dotted leaf paths to plain values, which the
+  runner nests by group and envelopes into the target's shape. Each example becomes one
+  user/assistant turn pair in the prompt.
 - `fieldDescriptions` (string, optional) — the field-descriptions mode, core's own option
   (`fieldDescriptions` in `packages/ribo-core/src/extraction/field-guidance.ts:62`): `"schema"` (the
   default) or `"prompt"`. Under `"prompt"` the schema's field guidance joins the system prompt;

@@ -195,6 +195,29 @@ test("a corpus holding a document case refuses the whole run, before any model c
   expect(chat.calls.length).toBe(0);
 });
 
+test("prompt-mode field descriptions with presence-narrowed in the arm are refused before any model call", async () => {
+  const dir = copiedCorpus(corpusWithoutDocuments(), (copy) => {
+    editJson(path.join(copy, "manifest.json"), (manifest) => {
+      (manifest.prompt as Record<string, unknown>).fieldDescriptions = "prompt";
+    });
+  });
+  const corpus = loadCorpus(dir);
+  const chat = stubChat();
+
+  // Must-fail: without the refusal the presence-narrowed rung silently runs in
+  // schema mode, the ladder spends calls, and this test goes red on both counts.
+  const failure = await runEval(corpus, chat, {
+    strategies: ["per-group", "presence-narrowed"],
+    model: "ribo-test",
+  }).catch((error: unknown) => error);
+
+  expect(failure).toBeInstanceOf(EvalError);
+  const message = failure instanceof Error ? failure.message : String(failure);
+  expect(message).toContain("presence-narrowed");
+  expect(message).toContain("fieldDescriptions");
+  expect(chat.calls.length).toBe(0);
+});
+
 test("a schema the arm cannot drive is refused before any model call, naming the path", async () => {
   const dir = copiedCorpus(corpusWithoutDocuments(), (copy) => {
     editJson(path.join(copy, "schema.json"), (document) => {
