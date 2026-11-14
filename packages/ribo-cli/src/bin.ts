@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 /**
- * The `ribo` bin — a thin shell over `inspectSchema` (ADR 0037). The command
- * path is `ribo schema inspect [path]` (design §1); the document is read from
+ * The `ribo` bin — a thin shell over `inspectSchema` (ADR 0037) and over the
+ * eval runner (`ribo eval`). The command path is `ribo schema inspect [path]`
+ * (design §1); the document is read from
  * the file at `path`, or from stdin when `path` is exactly `-` or is absent
  * and stdin is piped (never a prompt, never a blocking read on a terminal).
+ *
+ * The second command, `ribo eval`, runs a corpus through the eval runner
+ * (design §6): the flags build the run's settings object, the corpus enters
+ * only through the loader, and the report goes to stdout. It owns the same
+ * two exit codes the design fixes — 0 success, 2 could-not-run — and no
+ * third.
  *
  * Output discipline (design §4): results on stdout, diagnostics on stderr.
  * The report is rendered for humans by default; `--json` emits the versioned
@@ -26,18 +33,52 @@
  */
 import process from "node:process";
 
-import { Command, InvalidArgumentError } from "commander";
+import { Command, InvalidArgumentError, Option } from "commander";
 
 import { colorsFor } from "./colors.js";
+import { loadCorpus } from "./corpus.js";
+import { createOpenAiCompatibleChat } from "./eval/backend.js";
+import { runEval } from "./eval/run.js";
+import type {
+  EvalCaseResult,
+  EvalConsensusArbiter,
+  EvalSettings,
+  EvalStrategyId,
+} from "./eval/types.js";
 import { inspectSchema, SchemaInspectError } from "./inspect-schema.js";
 import type { ThresholdRow } from "./inspect/report-schema.js";
 import { InputFault, readDocumentSource } from "./read-input.js";
 import { renderHumanReport } from "./render-human.js";
 
+/** Reports a could-not-run fault under a command's name and exits 2. Stdout stays empty. */
+function failWith(command: string, message: string): never {
+  process.stderr.write(`${command}: ${colorsFor(process.stderr).red(message)}\n`);
+  process.exit(2);
+}
+
 /** Reports a could-not-run fault and exits 2. Stdout stays empty. */
 function fail(message: string): never {
-  process.stderr.write(`ribo schema inspect: ${colorsFor(process.stderr).red(message)}\n`);
-  process.exit(2);
+  failWith("ribo schema inspect", message);
+}
+
+/** Reports a could-not-run fault of the eval command and exits 2. Stdout stays empty. */
+function failEval(message: string): never {
+  failWith("ribo eval", message);
+}
+
+/**
+ * Write a diagnostic of the eval command under its name.
+ *
+ * Commander's own usage errors go to stderr through its output configuration,
+ * so the eval command's configuration writes them here too: every diagnostic
+ * line a run of `ribo eval` produces names the command, whichever layer
+ * produced it.
+ */
+function writeEvalErr(text: string): void {
+  for (const line of text.split("\n")) {
+    if (line.length === 0) continue;
+    process.stderr.write(`ribo eval: ${line}\n`);
+  }
 }
 
 /** The one-line stderr diagnostic for a breached threshold (design §4, Decision D3). */
@@ -144,6 +185,174 @@ const inspectHelp = [
   "  ribo schema inspect --json --max-serialized-chars-per-group 32768 ./snugg.schema.json",
 ].join("\n");
 
+// --- `ribo eval` ---------------------------------------------------------------------
+
+/** The environment variable the endpoint's base URL comes from. */
+const BASE_URL_VARIABLE = "OPENAI_BASE_URL";
+/** The environment variable the bearer credential comes from. */
+const API_KEY_VARIABLE = "OPENAI_API_KEY";
+/** The endpoint used when the base-URL variable is unset. */
+const DEFAULT_BASE_URL = "https://api.openai.com/v1";
+
+/** The backends this build can run against (the CLI backends arrive with their own ticket). */
+const EVAL_BACKENDS = ["openai-compatible"] as const;
+
+/**
+ * The eval command's flags, as commander parsed them.
+ *
+ * The optional members are present exactly when their flag was passed: an
+ * absent flag means the strategies' own default stands, so the bin never
+ * copies a table of defaults into the settings it builds.
+ */
+interface EvalFlags {
+  readonly corpus: string;
+  readonly backend: string;
+  readonly model: string;
+  readonly strategy: readonly string[];
+  readonly out?: string;
+  readonly consensus?: string;
+  readonly consensusArbiter?: string;
+  readonly maxRetries?: number;
+  readonly responseCap?: number;
+  readonly maxNullableUnionsPerGroup?: number;
+  readonly maxSerializedCharsPerGroup?: number;
+}
+
+/** One arm's report: the settings it ran under, and one result per case. */
+interface EvalArmReport {
+  readonly settings: EvalSettings;
+  readonly results: readonly EvalCaseResult[];
+}
+
+/**
+ * One `--strategy` occurrence's ladder.
+ *
+ * A plain value names one strategy; a comma-separated value names the arm's
+ * ordered fallback ladder. The ids themselves are checked by the runner's own
+ * settings validation, which names the offending id.
+ */
+function splitLadder(value: string): readonly string[] {
+  return value.split(",").map((entry) => entry.trim());
+}
+
+/** Collect the repeatable `--strategy` flag: one occurrence is one arm. */
+function collectStrategy(value: string, previous: readonly string[]): readonly string[] {
+  return [...previous, value];
+}
+
+/**
+ * Build one arm's settings from the flags.
+ *
+ * Only the flags that were passed are carried: an absent flag is not
+ * forwarded, so the strategies' own defaults stand rather than a copied
+ * table.
+ */
+function buildEvalSettings(ladder: readonly string[], flags: EvalFlags): EvalSettings {
+  const splitCaps =
+    flags.maxNullableUnionsPerGroup === undefined && flags.maxSerializedCharsPerGroup === undefined
+      ? undefined
+      : {
+          ...(flags.maxNullableUnionsPerGroup === undefined
+            ? {}
+            : { maxNullableUnionsPerGroup: flags.maxNullableUnionsPerGroup }),
+          ...(flags.maxSerializedCharsPerGroup === undefined
+            ? {}
+            : { maxSerializedCharsPerGroup: flags.maxSerializedCharsPerGroup }),
+        };
+  return {
+    strategies: ladder as readonly EvalStrategyId[],
+    model: flags.model,
+    ...(flags.consensus === undefined ? {} : { consensusCandidates: Number(flags.consensus) }),
+    ...(flags.consensusArbiter === undefined
+      ? {}
+      : { consensusArbiter: flags.consensusArbiter as EvalConsensusArbiter }),
+    ...(flags.maxRetries === undefined ? {} : { maxRetries: flags.maxRetries }),
+    ...(flags.responseCap === undefined ? {} : { responseCap: flags.responseCap }),
+    ...(splitCaps === undefined ? {} : { splitCaps }),
+  };
+}
+
+/**
+ * Run the eval command: load the corpus, build the backend, and run every
+ * arm the `--strategy` occurrences named.
+ *
+ * The corpus enters only through the loader, and every refusal the loader,
+ * the runner and the settings validation raise is a `SchemaInspectError` — the
+ * could-not-run class — so one catch maps them all to exit 2 with the
+ * diagnostic naming the cause. The report is written only once every arm has
+ * finished, so a refusal on the last arm leaves stdout empty.
+ */
+async function runEvalCommand(flags: EvalFlags): Promise<void> {
+  if (flags.strategy.length === 0) {
+    failEval(
+      "the run needs at least one --strategy: name the strategy, or the ladder, the arm should try " +
+        "(fix: pass --strategy single-shot, or --strategy single-shot,per-group for a ladder)",
+    );
+  }
+  let corpus;
+  try {
+    corpus = loadCorpus(flags.corpus);
+  } catch (error) {
+    if (error instanceof SchemaInspectError) failEval(error.message);
+    throw error;
+  }
+  const apiKey = process.env[API_KEY_VARIABLE];
+  if (apiKey === undefined || apiKey.length === 0) {
+    failEval(
+      `the environment variable ${API_KEY_VARIABLE} is not set — the backend needs a credential, ` +
+        "and secrets never ride flags (fix: export the credential before running the command)",
+    );
+  }
+  const baseUrl = process.env[BASE_URL_VARIABLE] ?? DEFAULT_BASE_URL;
+  const chat = createOpenAiCompatibleChat({ baseUrl, apiKey });
+  const arms: EvalArmReport[] = [];
+  for (const ladder of flags.strategy.map(splitLadder)) {
+    const settings = buildEvalSettings(ladder, flags);
+    let results: readonly EvalCaseResult[];
+    try {
+      results = await runEval(corpus, chat, settings);
+    } catch (error) {
+      if (error instanceof SchemaInspectError) failEval(error.message);
+      throw error;
+    }
+    arms.push({ settings, results });
+  }
+  const report = {
+    name: corpus.manifest.name,
+    backend: flags.backend,
+    model: flags.model,
+    arms,
+  };
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+}
+
+const evalHelp = [
+  "Exit codes:",
+  "  0  the run finished and its report is on stdout (a case that failed is a measurement, not a fault)",
+  "  2  the command could not run: a usage error, an unreadable corpus, an invalid setting, or a missing credential",
+  "",
+  "Environment (secrets never ride flags):",
+  `  ${BASE_URL_VARIABLE}   the endpoint's base URL, without the trailing /chat/completions`,
+  `                     (default: ${DEFAULT_BASE_URL})`,
+  `  ${API_KEY_VARIABLE}    the bearer credential — required`,
+  "",
+  "Arms:",
+  "  --strategy names one arm; repeat it to measure more arms. A comma-separated value is that arm's",
+  "  ordered fallback ladder: --strategy single-shot,per-group runs per-group only when single-shot",
+  "  fails terminally.",
+  "",
+  "Settings:",
+  "  Every flag below is optional, and an absent flag means the strategies' own default stands.",
+  "  --consensus runs the whole arm as N candidates on the same backend and model.",
+  "",
+  "Examples:",
+  "  ribo eval --corpus ./corpora/workshop --backend openai-compatible --model gpt-4o --strategy single-shot",
+  "  ribo eval --corpus ./corpora/workshop --backend openai-compatible --model gpt-4o \\",
+  "      --strategy single-shot,per-group --consensus 3 --out ./runs",
+  "",
+  "The report's shape is provisional: the scored contract lands with the run records.",
+].join("\n");
+
 const program = new Command()
   .name("ribo")
   .description("Ribo's command-line tools (ADR 0037)")
@@ -191,7 +400,61 @@ schema
   .addHelpText("after", inspectHelp)
   .action(run);
 
+const evalCommand = program
+  .command("eval")
+  .description("Run a corpus through the eval runner and report what every case produced")
+  .addOption(new Option("--corpus <dir>", "the corpus directory to run over").makeOptionMandatory())
+  .addOption(
+    new Option("--backend <name>", "the backend to run against")
+      .choices([...EVAL_BACKENDS])
+      .makeOptionMandatory(),
+  )
+  .addOption(new Option("--model <id>", "the model id every call carries").makeOptionMandatory())
+  .option(
+    "--strategy <ids>",
+    "the strategy, or the comma-separated ladder, one arm measures; repeat it for more arms",
+    collectStrategy,
+    [],
+  )
+  .option(
+    "--out <dir>",
+    "the records directory the run record will be written to (this build writes nothing yet)",
+  )
+  .option(
+    "--consensus <n>",
+    "the consensus modifier's candidate count (an integer of at least two)",
+  )
+  .option(
+    "--consensus-arbiter <policy>",
+    "the consensus policy: unanimous (the default) or majority",
+  )
+  .option(
+    "--max-retries <n>",
+    "the retry budget per call, for the strategies that have one",
+    parseThreshold,
+  )
+  .option("--response-cap <n>", "the cap on generated tokens per call", parseCap)
+  .option(
+    "--max-nullable-unions-per-group <n>",
+    "split cap: the nullable unions a piece may carry — a group over it is partitioned across calls (absent, the library's own default stands)",
+    parseCap,
+  )
+  .option(
+    "--max-serialized-chars-per-group <n>",
+    "split cap: the serialized characters a piece may carry — a group over it is partitioned across calls (absent, the byte cap is off)",
+    parseCap,
+  )
+  .addHelpText("after", evalHelp)
+  .action(runEvalCommand);
+
+// Every diagnostic this command writes — its own refusals and commander's
+// usage errors alike — names the command.
+evalCommand.showHelpAfterError("run 'ribo eval --help' for the command's flags and exit codes.");
+evalCommand.configureOutput({ writeErr: writeEvalErr });
+
 // Commander's parse() reads process.argv by default. Exit codes are the
 // command's own: 0 from run(), 1 from the threshold-breach path, 2 from
-// fail() and from the exitOverride remap of every usage error.
-program.parse();
+// fail() and from the exitOverride remap of every usage error. The eval
+// command's action is asynchronous, so the program is parsed asynchronously —
+// an unhandled rejection would exit 1 and break the two-code discipline.
+await program.parseAsync();
