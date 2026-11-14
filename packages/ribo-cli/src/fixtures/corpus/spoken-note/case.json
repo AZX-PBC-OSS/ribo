@@ -1,0 +1,23 @@
+{
+  "id": "spoken-note",
+  "kind": "transcript",
+  "expected": {
+    "frame.material": {
+      "status": "asserted",
+      "value": "steel",
+      "sourceSpan": "steel frame"
+    },
+    "frame.serial": {
+      "status": "asserted",
+      "value": "BW-4471",
+      "alternatives": ["BW4471"]
+    }
+  },
+  "defaults": [
+    {
+      "scope": "service",
+      "status": "declared-absent",
+      "sourceSpan": "just a brake pad replacement"
+    }
+  ]
+}

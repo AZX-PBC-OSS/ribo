@@ -1,0 +1,21 @@
+{
+  "id": "service-sheet",
+  "kind": "document",
+  "expected": {
+    "service.notes": {
+      "status": "asserted",
+      "value": "chain replaced",
+      "sourceSpan": "chain replaced"
+    }
+  },
+  "defaults": [
+    {
+      "scope": "frame",
+      "status": "declared-absent"
+    }
+  ],
+  "capture": {
+    "capturedAt": "2026-02-11T08:15:00Z",
+    "pageCount": 1
+  }
+}

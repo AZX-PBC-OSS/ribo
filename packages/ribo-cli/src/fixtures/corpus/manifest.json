@@ -1,0 +1,22 @@
+{
+  "name": "workshop-bicycles",
+  "schema": "schema.json",
+  "provenance": "synthetic",
+  "prompt": {
+    "instructions": "Read the bicycle's workshop note and extract the frame details and the service details.",
+    "examples": [
+      {
+        "transcript": "Dropped off a steel frame, serial number BW-1000.",
+        "fields": {
+          "frame.material": "steel",
+          "frame.serial": "BW-1000"
+        }
+      }
+    ],
+    "fieldDescriptions": "schema",
+    "groupInstructions": {
+      "frame": "Extract only the frame details: the frame's material and its serial number."
+    }
+  },
+  "description": "A synthetic corpus over a bicycle-workshop schema."
+}

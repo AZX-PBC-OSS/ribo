@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "description": "A bicycle left at a community workshop.",
+  "properties": {
+    "frame": {
+      "type": "object",
+      "description": "What the frame is made of and how it is identified.",
+      "properties": {
+        "material": {
+          "type": "string",
+          "description": "The frame's material."
+        },
+        "serial": {
+          "type": "string",
+          "description": "The frame's serial number."
+        }
+      },
+      "required": ["material", "serial"]
+    },
+    "service": {
+      "type": "object",
+      "description": "What was done to the bicycle.",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "The day the work was carried out."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-form notes about the work."
+        }
+      },
+      "required": ["date", "notes"]
+    }
+  },
+  "required": ["frame", "service"]
+}
