@@ -7,18 +7,19 @@ import { test } from "vitest";
 import { type ChatClient, singleShotExtractor } from "@azx/ribo-core";
 import { openAiChat } from "@azx/ribo-chat-openai";
 
-import { cliChat } from "./cli-chat.js";
+import { cliChat } from "@azx/ribo-cli";
 import { normalizeFields, snuggProAdapter } from "../src/index.js";
 
 /**
  * Real-audio companion to `gate.manual.ts` (Asana: "Add audio files ... to extraction accuracy
  * documentation"). Runs the SAME production extraction path — `singleShotExtractor` +
  * `snuggProAdapter` + `normalizeFields` — against the real field recordings' transcripts instead of
- * the 14-transcript spike corpus. Deliberately reuses `cliChat` (this directory's own keyless CLI
- * transport) rather than reimplementing its CLI-prompt-building/shape-retry logic — see its header
- * for what that buys, and why a plain Node script can't do this: `cliChat` is TS source only, never
- * built to `dist`, so it needs vitest's transform to import at all (same reason `gate.manual.ts`
- * itself is a vitest test, not a `.mjs` script).
+ * the 14-transcript spike corpus. Deliberately reuses `cliChat` (published by `@azx/ribo-cli`,
+ * the keyless CLI transport behind `ribo eval --backend claude-cli|codex-cli`) rather than
+ * reimplementing its CLI-prompt-building/shape-retry logic — see its header for what that buys,
+ * and why a plain Node script can't do this: `cliChat` is imported by package name, so it
+ * resolves to the package's TypeScript source through vitest's `@azx/source` condition (the same
+ * reason `gate.manual.ts` itself is a vitest test, not a `.mjs` script).
  *
  * MANUAL, OPT-IN — matches every other file in this directory. Picked up by
  * `vitest.acceptance.config.ts`'s `**\/*.manual.ts` glob, so target THIS file explicitly or the

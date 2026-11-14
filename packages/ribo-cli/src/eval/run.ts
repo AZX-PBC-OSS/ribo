@@ -11,7 +11,12 @@
  * measurement, not an abort: the failure is captured, the remaining cases
  * still run, and the run resolves with both.
  */
-import type { AnnotatedTranscript, ChatClient, ExtractionUsage } from "@azx/ribo-core";
+import type {
+  AnnotatedTranscript,
+  CapableChatClient,
+  ChatClient,
+  ExtractionUsage,
+} from "@azx/ribo-core";
 import type { z } from "zod";
 
 import type { CorpusPromptInputs, LoadedCorpus } from "../corpus.js";
@@ -51,7 +56,7 @@ export interface EvalSchemaRun {
   /** The cases to run, in order. */
   readonly cases: readonly EvalCaseInput[];
   /** The transport every call goes through. */
-  readonly chat: ChatClient;
+  readonly chat: ChatClient | CapableChatClient;
   /** The arm's settings. */
   readonly settings: EvalSettings;
   /** The injectable sleep between retry attempts, so a test never waits real backoff. */
@@ -63,9 +68,14 @@ const faultMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 /** The usage, as the runner's own shape — the members core reported, and no others. */
-const toUsage = (usage: ExtractionUsage): EvalUsage => ({
+const toUsage = (usage: ExtractionUsage, engine: string): EvalUsage => ({
   calls: usage.calls,
-  ...(usage.engine === undefined ? {} : { engine: usage.engine }),
+  // `engine` is WHICH TRANSPORT produced the result. The phase-shaped
+  // strategies report it themselves; the whole-schema one does not, so the
+  // runner fills it in from the transport it injected — the same value, from
+  // the one place that knows it. Absent in the extraction's usage means "the
+  // strategy did not report it", never "no transport".
+  engine: usage.engine ?? engine,
   ...(usage.strategy === undefined ? {} : { strategy: usage.strategy }),
   ...(usage.promptTokens === undefined ? {} : { promptTokens: usage.promptTokens }),
   ...(usage.completionTokens === undefined ? {} : { completionTokens: usage.completionTokens }),
@@ -145,7 +155,7 @@ export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseRes
         // construction (they came out of a JSON Schema's parse).
         fields: result.fields,
         ...(result.raw === undefined ? {} : { raw: result.raw as EvalJsonValue }),
-        usage: toUsage(result.usage),
+        usage: toUsage(result.usage, chat.engine),
       });
     } catch (error) {
       results.push({ caseId: entry.id, status: "failed", error: faultMessage(error) });
@@ -164,6 +174,11 @@ export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseRes
  * A corpus holding a document case is refused whole, before any model call:
  * document inputs are not supported by the runner yet, and a partially-run
  * corpus would measure nothing.
+ *
+ * The transport may be a plain `ChatClient` or an already-capable one: a
+ * capable client carries its own engine id, and the run's usage reports it —
+ * which is how a run against a CLI backend records which transport produced
+ * its fields.
  * @param corpus - The loaded corpus, from `loadCorpus`.
  * @param chat - The transport every call goes through.
  * @param settings - The arm's settings.
@@ -173,7 +188,7 @@ export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseRes
  */
 export async function runEval(
   corpus: LoadedCorpus,
-  chat: ChatClient,
+  chat: ChatClient | CapableChatClient,
   settings: EvalSettings,
 ): Promise<EvalCaseResult[]> {
   validateEvalSettings(settings);

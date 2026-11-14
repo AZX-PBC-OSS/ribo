@@ -44,7 +44,10 @@ catalog:
   # ajv validates the model's output against the pasted JSON Schema — the trust
   # boundary of the `/api/extract` dev endpoint (playground/vite-extract.ts). It
   # runs in the Vite dev/preview server (Node), never in the browser bundle, so
-  # it is a devDependency of `playground` ONLY.
+  # it is a devDependency of `playground` ONLY. It is ALSO a runtime dependency
+  # of @azx/ribo-cli, whose CLI-backed transport (src/cli-chat.ts) validates a
+  # CLI's reply against the request's JSON Schema; that copy is bundled into
+  # the single-file bin (ADR 0037), so the shipped bin needs nothing beside it.
   ajv: "8.20.0"
   # On-device Whisper runtime. A `dependencies` entry of
   # @azx/ribo-transcriber-ondevice — the only package that imports it — and a

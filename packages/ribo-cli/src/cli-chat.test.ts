@@ -22,7 +22,7 @@ import type { CliShapeResult } from "./cli-chat.js";
 /** A minimal request carrying a small, real JSON Schema — enough for ajv to actually validate
  *  a reply against, which is the whole point of this transport. */
 const sampleRequest: ChatRequest = {
-  model: "n/a — the CLI ignores this",
+  model: "test-model",
   messages: [
     { role: "system", content: "SYSTEM-INSTRUCTIONS-MARKER" },
     { role: "user", content: "TRANSCRIPT-TEXT-MARKER" },
@@ -114,6 +114,14 @@ describe("cliChat — prompt carries the schema and the conversation", () => {
     expect(calls[0]!.args).toContain("--disallowed-tools");
   });
 
+  test("claude's argv carries the request's model", async () => {
+    const { spawnImpl, calls } = fakeSpawn(() => ({ stdout: '{"ok":true}' }));
+    const chat = cliChat({ backend: "claude", spawnImpl });
+    await chat.complete(sampleRequest);
+    expect(calls[0]!.args).toContain("--model");
+    expect(calls[0]!.args).toContain("test-model");
+  });
+
   test("codex's argv runs the keyless read-only sandbox", async () => {
     const { spawnImpl, calls } = fakeSpawn(() => ({ stdout: '{"ok":true}' }));
     const chat = cliChat({ backend: "codex", spawnImpl });
@@ -122,6 +130,14 @@ describe("cliChat — prompt carries the schema and the conversation", () => {
     expect(calls[0]!.args).toEqual(
       expect.arrayContaining(["exec", "--skip-git-repo-check", "--sandbox", "read-only"]),
     );
+  });
+
+  test("codex's argv carries the request's model", async () => {
+    const { spawnImpl, calls } = fakeSpawn(() => ({ stdout: '{"ok":true}' }));
+    const chat = cliChat({ backend: "codex", spawnImpl });
+    await chat.complete(sampleRequest);
+    expect(calls[0]!.args).toContain("-m");
+    expect(calls[0]!.args).toContain("test-model");
   });
 });
 

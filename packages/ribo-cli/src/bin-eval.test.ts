@@ -352,6 +352,16 @@ test("a usage error exits 2 with an empty stdout", async () => {
   }
 });
 
+test("an unrecognised --backend names every accepted backend", async () => {
+  const fault = await run(["--backend", "nope"]);
+
+  expect(fault.status).toBe(2);
+  expect(fault.stdout).toBe("");
+  for (const backend of ["openai-compatible", "claude-cli", "codex-cli"]) {
+    expect(fault.stderr).toContain(backend);
+  }
+});
+
 test("an unreadable corpus path exits 2 naming the path", async () => {
   const missing = join(REPO_ROOT, "packages", "ribo-cli", "no-such-corpus");
   const fault = await run([...baseArgs(missing), "--strategy", "single-shot"]);

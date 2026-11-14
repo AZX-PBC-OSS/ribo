@@ -334,9 +334,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
-      ajv:
-        specifier: 'catalog:'
-        version: 8.20.0
       publint:
         specifier: 'catalog:'
         version: 0.3.25
@@ -414,6 +411,9 @@ importers:
       '@azx/ribo-core':
         specifier: workspace:^
         version: link:../ribo-core
+      ajv:
+        specifier: 'catalog:'
+        version: 8.20.0
       commander:
         specifier: 'catalog:'
         version: 15.1.0

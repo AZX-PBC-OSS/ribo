@@ -18,11 +18,22 @@
   // Listing files individually keeps that exclusion visible instead of hiding it
   // in an `exclude` block — and it is the constraint that keeps buildRunRecord a
   // pure function over plain data rather than an importer of the scorer.
+  //
+  // `src` is listed because `extract-real.manual.ts` — the real-audio companion —
+  // imports the adapter's OWN published surface (`normalizeFields`,
+  // `snuggProAdapter`) from `../src/index.js`. A composite project refuses a file
+  // it does not list (TS6307), so the adapter's source has to be part of THIS
+  // project for that import to typecheck. The published browser project
+  // (`tsconfig.src.json`) still checks the same files under the STRICT settings —
+  // no Node types — so nothing is checked more loosely than before; this project
+  // simply compiles them a second time, under the harness's own settings, because
+  // the harness uses them.
   "include": [
-    "acceptance/cli-chat.ts",
+    "acceptance/extract-real.manual.ts",
     "acceptance/run-record.ts",
     "acceptance/build-run-record.ts",
     "acceptance/run-store.ts",
-    "acceptance/*.test.ts"
+    "acceptance/*.test.ts",
+    "src"
   ]
 }

@@ -128,7 +128,7 @@ export interface ChatUsage {
  * must never return a completion with an absent `finishReason` — a response whose
  * `choices[0].finish_reason` is missing, non-string, or not one of the three known
  * members is a {@link ChatError} of kind `malformed-response`, not a completion with
- * the field left off. `ribo-adapter-snuggpro/acceptance/cli-chat.ts`
+ * the field left off. `@azx/ribo-cli`'s `cli-chat.ts`
  * cannot truncate, so its inability to report a finish reason is sound.
  * @category Extraction
  */

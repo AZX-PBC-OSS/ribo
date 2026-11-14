@@ -13,8 +13,9 @@ quality without inference), and it is why the gate is **opt-in by nature**: it l
 under its own `vitest.acceptance.config.ts`, is **not** part of `./check.sh`, and is
 **not** matched by any Vitest project the gate runs (`*.manual.ts`, and outside
 `src/`). The key-free unit tests for the extractor now live in `@azx/ribo-core`
-(`single-shot.test.ts`), in `@azx/ribo-chat-openai` (`openai-chat.test.ts`) and here
-(`cli-chat.test.ts`) — request shape, trust boundary, transient-failure
+(`single-shot.test.ts`), in `@azx/ribo-chat-openai` (`openai-chat.test.ts`) and in
+`@azx/ribo-cli` (`packages/ribo-cli/src/cli-chat.test.ts`, which is where the CLI
+transport itself is published) — request shape, trust boundary, transient-failure
 classification, the CLI shape-conformance retry loop — and are the parts that run in
 CI.
 
@@ -25,6 +26,9 @@ CI.
 | `openai` (default)        | `openAiChat` — real OpenAI-compatible endpoint | yes (`OPENAI_API_KEY`) | the endpoint, server-side (`response_format.json_schema`, `strict: true`) |
 | `claude-cli`              | `cliChat` shelling the installed `claude` CLI  | no                     | `cliChat` itself, client-side (ajv, with retry)                           |
 | `codex-cli`               | `cliChat` shelling the installed `codex` CLI   | no                     | `cliChat` itself, client-side (ajv, with retry)                           |
+
+`cliChat` is published by `@azx/ribo-cli` (the transport behind `ribo eval --backend
+claude-cli|codex-cli`); this gate imports it by package name.
 
 Without `OPENAI_API_KEY` set AND `RIBO_ACCEPTANCE_BACKEND` left at its `openai`
 default, the whole suite **skips** (it never fails for lack of a key). The CLI
@@ -68,6 +72,17 @@ RIBO_ACCEPTANCE_BACKEND=claude-cli \
 RIBO_ACCEPTANCE_BACKEND=codex-cli \
   pnpm exec vitest run --config packages/ribo-adapter-snuggpro/vitest.acceptance.config.ts
 ```
+
+The **key-free smoke** for the two CLI backends — one live call per backend, against
+the real installed binary, skipping cleanly when that binary is missing — is a
+separate file, so it can be run without the paid gate:
+
+```bash
+pnpm exec vitest run --config packages/ribo-adapter-snuggpro/vitest.acceptance.config.ts cli-backends-smoke
+```
+
+It imports `cliChat` from `@azx/ribo-cli` by the same specifier the gate above
+uses, so a broken gate import shows up here first — before a paid run.
 
 Per-transcript extractor output is written to `acceptance/results/<backend-label>/NN-*.json`
 (gitignored — `<backend-label>` is the OpenAI model id for `openai`, or the backend id

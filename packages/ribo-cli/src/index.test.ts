@@ -121,6 +121,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "SchemaInspectError",
     "SchemaInspectReportSchema",
     "ScopedDefaultSchema",
+    "cliChat",
     "cliVersion",
     "coreVersion",
     "createOpenAiCompatibleChat",
@@ -129,4 +130,15 @@ test("the barrel exports the package's public runtime surface", () => {
     "resolveExpectation",
     "runEval",
   ]);
+});
+
+test("the CLI transport's internals stay off the public surface", () => {
+  // The transport's public surface is exactly four names: the client and its
+  // three types. The JSON extractor is an internal helper of the package, and
+  // the preflight is the bin's own up-front check — neither is a consumer's
+  // business, and the exact list above already implies both. The named
+  // assertions document the invariant.
+  expect("extractLastJsonObject" in cli).toBe(false);
+  expect("preflightCliBackend" in cli).toBe(false);
+  expect(typeof cli.cliChat).toBe("function");
 });

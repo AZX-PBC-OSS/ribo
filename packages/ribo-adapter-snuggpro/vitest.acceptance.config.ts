@@ -33,8 +33,9 @@ export default defineConfig({
         root: repoRoot,
         server: { fs: { allow: [repoRoot] } },
         // Resolve `@azx/*` workspace imports to their `src/` — the gate imports
-        // `@azx/ribo-chat-openai` and `@azx/ribo-core` by name (the extractor
-        // graduated out of this adapter). This is a NODE-environment project, so the condition MUST be
+        // `@azx/ribo-chat-openai`, `@azx/ribo-core` and `@azx/ribo-cli` by name (the extractor
+        // graduated out of this adapter, and the CLI-backed transport is published by the CLI
+        // package). This is a NODE-environment project, so the condition MUST be
         // `ssr.resolve.conditions`, not plain `resolve.conditions`: node tests go
         // through Vite's SSR pipeline. Same reasoning (and the same verified caveat)
         // as the root `vitest.config.ts` `unit` project. Without it the entry
