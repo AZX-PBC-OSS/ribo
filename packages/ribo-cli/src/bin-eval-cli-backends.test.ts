@@ -265,6 +265,12 @@ test.each([
     expect(calls).toHaveLength(4);
     expect(promptOf(calls[1]!)).toContain("JSON SCHEMA:");
     expect(promptOf(calls[2]!)).toContain("did NOT conform");
+    // The model flag reaches the binary the backend was asked for.
+    const modelFlag = binary === "claude" ? "--model" : "-m";
+    const extractionArgv = calls[1]!;
+    const flagIndex = extractionArgv.indexOf(modelFlag);
+    expect(flagIndex).toBeGreaterThan(-1);
+    expect(extractionArgv[flagIndex + 1]).toBe("ribo-test");
   },
 );
 

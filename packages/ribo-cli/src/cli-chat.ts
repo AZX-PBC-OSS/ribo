@@ -98,7 +98,7 @@ export type CliBackendName = "claude" | "codex";
 /** A CLI backend descriptor: the command to shell and the argv to build around a prompt. */
 interface CliDescriptor {
   readonly cmd: string;
-  readonly buildArgs: (prompt: string) => readonly string[];
+  readonly buildArgs: (prompt: string, model: string) => readonly string[];
 }
 
 const CLI_BACKENDS: Record<CliBackendName, CliDescriptor> = {
@@ -110,9 +110,11 @@ const CLI_BACKENDS: Record<CliBackendName, CliDescriptor> = {
   // text` keeps stdout plain so `extractLastJsonObject` sees the reply, not a JSON envelope.
   claude: {
     cmd: "claude",
-    buildArgs: (prompt) => [
+    buildArgs: (prompt, model) => [
       "-p",
       prompt,
+      "--model",
+      model,
       "--output-format",
       "text",
       "--permission-mode",
@@ -124,7 +126,15 @@ const CLI_BACKENDS: Record<CliBackendName, CliDescriptor> = {
   // The keyless codex invocation: read-only sandbox, no git-repo check (the temp cwd is not one).
   codex: {
     cmd: "codex",
-    buildArgs: (prompt) => ["exec", "--skip-git-repo-check", "--sandbox", "read-only", prompt],
+    buildArgs: (prompt, model) => [
+      "exec",
+      "--skip-git-repo-check",
+      "--sandbox",
+      "read-only",
+      "-m",
+      model,
+      prompt,
+    ],
   },
 };
 
@@ -267,6 +277,7 @@ async function runCliOnce(
   descriptor: CliDescriptor,
   spawnImpl: typeof spawn,
   prompt: string,
+  model: string,
   timeoutMs: number,
   backendLabel: string,
   signal?: AbortSignal,
@@ -274,7 +285,7 @@ async function runCliOnce(
   const cwd = mkdtempSync(join(tmpdir(), "ribo-cli-chat-"));
   try {
     return await new Promise<string>((resolvePromise, reject) => {
-      const child = spawnImpl(descriptor.cmd, [...descriptor.buildArgs(prompt)], {
+      const child = spawnImpl(descriptor.cmd, [...descriptor.buildArgs(prompt, model)], {
         cwd,
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -394,6 +405,7 @@ export function cliChat(options: CliChatOptions): ChatClient {
             descriptor,
             spawnImpl,
             prompt,
+            request.model,
             timeoutMs,
             backend,
             callOptions?.signal,
