@@ -1,5 +1,5 @@
 ---
-"@azx/ribo-cli": patch
+"@azx/ribo-cli": minor
 ---
 
 The CLI-backed chat transport is now part of this package's public API. `cliChat` — with its `CliChatOptions`, `CliBackendName` and `CliShapeResult` types — moves here from the Snugg adapter's unpublished acceptance tree, where it was unreachable to a consumer; it shells the operator's own installed `claude` or `codex` binary, under the operator's own login, with no credential. `ajv` becomes a runtime dependency of this package, bundled into the single-file bin.
