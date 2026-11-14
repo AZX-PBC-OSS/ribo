@@ -11,6 +11,13 @@
  * run is measured over — `loadCorpus` reads a corpus directory and returns it
  * fully validated, and the zod schemas the format is written against are
  * exported beside it, so a writer and the loader cannot drift apart.
+ *
+ * The package's third surface is the eval runner: `runEval` takes a loaded
+ * corpus, a chat client and one settings object, runs one arm — an ordered
+ * ladder of core's strategies, optionally wrapped in the consensus modifier —
+ * over the corpus, and resolves with one result per case. The corpus enters
+ * only through `loadCorpus`, so a run can never happen over a corpus that was
+ * not validated.
  */
 export { CONTRACT_VERSION, SchemaInspectError, inspectSchema } from "./inspect-schema.js";
 export type { SchemaInspectOptions, SchemaInspectReport } from "./inspect-schema.js";
@@ -48,3 +55,16 @@ export type {
   ScopedDefault,
   ScopedDefaultStatus,
 } from "./corpus.js";
+export { runEval } from "./eval/run.js";
+export { createOpenAiCompatibleChat } from "./eval/backend.js";
+export { EvalError } from "./eval/error.js";
+export type { OpenAiCompatibleChatOptions } from "./eval/backend.js";
+export type {
+  EvalCaseResult,
+  EvalConsensusArbiter,
+  EvalJsonValue,
+  EvalSettings,
+  EvalSplitCaps,
+  EvalStrategyId,
+  EvalUsage,
+} from "./eval/types.js";

@@ -36,6 +36,7 @@
     "build": "tsdown"
   },
   "dependencies": {
+    "@azx/ribo-chat-openai": "workspace:^",
     "@azx/ribo-core": "workspace:^",
     "commander": "catalog:",
     "picocolors": "catalog:",

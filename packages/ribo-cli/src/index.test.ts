@@ -115,6 +115,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "CorpusExampleSchema",
     "CorpusManifestSchema",
     "CorpusPromptInputsSchema",
+    "EvalError",
     "ExpectationEntrySchema",
     "ExpectationValueSchema",
     "SchemaInspectError",
@@ -122,8 +123,10 @@ test("the barrel exports the package's public runtime surface", () => {
     "ScopedDefaultSchema",
     "cliVersion",
     "coreVersion",
+    "createOpenAiCompatibleChat",
     "inspectSchema",
     "loadCorpus",
     "resolveExpectation",
+    "runEval",
   ]);
 });

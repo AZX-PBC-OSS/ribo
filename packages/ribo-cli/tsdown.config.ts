@@ -124,6 +124,7 @@ function nodeBundle(entry: { index: string } | { bin: string }) {
     plugins: [singleFile()],
     deps: {
       alwaysBundle: [
+        "@azx/ribo-chat-openai",
         "@azx/ribo-core",
         "@azx/ribo-core/package.json",
         "zod",
