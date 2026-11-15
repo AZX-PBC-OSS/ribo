@@ -24,7 +24,9 @@ export interface StubChatOptions {
   readonly absentLeaves?: readonly string[];
   /**
    * A leaf's value, by dotted path (`"frame.material"`). A path the stub does
-   * not know keeps its default value.
+   * not know keeps its default value. An explicit `null` is an answer — the
+   * leaf was answered with nothing — so the override is read by its own
+   * property, never by its truthiness.
    */
   readonly values?: Readonly<Record<string, unknown>>;
   /** The source span every envelope carries. Defaults to `"sample"`. */
@@ -84,6 +86,19 @@ const sampleValue = (node: SchemaNode): unknown => {
 };
 
 /**
+ * Does the stub hold an override for this path?
+ *
+ * The check is by own property, not by truthiness: an override of `null` is
+ * an answer with no value in it — the leaf was answered with nothing — and
+ * `??` would fall through to the sample value instead.
+ * @param options - How the stub answers.
+ * @param path - The dotted path to look up.
+ * @returns Whether the stub holds an override for that path.
+ */
+const hasOverride = (options: StubChatOptions, path: string): boolean =>
+  options.values !== undefined && Object.prototype.hasOwnProperty.call(options.values, path);
+
+/**
  * Build a value conforming to a node, at a dotted path.
  *
  * The path is the one the overrides are keyed by: the request's own root, so
@@ -92,7 +107,9 @@ const sampleValue = (node: SchemaNode): unknown => {
  */
 const conform = (node: SchemaNode, path: string, options: StubChatOptions): unknown => {
   if (isEnvelope(node)) {
-    const value = options.values?.[path] ?? sampleValue(propertiesOf(node)["value"] ?? {});
+    const value = hasOverride(options, path)
+      ? options.values?.[path]
+      : sampleValue(propertiesOf(node)["value"] ?? {});
     return { value, confidence: 0.9, sourceSpan: options.sourceSpan ?? "sample" };
   }
   const properties = propertiesOf(node);

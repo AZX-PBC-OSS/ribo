@@ -24,6 +24,12 @@
  * calling an HTTP endpoint, under the operator's own login and with no
  * credential at all. It is the transport behind `ribo eval --backend
  * claude-cli|codex-cli`, and it is Node-only by design.
+ *
+ * The package's fifth surface is the scorer: `scoreEvalRun` judges one run
+ * against one loaded corpus, leaf by leaf, and returns a dense grid of
+ * per-cell verdicts beside the three rates — the answer rate and the two
+ * accuracies, always together, because any two of them read as a
+ * contradiction when the third is missing.
  */
 export { CONTRACT_VERSION, SchemaInspectError, inspectSchema } from "./inspect-schema.js";
 export type { SchemaInspectOptions, SchemaInspectReport } from "./inspect-schema.js";
@@ -62,6 +68,16 @@ export type {
   ScopedDefaultStatus,
 } from "./corpus.js";
 export { runEval } from "./eval/run.js";
+export { scoreEvalRun } from "./eval/score.js";
+export { EVAL_VERDICTS } from "./eval/score-types.js";
+export type {
+  EvalCell,
+  EvalScore,
+  EvalScoreTotals,
+  EvalVerdict,
+  ScoredCase,
+} from "./eval/score-types.js";
+export { RETIRED_VERDICT_TRANSLATION } from "./eval/retired-verdicts.js";
 export { createOpenAiCompatibleChat } from "./eval/backend.js";
 export { EvalError } from "./eval/error.js";
 export { cliChat } from "./cli-chat.js";

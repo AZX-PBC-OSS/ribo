@@ -90,12 +90,16 @@ const longestCoveringDefault = (
  * unmentioned rather than throwing, because the caller decides which leaves
  * it asks about. The path itself is not re-validated here — the loader has
  * already refused a path that is not a leaf of the schema.
- * @param caseFile - The case whose expectations are resolved.
+ * @param caseFile - The case whose expectations are resolved — its expected
+ *   map and its scoped defaults, which is all the rule reads.
  * @param leafPath - The dotted leaf path to resolve.
  * @returns The leaf's resolved expectation.
  * @category Eval
  */
-export function resolveExpectation(caseFile: CorpusCase, leafPath: string): ResolvedExpectation {
+export function resolveExpectation(
+  caseFile: Pick<CorpusCase, "expected" | "defaults">,
+  leafPath: string,
+): ResolvedExpectation {
   const explicit = caseFile.expected[leafPath];
   if (explicit) {
     if (explicit.status === "asserted") {

@@ -115,9 +115,11 @@ test("the barrel exports the package's public runtime surface", () => {
     "CorpusExampleSchema",
     "CorpusManifestSchema",
     "CorpusPromptInputsSchema",
+    "EVAL_VERDICTS",
     "EvalError",
     "ExpectationEntrySchema",
     "ExpectationValueSchema",
+    "RETIRED_VERDICT_TRANSLATION",
     "SchemaInspectError",
     "SchemaInspectReportSchema",
     "ScopedDefaultSchema",
@@ -129,6 +131,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "loadCorpus",
     "resolveExpectation",
     "runEval",
+    "scoreEvalRun",
   ]);
 });
 
