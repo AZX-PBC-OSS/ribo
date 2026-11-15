@@ -93,7 +93,7 @@ command below is run from the repo root and has been verified against this tree.
 
 ```bash
 pnpm install                          # bootstrap the workspace
-./check.sh                            # THE "am I done?" signal — see §7 for the full stage list
+./check.sh                            # THE everyday "am I done?" signal — §7 and .azx/checks.yaml give the full bar
 pnpm build:packages                   # build all publishable packages (tsdown)
 pnpm target:refresh                   # regenerate the syntax floor from browserslist
 pnpm --filter playground dev          # dev server on http://localhost:5173
@@ -644,6 +644,12 @@ Checklist:
   is not the same as coverage: the `typecheck` script above is what gets it into the gate.
 
 ## 7. Definition of done
+
+**The full bar is `.azx/checks.yaml`.** It lists every check this repo gates on, each with a speed
+(`fast`, `medium`, `slow`), and its `final:` list is what must pass before a commit. An agent
+deciding how to check a change uses that file rather than restating commands from this section:
+the fast check while iterating, every speed in `final:` before claiming done. The paragraphs below
+explain what the checks are and why the bar has more than one step.
 
 **`./check.sh` is green.** It runs typecheck → lint → format:check → build:packages → snugg:inspect → resolve →
 build:app → docs:build → pkg:gates → snugg:drift → skips:tracked → score:mutations → test and prints a
