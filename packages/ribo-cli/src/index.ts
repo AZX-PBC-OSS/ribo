@@ -43,6 +43,13 @@
  * copy of that arithmetic, so a consumer outside the CLI (the accuracy-page
  * generator, the gate wrapper) judges staleness by the same code the run
  * used.
+ *
+ * The package's seventh surface is the comparison: `compareEvalRunRecords`
+ * lines two run records up and reports the identity fields they differ on
+ * (the axes), the leaf intersection with each side's exclusion counts, and
+ * every differing cell pair with both sides' persisted cells — the
+ * computation behind the `ribo compare` command and behind a multi-arm
+ * `ribo eval` run's cross-arm summary.
  */
 export { CONTRACT_VERSION, SchemaInspectError, inspectSchema } from "./inspect-schema.js";
 export type { SchemaInspectOptions, SchemaInspectReport } from "./inspect-schema.js";
@@ -114,6 +121,21 @@ export {
   readEvalRunRecords,
   writeEvalRunRecord,
 } from "./eval/record-store.js";
+export {
+  EVAL_COMPARE_AXES,
+  EVAL_COMPARE_CONTRACT_VERSION,
+  EvalCompareDifferenceSchema,
+  EvalCompareReportSchema,
+  EvalCompareSideSchema,
+} from "./eval/compare-report.js";
+export { compareEvalRunRecords } from "./eval/compare.js";
+export type {
+  EvalCompareAxis,
+  EvalCompareDifference,
+  EvalCompareReport,
+  EvalCompareSide,
+} from "./eval/compare-report.js";
+export type { EvalCompareOptions } from "./eval/compare.js";
 export { cliChat } from "./cli-chat.js";
 export type { CliBackendName, CliChatOptions, CliShapeResult } from "./cli-chat.js";
 export type { OpenAiCompatibleChatOptions } from "./eval/backend.js";

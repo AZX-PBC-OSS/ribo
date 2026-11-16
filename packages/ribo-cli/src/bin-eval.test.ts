@@ -20,6 +20,7 @@ import {
   readEvalRunRecords,
   runFingerprint,
 } from "./index.js";
+import type { EvalScoreTotals } from "./index.js";
 import { replyForSchema } from "./eval/test-support/stub-chat.js";
 import {
   FIXTURE_CORPUS,
@@ -518,6 +519,74 @@ test("a malformed record beside the run's own exits 2, naming the file", async (
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
+});
+
+// --- The cross-arm comparison summary (T14a) ---------------------------------------
+
+/** The counters a totals line carries, in the record's own names. */
+const TOTAL_COUNTERS = [
+  "cases",
+  "correct",
+  "wrong",
+  "missed",
+  "hallucinated",
+  "unscorable",
+  "judged",
+  "answered",
+] as const;
+
+/** A record's totals, as the summary's one `name=value` totals line renders them. */
+const totalsLineOf = (record: { readonly totals: EvalScoreTotals }): string =>
+  TOTAL_COUNTERS.map((key) => `${key}=${record.totals[key]}`).join(" ");
+
+test("a multi-arm run prints one cross-arm comparison summary to stderr, naming every arm", async () => {
+  const corpus = corpusWithoutDocuments();
+  const out = mkdtempSync(join(tmpdir(), "ribo-eval-out-"));
+  try {
+    const result = await run([
+      ...baseArgs(corpus),
+      "--strategy",
+      "single-shot",
+      "--strategy",
+      "per-group",
+      "--out",
+      out,
+    ]);
+    expect(result.status).toBe(0);
+
+    // The stdout report keeps its shipped shape: still the run's JSON.
+    const report = JSON.parse(result.stdout) as EvalReport;
+    expect(report.arms).toHaveLength(2);
+
+    // Every arm's ladder is named in the summary.
+    expect(result.stderr).toContain("cross-arm comparison");
+    expect(result.stderr).toContain("single-shot");
+    expect(result.stderr).toContain("per-group");
+
+    // The summary's per-arm totals equal the totals in the records the run
+    // wrote to the same directory — the summary renders those records.
+    const records = readEvalRunRecords(out);
+    expect(records).toHaveLength(2);
+    const summaryTotals = [...result.stderr.matchAll(/(?:left|right) totals\s+(.*)/g)].map(
+      (match) => match[1]!,
+    );
+    expect(summaryTotals).toHaveLength(2);
+    expect(summaryTotals.sort()).toEqual(
+      [totalsLineOf(records[0]!), totalsLineOf(records[1]!)].sort(),
+    );
+    // And the summary is not the stdout report: the JSON stays clean.
+    expect(result.stdout).not.toContain("cross-arm comparison");
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test("a single-arm run emits no cross-arm comparison summary", async () => {
+  const corpus = corpusWithoutDocuments();
+  const result = await run([...baseArgs(corpus), "--strategy", "single-shot"]);
+
+  expect(result.status).toBe(0);
+  expect(result.stderr).not.toContain("cross-arm comparison");
 });
 
 // --- --help (criterion 6) ---------------------------------------------------------------

@@ -11,9 +11,19 @@
  * only through the loader, and the report goes to stdout. Each arm's run is
  * scored and persisted as a run record — under `./ribo-eval-runs/` beside the
  * working directory, or the directory `--out` names — and the report is
- * written only once every arm's record has landed. It owns the same
- * two exit codes the design fixes — 0 success, 2 could-not-run — and no
- * third.
+ * written only once every arm's record has landed. A multi-arm run emits a
+ * cross-arm comparison summary on stderr, built from the same in-memory
+ * records the run persisted and rendered by the same code `ribo compare`
+ * renders with. It owns the same two exit codes the design fixes — 0
+ * success, 2 could-not-run — and no third.
+ *
+ * The third command, `ribo compare`, lines two persisted run records up
+ * (design §7): it reads exactly the two record files it is named — records
+ * `ribo eval` wrote — compares them through the exported comparison, and
+ * renders for humans by default or as the versioned `--json` contract. A difference is a finding,
+ * never a failure; the refusals — differing corpora without the override,
+ * no shared leaf, no shared case — are could-not-run faults. It owns the
+ * two exit codes, and no third.
  *
  * Output discipline (design §4): results on stdout, diagnostics on stderr.
  * The report is rendered for humans by default; `--json` emits the versioned
@@ -35,6 +45,7 @@
  * never ride flags.
  */
 import process from "node:process";
+import { readFileSync } from "node:fs";
 import { Command, InvalidArgumentError, Option } from "commander";
 
 import type { CapableChatClient, ChatClient } from "@azx/ribo-core";
@@ -52,6 +63,10 @@ import {
 import { runEval } from "./eval/run.js";
 import { scoreEvalRun } from "./eval/score.js";
 import { buildEvalRunRecord } from "./eval/record-build.js";
+import { compareEvalRunRecords } from "./eval/compare.js";
+import { renderCompareReport } from "./eval/render-compare.js";
+import type { EvalRunRecord, EvalRunRecordDraft } from "./eval/record-schema.js";
+import { EvalRunRecordSchema } from "./eval/record-schema.js";
 import { EVAL_RUN_RECORDS_DEFAULT_DIR, writeEvalRunRecord } from "./eval/record-store.js";
 import { enforceSpendCeiling } from "./eval/spend-ceiling.js";
 import { formatSpendEstimate } from "./eval/spend-display.js";
@@ -86,6 +101,23 @@ function fail(message: string): never {
 /** Reports a could-not-run fault of the eval command and exits 2. Stdout stays empty. */
 function failEval(message: string): never {
   failWith("ribo eval", message);
+}
+
+/** Reports a could-not-run fault of the compare command and exits 2. Stdout stays empty. */
+function failCompare(message: string): never {
+  failWith("ribo compare", message);
+}
+
+/**
+ * Write a diagnostic of the compare command under its name, the pattern the
+ * eval command's `writeEvalErr` sets: every diagnostic line a run of `ribo
+ * compare` produces names the command, whichever layer produced it.
+ */
+function writeCompareErr(text: string): void {
+  for (const line of text.split("\n")) {
+    if (line.length === 0) continue;
+    process.stderr.write(`ribo compare: ${line}\n`);
+  }
 }
 
 /**
@@ -281,6 +313,8 @@ interface EvalArmReport {
   readonly totals: EvalScoreTotals;
   /** The path of the record the arm's run was written to. */
   readonly record: string;
+  /** The arm's record draft, kept for the cross-arm summary. Not in the stdout report. */
+  readonly draft: EvalRunRecordDraft;
 }
 
 /**
@@ -446,9 +480,10 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
     let record: string;
     let fingerprint: string;
     let totals: EvalScoreTotals;
+    let draft: EvalRunRecordDraft;
     try {
       const score = scoreEvalRun(corpus, results);
-      const draft = buildEvalRunRecord({
+      draft = buildEvalRunRecord({
         corpus,
         backend,
         settings: arm,
@@ -462,15 +497,58 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
       if (error instanceof SchemaInspectError) failEval(error.message);
       throw error;
     }
-    arms.push({ settings: arm, results, fingerprint, totals, record });
+    arms.push({ settings: arm, results, fingerprint, totals, record, draft });
   }
+  if (arms.length > 1) writeCrossArmSummary(arms);
+  // The stdout report keeps the shape T9b shipped — the draft travels to the
+  // summary only, never into the JSON a reader consumes as data.
   const report = {
     name: corpus.manifest.name,
     backend: flags.backend,
     model: flags.model,
-    arms,
+    arms: arms.map((entry) => ({
+      settings: entry.settings,
+      results: entry.results,
+      fingerprint: entry.fingerprint,
+      totals: entry.totals,
+      record: entry.record,
+    })),
   };
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+}
+
+/**
+ * Write the multi-arm run's cross-arm comparison summary to stderr.
+ *
+ * The summary is computed from the in-memory per-arm record drafts the run
+ * already built — never by re-reading the records directory, never by
+ * re-scoring — through the same exported comparison `ribo compare` uses.
+ * Every arm of one run shares the corpus fingerprint, the run fingerprint,
+ * the backend and the model, so the comparison's refusal paths cannot fire
+ * here, and none is handled defensively. The stdout report stays the JSON
+ * the readers consume; stderr is where the command already addresses a
+ * human mid-run.
+ *
+ * N arms are summarised as the first arm (the baseline) compared against
+ * each subsequent arm, in one block per pair — the common two-arm case is
+ * exactly one comparison, and no pair repeats.
+ * @param arms - The run's arms, in flag order.
+ */
+function writeCrossArmSummary(arms: readonly EvalArmReport[]): void {
+  const pc = colorsFor(process.stderr);
+  const lines = ["ribo eval: cross-arm comparison — arm 1 against each later arm"];
+  for (let i = 1; i < arms.length; i++) {
+    const baseline = arms[0]!;
+    const challenger = arms[i]!;
+    const comparison = compareEvalRunRecords(baseline.draft, challenger.draft);
+    lines.push("");
+    lines.push(
+      `arm 1 (${baseline.settings.strategies.join(",")}) vs arm ${i + 1} ` +
+        `(${challenger.settings.strategies.join(",")})`,
+    );
+    lines.push(renderCompareReport(comparison, pc));
+  }
+  process.stderr.write(`${lines.join("\n")}\n`);
 }
 
 const evalHelp = [
@@ -497,7 +575,8 @@ const evalHelp = [
   "Arms:",
   "  --strategy names one arm; repeat it to measure more arms. A comma-separated value is that arm's",
   "  ordered fallback ladder: --strategy single-shot,per-group runs per-group only when single-shot",
-  "  fails terminally.",
+  "  fails terminally. A run with more than one arm prints a cross-arm comparison summary to stderr,",
+  "  the first arm against each later arm; the stdout report is unchanged.",
   "",
   "Spend:",
   "  Every run prints an upper-bound cost estimate to stderr before the first model call, and",
@@ -619,6 +698,125 @@ const evalCommand = program
 // usage errors alike — names the command.
 evalCommand.showHelpAfterError("run 'ribo eval --help' for the command's flags and exit codes.");
 evalCommand.configureOutput({ writeErr: writeEvalErr });
+
+// --- `ribo compare` ------------------------------------------------------------------
+
+/** The flags the compare command parses. */
+interface CompareFlags {
+  readonly json?: boolean;
+  readonly allowCorpusMismatch?: boolean;
+}
+
+/**
+ * Read and parse one run record file.
+ *
+ * The files are read left to right and the first fault is the one reported:
+ * the caller reads the left record before the right. A missing path, a
+ * directory and a non-JSON file are all "could not be read"; a file holding
+ * valid JSON that fails the record schema names the schema issues, the
+ * pattern the store's malformed-record message sets. Every refusal exits 2
+ * with stdout empty.
+ * @param file - The path of the record file.
+ * @returns The parsed record.
+ */
+function readRecord(file: string): EvalRunRecord {
+  let raw: string;
+  try {
+    raw = readFileSync(file, "utf8");
+  } catch (error) {
+    failCompare(
+      `the run record "${file}" could not be read: ${error instanceof Error ? error.message : String(error)} ` +
+        "(fix: pass the path of a record `ribo eval` wrote — a .json file, not a directory)",
+    );
+  }
+  let document: unknown;
+  try {
+    document = JSON.parse(raw) as unknown;
+  } catch (error) {
+    failCompare(
+      `the run record "${file}" could not be read: it is not valid JSON — ` +
+        `${error instanceof Error ? error.message : String(error)} ` +
+        "(fix: pass the path of a record `ribo eval` wrote)",
+    );
+  }
+  const parsed = EvalRunRecordSchema.safeParse(document);
+  if (!parsed.success) {
+    failCompare(
+      `the run record "${file}" is not a valid run record: ${parsed.error.issues
+        .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+        .join("; ")} (fix: pass the path of a record ` +
+        "`ribo eval` wrote, or delete or repair this one)",
+    );
+  }
+  return parsed.data;
+}
+
+/**
+ * Run the compare command: read the two records, compare them, render.
+ *
+ * The comparison itself touches nothing but the two parsed records — no
+ * corpus, no schema, no re-walk of the field inventory — so a difference is
+ * a finding and the exit is 0; only the comparison's own refusals (differing
+ * corpora without the override, no shared leaf, no shared case) exit 2.
+ * @param a - The left record's path.
+ * @param b - The right record's path.
+ * @param flags - The parsed flags.
+ */
+function runCompare(a: string, b: string, flags: CompareFlags): void {
+  const left = readRecord(a);
+  const right = readRecord(b);
+  let report;
+  try {
+    report = compareEvalRunRecords(left, right, {
+      allowCorpusMismatch: flags.allowCorpusMismatch === true,
+    });
+  } catch (error) {
+    if (error instanceof SchemaInspectError) failCompare(error.message);
+    throw error;
+  }
+  process.stdout.write(
+    flags.json === true
+      ? `${JSON.stringify(report, null, 2)}\n`
+      : renderCompareReport(report, colorsFor(process.stdout)),
+  );
+}
+
+const compareHelp = [
+  "Exit codes:",
+  "  0  the comparison was computed — a difference is a finding, not a failure",
+  "  2  the command could not run: a usage error; an unreadable or malformed record file; differing",
+  "     corpus fingerprints without the override flag; no shared leaf — and, under the override, no",
+  "     shared case",
+  "",
+  "What is compared:",
+  "  The two records' identities (backend, model, settings, run fingerprint) are reported as axes,",
+  "  never refused and never silently equated. Leaves align on the intersection, with each side's",
+  "  exclusion counts printed, so a reader sees how much of each side the comparison did not cover.",
+  "",
+  "Examples:",
+  "  ribo compare ./ribo-eval-runs/20261114T1000-ab12cd34ef56.json ./ribo-eval-runs/20261114T1010-ab12cd34ef56.json",
+  "  ribo compare --json a.json b.json",
+  "  ribo compare --allow-corpus-mismatch old-corpus-record.json new-corpus-record.json",
+].join("\n");
+
+const compareCommand = program
+  .command("compare")
+  .description("Compare two persisted eval run records and report their axes and differences")
+  .argument("<a>", "path to the left run record file")
+  .argument("<b>", "path to the right run record file")
+  .option("--json", "emit the versioned JSON contract instead of the human rendering")
+  .option(
+    "--allow-corpus-mismatch",
+    "allow comparing records whose corpus fingerprints differ, and record that the override was passed",
+  )
+  .addHelpText("after", compareHelp)
+  .action(runCompare);
+
+// Every diagnostic this command writes — its own refusals and commander's
+// usage errors alike — names the command.
+compareCommand
+  .showHelpAfterError("run 'ribo compare --help' for the command's flags and exit codes.")
+  .configureOutput({ writeErr: writeCompareErr });
 
 // Commander's parse() reads process.argv by default. Exit codes are the
 // command's own: 0 from run(), 1 from the threshold-breach path, 2 from
