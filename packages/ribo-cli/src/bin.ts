@@ -18,9 +18,9 @@
  * success, 2 could-not-run — and no third.
  *
  * The third command, `ribo compare`, lines two persisted run records up
- * (design §7): the records are read from the same directory eval wrote them
- * to, compared through the exported comparison, and rendered for humans by
- * default or as the versioned `--json` contract. A difference is a finding,
+ * (design §7): it reads exactly the two record files it is named — records
+ * `ribo eval` wrote — compares them through the exported comparison, and
+ * renders for humans by default or as the versioned `--json` contract. A difference is a finding,
  * never a failure; the refusals — differing corpora without the override,
  * no shared leaf, no shared case — are could-not-run faults. It owns the
  * two exit codes, and no third.

@@ -136,8 +136,7 @@ export function compareEvalRunRecords(
       `eval: the two records share no leaf — the left record carries ${left.leafPaths.length} ` +
         `leaf(s) and the right ${right.leafPaths.length}, with none in common, so there is nothing ` +
         "to line up and an empty comparison dressed as a result would hide it (fix: compare " +
-        "records taken over the same schema, or pass --allow-corpus-mismatch when the corpora " +
-        "genuinely differ)",
+        "records taken over the same schema)",
     );
   }
   if (caseIds.length === 0) {

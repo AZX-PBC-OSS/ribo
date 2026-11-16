@@ -60,8 +60,7 @@ export function renderCompareReport(
   const line = (name: string, value: string): string =>
     `  ${pc.dim(name.padEnd(22, " "))}${value}\n`;
   const out: string[] = [];
-  out.push(`${pc.bold("ribo compare — comparison report")}\n`);
-  out.push("");
+  out.push(`${pc.bold("ribo compare — comparison report")}\n\n`);
   const corporaDiffer = report.left.corpus.fingerprint !== report.right.corpus.fingerprint;
   if (corporaDiffer) {
     out.push(
