@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,12 @@ import { describeExtraction } from "@azx/ribo-core";
 import { loadCorpus } from "./corpus/loader.js";
 import type { LoadedCorpus } from "./corpus/loader.js";
 import { describeCalls } from "./inspect/calls.js";
+import {
+  EvalRunRecordSchema,
+  isRecordCurrent,
+  readEvalRunRecords,
+  runFingerprint,
+} from "./index.js";
 import { replyForSchema } from "./eval/test-support/stub-chat.js";
 import {
   FIXTURE_CORPUS,
@@ -67,6 +73,12 @@ interface WireBody {
 interface ArmReport {
   readonly settings: Record<string, unknown>;
   readonly results: readonly { readonly caseId: string; readonly status: string }[];
+  /** The run fingerprint — over the schema and the prompt, never the settings. */
+  readonly fingerprint: string;
+  /** The arm's scored totals. */
+  readonly totals: Record<string, unknown>;
+  /** The path of the record the arm's run was written to. */
+  readonly record: string;
 }
 
 /** The report the command emits. */
@@ -79,10 +91,20 @@ interface EvalReport {
 
 let server: Server;
 let baseUrl: string;
+/**
+ * The working directory every run is spawned in.
+ *
+ * The records a run writes land beside its working directory, so the suite
+ * gives every run a fresh one of its own and the repository tree is never
+ * written to.
+ */
+let workDir: string;
 /** Every request the stub server received, since the last run. */
 const received: WireBody[] = [];
 
 beforeAll(async () => {
+  buildCliOnce();
+  workDir = mkdtempSync(join(tmpdir(), "ribo-eval-work-"));
   buildCliOnce();
   server = createServer((request, response) => {
     const chunks: Buffer[] = [];
@@ -115,6 +137,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   removeTemporaries();
+  rmSync(workDir, { recursive: true, force: true });
   server.closeAllConnections();
   await new Promise<void>((resolve) => {
     server.close(() => resolve());
@@ -145,7 +168,7 @@ const runBin = async (
   received.length = 0;
   const child = spawn(process.execPath, [BIN, ...args], {
     env: { ...process.env, OPENAI_BASE_URL: baseUrl, OPENAI_API_KEY: "test-key", ...env },
-    ...(cwd === undefined ? {} : { cwd }),
+    cwd: cwd ?? workDir,
   });
   let stdout = "";
   let stderr = "";
@@ -295,9 +318,9 @@ test("a comma-separated --strategy is one arm's fallback ladder", async () => {
   expect(ladderCount).toBe(firstRungCount);
 });
 
-// --- --out (criterion 5) --------------------------------------------------------------
+// --- The run records (criteria 5, 12, 14, 15, 16, 18, 19) ---------------------------
 
-test("--out is accepted and writes nothing yet", async () => {
+test("--out writes the run record where it pointed", async () => {
   const corpus = corpusWithoutDocuments();
   const out = join(corpus, "runs");
   const result = await run([...baseArgs(corpus), "--strategy", "single-shot", "--out", out]);
@@ -305,11 +328,196 @@ test("--out is accepted and writes nothing yet", async () => {
   expect(result.status).toBe(0);
   const report = JSON.parse(result.stdout) as EvalReport;
   expect(report.arms).toHaveLength(1);
-  // The records ticket owns the writing; this build writes nothing.
-  expect(existsSync(out)).toBe(false);
+  const arm = report.arms[0]!;
+
+  // The report names the record the arm's run was written to.
+  expect(arm.record).not.toBe("");
+  expect(existsSync(arm.record)).toBe(true);
+  expect(arm.fingerprint).toMatch(/^[0-9a-f]{64}$/u);
+  expect(arm.totals["cases"]).toBeGreaterThan(0);
+
+  // The record is there, and it parses through the exported schema.
+  const records = readEvalRunRecords(out);
+  expect(records).toHaveLength(1);
+  expect(EvalRunRecordSchema.safeParse(records[0]).success).toBe(true);
+  expect(records[0]?.fingerprint).toBe(arm.fingerprint);
 
   const help = await runBin(["eval", "--help"]);
   expect(help.stdout).toContain("--out");
+});
+
+test("a run with no --out writes its record under ./ribo-eval-runs beside the cwd", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "ribo-eval-cwd-"));
+  try {
+    const corpus = corpusWithoutDocuments();
+    const result = await run([...baseArgs(corpus), "--strategy", "single-shot"], {}, cwd);
+
+    expect(result.status).toBe(0);
+    const records = readEvalRunRecords(join(cwd, "ribo-eval-runs"));
+    expect(records).toHaveLength(1);
+
+    // A freshness read against that directory finds the record current.
+    const loaded = loadCorpus(corpus);
+    const record = records[0]!;
+    expect(
+      isRecordCurrent(record, {
+        backend: "openai-compatible",
+        model: "ribo-test",
+        settings: record.settings,
+        fingerprint: runFingerprint(loaded.schemaDocument, loaded.manifest.prompt),
+      }),
+    ).toBe(true);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("--out writes there instead of the default location", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "ribo-eval-cwd-"));
+  try {
+    const corpus = corpusWithoutDocuments();
+    const out = join(cwd, "chosen");
+    const result = await run(
+      [...baseArgs(corpus), "--strategy", "single-shot", "--out", out],
+      {},
+      cwd,
+    );
+
+    expect(result.status).toBe(0);
+    expect(readEvalRunRecords(out)).toHaveLength(1);
+    expect(existsSync(join(cwd, "ribo-eval-runs"))).toBe(false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("the --consensus flag's difference travels the flag path and stales the pair", async () => {
+  const corpus = corpusWithoutDocuments();
+  const out = mkdtempSync(join(tmpdir(), "ribo-eval-out-"));
+  try {
+    const three = await run([
+      ...baseArgs(corpus),
+      "--strategy",
+      "single-shot",
+      "--consensus",
+      "3",
+      "--yes",
+      "--out",
+      out,
+    ]);
+    expect(three.status).toBe(0);
+    const threeCalls = received.length;
+    expect(threeCalls).toBeGreaterThan(0);
+
+    const five = await run([
+      ...baseArgs(corpus),
+      "--strategy",
+      "single-shot",
+      "--consensus",
+      "5",
+      "--yes",
+      "--out",
+      out,
+    ]);
+    expect(five.status).toBe(0);
+    const fiveCalls = received.length;
+
+    // The flag moved the run itself: five candidates drove more requests
+    // than three.
+    expect(fiveCalls).toBeGreaterThan(threeCalls);
+
+    const records = readEvalRunRecords(out);
+    expect(records).toHaveLength(2);
+    const [first, second] = records;
+    expect(first?.settings["consensusCandidates"]).toBe(3);
+    expect(second?.settings["consensusCandidates"]).toBe(5);
+    // The consensus count is not in the fingerprint, so the fingerprints agree...
+    expect(first?.fingerprint).toBe(second?.fingerprint);
+    // ...but the two records are not the same measurement.
+    expect(isRecordCurrent(first!, second!)).toBe(false);
+    expect(isRecordCurrent(second!, first!)).toBe(false);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test("a run over several arms writes one record per arm", async () => {
+  const corpus = corpusWithoutDocuments();
+  const out = mkdtempSync(join(tmpdir(), "ribo-eval-out-"));
+  try {
+    const result = await run([
+      ...baseArgs(corpus),
+      "--strategy",
+      "single-shot",
+      "--strategy",
+      "per-group",
+      "--out",
+      out,
+    ]);
+
+    expect(result.status).toBe(0);
+    const report = JSON.parse(result.stdout) as EvalReport;
+    expect(report.arms).toHaveLength(2);
+
+    const records = readEvalRunRecords(out);
+    expect(records).toHaveLength(2);
+    // The arms differ in their settings, not in what they were asked.
+    expect(records[0]?.fingerprint).toBe(records[1]?.fingerprint);
+    for (const record of records) {
+      expect(
+        isRecordCurrent(record, {
+          backend: record.backend,
+          model: record.model,
+          settings: record.settings,
+          fingerprint: record.fingerprint,
+        }),
+      ).toBe(true);
+    }
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test("--out naming an existing file exits 2, and prints no report", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "ribo-eval-cwd-"));
+  try {
+    const corpus = corpusWithoutDocuments();
+    const notADirectory = join(cwd, "a-file");
+    writeFileSync(notADirectory, "not a directory");
+
+    const fault = await run(
+      [...baseArgs(corpus), "--strategy", "single-shot", "--out", notADirectory],
+      {},
+      cwd,
+    );
+
+    expect(fault.status).toBe(2);
+    expect(fault.stdout).toBe("");
+    expect(fault.stderr).toContain(notADirectory);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("a malformed record beside the run's own exits 2, naming the file", async () => {
+  const corpus = corpusWithoutDocuments();
+  const out = mkdtempSync(join(tmpdir(), "ribo-eval-out-"));
+  try {
+    const broken = join(out, "broken.json");
+    writeFileSync(broken, "{ not a record");
+
+    const fault = await run(
+      [...baseArgs(corpus), "--strategy", "single-shot", "--out", out],
+      {},
+      out,
+    );
+
+    expect(fault.status).toBe(2);
+    expect(fault.stdout).toBe("");
+    expect(fault.stderr).toContain(broken);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
 });
 
 // --- --help (criterion 6) ---------------------------------------------------------------

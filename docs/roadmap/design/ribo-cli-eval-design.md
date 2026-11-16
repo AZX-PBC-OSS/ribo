@@ -473,8 +473,9 @@ naming because both look attractive:
 
 The four-field key is therefore the identity, and the currency predicate — "is this record current?"
 — is one function over it. The ticket that owns that function is **T13b**, which defines and
-exports it; the accuracy-page generator (T14b) and the later T16 consume it. This document
-describes the predicate; it does not claim the code exists.
+exports it; the accuracy-page generator (T14b) and the later T16 consume it. The predicate is
+`isRecordCurrent`, exported from `@azx/ribo-cli`'s public entry beside the fingerprint and the
+identity key it judges by.
 
 The generator reads **two required arguments** — the records directory and the corpus directory —
 and judges staleness against the corpus the second argument names. §10 fixes what the generator
@@ -848,9 +849,9 @@ the `runFingerprint` export that T13b adds to `@azx/ribo-cli`'s public entry
 The Snugg-fixture-file hash `currentFingerprint()` (`generate-accuracy-page.mjs:229`) goes: it
 hashed one adapter's fixture file, which a generalised page cannot mean by. The currency
 predicate — "is this record current?", over backend, model, settings and fingerprint — is
-likewise defined and exported by T13b, and consumed here and by the later T16. Neither export
-exists in the tree yet; both are T13b's, and this section describes them as the plan, not as
-present code.
+likewise defined and exported by T13b, and consumed here and by the later T16. Both exports are
+in the tree: `runFingerprint` and `isRecordCurrent` sit in `@azx/ribo-cli`'s public entry, so the
+generator imports them from the built package rather than reaching into a single-file bundle.
 
 **The build ordering is owned by the root `docs:accuracy` script.** It builds `@azx/ribo-cli`, the
 Snugg adapter — whose build produces the shipped schema file the corpus references

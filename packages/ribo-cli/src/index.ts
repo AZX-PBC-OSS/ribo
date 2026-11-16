@@ -30,6 +30,19 @@
  * per-cell verdicts beside the three rates — the answer rate and the two
  * accuracies, always together, because any two of them read as a
  * contradiction when the third is missing.
+ *
+ * The package's sixth surface is the run record: the versioned, zod-parsed
+ * JSON document a run persists, one per arm, under `./ribo-eval-runs/` or the
+ * directory `--out` names. It carries the corpus's identity, the run
+ * fingerprint over the schema and the prompt, the backend, the model as its
+ * own field, the run's settings as one object, the score and the lineage.
+ *
+ * The record's identity — backend, model, settings and run fingerprint — is
+ * computed here and nowhere else: `runFingerprint`, `corpusFingerprint`,
+ * `recordIdentity` and the currency predicate `isRecordCurrent` are the one
+ * copy of that arithmetic, so a consumer outside the CLI (the accuracy-page
+ * generator, the gate wrapper) judges staleness by the same code the run
+ * used.
  */
 export { CONTRACT_VERSION, SchemaInspectError, inspectSchema } from "./inspect-schema.js";
 export type { SchemaInspectOptions, SchemaInspectReport } from "./inspect-schema.js";
@@ -80,6 +93,27 @@ export type {
 export { RETIRED_VERDICT_TRANSLATION } from "./eval/retired-verdicts.js";
 export { createOpenAiCompatibleChat } from "./eval/backend.js";
 export { EvalError } from "./eval/error.js";
+export { EvalRunRecordSchema } from "./eval/record-schema.js";
+export type {
+  EvalRunRecord,
+  EvalRunRecordDraft,
+  EvalRunRecordHazards,
+  EvalRunRecordIdentity,
+  EvalRunRecordSettings,
+} from "./eval/record-schema.js";
+export {
+  corpusFingerprint,
+  isRecordCurrent,
+  recordIdentity,
+  runFingerprint,
+} from "./eval/record-fingerprint.js";
+export { buildEvalRunRecord } from "./eval/record-build.js";
+export type { EvalRunRecordInput } from "./eval/record-build.js";
+export {
+  EVAL_RUN_RECORDS_DEFAULT_DIR,
+  readEvalRunRecords,
+  writeEvalRunRecord,
+} from "./eval/record-store.js";
 export { cliChat } from "./cli-chat.js";
 export type { CliBackendName, CliChatOptions, CliShapeResult } from "./cli-chat.js";
 export type { OpenAiCompatibleChatOptions } from "./eval/backend.js";

@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
  * canonicalizer that emitted the string "undefined" would sort differently
  * from one that emitted null, so it is folded to `null`.
  */
-const canonicalJson = (value: unknown): string => {
+export const canonicalJson = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value !== null && typeof value === "object") {
     const record = value as Record<string, unknown>;
@@ -19,6 +19,22 @@ const canonicalJson = (value: unknown): string => {
       .join(",")}}`;
   }
   return JSON.stringify(value) ?? "null";
+};
+
+/**
+ * Reduce a value to plain JSON, so a hash is a function of the JSON VALUE and
+ * not of the in-memory representation that carries it.
+ *
+ * A record is written, read back and hashed again, and the two hashes must
+ * agree: an `undefined`-valued key is dropped by a JSON round trip but folded
+ * to `null` by the canonicaliser, so the same object would hash differently
+ * before and after the trip. Reducing first makes the two the same value.
+ * @param value - The value to reduce.
+ * @returns The value as plain JSON.
+ */
+export const jsonValue = (value: unknown): unknown => {
+  const encoded = JSON.stringify(value);
+  return encoded === undefined ? null : (JSON.parse(encoded) as unknown);
 };
 
 /**

@@ -8,7 +8,10 @@
  *
  * The second command, `ribo eval`, runs a corpus through the eval runner
  * (design §6): the flags build the run's settings object, the corpus enters
- * only through the loader, and the report goes to stdout. It owns the same
+ * only through the loader, and the report goes to stdout. Each arm's run is
+ * scored and persisted as a run record — under `./ribo-eval-runs/` beside the
+ * working directory, or the directory `--out` names — and the report is
+ * written only once every arm's record has landed. It owns the same
  * two exit codes the design fixes — 0 success, 2 could-not-run — and no
  * third.
  *
@@ -47,6 +50,9 @@ import {
   createOpenAiCompatibleChat,
 } from "./eval/backend.js";
 import { runEval } from "./eval/run.js";
+import { scoreEvalRun } from "./eval/score.js";
+import { buildEvalRunRecord } from "./eval/record-build.js";
+import { EVAL_RUN_RECORDS_DEFAULT_DIR, writeEvalRunRecord } from "./eval/record-store.js";
 import { enforceSpendCeiling } from "./eval/spend-ceiling.js";
 import { formatSpendEstimate } from "./eval/spend-display.js";
 import { terminalConfirmation } from "./eval/spend-prompt.js";
@@ -60,6 +66,7 @@ import type {
   EvalSettings,
   EvalStrategyId,
 } from "./eval/types.js";
+import type { EvalScoreTotals } from "./eval/score-types.js";
 import { inspectSchema, SchemaInspectError } from "./inspect-schema.js";
 import type { ThresholdRow } from "./inspect/report-schema.js";
 import { InputFault, readDocumentSource } from "./read-input.js";
@@ -268,6 +275,12 @@ interface EvalFlags {
 interface EvalArmReport {
   readonly settings: EvalSettings;
   readonly results: readonly EvalCaseResult[];
+  /** The run fingerprint — over the schema and the prompt, never the settings. */
+  readonly fingerprint: string;
+  /** The arm's scored totals. */
+  readonly totals: EvalScoreTotals;
+  /** The path of the record the arm's run was written to. */
+  readonly record: string;
 }
 
 /**
@@ -416,6 +429,9 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
     throw error;
   }
   const arms: EvalArmReport[] = [];
+  // The records directory is the one the run writes to and every freshness
+  // read looks in: the `--out` directory, or the run's own under the cwd.
+  const recordsDir = flags.out ?? EVAL_RUN_RECORDS_DEFAULT_DIR;
   for (const arm of settings) {
     let results: readonly EvalCaseResult[];
     try {
@@ -424,7 +440,29 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
       if (error instanceof SchemaInspectError) failEval(error.message);
       throw error;
     }
-    arms.push({ settings: arm, results });
+    // The record is the source of truth every view renders: the score is
+    // persisted before the report is written, and a record that cannot be
+    // written is a could-not-run fault, not a report with a hole in it.
+    let record: string;
+    let fingerprint: string;
+    let totals: EvalScoreTotals;
+    try {
+      const score = scoreEvalRun(corpus, results);
+      const draft = buildEvalRunRecord({
+        corpus,
+        backend,
+        settings: arm,
+        results,
+        score,
+      });
+      record = writeEvalRunRecord(draft, recordsDir);
+      fingerprint = draft.fingerprint;
+      totals = draft.totals;
+    } catch (error) {
+      if (error instanceof SchemaInspectError) failEval(error.message);
+      throw error;
+    }
+    arms.push({ settings: arm, results, fingerprint, totals, record });
   }
   const report = {
     name: corpus.manifest.name,
@@ -475,8 +513,6 @@ const evalHelp = [
   "  ribo eval --corpus ./corpora/workshop --backend openai-compatible --model gpt-4o --strategy single-shot",
   "  ribo eval --corpus ./corpora/workshop --backend openai-compatible --model gpt-4o \\",
   "      --strategy single-shot,per-group --consensus 3 --out ./runs",
-  "",
-  "The report's shape is provisional: the scored contract lands with the run records.",
 ].join("\n");
 
 const program = new Command()
@@ -544,7 +580,7 @@ const evalCommand = program
   )
   .option(
     "--out <dir>",
-    "the records directory the run record will be written to (this build writes nothing yet)",
+    `the records directory the run records will be written to (default: ./${EVAL_RUN_RECORDS_DEFAULT_DIR} under the current directory)`,
   )
   .option(
     "--consensus <n>",
