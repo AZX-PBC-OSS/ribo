@@ -1,6 +1,46 @@
+import { z } from "zod";
 import { describe, expect, test } from "vitest";
 
-import { buildFieldPath, childPath, parseFieldPath } from "./field-path.js";
+import { buildFieldPath, childPath, parseFieldPath, stripOptionalNullable } from "./field-path.js";
+
+describe("stripOptionalNullable", () => {
+  test("carries a description sitting on a MIDDLE wrapper — z.fromJSONSchema's non-required nullable shape", () => {
+    // fromJSONSchema renders a non-required, nullable, described property as
+    // ZodOptional(ZodNullable(leaf)) with the text on the ZodNullable.
+    const stripped = stripOptionalNullable(z.number().nullable().describe("d").optional());
+    expect(stripped.description).toBe("d");
+  });
+
+  test("carries a description at any depth of the wrapper chain", () => {
+    const stripped = stripOptionalNullable(
+      z.number().nullable().describe("deep").optional().nullable(),
+    );
+    expect(stripped.description).toBe("deep");
+  });
+
+  test("the outermost-described wrapper wins when several layers carry one", () => {
+    const stripped = stripOptionalNullable(
+      z.number().describe("leaf").nullable().describe("middle").optional().describe("outer"),
+    );
+    expect(stripped.description).toBe("outer");
+  });
+
+  test("a middle wrapper's description beats the leaf's own, applied last of the two", () => {
+    const stripped = stripOptionalNullable(
+      z.number().describe("leaf").nullable().describe("middle").optional(),
+    );
+    expect(stripped.description).toBe("middle");
+  });
+
+  test("a leaf's own description survives when no wrapper carries one", () => {
+    expect(stripOptionalNullable(z.number().describe("leaf").optional()).description).toBe("leaf");
+  });
+
+  test("still strips both wrapper orders down to the bare type", () => {
+    expect(stripOptionalNullable(z.number().nullable().optional())).toBeInstanceOf(z.ZodNumber);
+    expect(stripOptionalNullable(z.number().optional().nullable())).toBeInstanceOf(z.ZodNumber);
+  });
+});
 
 describe("childPath", () => {
   test("joins a parent and an object key with a dot", () => {

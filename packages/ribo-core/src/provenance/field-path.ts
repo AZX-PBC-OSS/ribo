@@ -52,23 +52,30 @@ export type FieldPath = string;
 /** @category Provenance */
 export const stripOptionalNullable = (field: z.ZodType): z.ZodType => {
   let current = field;
-  // Carry the OUTERMOST description down. A patch leaf is `X.nullable().optional()`, so a
-  // `.describe()` written the natural way lands on the wrapper — and unwrapping would drop
-  // it silently, since an absent description is not a type error and nothing downstream
-  // complains. That made description placement a trap: correct-looking code produced a
-  // schema the model never saw. Preserving it here means either placement works.
-  const outer = field.description;
+  // Carry the description of the outermost wrapper that HAS one down. A patch leaf is
+  // `X.nullable().optional()`, so a `.describe()` written the natural way lands on a
+  // wrapper — and unwrapping would drop it silently, since an absent description is not
+  // a type error and nothing downstream complains. Worse, the describe can land on a
+  // wrapper that is NOT the outermost: `z.fromJSONSchema` renders a non-required,
+  // nullable, described property as `ZodOptional(ZodNullable(X))` with the text on the
+  // middle `ZodNullable`. Reading only the outermost wrapper dropped those, which made
+  // description placement a trap: correct-looking schemas produced guidance the model
+  // never saw. Scanning the chain outermost-to-inward means any placement works.
+  let carried: string | undefined;
   while (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
+    // First defined on the way in wins: the outermost-described wrapper's text was
+    // applied last, so it is the more considered one. That matters where a leaf carries
+    // its own note and something later composes a fuller description around it.
+    if (carried === undefined) {
+      carried = current.description;
+    }
     // `.unwrap()`'s declared return type is generic over the wrapped type, defaulting to the
     // core (not classic) `$ZodType` once narrowed only by `instanceof`; every real wrapper in
     // this codebase wraps a classic `z.ZodType`, so this cast reflects that rather than working
     // around it.
     current = current.unwrap() as z.ZodType;
   }
-  // The OUTER wins when both exist: it was applied last, so it is the more considered
-  // one. That matters where a leaf carries its own note and something later composes a
-  // fuller description around it.
-  return outer !== undefined ? current.describe(outer) : current;
+  return carried !== undefined ? current.describe(carried) : current;
 };
 
 /**

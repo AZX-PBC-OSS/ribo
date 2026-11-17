@@ -64,6 +64,26 @@ describe("renderFieldGuidance", () => {
     expect(renderFieldGuidance(refusing)).toBeNull();
   });
 
+  test("a converted schema's middle-wrapper descriptions reach the prompt text", () => {
+    // The document z.fromJSONSchema emits ZodOptional(ZodNullable(leaf)) for —
+    // non-required, nullable, described — with the text on the MIDDLE wrapper.
+    // The block is built from the inventory walk, so a description the walk
+    // cannot see is a description the model never reads.
+    const schema = z.fromJSONSchema(
+      {
+        type: "object",
+        properties: {
+          notes: { type: "string", nullable: true, description: "free-text notes" },
+          yearBuilt: { type: "number", nullable: true, description: "year the home was built" },
+        },
+      },
+      { defaultTarget: "openapi-3.0" },
+    );
+    const block = renderFieldGuidance(schema);
+    expect(block).toContain("free-text notes");
+    expect(block).toContain("year the home was built");
+  });
+
   test("the block names itself instructions and closes with the transcript boundary", () => {
     const block = renderFieldGuidance(describedSchema)!;
     expect(block).toContain("### Field guidance");
