@@ -24,7 +24,7 @@
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
     "docs:api": "typedoc --options docs/typedoc.json",
-    "docs:accuracy": "node scripts/generate-accuracy-page.mjs",
+    "docs:accuracy": "pnpm --filter \"@azx/ribo-cli...\" --filter \"@azx/ribo-adapter-snuggpro...\" run build && node scripts/generate-accuracy-page.mjs packages/ribo-adapter-snuggpro/acceptance/runs packages/ribo-adapter-snuggpro/acceptance/corpus",
     "docs:dev": "pnpm run docs:api && pnpm run docs:accuracy && vitepress dev docs",
     "docs:build": "pnpm run docs:examples && pnpm run docs:api-examples && pnpm run docs:api && pnpm run docs:accuracy && vitepress build docs",
     "docs:deploy": "pnpm run docs:build && helix deploy",

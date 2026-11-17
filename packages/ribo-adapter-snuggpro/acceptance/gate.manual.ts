@@ -378,7 +378,7 @@ describe.skipIf(skipSuite)("single-shot extraction — spike-corpus acceptance g
         }),
       );
       console.log(
-        `[acceptance] run record written to acceptance/runs/current-${backendLabel}.json`,
+        `[acceptance] run record written to acceptance/runs-legacy/current-${backendLabel}.json`,
       );
       // =============================== END PERSIST BLOCK ===============================
 

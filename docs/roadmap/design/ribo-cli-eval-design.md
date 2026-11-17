@@ -802,10 +802,10 @@ stderr, never a silent default. The hard-coded `RUNS` constant (`generate-accura
 goes. The root script at `package.json:27` becomes a script that passes **both** arguments
 explicitly. The records directory is the adapter's committed records directory,
 `packages/ribo-adapter-snuggpro/acceptance/runs/`, and the operator's Snugg baselines are
-written there with `ribo eval --out`. The corpus directory names the corpus the page's staleness
-is judged against; no corpus in the §1 format is committed in this series, so the path it names is
-the one the operator's corpus occupies when there is one — and on a clean checkout the guard below
-returns before any corpus is read.
+written there with `ribo eval --out`. The corpus directory names the corpus the page's
+staleness is judged against; that corpus is the migrated Snugg corpus, committed at
+`packages/ribo-adapter-snuggpro/acceptance/corpus/`, and that is the path the root script
+passes — and on a clean checkout the guard below returns before any corpus is read.
 
 **The missing-directory guard is kept.** `if (!existsSync(RUNS)) return [];`
 (`generate-accuracy-page.mjs:210`) becomes the same guard on the argument-supplied directory. That
@@ -850,15 +850,19 @@ generalised generator therefore has **one** lookup function, it **throws** on an
 every lookup path goes through it, and there is **one test per lookup path**. The table's own
 reverse index at `generate-accuracy-page.mjs:75` is not a verdict lookup and stays as it is.
 
-**Staleness is judged by the CLI's own function.** Each record's run fingerprint is compared
-against the current corpus's key, computed by the same exported CLI function `ribo eval` uses —
-the `runFingerprint` export that T13b adds to `@azx/ribo-cli`'s public entry
-(`packages/ribo-cli/src/index.ts`), imported by the `.mjs` generator **from the built package**.
-The Snugg-fixture-file hash `currentFingerprint()` (`generate-accuracy-page.mjs:229`) goes: it
+**Staleness is judged by the CLI's own functions.** A record is stale when its run
+fingerprint **or** its corpus fingerprint differs from the current corpus's — the corpus named
+by the corpus-directory argument. The current run-fingerprint key is computed by `runFingerprint`
+over the loaded corpus's schema document and prompt inputs, and the current corpus-fingerprint
+key by `corpusFingerprint` over the loaded corpus — the same exported CLI functions `ribo eval`
+uses, imported by the `.mjs` generator **from the built package**. The Snugg-fixture-file hash
+`currentFingerprint()` (`generate-accuracy-page.mjs:229`) goes: it
 hashed one adapter's fixture file, which a generalised page cannot mean by. The currency
 predicate — "is this record current?", over backend, model, settings and fingerprint — is
-likewise defined and exported by T13b, and consumed here and by the later T16. Both exports are
-in the tree: `runFingerprint` and `isRecordCurrent` sit in `@azx/ribo-cli`'s public entry, so the
+likewise defined and exported by T13b, but it is the later T16's run-vs-baseline comparison and
+is never consumed here: backend, model and settings are each record's own and render as columns
+of what was run, never as staleness. The exports are in the tree: `runFingerprint`,
+`corpusFingerprint` and `isRecordCurrent` sit in `@azx/ribo-cli`'s public entry, so the
 generator imports them from the built package rather than reaching into a single-file bundle.
 
 **The build ordering is owned by the root `docs:accuracy` script.** It builds `@azx/ribo-cli`, the

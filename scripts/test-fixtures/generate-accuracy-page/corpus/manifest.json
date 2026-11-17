@@ -1,0 +1,10 @@
+{
+  "name": "accuracy-page-fixture",
+  "schema": "schema.json",
+  "provenance": "synthetic",
+  "prompt": {
+    "instructions": "Extract the audit fields. Only from what the auditor actually said.",
+    "fieldDescriptions": "schema"
+  },
+  "description": "Fixture corpus for the accuracy-page generator tests."
+}

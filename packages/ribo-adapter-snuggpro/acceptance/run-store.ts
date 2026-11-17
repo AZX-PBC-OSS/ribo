@@ -16,15 +16,18 @@ import type { HistoryEntry, RunRecord } from "./run-record.js";
 import { HistoryEntrySchema, RunRecordSchema } from "./run-record.js";
 
 /**
- * CRUD over the committed extraction-accuracy run artifacts.
+ * CRUD over the extraction-accuracy run artifacts.
  *
- * Two files per backend, in `acceptance/runs/`:
+ * Two files per backend, in `acceptance/runs-legacy/` by default:
  *   - `current-<label>.json`  — one run in full, OVERWRITTEN each time (~150 KB)
  *   - `history-<label>.jsonl` — one appended summary line per run (~400 B)
  *
  * `openRunStore({ dir })` takes an injectable directory, mirroring
- * `openStorage({ storage })` (AGENTS §5.5): the default is the real committed
- * `runs/` directory, and tests pass a temp dir so they never touch the tree.
+ * `openStorage({ storage })` (AGENTS §5.5): the default is the gitignored
+ * `runs-legacy/` directory beside this module, and tests pass a temp dir so
+ * they never touch the tree. The legacy default keeps the old gate's
+ * old-format records out of `acceptance/runs/`, which holds only new-format
+ * records written by `ribo eval --out` and rendered by the accuracy page.
  *
  * Everything read back is zod-parsed, never cast — these are persisted records
  * crossing a trust boundary (AGENTS §4).
@@ -45,7 +48,7 @@ export interface RunStore {
   deleteRun: (backendLabel: string) => Promise<void>;
 }
 
-const DEFAULT_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "runs");
+export const DEFAULT_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "runs-legacy");
 
 /** Same sanitisation the gate already applies to its results directory. */
 function safe(label: string): string {
