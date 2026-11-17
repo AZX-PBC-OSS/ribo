@@ -53,8 +53,9 @@
  * ## Deliberately duplicated, not shared, from `playground/vite-extract.ts`
  *
  * `playground/vite-extract.ts` already shells `claude`/`codex`/`opencode` the same way: a
- * throwaway temp cwd (so an agentic CLI can never roam this repo), stdin closed, and pulling the
- * last balanced top-level JSON object out of stdout. That file is `playground`'s own dev tool
+ * throwaway temp cwd (so an agentic CLI can never roam this repo), the prompt written to the
+ * child's stdin, and pulling the last balanced top-level JSON object out of stdout. That file is
+ * `playground`'s own dev tool
  * (`"private": true`, never published); importing it from a workspace package would be an odd
  * dependency for a test harness to take on an unrelated app. `runCliOnce` and
  * `extractLastJsonObject` below are therefore deliberately re-implemented rather than imported —
@@ -95,7 +96,9 @@ import type {
  *  touching the filesystem (see `CLI_BACKENDS`). */
 export type CliBackendName = "claude" | "codex";
 
-/** A CLI backend descriptor: the command to shell and the argv to build around a prompt. */
+/** A CLI backend descriptor: the command to shell and the argv to build around the model. The
+ *  prompt is NOT argv — it goes to the child's stdin (see `runCliOnce`), so a large prompt cannot
+ *  fail with `E2BIG`. */
 interface CliDescriptor {
   readonly cmd: string;
   /**
@@ -107,7 +110,7 @@ interface CliDescriptor {
    * {@link cliBackendSupportsMaxTokens}, so the two can never disagree.
    */
   readonly supportsMaxTokens: boolean;
-  readonly buildArgs: (prompt: string, model: string) => readonly string[];
+  readonly buildArgs: (model: string) => readonly string[];
 }
 
 /**
@@ -122,18 +125,19 @@ export function cliBackendSupportsMaxTokens(backend: CliBackendName): boolean {
 }
 
 const CLI_BACKENDS: Record<CliBackendName, CliDescriptor> = {
-  // Claude Code in print/non-interactive mode. It has tool access by default, so three things
-  // keep it a pure text responder that only returns the JSON and never reads this process's
-  // surroundings: the throwaway temp cwd (nothing of ours is there), `--permission-mode manual`
-  // (any tool needing approval is auto-denied under `-p`, never prompted), and an explicit
-  // `--disallowed-tools` deny-list covering the repo-reading/searching tools. `--output-format
-  // text` keeps stdout plain so `extractLastJsonObject` sees the reply, not a JSON envelope.
+  // Claude Code in print/non-interactive mode. `claude -p` with NO prompt argument reads the
+  // prompt from stdin, which keeps a large prompt away from the argv size limit. It has tool
+  // access by default, so three things keep it a pure text responder that only returns the JSON
+  // and never reads this process's surroundings: the throwaway temp cwd (nothing of ours is
+  // there), `--permission-mode manual` (any tool needing approval is auto-denied under `-p`,
+  // never prompted), and an explicit `--disallowed-tools` deny-list covering the
+  // repo-reading/searching tools. `--output-format text` keeps stdout plain so
+  // `extractLastJsonObject` sees the reply, not a JSON envelope.
   claude: {
     cmd: "claude",
     supportsMaxTokens: false,
-    buildArgs: (prompt, model) => [
+    buildArgs: (model) => [
       "-p",
-      prompt,
       "--model",
       model,
       "--output-format",
@@ -145,17 +149,18 @@ const CLI_BACKENDS: Record<CliBackendName, CliDescriptor> = {
     ],
   },
   // The keyless codex invocation: read-only sandbox, no git-repo check (the temp cwd is not one).
+  // `codex exec -` reads the instructions from stdin — `-` keeps the prompt out of argv.
   codex: {
     cmd: "codex",
     supportsMaxTokens: false,
-    buildArgs: (prompt, model) => [
+    buildArgs: (model) => [
       "exec",
       "--skip-git-repo-check",
       "--sandbox",
       "read-only",
       "-m",
       model,
-      prompt,
+      "-",
     ],
   },
 };
@@ -208,9 +213,9 @@ function messageOf(cause: unknown): string {
 }
 
 /**
- * Render the request into the single prompt string a CLI takes as one argv argument: the
- * conversation verbatim (SYSTEM instructions, any few-shot USER/ASSISTANT pairs, the final USER
- * turn), then the JSON Schema IN WORDS as the contract the reply must satisfy — the CLI has no
+ * Render the request into the single prompt string a CLI reads from stdin: the conversation
+ * verbatim (SYSTEM instructions, any few-shot USER/ASSISTANT pairs, the final USER turn), then
+ * the JSON Schema IN WORDS as the contract the reply must satisfy — the CLI has no
  * `response_format` keyword, so this prompt does the job that keyword does over the API.
  */
 function buildPrompt(request: ChatRequest): string {
@@ -287,9 +292,11 @@ export function extractLastJsonObject(text: string): string | null {
 
 /**
  * Shell one attempt: a throwaway temp cwd (the agentic CLIs have no business touching this
- * repo), stdin closed (never inherited), and the prompt passed as a single argv argument — no
- * shell, so nothing in it is interpreted. Deliberately duplicated shell-out mechanics from
- * `playground/vite-extract.ts`'s `runCliIn` — see the file header for why.
+ * repo), and the prompt written to the child's stdin and the pipe ended — never argv, whose size
+ * limit (`E2BIG` around 1 MB on macOS) a real corpus's prompt exceeds, and never inherited from
+ * this process, so the CLI cannot read our terminal. No shell, so nothing in it is interpreted.
+ * Deliberately duplicated shell-out mechanics from `playground/vite-extract.ts`'s `runCliIn` —
+ * see the file header for why.
  *
  * If `signal` is given, an in-flight abort kills the child (`SIGKILL`) and rejects with
  * `ChatError.aborted`. The abort listener and the timeout timer are removed in every exit path
@@ -307,9 +314,9 @@ async function runCliOnce(
   const cwd = mkdtempSync(join(tmpdir(), "ribo-cli-chat-"));
   try {
     return await new Promise<string>((resolvePromise, reject) => {
-      const child = spawnImpl(descriptor.cmd, [...descriptor.buildArgs(prompt, model)], {
+      const child = spawnImpl(descriptor.cmd, [...descriptor.buildArgs(model)], {
         cwd,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["pipe", "pipe", "pipe"],
       });
       let out = "";
       let err = "";
@@ -349,7 +356,27 @@ async function runCliOnce(
 
       child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString("utf8")));
       child.stderr.on("data", (chunk: Buffer) => (err += chunk.toString("utf8")));
+
+      // The prompt rides stdin, written and then ended. A write error — EPIPE when the child
+      // exits before reading stdin — must reach the caller as THIS call's failure, not crash the
+      // process via an unhandled 'error' event: the listener goes on BEFORE the write. If the
+      // spawn itself already failed, that handler has rejected with `CliUnavailableError` and
+      // this one stands down rather than overwriting the better diagnostic.
+      let spawnFailed = false;
+      child.stdin?.on("error", (cause: Error) => {
+        if (spawnFailed) return;
+        cleanup();
+        reject(
+          new Error(
+            `${backendLabel} could not receive the prompt on stdin (${messageOf(cause)}): ${err.slice(0, 500)}`,
+          ),
+        );
+      });
+      child.stdin?.write(prompt);
+      child.stdin?.end();
+
       child.on("error", (cause: Error) => {
+        spawnFailed = true;
         cleanup();
         reject(
           new CliUnavailableError(
