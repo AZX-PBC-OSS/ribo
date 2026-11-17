@@ -26,10 +26,13 @@ import { afterEach, expect, test } from "vitest";
 
 import { loadCorpus } from "../corpus/loader.js";
 import { describeCalls } from "../inspect/calls.js";
+import { transcribeDocumentCases } from "./documents.js";
+import { EvalError } from "./error.js";
 import { runEvalOverSchema } from "./run.js";
 import { estimateSpend } from "./spend-guard.js";
 import { replyFor, stubChat } from "./test-support/stub-chat.js";
 import {
+  FIXTURE_CORPUS,
   FIXTURE_FLAT_CORPUS,
   FIXTURE_SPLIT_CORPUS,
   corpusWithCases,
@@ -167,6 +170,67 @@ test("a run's estimate is the sum of its arms' estimates", () => {
 
   expect(both.usd).toBeCloseTo(one.usd + two.usd, 10);
   expect(both.worstCaseCalls).toBe(one.worstCaseCalls + two.worstCaseCalls);
+});
+
+// ---------------------------------------------------------------------------
+// Document cases are priced on their transcribed text
+// ---------------------------------------------------------------------------
+
+test("a document case's transcribed text is priced, not skipped", async () => {
+  const arms = [{ strategies: ["single-shot"], model: "ribo-test" }] as const;
+  const corpus = loadCorpus(FIXTURE_CORPUS);
+  const documents = await transcribeDocumentCases(corpus);
+
+  const withDocument = estimateSpend({ corpus, arms, backend: "openai-compatible", documents });
+  const withoutDocument = estimateSpend({
+    corpus: loadCorpus(corpusWithoutDocuments()),
+    arms,
+    backend: "openai-compatible",
+  });
+
+  // The corpus with the document case prices strictly above the same corpus
+  // with that case removed.
+  expect(withDocument.usd).toBeGreaterThan(withoutDocument.usd);
+
+  // And it is the TEXT that is priced: a longer transcription over the same
+  // corpus and the same case count grows the prompt bound. Must-fail: an
+  // implementation that skips document text when sizing prompts prices both
+  // of these the same.
+  const grown = new Map(documents);
+  grown.set("service-sheet", "chain replaced ".repeat(1000));
+  const grownEstimate = estimateSpend({
+    corpus,
+    arms,
+    backend: "openai-compatible",
+    documents: grown,
+  });
+  expect(grownEstimate.worstCasePromptTokens).toBeGreaterThan(withDocument.worstCasePromptTokens);
+});
+
+test("a document case with no transcribed text refuses the estimate, naming the case", () => {
+  const corpus = loadCorpus(FIXTURE_CORPUS);
+
+  // Must-fail: pricing the document at zero characters is the undercount the
+  // guard exists to prevent, so the missing text is a refusal, not a skip.
+  let message = "";
+  try {
+    estimateSpend({
+      corpus,
+      arms: [{ strategies: ["single-shot"], model: "ribo-test" }],
+      backend: "openai-compatible",
+    });
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+
+  expect(message).toContain("service-sheet");
+  expect(() =>
+    estimateSpend({
+      corpus,
+      arms: [{ strategies: ["single-shot"], model: "ribo-test" }],
+      backend: "openai-compatible",
+    }),
+  ).toThrow(EvalError);
 });
 
 // ---------------------------------------------------------------------------

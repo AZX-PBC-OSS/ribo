@@ -17,7 +17,10 @@
  * ladder of core's strategies, optionally wrapped in the consensus modifier —
  * over the corpus, and resolves with one result per case. The corpus enters
  * only through `loadCorpus`, so a run can never happen over a corpus that was
- * not validated.
+ * not validated. A document case runs on its PDF's transcribed text:
+ * `transcribeDocumentCases` reads it under Node through the real
+ * `PdfjsTranscriber` over pdf.js's legacy build (spike 0013), once per run,
+ * shared by every arm.
  *
  * The package's fourth surface is the CLI-backed chat transport: `cliChat`
  * shells the operator's own installed `claude`/`codex` binary instead of
@@ -88,6 +91,9 @@ export type {
   ScopedDefaultStatus,
 } from "./corpus.js";
 export { runEval } from "./eval/run.js";
+export type { RunEvalOptions } from "./eval/run.js";
+export { transcribeDocumentCases } from "./eval/documents.js";
+export type { DocumentTexts, DocumentTranscriptionOptions } from "./eval/documents.js";
 export { scoreEvalRun } from "./eval/score.js";
 export { EVAL_VERDICTS } from "./eval/score-types.js";
 export type {

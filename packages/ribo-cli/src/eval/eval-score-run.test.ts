@@ -38,7 +38,8 @@ const ALL_LEAVES = ["frame.material", "frame.serial", "service.date", "service.n
 /**
  * A copy of the fixture corpus holding exactly the named cases.
  *
- * The document case is always removed: it refuses the whole run.
+ * The document case is always removed: these suites measure scoring over
+ * transcript and text cases.
  * @param caseIds - The case ids to keep.
  * @returns The copied corpus's path.
  */
