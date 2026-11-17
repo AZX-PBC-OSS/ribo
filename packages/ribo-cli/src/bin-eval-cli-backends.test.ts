@@ -53,15 +53,19 @@ const fs = require("node:fs");
 
 const args = process.argv.slice(2);
 const log = process.env.STUB_LOG;
-if (log) fs.appendFileSync(log, JSON.stringify(args) + "\\n");
 
 if (args.includes("--version")) {
+  if (log) fs.appendFileSync(log, JSON.stringify(args) + "\\n");
   process.stdout.write("stub-cli 0.0.0\\n");
   process.exit(Number(process.env.STUB_VERSION_EXIT || "0"));
 }
 
+// The transport sends the prompt over stdin and ends the pipe, so read it to EOF.
+const prompt = fs.readFileSync(0, "utf8");
+// Log the prompt appended to the argv, so one log line describes the whole call.
+if (log) fs.appendFileSync(log, JSON.stringify(args.concat(prompt)) + "\\n");
+
 const marker = "JSON SCHEMA:";
-const prompt = args.find((a) => a.includes(marker)) || "";
 const after = prompt.slice(prompt.indexOf(marker) + marker.length);
 
 function firstObject(text) {
@@ -210,7 +214,8 @@ const stubCalls = (): readonly string[][] =>
     .filter((line) => line.length > 0)
     .map((line) => JSON.parse(line) as string[]);
 
-/** An argv element that carries the prompt, whatever the backend's argv shape is. */
+/** The logged call's prompt element — the stub appends the stdin prompt to its logged argv, so
+ *  one log line describes the whole call. */
 const promptOf = (argv: readonly string[]): string =>
   argv.find((element) => element.includes("JSON SCHEMA:")) ?? "";
 
