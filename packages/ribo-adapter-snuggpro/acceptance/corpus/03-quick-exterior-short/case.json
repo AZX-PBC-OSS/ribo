@@ -1,0 +1,29 @@
+{
+  "id": "03-quick-exterior-short",
+  "kind": "transcript",
+  "expected": {
+    "basedata.floorsAboveGrade": {
+      "status": "asserted",
+      "value": 1,
+      "sourceSpan": "a single story ranch"
+    },
+    "window.windowFrame": {
+      "status": "asserted",
+      "value": {
+        "0": "Vinyl"
+      }
+    }
+  },
+  "defaults": [
+    {
+      "scope": ["attic"],
+      "status": "declared-absent",
+      "sourceSpan": "Didn't get into the attic"
+    },
+    {
+      "scope": ["hvac"],
+      "status": "declared-absent",
+      "sourceSpan": "didn't see the heating"
+    }
+  ]
+}

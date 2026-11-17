@@ -1,0 +1,94 @@
+{
+  "id": "04-fuel-stated-separately",
+  "kind": "transcript",
+  "expected": {
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "the ambient carbon monoxide by the burner read four ppm, which is fine, below any action level, so that's a pass on CO"
+    },
+    "health.healthWorstCaseDepressurization": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "I did not do the worst-case depressurization test today"
+    },
+    "health.healthGasLeak": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "sniffed all the fittings, came back completely clean, no leaks."
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Boiler"
+      }
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "value": {
+        "0": "Fuel Oil"
+      }
+    },
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Other"
+      }
+    },
+    "hvac.hvacHeatingSystemModel": {
+      "status": "asserted",
+      "value": {
+        "0": "WGO"
+      }
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "asserted",
+      "value": {
+        "0": 1999
+      }
+    },
+    "hvac.hvacHeatingCapacity": {
+      "status": "asserted",
+      "value": {
+        "0": 105000
+      }
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "value": {
+        "0": "Tank Water Heater"
+      }
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "value": {
+        "0": "Electricity"
+      }
+    },
+    "dhw.dhwTankSize": {
+      "status": "asserted",
+      "value": {
+        "0": 50
+      }
+    },
+    "dhw.dhwManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Rheem"
+      }
+    },
+    "dhw.dhwAge": {
+      "status": "asserted",
+      "value": {
+        "0": "11-15"
+      }
+    }
+  },
+  "defaults": [
+    {
+      "scope": ["attic"],
+      "status": "declared-absent",
+      "sourceSpan": "No attic access from inside, it's a flat roof, so I've got nothing on attic insulation."
+    }
+  ]
+}

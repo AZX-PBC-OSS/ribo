@@ -1,0 +1,91 @@
+{
+  "id": "10-crawlspace-loose-units",
+  "kind": "transcript",
+  "expected": {
+    "basedata.blowerDoorReading": {
+      "status": "asserted",
+      "value": 3600,
+      "sourceSpan": "the number you write down for the blower door is the thirty-six hundred"
+    },
+    "basedata.blowerDoorTestPerformed": {
+      "status": "asserted",
+      "value": "Tested",
+      "sourceSpan": "the blower door, the whole-house one at fifty pascals, that came in at thirty-six hundred CFM50"
+    },
+    "hvac.hvacDuctLocation": {
+      "status": "asserted",
+      "value": {
+        "0": "Crawlspace (unconditioned)"
+      }
+    },
+    "hvac.hvacDuctInsulation": {
+      "status": "asserted",
+      "value": {
+        "0": "Fiberglass 2 inch"
+      }
+    },
+    "hvac.hvacDuctLeakage": {
+      "status": "asserted",
+      "value": {
+        "0": "Measured (CFM25)"
+      }
+    },
+    "hvac.hvacDuctLeakageValue": {
+      "status": "asserted",
+      "value": {
+        "0": 210
+      }
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Central Heat Pump (shared ducts)"
+      }
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "value": {
+        "0": "Electricity"
+      }
+    },
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Bosch"
+      }
+    },
+    "hvac.hvacHeatingSystemModel": {
+      "status": "declared-absent",
+      "sourceSpan": "no model or year I could get to"
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "declared-absent",
+      "sourceSpan": "no model or year I could get to"
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "value": {
+        "0": "Heat Pump"
+      }
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "value": {
+        "0": "Electricity"
+      }
+    },
+    "dhw.dhwAge": {
+      "status": "asserted",
+      "value": {
+        "0": "6-10"
+      }
+    }
+  },
+  "defaults": [
+    {
+      "scope": ["attic"],
+      "status": "declared-absent",
+      "sourceSpan": "No attic on this one"
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "id": "02-oil-boiler-basement",
+  "kind": "transcript",
+  "expected": {
+    "basedata.blowerDoorReading": {
+      "status": "declared-absent",
+      "sourceSpan": "No blower door today"
+    },
+    "basedata.blowerDoorTestPerformed": {
+      "status": "declared-absent",
+      "sourceSpan": "No blower door today"
+    },
+    "health.healthDraftPressure": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "I got good draft, nice steady pull up the chimney, that passes."
+    },
+    "health.healthGasLeak": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "I put the sniffer around the boiler and the oil lines, no gas smell obviously it's oil, but no leaks at the fittings either, all dry."
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Boiler"
+      }
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "value": {
+        "0": "Fuel Oil"
+      }
+    },
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Other"
+      }
+    },
+    "hvac.hvacHeatingSystemModel": {
+      "status": "asserted",
+      "value": {
+        "0": "V8"
+      }
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "asserted",
+      "value": {
+        "0": 2004
+      }
+    },
+    "hvac.hvacHeatingCapacity": {
+      "status": "declared-absent",
+      "sourceSpan": "no BTU number from me"
+    },
+    "attic.atticInsulationType": {
+      "status": "asserted",
+      "value": {
+        "0": "Cellulose"
+      }
+    },
+    "attic.atticInsulationDepth": {
+      "status": "asserted",
+      "value": {
+        "0": "4-6"
+      }
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "value": {
+        "0": "Sidearm Tank"
+      }
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "value": {
+        "0": "Fuel Oil"
+      }
+    },
+    "dhw.dhwAge": {
+      "status": "asserted",
+      "value": {
+        "0": "6-10"
+      }
+    },
+    "dhw.dhwTankSize": {
+      "status": "asserted",
+      "value": {
+        "0": 40
+      }
+    },
+    "dhw.dhwManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Other"
+      }
+    }
+  },
+  "defaults": [
+    {
+      "scope": ["basedata.blowerDoorReading", "basedata.blowerDoorTestPerformed"],
+      "status": "declared-absent",
+      "sourceSpan": "No blower door today"
+    }
+  ]
+}

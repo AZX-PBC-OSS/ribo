@@ -1,0 +1,77 @@
+{
+  "id": "06-homeowner-crosstalk",
+  "kind": "transcript",
+  "expected": {
+    "basedata.blowerDoorReading": {
+      "status": "declared-absent",
+      "sourceSpan": "Attic and the rest of the shell we'll do on the next visit."
+    },
+    "basedata.blowerDoorTestPerformed": {
+      "status": "declared-absent",
+      "sourceSpan": "Attic and the rest of the shell we'll do on the next visit."
+    },
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "CO test right by the two appliances, I'm reading zero, clean, no carbon monoxide."
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Furnace with standalone ducts"
+      },
+      "alternatives": [
+        {
+          "0": "Furnace / Central AC (shared ducts)"
+        }
+      ]
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    },
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Goodman"
+      }
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "declared-absent",
+      "sourceSpan": "I'm leaving the year blank."
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "value": {
+        "0": "Tank Water Heater"
+      }
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    },
+    "dhw.dhwTankSize": {
+      "status": "asserted",
+      "value": {
+        "0": 40
+      }
+    }
+  },
+  "defaults": [
+    {
+      "scope": [
+        "attic",
+        "wall",
+        "window",
+        "basedata.blowerDoorReading",
+        "basedata.blowerDoorTestPerformed"
+      ],
+      "status": "declared-absent",
+      "sourceSpan": "Attic and the rest of the shell we'll do on the next visit."
+    }
+  ]
+}
