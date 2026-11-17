@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "properties": {
+    "yearBuilt": {
+      "type": "number",
+      "nullable": true,
+      "description": "Year the home was built"
+    },
+    "squareFeet": {
+      "type": "number",
+      "nullable": true,
+      "description": "Conditioned floor area, in square feet"
+    },
+    "fuelType": {
+      "type": "string",
+      "nullable": true,
+      "description": "Primary heating fuel"
+    },
+    "stories": {
+      "type": "number",
+      "nullable": true,
+      "description": "Above-grade story count"
+    },
+    "occupantCount": {
+      "type": "number",
+      "nullable": true,
+      "description": "People living in the home"
+    },
+    "notes": {
+      "type": "string",
+      "nullable": true,
+      "description": "Free-text site notes"
+    }
+  }
+}
