@@ -132,6 +132,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: "Guide", link: "/guide/" },
+      { text: "CLI", link: "/cli/" },
       { text: "Examples", link: "/examples/" },
       { text: "API", link: "/api/" },
       { text: "Offline-first", link: "/offline-first/" },
@@ -207,6 +208,19 @@ export default defineConfig({
           items: [
             { text: "Motivation", link: "/guide/motivation" },
             { text: "Comparison", link: "/guide/comparison" },
+          ],
+        },
+      ],
+      "/cli/": [
+        {
+          text: "CLI",
+          collapsed: false,
+          items: [
+            { text: "Overview & Install", link: "/cli/" },
+            { text: "Writing a Schema", link: "/cli/schema" },
+            { text: "The Corpus Format", link: "/cli/corpus" },
+            { text: "Scoring & Comparing", link: "/cli/scoring" },
+            { text: "Spend", link: "/cli/spend" },
           ],
         },
       ],

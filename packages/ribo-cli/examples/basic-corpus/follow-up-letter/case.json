@@ -1,0 +1,33 @@
+{
+  "id": "follow-up-letter",
+  "kind": "text",
+  "expected": {
+    "home.address": {
+      "status": "asserted",
+      "value": "8 Birch Avenue",
+      "sourceSpan": "8 Birch Avenue"
+    },
+    "home.yearBuilt": {
+      "status": "asserted",
+      "value": 1975,
+      "sourceSpan": "built 1975"
+    },
+    "heating.fuel": {
+      "status": "asserted",
+      "value": "heat-pump",
+      "sourceSpan": "a heat pump"
+    },
+    "heating.servicedAt": {
+      "status": "asserted",
+      "value": "2026-01-12",
+      "sourceSpan": "last serviced 2026-01-12"
+    }
+  },
+  "defaults": [
+    {
+      "scope": "upgrades",
+      "status": "declared-absent",
+      "sourceSpan": "No work was recommended at this visit"
+    }
+  ]
+}
