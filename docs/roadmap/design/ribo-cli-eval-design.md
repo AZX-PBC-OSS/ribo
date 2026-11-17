@@ -782,6 +782,14 @@ else.
 
 This section prescribes no paid run and builds nothing.
 
+**Outcome (spike 0013, 2026-11-16):** pdf.js runs under Node without a worker shim — the route
+is pdfjs-dist's own legacy build, driven through the real `PdfjsTranscriber` via its `loadPdfjs`
+option, meeting the same three-fixture bar the package's browser suite asserts, with no `Worker`
+global defined (`docs/spikes/0013-pdfjs-under-node/`). The standard build does not run under
+Node: its worker needs `Uint8Array.prototype.toHex`, absent from Node 24's V8. The deferred
+document-path build follow-up is therefore decidable; whether and when to build it is not
+decided here.
+
 ## 10. The accuracy-page generator's scope
 
 `scripts/generate-accuracy-page.mjs` generates the accuracy page from committed run records. The

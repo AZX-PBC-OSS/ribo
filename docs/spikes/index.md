@@ -56,6 +56,7 @@ two copies of the same probe.
 | 0010 | [`0010-kev-ondevice`](./0010-kev-ondevice/)                           | Can a self-hosted kev stand in for hosted Jev, on-device or otherwise?        | Answered | 2026-09-22 |
 | 0011 | [`0011-presence-narrowing`](./0011-presence-narrowing/)               | How much extraction work survives a presence pass, and does anything die?     | Answered | 2026-09-24 |
 | 0012 | [`0012-narrowing-end-to-end`](./0012-narrowing-end-to-end/)           | Does a presence-narrowed run extract what `perGroupExtractor` does?           | Answered | 2026-10-29 |
+| 0013 | [`0013-pdfjs-under-node`](./0013-pdfjs-under-node/)                   | Can pdf.js run under Node without a worker shim?                              | Answered | 2026-11-16 |
 
 Numbers are assigned by first-commit date. The three sharing 2026-07-24 arrived in one squashed
 initial release and are ordered by the doc that reports each (01, 14, 16).
