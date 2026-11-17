@@ -98,6 +98,18 @@ import type { ThresholdRow } from "./inspect/report-schema.js";
 import { InputFault, readDocumentSource } from "./read-input.js";
 import { renderHumanReport } from "./render-human.js";
 
+/**
+ * The docs site's CLI section — the pointer every command's help ends with,
+ * for the formats the help does not spell out. The package's README covers
+ * the same ground for a reader with only the installed tarball.
+ */
+const DOCS_URL = "https://ribo-docs.azx.helix.azxlabs.io/cli";
+
+/** The root help's docs pointer. */
+const rootDocsPointer =
+  `Docs: ${DOCS_URL}/index.html — the CLI's overview, install and the ` +
+  "documents-to-scores walkthrough; the package's README covers the same ground.";
+
 /** Reports a could-not-run fault under a command's name and exits 2. Stdout stays empty. */
 function failWith(command: string, message: string): never {
   process.stderr.write(`${command}: ${colorsFor(process.stderr).red(message)}\n`);
@@ -663,6 +675,7 @@ const evalHelp = [
 const program = new Command()
   .name("ribo")
   .description("Ribo's command-line tools (ADR 0037)")
+  .addHelpText("after", rootDocsPointer)
   .showHelpAfterError()
   // Commander's default usage-error exit is 1, which is the
   // ran-and-failed-threshold code — never shared (design §4). Remap every
@@ -674,7 +687,13 @@ const program = new Command()
     process.exit(2);
   });
 
-const schema = program.command("schema").description("Sizing checks over a JSON Schema document");
+const schema = program
+  .command("schema")
+  .description("Sizing checks over a JSON Schema document")
+  .addHelpText(
+    "after",
+    `Docs: ${DOCS_URL}/schema.html — the schema dialect the subcommand reads, and what each report line means.`,
+  );
 
 schema
   .command("inspect")
@@ -705,6 +724,10 @@ schema
     parseCap,
   )
   .addHelpText("after", inspectHelp)
+  .addHelpText(
+    "after",
+    `Docs: ${DOCS_URL}/schema.html — the schema dialect this command reads, and what each report line means.`,
+  )
   .action(run);
 
 const evalCommand = program
@@ -758,6 +781,14 @@ const evalCommand = program
   )
   .option("--yes", "proceed even when the estimate is above the ceiling")
   .addHelpText("after", evalHelp)
+  .addHelpText(
+    "after",
+    [
+      `Docs: the corpus format — ${DOCS_URL}/corpus.html`,
+      `      the verdicts and the run record — ${DOCS_URL}/scoring.html`,
+      `      the estimate and --max-spend — ${DOCS_URL}/spend.html`,
+    ].join("\n"),
+  )
   .action(runEvalCommand);
 
 // Every diagnostic this command writes — its own refusals and commander's
@@ -876,6 +907,10 @@ const compareCommand = program
     "allow comparing records whose corpus fingerprints differ, and record that the override was passed",
   )
   .addHelpText("after", compareHelp)
+  .addHelpText(
+    "after",
+    `Docs: ${DOCS_URL}/scoring.html — the run record, the axes and the intersection rule.`,
+  )
   .action(runCompare);
 
 // Every diagnostic this command writes — its own refusals and commander's
@@ -972,7 +1007,8 @@ const corpusTextHelp = [
 
 const corpusCommand = program
   .command("corpus")
-  .description("Read a corpus directory without spending: see what a run would send");
+  .description("Read a corpus directory without spending: see what a run would send")
+  .addHelpText("after", `Docs: ${DOCS_URL}/corpus.html — the corpus format the subcommand reads.`);
 
 const corpusTextCommand = corpusCommand
   .command("text")
@@ -984,6 +1020,7 @@ const corpusTextCommand = corpusCommand
   .argument("[case-id]", "print this case alone, without a header")
   .option("--json", "emit the versioned JSON document of {caseId, kind, text} entries")
   .addHelpText("after", corpusTextHelp)
+  .addHelpText("after", `Docs: ${DOCS_URL}/corpus.html — the corpus format this command reads.`)
   .action(runCorpusText);
 
 // Every diagnostic this command writes — its own refusals and commander's

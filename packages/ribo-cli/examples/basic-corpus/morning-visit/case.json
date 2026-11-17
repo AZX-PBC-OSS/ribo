@@ -1,0 +1,41 @@
+{
+  "id": "morning-visit",
+  "kind": "transcript",
+  "expected": {
+    "home.address": {
+      "status": "asserted",
+      "value": "14 Maple Street",
+      "alternatives": ["14 Maple St", "14 Maple St."],
+      "sourceSpan": "14 Maple Street"
+    },
+    "home.yearBuilt": {
+      "status": "asserted",
+      "value": 1928,
+      "sourceSpan": "the 1928 place"
+    },
+    "heating.fuel": {
+      "status": "asserted",
+      "value": "gas",
+      "sourceSpan": "runs on gas"
+    },
+    "heating.servicedAt": {
+      "status": "declared-absent",
+      "sourceSpan": "couldn't say when it was last serviced"
+    },
+    "upgrades.measure": {
+      "status": "asserted",
+      "value": {
+        "0": "attic insulation top-up",
+        "1": "smart thermostat"
+      }
+    },
+    "upgrades.estimatedCost": {
+      "status": "asserted",
+      "value": {
+        "0": 1800,
+        "1": 250
+      },
+      "sourceSpan": "roughly $1,800, and a smart thermostat, about $250"
+    }
+  }
+}

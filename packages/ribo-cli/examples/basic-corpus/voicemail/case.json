@@ -1,0 +1,16 @@
+{
+  "id": "voicemail",
+  "kind": "transcript",
+  "expected": {
+    "home.address": {
+      "status": "asserted",
+      "value": "3 Cedar Lane"
+    },
+    "heating.fuel": {
+      "status": "asserted",
+      "value": "electric",
+      "alternatives": ["electricity"],
+      "sourceSpan": "the heating is electric"
+    }
+  }
+}

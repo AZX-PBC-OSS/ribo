@@ -1,0 +1,60 @@
+{
+  "type": "object",
+  "description": "A home-energy visit's findings.",
+  "properties": {
+    "home": {
+      "type": "object",
+      "description": "The home the visit inspected.",
+      "properties": {
+        "address": {
+          "type": "string",
+          "description": "The home's street address."
+        },
+        "yearBuilt": {
+          "type": "number",
+          "description": "The year the home was built, when the visit recorded one.",
+          "nullable": true
+        }
+      },
+      "required": ["address", "yearBuilt"]
+    },
+    "heating": {
+      "type": "object",
+      "description": "The home's heating system.",
+      "properties": {
+        "fuel": {
+          "type": "string",
+          "enum": ["gas", "oil", "electric", "heat-pump"],
+          "description": "The fuel the heating system burns, or heat-pump for a heat pump."
+        },
+        "servicedAt": {
+          "type": "string",
+          "description": "The date the system was last serviced, as the visit stated it.",
+          "nullable": true
+        }
+      },
+      "required": ["fuel"]
+    },
+    "upgrades": {
+      "type": "array",
+      "description": "The upgrades the visit recommended, one entry per recommendation.",
+      "items": {
+        "type": "object",
+        "description": "One recommended upgrade.",
+        "properties": {
+          "measure": {
+            "type": "string",
+            "description": "The upgrade's short name."
+          },
+          "estimatedCost": {
+            "type": "number",
+            "description": "The estimated cost in US dollars, when the visit named one.",
+            "nullable": true
+          }
+        },
+        "required": ["measure", "estimatedCost"]
+      }
+    }
+  },
+  "required": ["home", "heating", "upgrades"]
+}

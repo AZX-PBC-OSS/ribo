@@ -1,0 +1,9 @@
+{
+  "name": "energy-visit-notes",
+  "schema": "schema.json",
+  "provenance": "synthetic",
+  "prompt": {
+    "instructions": "Read the visit note and extract the home, the heating system and the recommended upgrades. Never guess a value the note does not state."
+  },
+  "description": "The worked example the @azx/ribo-cli README and the docs site's CLI section walk through: synthetic energy-visit notes over one small schema."
+}
