@@ -183,6 +183,18 @@ not by the corpus: a hazard is a fact about one tool's schema, not about a case'
 so a corpus author is never asked to declare one. §3 says where those declarations come from and
 what each check does with them.
 
+### Seeing a case's text: `ribo corpus text`
+
+Writing a case's `expected` answers means reading the text the model will read. `ribo corpus
+text <corpus-dir> [case-id]` prints exactly that: transcript and text cases verbatim, document
+cases transcribed through the same `transcribeDocumentCases` path a run uses — one
+implementation, never a second pdf.js route. With a case id it prints that case alone, without a
+header; without one it prints every case under a per-case header; `--json` emits a versioned
+document of `{caseId, kind, text}` entries (a `contractVersion` literal, the discipline §6 sets).
+It makes no model call and needs no credential, and it owns the same two exit codes — 0 success,
+2 could-not-run (an unreadable corpus, an unknown case id, a document that cannot be
+transcribed).
+
 ## 2. Scoring
 
 The scorer judges one run against one case and reduces the result to a taxonomy. The taxonomy is
@@ -555,12 +567,18 @@ from a different strategy would price a run the guard has not measured.
 - **Tokens.** The per-call token bound comes from the **real pieces' measured prompt sizes** — the
   prompt each piece actually carries — plus the response cap, so the estimate is priced on what the
   run will send, not on a schema-sized guess.
-- **Price.** The tokens are priced from a **dated per-backend table in the CLI package**: each
-  backend's price per thousand prompt tokens and per thousand completion tokens, and the date the
-  table was last priced. For the **subscription CLI backends** — the ones whose own use the vendor
-  does not meter per token — the table states the **token-equivalent assumption** the estimate uses
-  to put them on the same scale as the metered backends. The assumption is stated, not hidden,
-  because it is an assumption: a reader who disagrees with it can see what it is.
+- **Price.** The tokens are priced from a **dated table in the CLI package**, keyed by backend
+  and, where a row exists, by model id: each row carries the price per thousand prompt tokens and
+  per thousand completion tokens, the date it was priced and its source. A model with its own row
+  is priced on that row, and the estimate names it; a model with no row is priced on the
+  backend's reference row, and the estimate says it fell back and names the reference it used — a
+  model is never silently priced. Rows exist for the models the help and the docs mention, and
+  only where a public list price can be stated with a source and a date; a model whose list price
+  cannot be stated gets no row and takes the fallback. For the **subscription CLI backends** — the
+  ones whose own use the vendor does not meter per token — the row states the **token-equivalent
+  assumption** the estimate uses to put them on the same scale as the metered backends. The
+  assumption is stated, not hidden, because it is an assumption: a reader who disagrees with it
+  can see what it is.
 
 ### The estimate reads the run's own settings
 
@@ -624,6 +642,14 @@ decides for itself. Adding a third code later would be a new decision with its o
 detail of this one.
 
 ### The ordering
+
+**A `--response-cap` the backend cannot honour is refused before the preflight.** The CLI
+backends cannot cap generated tokens — `cliChat` itself refuses a request that carries
+`maxTokens` — so `--response-cap` with `--backend claude-cli` or `--backend codex-cli` is a usage
+error knowable before anything runs: the command exits 2, naming the flag and the backend and
+saying to drop the flag, before the preflight, the corpus load and any model call. The capability
+is read from the transport's own descriptor — the same source `cliChat`'s refusal reads — never a
+second hard-coded list.
 
 **The preflight runs before planning and before the spend guard.** The preflight is the check that
 the backend's binary is installed and answers — the CLI backends spawn the user's installed

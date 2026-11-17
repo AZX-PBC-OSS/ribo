@@ -25,6 +25,14 @@
  * no shared leaf, no shared case — are could-not-run faults. It owns the
  * two exit codes, and no third.
  *
+ * The fourth command, `ribo corpus text`, prints the text each case's
+ * prompt carries — transcript and text cases verbatim, document cases
+ * transcribed through the same `transcribeDocumentCases` path `ribo eval`
+ * uses — so a corpus writer can see what a model would see, with no model
+ * call and no credential. It owns the same two exit codes: 0 success, 2
+ * could-not-run (an unreadable corpus, an unknown case id, a document that
+ * cannot be transcribed), and no third.
+ *
  * Output discipline (design §4): results on stdout, diagnostics on stderr.
  * The report is rendered for humans by default; `--json` emits the versioned
  * JSON contract instead (design §7), byte-stable regardless of TTY or colour
@@ -52,6 +60,8 @@ import type { CapableChatClient, ChatClient } from "@azx/ribo-core";
 
 import { colorsFor } from "./colors.js";
 import { loadCorpus } from "./corpus.js";
+import { CORPUS_TEXT_CONTRACT_VERSION, collectCorpusText } from "./corpus/text.js";
+import { cliBackendSupportsMaxTokens } from "./cli-chat.js";
 import { preflightCliBackend } from "./cli-preflight.js";
 import { asCapableChat } from "./eval/chat.js";
 import {
@@ -107,6 +117,24 @@ function failEval(message: string): never {
 /** Reports a could-not-run fault of the compare command and exits 2. Stdout stays empty. */
 function failCompare(message: string): never {
   failWith("ribo compare", message);
+}
+
+/** Reports a could-not-run fault of the corpus text command and exits 2. Stdout stays empty. */
+function failCorpusText(message: string): never {
+  failWith("ribo corpus text", message);
+}
+
+/**
+ * Write a diagnostic of the corpus text command under its name — every
+ * diagnostic line a run of `ribo corpus text` produces names the command,
+ * whichever layer produced it, the pattern the eval command's
+ * `writeEvalErr` sets.
+ */
+function writeCorpusTextErr(text: string): void {
+  for (const line of text.split("\n")) {
+    if (line.length === 0) continue;
+    process.stderr.write(`ribo corpus text: ${line}\n`);
+  }
 }
 
 /**
@@ -393,6 +421,20 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
     );
   }
   const backend = evalBackendOf(flags.backend);
+  // A cap the backend cannot honour is a usage error knowable before
+  // anything runs, so it is refused FIRST — before the preflight, the
+  // corpus load and any model call. The capability is the transport
+  // descriptor's own field, the same one cliChat's refusal of a maxTokens
+  // request reads, never a second hard-coded list.
+  if (flags.responseCap !== undefined && isCliBackend(backend)) {
+    if (!cliBackendSupportsMaxTokens(cliBackendNameFor(backend))) {
+      failEval(
+        `--response-cap is not supported on the ${backend} backend — a CLI cannot cap ` +
+          "generated tokens (fix: drop --response-cap, or run against --backend " +
+          "openai-compatible, which honours the cap)",
+      );
+    }
+  }
   // The preflight runs BEFORE planning: a missing binary is reported as a
   // missing binary, never as a corpus fault or a spend refusal. The
   // openai-compatible backend has no binary to check, so it skips this.
@@ -459,7 +501,7 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
   // cannot state refuses here too, and no flag overrides that one.
   let estimate;
   try {
-    estimate = estimateSpend({ corpus, arms: settings, backend, documents });
+    estimate = estimateSpend({ corpus, arms: settings, backend, model: flags.model, documents });
   } catch (error) {
     if (error instanceof SchemaInspectError) failEval(error.message);
     throw error;
@@ -598,15 +640,24 @@ const evalHelp = [
   "  refuses the run — exit 2 — when the estimate is above the ceiling.",
   `  --max-spend <usd>   the ceiling on the estimated spend (default: USD ${DEFAULT_MAX_SPEND_USD.toFixed(2)})`,
   "  --yes               proceed even when the estimate is above the ceiling",
+  "  The estimate prices the run's --model: a model with its own dated row in the price table is",
+  "  priced on that row, and the estimate names it; any other model is priced on the backend's",
+  "  reference row, and the estimate says it fell back and names the reference it used. Rows",
+  "  exist for the models the examples and docs mention (gpt-4o, claude-sonnet-5-5, claude-haiku-5-5).",
   "",
   "Settings:",
   "  Every flag below is optional, and an absent flag means the strategies' own default stands.",
   "  --consensus runs the whole arm as N candidates on the same backend and model.",
+  "  --response-cap caps the tokens a call may generate. The CLI backends cannot cap generated",
+  "  tokens — a CLI has no wire-level keyword for it — so --response-cap with --backend claude-cli",
+  "  or --backend codex-cli is refused up front, before the preflight: drop the flag, or run",
+  "  against --backend openai-compatible, which honours it.",
   "",
   "Examples:",
   "  ribo eval --corpus ./corpora/workshop --backend openai-compatible --model gpt-4o --strategy single-shot",
   "  ribo eval --corpus ./corpora/workshop --backend openai-compatible --model gpt-4o \\",
   "      --strategy single-shot,per-group --consensus 3 --out ./runs",
+  "  ribo eval --corpus ./corpora/workshop --backend claude-cli --model claude-haiku-5-5 --strategy per-group",
 ].join("\n");
 
 const program = new Command()
@@ -832,6 +883,114 @@ const compareCommand = program
 compareCommand
   .showHelpAfterError("run 'ribo compare --help' for the command's flags and exit codes.")
   .configureOutput({ writeErr: writeCompareErr });
+
+// --- `ribo corpus` -------------------------------------------------------------------
+
+/** The flags the corpus text command parses. */
+interface CorpusTextFlags {
+  readonly json?: boolean;
+}
+
+/** The text with exactly one trailing newline, for printing. */
+const printable = (text: string): string => (text.endsWith("\n") ? text : `${text}\n`);
+
+/**
+ * Run the corpus text command: load the corpus, collect each selected case's
+ * text, print.
+ *
+ * Every refusal the loader, the selection and the transcription raise is the
+ * package's could-not-run class, so one catch maps them all to exit 2 with
+ * the diagnostic naming the cause. No model call is made and no credential
+ * is read — the document path is pdf.js, local and free.
+ * @param corpusDir - The corpus directory to read.
+ * @param caseId - The one case to print, or every case when absent.
+ * @param flags - The parsed flags.
+ */
+async function runCorpusText(
+  corpusDir: string,
+  caseId: string | undefined,
+  flags: CorpusTextFlags,
+): Promise<void> {
+  let corpus;
+  try {
+    corpus = loadCorpus(corpusDir);
+  } catch (error) {
+    if (error instanceof SchemaInspectError) failCorpusText(error.message);
+    throw error;
+  }
+  let text;
+  try {
+    text = await collectCorpusText(corpus, caseId);
+  } catch (error) {
+    if (error instanceof SchemaInspectError) failCorpusText(error.message);
+    throw error;
+  }
+  if (flags.json === true) {
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          contractVersion: CORPUS_TEXT_CONTRACT_VERSION,
+          corpus: text.corpus,
+          cases: text.cases,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    return;
+  }
+  // One case reads as its text alone — pipeable, no header. Many cases read
+  // under a per-case header naming the case and its kind.
+  const only = text.cases.length === 1 ? text.cases[0] : undefined;
+  if (only !== undefined) {
+    process.stdout.write(printable(only.text));
+    return;
+  }
+  const blocks = text.cases.map(
+    (entry) => `== ${entry.caseId} (${entry.kind}) ==\n${printable(entry.text)}`,
+  );
+  process.stdout.write(blocks.join("\n"));
+}
+
+const corpusTextHelp = [
+  "Exit codes:",
+  "  0  the text was printed",
+  "  2  the command could not run: a usage error, an unreadable corpus, an unknown case id,",
+  "     or a document that cannot be transcribed (no text layer, or bytes pdf.js cannot open)",
+  "",
+  "What it prints:",
+  "  The text each case's prompt carries: transcript and text cases verbatim, document cases",
+  "  transcribed through the same path `ribo eval` uses. With a case id, that case alone,",
+  "  without a header; without one, every case under a per-case header. No model call is made",
+  "  and no credential is needed — transcription is local.",
+  "",
+  "Examples:",
+  "  ribo corpus text ./corpora/workshop",
+  "  ribo corpus text ./corpora/workshop service-sheet",
+  "  ribo corpus text --json ./corpora/workshop",
+].join("\n");
+
+const corpusCommand = program
+  .command("corpus")
+  .description("Read a corpus directory without spending: see what a run would send");
+
+const corpusTextCommand = corpusCommand
+  .command("text")
+  .description(
+    "Print the text each case's prompt carries — transcript and text cases verbatim, document " +
+      "cases transcribed exactly as `ribo eval` transcribes them",
+  )
+  .argument("<corpus-dir>", "the corpus directory to read")
+  .argument("[case-id]", "print this case alone, without a header")
+  .option("--json", "emit the versioned JSON document of {caseId, kind, text} entries")
+  .addHelpText("after", corpusTextHelp)
+  .action(runCorpusText);
+
+// Every diagnostic this command writes — its own refusals and commander's
+// usage errors alike — names the command.
+corpusTextCommand
+  .showHelpAfterError("run 'ribo corpus text --help' for the command's arguments and exit codes.")
+  .configureOutput({ writeErr: writeCorpusTextErr });
 
 // Commander's parse() reads process.argv by default. Exit codes are the
 // command's own: 0 from run(), 1 from the threshold-breach path, 2 from

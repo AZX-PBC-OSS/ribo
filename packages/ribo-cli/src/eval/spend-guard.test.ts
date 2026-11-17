@@ -25,10 +25,13 @@ import type { ChatRequest } from "@azx/ribo-core";
 import { afterEach, expect, test } from "vitest";
 
 import { loadCorpus } from "../corpus/loader.js";
+import { colorsFor } from "../colors.js";
 import { describeCalls } from "../inspect/calls.js";
 import { transcribeDocumentCases } from "./documents.js";
 import { EvalError } from "./error.js";
+import { PRICE_TABLE, priceTokens } from "./pricing.js";
 import { runEvalOverSchema } from "./run.js";
+import { formatSpendEstimate } from "./spend-display.js";
 import { estimateSpend } from "./spend-guard.js";
 import { replyFor, stubChat } from "./test-support/stub-chat.js";
 import {
@@ -101,6 +104,7 @@ test("the per-group rung's count is the report's own per-group count", () => {
     corpus,
     arms: [{ strategies: ["per-group"], model: "ribo-test", splitCaps: caps }],
     backend: "openai-compatible",
+    model: "ribo-test",
   });
 
   expect(estimate.arms[0]?.rungs[0]?.calls).toBe(report.perGroup);
@@ -116,6 +120,7 @@ test("the presence-narrowed rung's count is the report's own bound", () => {
     corpus,
     arms: [{ strategies: ["presence-narrowed"], model: "ribo-test", splitCaps: caps }],
     backend: "openai-compatible",
+    model: "ribo-test",
   });
 
   expect(estimate.arms[0]?.rungs[0]?.calls).toBe(report.presenceNarrowedAtMost);
@@ -137,6 +142,7 @@ test("a ladder counts every rung, and the multipliers apply to the whole ladder"
       },
     ],
     backend: "openai-compatible",
+    model: "ribo-test",
   });
 
   const arm = estimate.arms[0];
@@ -153,11 +159,13 @@ test("a run's estimate is the sum of its arms' estimates", () => {
     corpus,
     arms: [{ strategies: ["single-shot"], model: "ribo-test" }],
     backend: "openai-compatible",
+    model: "ribo-test",
   });
   const two = estimateSpend({
     corpus,
     arms: [{ strategies: ["per-group"], model: "ribo-test" }],
     backend: "openai-compatible",
+    model: "ribo-test",
   });
   const both = estimateSpend({
     corpus,
@@ -166,6 +174,7 @@ test("a run's estimate is the sum of its arms' estimates", () => {
       { strategies: ["per-group"], model: "ribo-test" },
     ],
     backend: "openai-compatible",
+    model: "ribo-test",
   });
 
   expect(both.usd).toBeCloseTo(one.usd + two.usd, 10);
@@ -181,11 +190,18 @@ test("a document case's transcribed text is priced, not skipped", async () => {
   const corpus = loadCorpus(FIXTURE_CORPUS);
   const documents = await transcribeDocumentCases(corpus);
 
-  const withDocument = estimateSpend({ corpus, arms, backend: "openai-compatible", documents });
+  const withDocument = estimateSpend({
+    corpus,
+    arms,
+    backend: "openai-compatible",
+    model: "ribo-test",
+    documents,
+  });
   const withoutDocument = estimateSpend({
     corpus: loadCorpus(corpusWithoutDocuments()),
     arms,
     backend: "openai-compatible",
+    model: "ribo-test",
   });
 
   // The corpus with the document case prices strictly above the same corpus
@@ -202,6 +218,7 @@ test("a document case's transcribed text is priced, not skipped", async () => {
     corpus,
     arms,
     backend: "openai-compatible",
+    model: "ribo-test",
     documents: grown,
   });
   expect(grownEstimate.worstCasePromptTokens).toBeGreaterThan(withDocument.worstCasePromptTokens);
@@ -218,6 +235,7 @@ test("a document case with no transcribed text refuses the estimate, naming the 
       corpus,
       arms: [{ strategies: ["single-shot"], model: "ribo-test" }],
       backend: "openai-compatible",
+      model: "ribo-test",
     });
   } catch (error) {
     message = error instanceof Error ? error.message : String(error);
@@ -229,6 +247,7 @@ test("a document case with no transcribed text refuses the estimate, naming the 
       corpus,
       arms: [{ strategies: ["single-shot"], model: "ribo-test" }],
       backend: "openai-compatible",
+      model: "ribo-test",
     }),
   ).toThrow(EvalError);
 });
@@ -245,6 +264,7 @@ test("a presence-narrowed arm over a schema with no groups refuses, naming the b
       corpus,
       arms: [{ strategies: ["presence-narrowed"], model: "ribo-test" }],
       backend: "openai-compatible",
+      model: "ribo-test",
     }),
   ).toThrow(/presence-narrowed strategy has no call bound/);
 });
@@ -258,6 +278,7 @@ test("the refusal names why the bound is missing", () => {
       corpus,
       arms: [{ strategies: ["presence-narrowed"], model: "ribo-test" }],
       backend: "openai-compatible",
+      model: "ribo-test",
     });
   } catch (error) {
     message = error instanceof Error ? error.message : String(error);
@@ -281,6 +302,7 @@ test("a split that cannot fit a piece refuses the presence-narrowed rung too, na
         },
       ],
       backend: "openai-compatible",
+      model: "ribo-test",
     });
   } catch (error) {
     message = error instanceof Error ? error.message : String(error);
@@ -308,6 +330,7 @@ test("a split that cannot fit a piece refuses the per-group rung, naming the rea
         },
       ],
       backend: "openai-compatible",
+      model: "ribo-test",
     });
   } catch (error) {
     message = error instanceof Error ? error.message : String(error);
@@ -324,7 +347,12 @@ test("a retry storm's metered calls are covered by the estimate", async () => {
   const corpus = loadCorpus(corpusWithoutDocuments());
   const settings: EvalSettings = { strategies: ["per-group"], model: "ribo-test", maxRetries: 2 };
 
-  const estimate = estimateSpend({ corpus, arms: [settings], backend: "openai-compatible" });
+  const estimate = estimateSpend({
+    corpus,
+    arms: [settings],
+    backend: "openai-compatible",
+    model: "ribo-test",
+  });
   const results = await runArm(corpus, settings, stormChat());
   const metered = meteredCalls(results);
 
@@ -346,7 +374,12 @@ test("a consensus arm's metered calls are covered by the estimate", async () => 
     consensusCandidates: 3,
   };
 
-  const estimate = estimateSpend({ corpus, arms: [settings], backend: "openai-compatible" });
+  const estimate = estimateSpend({
+    corpus,
+    arms: [settings],
+    backend: "openai-compatible",
+    model: "ribo-test",
+  });
   const results = await runArm(corpus, settings, stubChat());
   const metered = meteredCalls(results);
 
@@ -367,7 +400,12 @@ test("a presence-narrowed split fixture's metered calls are covered by the estim
     splitCaps: caps,
   };
 
-  const estimate = estimateSpend({ corpus, arms: [settings], backend: "openai-compatible" });
+  const estimate = estimateSpend({
+    corpus,
+    arms: [settings],
+    backend: "openai-compatible",
+    model: "ribo-test",
+  });
   const results = await runArm(corpus, settings, stubChat());
   const metered = meteredCalls(results);
 
@@ -408,7 +446,12 @@ test("a tight byte cap is estimated under that cap, not under the default one", 
     maxRetries: 0,
     splitCaps: { maxSerializedCharsPerGroup: tight },
   };
-  const estimate = estimateSpend({ corpus, arms: [settings], backend: "openai-compatible" });
+  const estimate = estimateSpend({
+    corpus,
+    arms: [settings],
+    backend: "openai-compatible",
+    model: "ribo-test",
+  });
   const results = await runArm(corpus, settings, stubChat());
   const metered = meteredCalls(results);
 
@@ -421,8 +464,73 @@ test("a tight byte cap is estimated under that cap, not under the default one", 
 test("the corpus the run measures is the corpus the estimate prices", async () => {
   const corpus = loadCorpus(corpusWithCases("spoken-note"));
   const settings: EvalSettings = { strategies: ["single-shot"], model: "ribo-test" };
-  const estimate = estimateSpend({ corpus, arms: [settings], backend: "openai-compatible" });
+  const estimate = estimateSpend({
+    corpus,
+    arms: [settings],
+    backend: "openai-compatible",
+    model: "ribo-test",
+  });
 
   expect(estimate.caseCount).toBe(corpus.cases.length);
   expect(estimate.worstCaseCalls).toBe(estimate.callsPerCase * corpus.cases.length);
+});
+
+// ---------------------------------------------------------------------------
+// The estimate prices the run's model
+// ---------------------------------------------------------------------------
+
+test("a model with its own price row is priced on it, and the estimate names the row", () => {
+  const corpus = loadCorpus(corpusWithoutDocuments());
+  const withRow = estimateSpend({
+    corpus,
+    arms: [{ strategies: ["single-shot"], model: "claude-haiku-5-5" }],
+    backend: "claude-cli",
+    model: "claude-haiku-5-5",
+  });
+  const onReference = estimateSpend({
+    corpus,
+    arms: [{ strategies: ["single-shot"], model: "claude-unlisted-9" }],
+    backend: "claude-cli",
+    model: "claude-unlisted-9",
+  });
+
+  // The Haiku row is cheaper than the Sonnet reference row, so the two
+  // estimates differ. Must-fail: an estimate that ignored the model prices
+  // both runs at the reference row, and the two are equal.
+  expect(withRow.usd).toBeLessThan(onReference.usd);
+  expect(withRow.price.matched).toBe("model");
+
+  // The printed estimate names the row it priced.
+  const lines = formatSpendEstimate(withRow, colorsFor({ isTTY: false })).join("\n");
+  expect(lines).toContain("claude-haiku-5-5");
+  expect(lines).toContain("row");
+});
+
+test("a model with no price row is priced on the reference row, and the estimate says it fell back", () => {
+  const corpus = loadCorpus(corpusWithoutDocuments());
+  const fallback = estimateSpend({
+    corpus,
+    arms: [{ strategies: ["single-shot"], model: "claude-unlisted-9" }],
+    backend: "claude-cli",
+    model: "claude-unlisted-9",
+  });
+
+  // Must-fail: an estimate that priced every model on its own row would have
+  // no fallback to report; one that ignored the model never names one.
+  expect(fallback.price.matched).toBe("reference");
+  // Priced at the reference row exactly: the same token counts at the
+  // reference row's prices.
+  expect(fallback.usd).toBeCloseTo(
+    priceTokens(
+      PRICE_TABLE["claude-cli"],
+      fallback.worstCasePromptTokens,
+      fallback.worstCaseCompletionTokens,
+    ),
+    10,
+  );
+
+  // The printed estimate says it fell back, and which reference it used.
+  const lines = formatSpendEstimate(fallback, colorsFor({ isTTY: false })).join("\n");
+  expect(lines).toContain("fell back");
+  expect(lines).toContain("Claude Sonnet");
 });

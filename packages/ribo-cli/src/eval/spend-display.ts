@@ -87,11 +87,20 @@ export function formatSpendEstimate(estimate: SpendEstimate, colors: Colors): st
     ),
   );
 
+  // Which row priced the estimate is stated, never silent: a model priced
+  // on its own dated row names it; a model with no row fell back to the
+  // backend's reference row, and the line says so and names the reference.
+  const price = estimate.price;
+  const which =
+    price.matched === "model"
+      ? `${price.backend} — model ${price.model}, priced on its own dated row`
+      : `${price.backend} — model ${price.model} has no dated row of its own, so the estimate ` +
+        `fell back to ${price.rowName}`;
   lines.push(
     colors.dim(
-      `  price: ${estimate.price.backend} — USD ${estimate.price.promptUsdPerThousandTokens} per 1K ` +
-        `prompt tokens, USD ${estimate.price.completionUsdPerThousandTokens} per 1K completion ` +
-        `tokens (priced ${estimate.price.pricedOn}; ${estimate.price.source})`,
+      `  price: ${which}: USD ${price.promptUsdPerThousandTokens} per 1K ` +
+        `prompt tokens, USD ${price.completionUsdPerThousandTokens} per 1K completion ` +
+        `tokens (priced ${price.pricedOn}; ${price.source})`,
     ),
   );
 

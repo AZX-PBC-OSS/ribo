@@ -36,7 +36,7 @@ import type { DocumentTexts } from "./documents.js";
 import { EvalError } from "./error.js";
 import { measurePromptChars } from "./prompt-size.js";
 import { priceFor, priceTokens } from "./pricing.js";
-import type { BackendPrice } from "./pricing.js";
+import type { PriceResolution } from "./pricing.js";
 import { buildEvalTarget } from "./target.js";
 import type { EvalSettings, EvalStrategyId } from "./types.js";
 
@@ -105,8 +105,12 @@ export interface ArmEstimate {
 export interface SpendEstimate {
   /** The backend the run would spend against. */
   readonly backend: EvalBackendName;
-  /** The price row the estimate prices under. */
-  readonly price: BackendPrice;
+  /**
+   * The price the estimate was computed under: the model's own dated row,
+   * or the backend's reference row with the fallback stated — the resolution
+   * says which, and names the row.
+   */
+  readonly price: PriceResolution;
   /** How many cases the corpus holds. */
   readonly caseCount: number;
   /** One estimate per arm. */
@@ -134,6 +138,13 @@ export interface SpendEstimateInput {
   readonly arms: readonly EvalSettings[];
   /** The backend the run spends against. */
   readonly backend: EvalBackendName;
+  /**
+   * The model id every call carries — the run's `--model`, the same one
+   * every arm's settings carry. The estimate prices it: the model's own
+   * dated row when the price table has one, the backend's reference row
+   * otherwise, with the fallback stated rather than silent.
+   */
+  readonly model: string;
   /**
    * The document cases' transcribed text, keyed by case id — the same map the
    * run itself is driven with. A document case with no entry is a REFUSAL,
@@ -261,7 +272,7 @@ const rungCalls = (
  * @throws {@link EvalError} when a rung's call bound cannot be stated.
  */
 export function estimateSpend(input: SpendEstimateInput): SpendEstimate {
-  const { corpus, arms, backend, documents } = input;
+  const { corpus, arms, backend, model, documents } = input;
   const splitCaps = splitCapsOf(arms);
 
   const description = describeExtraction({
@@ -296,7 +307,7 @@ export function estimateSpend(input: SpendEstimateInput): SpendEstimate {
   const groupInstructions = (groupKey: string): string =>
     corpus.manifest.prompt.groupInstructions?.[groupKey] ?? corpus.manifest.prompt.instructions;
 
-  const price = priceFor(backend);
+  const price = priceFor(backend, model);
   const caseCount = corpus.cases.length;
 
   const armEstimates: ArmEstimate[] = arms.map((arm, index) => {
