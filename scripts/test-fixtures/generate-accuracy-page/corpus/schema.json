@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "basedata": {
+      "type": "object",
+      "properties": {
+        "basedataYearBuilt": { "type": "string", "nullable": true },
+        "basedataConditionedFloorArea": { "type": "number", "nullable": true }
+      }
+    },
+    "attic": {
+      "type": "object",
+      "properties": {
+        "atticInsulation": { "type": "number", "nullable": true },
+        "atticInsulationDepth": { "type": "string", "nullable": true }
+      }
+    }
+  }
+}

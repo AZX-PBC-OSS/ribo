@@ -1,0 +1,16 @@
+{
+  "id": "case-two",
+  "kind": "transcript",
+  "expected": {
+    "attic.atticInsulation": {
+      "status": "asserted",
+      "value": 12,
+      "sourceSpan": "about a foot of blown-in"
+    },
+    "attic.atticInsulationDepth": {
+      "status": "asserted",
+      "value": "10-12",
+      "sourceSpan": "about a foot of blown-in"
+    }
+  }
+}

@@ -14,10 +14,19 @@ docs/.vitepress/cache/
 docs/.vitepress/dist/
 docs/.vitepress/.temp/
 docs/reference/
-# Same rule: `docs:accuracy` regenerates this whole page from the committed run records in
-# packages/ribo-adapter-snuggpro/acceptance/runs/. Those artifacts ARE committed; this
-# rendering of them is not, so it can never drift from them.
+# Same rule: `docs:accuracy` regenerates this whole page from the eval run records passed
+# to it by the root `docs:accuracy` script (the committed
+# packages/ribo-adapter-snuggpro/acceptance/runs/, which holds only new-format records
+# written by `ribo eval --out`). The rendered page is not committed, so it can never drift
+# from the records it renders.
 docs/deep-dives/accuracy.md
+
+# The manual acceptance gate's old-format run records. The gate's writes are diverted here
+# (run-store.ts's DEFAULT_DIR) so its records never land in the committed
+# acceptance/runs/ directory, which the accuracy page reads — that page parses only the
+# new-format eval record and would refuse an old-format one. Regenerable by re-running the
+# gate; never committed, and it starts empty — no history file is migrated into it.
+packages/ribo-adapter-snuggpro/acceptance/runs-legacy/
 
 # Vitest browser mode's failure artifacts — attachments and screenshots taken
 # when a browser test fails. Regenerated on the next run; never reviewed as source.

@@ -1,0 +1,17 @@
+{
+  "id": "case-one",
+  "kind": "transcript",
+  "expected": {
+    "basedata.basedataYearBuilt": {
+      "status": "asserted",
+      "value": "1975",
+      "sourceSpan": "built in seventy-five"
+    },
+    "attic.atticInsulation": {
+      "status": "asserted",
+      "value": 38,
+      "sourceSpan": "R-38 up top"
+    },
+    "attic.atticInsulationDepth": { "status": "declared-absent" }
+  }
+}
