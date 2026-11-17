@@ -1,0 +1,114 @@
+{
+  "id": "14-rapid-recap",
+  "kind": "transcript",
+  "expected": {
+    "basedata.blowerDoorReading": {
+      "status": "declared-absent",
+      "sourceSpan": "no blower door"
+    },
+    "basedata.blowerDoorTestPerformed": {
+      "status": "declared-absent",
+      "sourceSpan": "no blower door"
+    },
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthNaturalConditionSpillage": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthWorstCaseDepressurization": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthWorstCaseSpillage": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthUndilutedFlueCo": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthDraftPressure": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthGasLeak": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthVenting": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthMoldMoisture": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthRadon": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthAsbestos": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthLead": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "health.healthElectrical": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "no safety tests"
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "value": {
+        "0": "Tank Water Heater"
+      }
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "value": {
+        "0": "Electricity"
+      }
+    },
+    "dhw.dhwLocation": {
+      "status": "asserted",
+      "value": {
+        "0": "Garage or Unconditioned Space"
+      }
+    }
+  },
+  "defaults": [
+    {
+      "scope": ["hvac"],
+      "status": "declared-absent",
+      "sourceSpan": "no heating checked"
+    },
+    {
+      "scope": ["attic"],
+      "status": "declared-absent",
+      "sourceSpan": "no attic"
+    },
+    {
+      "scope": ["basedata.blowerDoorReading", "basedata.blowerDoorTestPerformed"],
+      "status": "declared-absent",
+      "sourceSpan": "no blower door"
+    }
+  ]
+}

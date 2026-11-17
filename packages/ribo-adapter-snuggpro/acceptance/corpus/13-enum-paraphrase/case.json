@@ -1,0 +1,118 @@
+{
+  "id": "13-enum-paraphrase",
+  "kind": "transcript",
+  "expected": {
+    "basedata.blowerDoorReading": {
+      "status": "asserted",
+      "value": 2900,
+      "sourceSpan": "Blower door came in at twenty-nine hundred CFM50."
+    },
+    "health.healthNaturalConditionSpillage": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "worst case and natural spillage both not done"
+    },
+    "health.healthWorstCaseSpillage": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "worst case and natural spillage both not done"
+    },
+    "health.healthMoldMoisture": {
+      "status": "asserted",
+      "value": "Warning",
+      "sourceSpan": "I'd flag mold and moisture as a warning"
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Furnace / Central AC (shared ducts)"
+      }
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    },
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Carrier"
+      }
+    },
+    "hvac.hvacHeatingSystemModel": {
+      "status": "asserted",
+      "value": {
+        "0": "58STA"
+      }
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "asserted",
+      "value": {
+        "0": 2013
+      }
+    },
+    "hvac.hvacHeatingCapacity": {
+      "status": "declared-absent",
+      "sourceSpan": "Didn't get an output number, the plate's tucked behind the ductwork where I can't see it"
+    },
+    "hvac.hvacDuctLocation": {
+      "status": "asserted",
+      "value": {
+        "0": "Basement (unconditioned)"
+      }
+    },
+    "hvac.hvacDuctLeakage": {
+      "status": "asserted",
+      "value": {
+        "0": "6% - Well sealed"
+      }
+    },
+    "hvac.hvacDuctInsulation": {
+      "status": "asserted",
+      "value": {
+        "0": "Duct Board 1.5 inch"
+      }
+    },
+    "wall.wallExteriorWallSiding": {
+      "status": "asserted",
+      "value": {
+        "0": "Stucco"
+      }
+    },
+    "wall.wallsInsulated": {
+      "status": "declared-absent",
+      "sourceSpan": "I'm not calling the wall insulation either way, leaving it"
+    },
+    "window.windowFrame": {
+      "status": "asserted",
+      "value": {
+        "0": "Wood or metal clad"
+      }
+    },
+    "window.windowType": {
+      "status": "asserted",
+      "value": {
+        "0": "Double pane"
+      }
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "value": {
+        "0": "Tank Water Heater"
+      }
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    },
+    "dhw.dhwAge": {
+      "status": "asserted",
+      "value": {
+        "0": "11-15"
+      }
+    }
+  }
+}

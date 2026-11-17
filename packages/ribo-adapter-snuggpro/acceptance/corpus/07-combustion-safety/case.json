@@ -1,0 +1,85 @@
+{
+  "id": "07-combustion-safety",
+  "kind": "transcript",
+  "expected": {
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "value": "Failed",
+      "sourceSpan": "I'm calling that a fail on ambient CO"
+    },
+    "health.healthNaturalConditionSpillage": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "So natural condition passes."
+    },
+    "health.healthWorstCaseSpillage": {
+      "status": "asserted",
+      "value": "Failed",
+      "sourceSpan": "Worst case spillage is a fail."
+    },
+    "health.healthUndilutedFlueCo": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "The furnace flue itself was fine"
+    },
+    "health.healthDraftPressure": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "good steady draft, that one passes."
+    },
+    "health.healthGasLeak": {
+      "status": "asserted",
+      "value": "Warning",
+      "sourceSpan": "I'd call that a warning"
+    },
+    "health.healthVenting": {
+      "status": "asserted",
+      "value": "Warning",
+      "sourceSpan": "I'm flagging venting as a warning too"
+    },
+    "health.healthMoldMoisture": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today."
+    },
+    "health.healthAsbestos": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today."
+    },
+    "health.healthLead": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "Mold, asbestos, lead — none of that was in scope for this combustion visit, I didn't look at any of it today."
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Furnace with standalone ducts"
+      },
+      "alternatives": [
+        {
+          "0": "Furnace / Central AC (shared ducts)"
+        }
+      ]
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "value": {
+        "0": "Tank Water Heater"
+      }
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    }
+  }
+}

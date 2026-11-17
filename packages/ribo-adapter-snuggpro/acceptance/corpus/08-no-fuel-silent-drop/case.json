@@ -1,0 +1,67 @@
+{
+  "id": "08-no-fuel-silent-drop",
+  "kind": "transcript",
+  "expected": {
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Furnace with standalone ducts",
+        "1": "Central AC with standalone ducts"
+      }
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "declared-absent",
+      "sourceSpan": "I can't tell you the fuel on this one."
+    },
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Lennox"
+      }
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "declared-absent",
+      "sourceSpan": "there's no year I could read."
+    },
+    "hvac.hvacDuctLeakage": {
+      "status": "asserted",
+      "value": {
+        "0": "30% - Very leaky"
+      }
+    },
+    "hvac.hvacDuctInsulation": {
+      "status": "asserted",
+      "value": {
+        "0": "No Insulation"
+      }
+    },
+    "attic.atticInsulationType": {
+      "status": "asserted",
+      "value": {
+        "0": "Fiberglass or Rockwool (batts or blown)"
+      }
+    },
+    "attic.atticInsulation": {
+      "status": "asserted",
+      "value": {
+        "0": 30
+      }
+    },
+    "attic.atticInsulationDepth": {
+      "status": "declared-absent",
+      "sourceSpan": "I didn't measure the depth with a ruler"
+    },
+    "wall.wallsInsulated": {
+      "status": "asserted",
+      "value": {
+        "0": "Poorly"
+      }
+    },
+    "wall.wallCavityInsulationType": {
+      "status": "asserted",
+      "value": {
+        "0": "Fiberglass or Rockwool Batt"
+      }
+    }
+  }
+}

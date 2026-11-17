@@ -1,0 +1,119 @@
+{
+  "id": "11-ambiguous-attic",
+  "kind": "transcript",
+  "expected": {
+    "basedata.blowerDoorReading": {
+      "status": "declared-absent",
+      "sourceSpan": "no blower door"
+    },
+    "basedata.blowerDoorTestPerformed": {
+      "status": "declared-absent",
+      "sourceSpan": "no blower door"
+    },
+    "health.healthNaturalConditionSpillage": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthWorstCaseDepressurization": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthWorstCaseSpillage": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthUndilutedFlueCo": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthDraftPressure": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthGasLeak": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthVenting": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthMoldMoisture": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthRadon": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthAsbestos": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthLead": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "health.healthElectrical": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "No tests"
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Furnace with standalone ducts"
+      },
+      "alternatives": [
+        {
+          "0": "Furnace / Central AC (shared ducts)"
+        }
+      ]
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    },
+    "attic.atticInsulationDepth": {
+      "status": "declared-absent",
+      "sourceSpan": "I'm giving you the R-value, not a depth"
+    },
+    "attic.atticInsulationType": {
+      "status": "asserted",
+      "value": {
+        "0": "Fiberglass or Rockwool (batts or blown)"
+      }
+    },
+    "attic.atticInsulation": {
+      "status": "asserted",
+      "value": {
+        "0": 13
+      }
+    }
+  },
+  "defaults": [
+    {
+      "scope": ["dhw"],
+      "status": "declared-absent",
+      "sourceSpan": "no water heater"
+    },
+    {
+      "scope": ["basedata.blowerDoorReading", "basedata.blowerDoorTestPerformed"],
+      "status": "declared-absent",
+      "sourceSpan": "no blower door"
+    }
+  ]
+}

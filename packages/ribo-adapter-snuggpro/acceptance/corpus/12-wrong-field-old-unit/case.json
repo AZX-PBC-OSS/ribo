@@ -1,0 +1,92 @@
+{
+  "id": "12-wrong-field-old-unit",
+  "kind": "transcript",
+  "expected": {
+    "basedata.blowerDoorReading": {
+      "status": "asserted",
+      "value": 4100,
+      "sourceSpan": "Blower door I ran after: forty-one hundred CFM50."
+    },
+    "basedata.blowerDoorTestPerformed": {
+      "status": "asserted",
+      "value": "Tested",
+      "sourceSpan": "Blower door I ran after: forty-one hundred CFM50."
+    },
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "CO check by the new furnace, clean, zero ppm."
+    },
+    "health.healthGasLeak": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "Gas sniff on the new furnace and the water heater connections, all clean, no leaks anywhere."
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Furnace with standalone ducts"
+      },
+      "alternatives": [
+        {
+          "0": "Furnace / Central AC (shared ducts)"
+        }
+      ]
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    },
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Bryant"
+      }
+    },
+    "hvac.hvacHeatingSystemModel": {
+      "status": "asserted",
+      "value": {
+        "0": "926T"
+      }
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "asserted",
+      "value": {
+        "0": 2024
+      }
+    },
+    "hvac.hvacHeatingCapacity": {
+      "status": "asserted",
+      "value": {
+        "0": 60000
+      }
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "value": {
+        "0": "Tank Water Heater"
+      }
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    },
+    "dhw.dhwAge": {
+      "status": "asserted",
+      "value": {
+        "0": "26-30"
+      }
+    }
+  },
+  "defaults": [
+    {
+      "scope": ["attic"],
+      "status": "declared-absent",
+      "sourceSpan": "Attic I didn't get to today."
+    }
+  ]
+}

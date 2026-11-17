@@ -1,0 +1,99 @@
+{
+  "id": "01-attic-r-value-shell",
+  "kind": "transcript",
+  "expected": {
+    "basedata.blowerDoorReading": {
+      "status": "asserted",
+      "value": 3200,
+      "sourceSpan": "We came in at thirty-two hundred CFM50."
+    },
+    "basedata.blowerDoorTestPerformed": {
+      "status": "asserted",
+      "value": "Tested",
+      "sourceSpan": "I set it in the side door"
+    },
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "Ambient CO right next to the furnace while it was running read zero, so that's clean, no carbon monoxide, good."
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Furnace with standalone ducts"
+      },
+      "alternatives": [
+        {
+          "0": "Furnace / Central AC (shared ducts)"
+        }
+      ]
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    },
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Trane"
+      }
+    },
+    "hvac.hvacHeatingSystemModel": {
+      "status": "asserted",
+      "value": {
+        "0": "TUD100"
+      }
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "asserted",
+      "value": {
+        "0": 2017
+      }
+    },
+    "hvac.hvacHeatingCapacity": {
+      "status": "asserted",
+      "value": {
+        "0": 100000
+      }
+    },
+    "attic.atticInsulationType": {
+      "status": "asserted",
+      "value": {
+        "0": "Fiberglass or Rockwool (batts or blown)"
+      }
+    },
+    "attic.atticInsulation": {
+      "status": "asserted",
+      "value": {
+        "0": 38
+      }
+    },
+    "wall.wallExteriorWallSiding": {
+      "status": "asserted",
+      "value": {
+        "0": "Brick Veneer"
+      }
+    },
+    "window.windowType": {
+      "status": "asserted",
+      "value": {
+        "0": "Double pane"
+      }
+    },
+    "window.windowFrame": {
+      "status": "asserted",
+      "value": {
+        "0": "Vinyl"
+      }
+    }
+  },
+  "defaults": [
+    {
+      "scope": ["wall"],
+      "status": "declared-absent",
+      "sourceSpan": "I can't tell you on the wall insulation. Leaving that one blank."
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "09-chatter-and-scheduling",
+  "kind": "transcript",
+  "expected": {
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "value": {
+        "0": "Tankless Water Heater"
+      }
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "value": {
+        "0": "Natural Gas"
+      }
+    },
+    "dhw.dhwManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Navien"
+      }
+    },
+    "dhw.dhwLocation": {
+      "status": "asserted",
+      "value": {
+        "0": "Garage or Unconditioned Space"
+      }
+    }
+  },
+  "defaults": [
+    {
+      "scope": ["hvac"],
+      "status": "declared-absent",
+      "sourceSpan": "the furnace and the attic and all that, we said next Tuesday for the full assessment"
+    },
+    {
+      "scope": ["attic"],
+      "status": "declared-absent",
+      "sourceSpan": "the furnace and the attic and all that, we said next Tuesday for the full assessment"
+    }
+  ]
+}

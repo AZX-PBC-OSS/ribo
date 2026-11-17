@@ -1,0 +1,154 @@
+{
+  "id": "05-full-walkthrough",
+  "kind": "transcript",
+  "expected": {
+    "basedata.blowerDoorReading": {
+      "status": "asserted",
+      "value": 2800,
+      "sourceSpan": "I got twenty-eight hundred CFM50 on the fan."
+    },
+    "basedata.blowerDoorTestPerformed": {
+      "status": "asserted",
+      "value": "Tested",
+      "sourceSpan": "Blower door next, set up in the front door."
+    },
+    "health.healthAmbientCarbonMonoxide": {
+      "status": "asserted",
+      "value": "Passed",
+      "sourceSpan": "Ambient CO throughout the house was zero to two ppm, clean, no CO issue anywhere."
+    },
+    "health.healthNaturalConditionSpillage": {
+      "status": "asserted",
+      "value": "Failed",
+      "sourceSpan": "that is a hard fail, a fail on spillage under natural conditions."
+    },
+    "health.healthMoldMoisture": {
+      "status": "asserted",
+      "value": "Warning",
+      "sourceSpan": "call it a warning on moisture, not a crisis but keep an eye."
+    },
+    "health.healthAsbestos": {
+      "status": "asserted",
+      "value": "Not Tested",
+      "sourceSpan": "I did not test it, I'm not equipped to sample asbestos, so that one is not tested, defer it to an abatement pro."
+    },
+    "hvac.hvacSystemEquipmentType": {
+      "status": "asserted",
+      "value": {
+        "0": "Furnace with standalone ducts",
+        "1": "Central AC with standalone ducts"
+      },
+      "alternatives": [
+        {
+          "0": "Central AC with standalone ducts"
+        }
+      ]
+    },
+    "hvac.hvacHeatingEnergySource": {
+      "status": "asserted",
+      "value": {
+        "0": "Propane"
+      }
+    },
+    "hvac.hvacHeatingSystemManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Carrier"
+      }
+    },
+    "hvac.hvacHeatingSystemModel": {
+      "status": "asserted",
+      "value": {
+        "0": "59TP6"
+      }
+    },
+    "hvac.hvacHeatingSystemModelYear": {
+      "status": "asserted",
+      "value": {
+        "0": 2019
+      }
+    },
+    "hvac.hvacHeatingCapacity": {
+      "status": "asserted",
+      "value": {
+        "0": 80000
+      }
+    },
+    "hvac.hvacDuctLeakage": {
+      "status": "asserted",
+      "value": {
+        "0": "Measured (CFM25)"
+      }
+    },
+    "hvac.hvacDuctLeakageValue": {
+      "status": "asserted",
+      "value": {
+        "0": 150
+      }
+    },
+    "hvac.hvacDuctInsulation": {
+      "status": "asserted",
+      "value": {
+        "0": "Fiberglass 1.25 inch"
+      }
+    },
+    "attic.atticInsulationDepth": {
+      "status": "asserted",
+      "value": {
+        "0": "10-12"
+      }
+    },
+    "attic.atticInsulationType": {
+      "status": "asserted",
+      "value": {
+        "0": "Cellulose"
+      }
+    },
+    "wall.wallsInsulated": {
+      "status": "asserted",
+      "value": {
+        "0": "Well"
+      }
+    },
+    "wall.wallCavityInsulationType": {
+      "status": "asserted",
+      "value": {
+        "0": "Fiberglass or Rockwool Batt"
+      }
+    },
+    "window.windowType": {
+      "status": "asserted",
+      "value": {
+        "0": "Double pane"
+      }
+    },
+    "window.windowFrame": {
+      "status": "asserted",
+      "value": {
+        "0": "Wood or metal clad"
+      }
+    },
+    "dhw.dhwType2": {
+      "status": "asserted",
+      "value": {
+        "0": "Tankless Water Heater"
+      }
+    },
+    "dhw.dhwFuel2": {
+      "status": "asserted",
+      "value": {
+        "0": "Propane"
+      }
+    },
+    "dhw.dhwAge": {
+      "status": "declared-absent",
+      "sourceSpan": "no age tag I could find on it, it's newer though."
+    },
+    "dhw.dhwManufacturer": {
+      "status": "asserted",
+      "value": {
+        "0": "Rinnai"
+      }
+    }
+  }
+}
