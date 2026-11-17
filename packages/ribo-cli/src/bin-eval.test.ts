@@ -26,6 +26,7 @@ import {
   FIXTURE_CORPUS,
   FIXTURE_SPLIT_CORPUS,
   copiedCorpus,
+  corpusWithNoTextLayerDocument,
   corpusWithoutDocuments,
   removeTemporaries,
 } from "./eval/test-support/corpus.js";
@@ -661,13 +662,35 @@ test("an unreadable corpus path exits 2 naming the path", async () => {
   expect(received.length).toBe(0);
 });
 
-test("a corpus holding a document case refuses the whole run before any model call", async () => {
+test("a corpus holding a document case runs: the PDF is transcribed under Node, exit 0, a record written", async () => {
   const corpus = copiedCorpus(FIXTURE_CORPUS);
+  const result = await run([...baseArgs(corpus), "--strategy", "single-shot"]);
+
+  // Must-fail: the document path's predecessor refused this corpus whole,
+  // exit 2, before any model call.
+  expect(result.status).toBe(0);
+  const report = JSON.parse(result.stdout) as EvalReport;
+  const arm = report.arms[0]!;
+  expect(arm.results.map((entry) => entry.caseId)).toEqual([
+    "service-sheet",
+    "spoken-note",
+    "written-ticket",
+  ]);
+  expect(arm.results.every((entry) => entry.status === "extracted")).toBe(true);
+  // The document case reached the model as transcribed text.
+  expect(received.length).toBeGreaterThan(0);
+  // The record the report names was written.
+  expect(existsSync(arm.record)).toBe(true);
+});
+
+test("a corpus whose document case has no text layer refuses the whole run before any model call", async () => {
+  const corpus = corpusWithNoTextLayerDocument();
   const fault = await run([...baseArgs(corpus), "--strategy", "single-shot"]);
 
   expect(fault.status).toBe(2);
   expect(fault.stdout).toBe("");
   expect(fault.stderr).toContain("service-sheet");
+  expect(fault.stderr).toContain("no-text-layer");
   // The refusal fires before the run starts: nothing was spent.
   expect(received.length).toBe(0);
 });

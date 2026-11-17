@@ -146,6 +146,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "runEval",
     "runFingerprint",
     "scoreEvalRun",
+    "transcribeDocumentCases",
     "writeEvalRunRecord",
   ]);
 });

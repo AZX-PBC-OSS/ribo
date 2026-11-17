@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "tsdown";
 import type { Plugin } from "rolldown";
 
@@ -113,6 +115,18 @@ function singleFile(): Plugin {
  * INLINED instead. `rxjs` is listed because retained modules of the bundled
  * `@azx/ribo-core` import it — inlining a transitive dependency of an inlined
  * package adds no manifest dependency of the CLI's own.
+ *
+ * `pdfjs-dist` is listed so the deps plugin does not EXTERNALIZE it — and
+ * then the `alias` below points the specifier at a stub. The document path
+ * (`src/eval/documents.ts`) loads pdf.js at run time from the INSTALLED
+ * package (a `createRequire`-resolved `file:` URL, computed, so no literal
+ * `pdfjs-dist` specifier ever sits in the bin — the pack-and-consume tier
+ * refuses one). The only literal `import("pdfjs-dist")` in the graph is the
+ * default loader of the bundled `@azx/ribo-transcriber-pdfjs`, which the CLI
+ * never lets run; aliasing it to the stub keeps the real ~770 kB of pdf.js
+ * out of the bin — code the bin would never evaluate, carrying an
+ * `import("...")` string of its own (the CDN-wrapper template) that the
+ * tier's specifier scan would refuse.
  */
 function nodeBundle(entry: { index: string } | { bin: string }) {
   return {
@@ -122,11 +136,27 @@ function nodeBundle(entry: { index: string } | { bin: string }) {
     fixedExtension: false,
     bin: false as const,
     plugins: [singleFile()],
+    // Inline dynamic imports into the single file: the bundled
+    // `@azx/ribo-transcriber-pdfjs` carries a literal `import("pdfjs-dist")`
+    // in its default loader, and without this that import is emitted as a
+    // second chunk beside the bin — the exact shape the single-file
+    // invariant forbids. The dts pass ignores this setting; the singleFile
+    // plugin above exists for the helper chunk that pass still emits.
+    outputOptions: { codeSplitting: false as const },
+    // The one literal `pdfjs-dist` specifier in the graph is that same
+    // unreachable default loader; resolve it to the stub, never the real
+    // module. `alwaysBundle` keeps the deps plugin from externalizing the
+    // specifier so this alias is what answers it.
+    alias: {
+      "pdfjs-dist": fileURLToPath(new URL("./src/eval/pdfjs-bundle-stub.ts", import.meta.url)),
+    },
     deps: {
       alwaysBundle: [
         "@azx/ribo-chat-openai",
         "@azx/ribo-core",
         "@azx/ribo-core/package.json",
+        "@azx/ribo-transcriber-pdfjs",
+        "pdfjs-dist",
         "zod",
         "rxjs",
         "commander",

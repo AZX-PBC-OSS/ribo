@@ -51,8 +51,8 @@ export function copiedCorpus(source: string, breakOne?: (dir: string) => void): 
 }
 
 /**
- * A copy of the committed fixture corpus with its document case removed — the
- * corpus the runner accepts, since a document case refuses the whole run.
+ * A copy of the committed fixture corpus with its document case removed —
+ * for suites that measure transcript and text cases only.
  * @returns The copied corpus's path.
  * @category Eval
  */
@@ -63,8 +63,30 @@ export function corpusWithoutDocuments(): string {
 }
 
 /**
+ * The transcriber package's scanned-PDF fixture, referenced in place: a PDF
+ * with no text layer, which the document path refuses (the transcriber's
+ * `no-text-layer` guard).
+ */
+const NO_TEXT_LAYER_PDF = fileURLToPath(
+  new URL("../../../../ribo-transcriber-pdfjs/src/fixtures/no-text-layer.pdf", import.meta.url),
+);
+
+/**
+ * A copy of the committed fixture corpus whose document case's PDF has no
+ * text layer: the document path refuses the whole run, naming the case.
+ * @returns The copied corpus's path.
+ * @category Eval
+ */
+export function corpusWithNoTextLayerDocument(): string {
+  return copiedCorpus(FIXTURE_CORPUS, (dir) => {
+    writeFileSync(path.join(dir, "service-sheet", "input.pdf"), readFileSync(NO_TEXT_LAYER_PDF));
+  });
+}
+
+/**
  * A copy of the committed fixture corpus holding exactly the named cases — the
- * document case is always removed, since it refuses the whole run.
+ * document case is always removed, for suites that measure transcript and
+ * text cases only.
  * @param caseIds - The case ids to keep.
  * @returns The copied corpus's path.
  * @category Eval

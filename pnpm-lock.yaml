@@ -411,12 +411,18 @@ importers:
       '@azx/ribo-core':
         specifier: workspace:^
         version: link:../ribo-core
+      '@azx/ribo-transcriber-pdfjs':
+        specifier: workspace:^
+        version: link:../ribo-transcriber-pdfjs
       ajv:
         specifier: 'catalog:'
         version: 8.20.0
       commander:
         specifier: 'catalog:'
         version: 15.1.0
+      pdfjs-dist:
+        specifier: 'catalog:'
+        version: 6.4.299
       picocolors:
         specifier: 'catalog:'
         version: 1.1.1

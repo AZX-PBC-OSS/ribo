@@ -22,6 +22,8 @@ import type { z } from "zod";
 import type { CorpusPromptInputs, LoadedCorpus } from "../corpus.js";
 import { buildArm } from "./arm.js";
 import { asCapableChat } from "./chat.js";
+import { transcribeDocumentCases } from "./documents.js";
+import type { DocumentTexts } from "./documents.js";
 import { EvalError } from "./error.js";
 import { validateEvalSettings } from "./settings.js";
 import { buildEvalTarget } from "./target.js";
@@ -30,14 +32,15 @@ import type { EvalCaseResult, EvalJsonValue, EvalSettings, EvalUsage } from "./t
 /**
  * One case's input to the runner: its id, its kind and its text.
  *
- * The document kind is not here — a corpus holding one is refused before the
- * run starts.
+ * A document case's text is the transcription the run made of its PDF —
+ * transcription happens once per run, before any model call, and the runner
+ * only ever sees the text (see `documents.ts`).
  */
 export interface EvalCaseInput {
   /** The case's id. */
   readonly id: string;
-  /** The input kind — `"transcript"` or `"text"`. */
-  readonly kind: "transcript" | "text";
+  /** The input kind. A `"document"` case's text is its transcription. */
+  readonly kind: "transcript" | "text" | "document";
   /** The case's loaded text, verbatim. */
   readonly text: string;
 }
@@ -165,14 +168,32 @@ export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseRes
 }
 
 /**
+ * How one arm's run gets its document cases' text.
+ * @category Eval
+ */
+export interface RunEvalOptions {
+  /**
+   * The document cases' transcribed text, keyed by case id — transcribed ONCE
+   * per run and shared by every arm, so no arm re-transcribes. Absent, the
+   * run transcribes the corpus's document cases itself (the single-run
+   * path); a multi-arm command transcribes once and hands the one map to
+   * every arm.
+   */
+  readonly documents?: DocumentTexts;
+}
+
+/**
  * Run one arm over a loaded corpus.
  *
  * The corpus enters here and nowhere else: the runner reads no corpus files
  * itself and accepts no other corpus representation, so a run can never happen
  * over a corpus that was not validated.
  *
- * A corpus holding a document case is refused whole, before any model call:
- * document inputs are not supported by the runner yet, and a partially-run
+ * A document case runs like any other case, on its PDF's transcribed text:
+ * the text comes from `options.documents` when the caller transcribed already
+ * (the bin does, once per run, shared by every arm), and from
+ * `transcribeDocumentCases` here when it did not. A document that cannot be
+ * transcribed refuses the whole run, before any model call — a partially-run
  * corpus would measure nothing.
  *
  * The transport may be a plain `ChatClient` or an already-capable one: a
@@ -182,29 +203,37 @@ export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseRes
  * @param corpus - The loaded corpus, from `loadCorpus`.
  * @param chat - The transport every call goes through.
  * @param settings - The arm's settings.
+ * @param options - The document cases' transcribed text, when the caller has it.
  * @returns One result per case, in the corpus's case order.
- * @throws {@link EvalError} when the corpus holds a document case, the settings are invalid, or the schema cannot be driven.
+ * @throws {@link EvalError} when a document case cannot be transcribed, the settings are invalid, or the schema cannot be driven.
  * @category Eval
  */
 export async function runEval(
   corpus: LoadedCorpus,
   chat: ChatClient | CapableChatClient,
   settings: EvalSettings,
+  options?: RunEvalOptions,
 ): Promise<EvalCaseResult[]> {
   validateEvalSettings(settings);
 
+  const documents = options?.documents ?? (await transcribeDocumentCases(corpus));
   const cases: EvalCaseInput[] = [];
   for (const entry of corpus.cases) {
-    if (entry.input.kind === "document") {
+    if (entry.input.kind !== "document") {
+      cases.push({ id: entry.id, kind: entry.input.kind, text: entry.input.text });
+      continue;
+    }
+    const text = documents.get(entry.id);
+    if (text === undefined) {
       throw new EvalError(
-        `eval: the corpus case "${entry.id}" is a "document" case, and document inputs are not ` +
-          "supported by the eval runner yet — they are deferred to the T11 spike's follow-up " +
-          "(the document-transcription path under Node). Refusing the whole run rather than " +
-          "skipping the case: a partially-run corpus would measure nothing (fix: run a corpus " +
-          "without document cases until the deferred path lands)",
+        `eval: the corpus case "${entry.id}" is a "document" case, but no transcribed text was ` +
+          "supplied for it — document cases are transcribed once per run and the run refuses " +
+          "rather than skipping the case: a partially-run corpus would measure nothing (fix: " +
+          "transcribe the corpus's document cases with transcribeDocumentCases and pass the " +
+          "result to every arm)",
       );
     }
-    cases.push({ id: entry.id, kind: entry.input.kind, text: entry.input.text });
+    cases.push({ id: entry.id, kind: "document", text });
   }
 
   return runEvalOverSchema({

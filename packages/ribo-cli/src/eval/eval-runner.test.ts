@@ -174,25 +174,24 @@ test("a transcript case and a text case both run, each with its own loaded text"
 // The refusals
 // ---------------------------------------------------------------------------
 
-test("a corpus holding a document case refuses the whole run, before any model call", async () => {
+test("a corpus holding a document case runs: the document is transcribed, not refused", async () => {
   const corpus = loadCorpus(FIXTURE_CORPUS);
   const chat = stubChat();
 
-  const failure = await runEval(corpus, chat, {
+  // Must-fail: the document path's predecessor refused this corpus whole —
+  // an EvalError naming the case — and spent nothing.
+  const results = await runEval(corpus, chat, {
     strategies: ["single-shot"],
     model: "ribo-test",
-  }).catch((error: unknown) => error);
+  });
 
-  expect(failure).toBeInstanceOf(EvalError);
-  const message = failure instanceof Error ? failure.message : String(failure);
-  // The case id, the input kind and the deferred document path.
-  expect(message).toContain("service-sheet");
-  expect(message).toContain("document");
-  expect(message).toContain("T11");
-  // The whole run refused, not the case skipped: nothing was spent.
-  // Must-fail: an implementation that skips the document case and runs the
-  // rest spends the other cases' calls and fails this assertion.
-  expect(chat.calls.length).toBe(0);
+  expect(results.map((entry) => entry.caseId)).toEqual([
+    "service-sheet",
+    "spoken-note",
+    "written-ticket",
+  ]);
+  expect(results.every((entry) => entry.status === "extracted")).toBe(true);
+  expect(chat.calls.length).toBeGreaterThanOrEqual(results.length);
 });
 
 test("prompt-mode field descriptions with presence-narrowed in the arm are refused before any model call", async () => {

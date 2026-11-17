@@ -60,6 +60,7 @@ import {
   createCliBackendChat,
   createOpenAiCompatibleChat,
 } from "./eval/backend.js";
+import { transcribeDocumentCases } from "./eval/documents.js";
 import { runEval } from "./eval/run.js";
 import { scoreEvalRun } from "./eval/score.js";
 import { buildEvalRunRecord } from "./eval/record-build.js";
@@ -378,7 +379,10 @@ function buildEvalSettings(ladder: readonly string[], flags: EvalFlags): EvalSet
  *
  * The order is fixed: the preflight (a missing binary is a missing binary,
  * never a spend refusal), then the corpus, then the settings, then the
- * credential, then the estimate — printed before any model call — and only
+ * document cases' transcription (free and local, once per run, shared by
+ * every arm — a document that cannot be transcribed refuses the run here,
+ * before any model call), then the credential, then the estimate — printed
+ * before any model call and priced over the transcribed text — and only
  * then the run.
  */
 async function runEvalCommand(flags: EvalFlags): Promise<void> {
@@ -418,6 +422,17 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
       throw error;
     }
   }
+  // The document cases' transcription: once per run, before the estimate and
+  // before any model call, shared by every arm. A document with no text
+  // layer, or one pdf.js cannot open, refuses the whole run here — exit 2,
+  // naming the case and the reason.
+  let documents;
+  try {
+    documents = await transcribeDocumentCases(corpus);
+  } catch (error) {
+    if (error instanceof SchemaInspectError) failEval(error.message);
+    throw error;
+  }
   // The CLI backends carry no credential and no endpoint: they spawn the
   // operator's own installed binary. The engine id is the flag's own value,
   // so every case's usage names the transport that produced it.
@@ -444,7 +459,7 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
   // cannot state refuses here too, and no flag overrides that one.
   let estimate;
   try {
-    estimate = estimateSpend({ corpus, arms: settings, backend });
+    estimate = estimateSpend({ corpus, arms: settings, backend, documents });
   } catch (error) {
     if (error instanceof SchemaInspectError) failEval(error.message);
     throw error;
@@ -469,7 +484,7 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
   for (const arm of settings) {
     let results: readonly EvalCaseResult[];
     try {
-      results = await runEval(corpus, chat, arm);
+      results = await runEval(corpus, chat, arm, { documents });
     } catch (error) {
       if (error instanceof SchemaInspectError) failEval(error.message);
       throw error;

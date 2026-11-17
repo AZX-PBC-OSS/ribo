@@ -790,6 +790,12 @@ Node: its worker needs `Uint8Array.prototype.toHex`, absent from Node 24's V8. T
 document-path build follow-up is therefore decidable; whether and when to build it is not
 decided here.
 
+**Built (2026-11-17):** the document path is built. `transcribeDocumentCases`
+(`packages/ribo-cli/src/eval/documents.ts`) transcribes a corpus's document cases once per run,
+before the spend estimate and any model call, through the real `PdfjsTranscriber` over the legacy
+build resolved from the installed `pdfjs-dist`; every arm shares the text, the estimate prices it,
+and a document with no text layer refuses the run naming the case.
+
 ## 10. The accuracy-page generator's scope
 
 `scripts/generate-accuracy-page.mjs` generates the accuracy page from committed run records. The

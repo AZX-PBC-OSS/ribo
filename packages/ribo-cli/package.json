@@ -38,8 +38,10 @@
   "dependencies": {
     "@azx/ribo-chat-openai": "workspace:^",
     "@azx/ribo-core": "workspace:^",
+    "@azx/ribo-transcriber-pdfjs": "workspace:^",
     "ajv": "catalog:",
     "commander": "catalog:",
+    "pdfjs-dist": "catalog:",
     "picocolors": "catalog:",
     "zod": "catalog:"
   },
