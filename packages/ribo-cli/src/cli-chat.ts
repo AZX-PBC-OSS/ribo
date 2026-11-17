@@ -98,7 +98,27 @@ export type CliBackendName = "claude" | "codex";
 /** A CLI backend descriptor: the command to shell and the argv to build around a prompt. */
 interface CliDescriptor {
   readonly cmd: string;
+  /**
+   * Whether the CLI can cap generated tokens. No descriptor sets this: a
+   * CLI has no wire-level keyword for it. The field — not a list at a call
+   * site — is the ONE place the capability lives: `cliChat`'s own refusal
+   * of a `maxTokens` request reads it, and the eval command's up-front
+   * `--response-cap` refusal reads it through
+   * {@link cliBackendSupportsMaxTokens}, so the two can never disagree.
+   */
+  readonly supportsMaxTokens: boolean;
   readonly buildArgs: (prompt: string, model: string) => readonly string[];
+}
+
+/**
+ * Whether the CLI backend can cap generated tokens — the one statement of
+ * the capability, read by `cliChat`'s own refusal and by the eval command's
+ * up-front `--response-cap` refusal alike.
+ * @param backend - The CLI backend to ask about.
+ * @returns Whether a request may carry `maxTokens`.
+ */
+export function cliBackendSupportsMaxTokens(backend: CliBackendName): boolean {
+  return CLI_BACKENDS[backend].supportsMaxTokens;
 }
 
 const CLI_BACKENDS: Record<CliBackendName, CliDescriptor> = {
@@ -110,6 +130,7 @@ const CLI_BACKENDS: Record<CliBackendName, CliDescriptor> = {
   // text` keeps stdout plain so `extractLastJsonObject` sees the reply, not a JSON envelope.
   claude: {
     cmd: "claude",
+    supportsMaxTokens: false,
     buildArgs: (prompt, model) => [
       "-p",
       prompt,
@@ -126,6 +147,7 @@ const CLI_BACKENDS: Record<CliBackendName, CliDescriptor> = {
   // The keyless codex invocation: read-only sandbox, no git-repo check (the temp cwd is not one).
   codex: {
     cmd: "codex",
+    supportsMaxTokens: false,
     buildArgs: (prompt, model) => [
       "exec",
       "--skip-git-repo-check",
@@ -373,8 +395,11 @@ export function cliChat(options: CliChatOptions): ChatClient {
       // Refusing is loud and correct: the acceptance gate swaps this client and
       // `openAiChat` behind one `ChatClient`, so silently ignoring a configured cap
       // would make request semantics implementation-dependent in a way nothing
-      // surfaces. `unsupported` *before* any work, so nothing is spawned.
-      if (request.maxTokens !== undefined) {
+      // surfaces. `unsupported` *before* any work, so nothing is spawned. The
+      // capability read is the descriptor's own — the same field the eval
+      // command's up-front `--response-cap` refusal reads through
+      // `cliBackendSupportsMaxTokens`.
+      if (request.maxTokens !== undefined && !descriptor.supportsMaxTokens) {
         throw ChatError.unsupported(
           `cliChat(${backend}): maxTokens is not supported — a CLI cannot cap generated tokens`,
         );

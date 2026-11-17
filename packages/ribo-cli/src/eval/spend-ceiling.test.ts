@@ -15,6 +15,9 @@ const estimate = (usd: number): SpendEstimate => ({
   backend: "openai-compatible",
   price: {
     backend: "openai-compatible",
+    model: "ribo-test",
+    matched: "reference",
+    rowName: "the gpt-4o reference row",
     promptUsdPerThousandTokens: 0.0025,
     completionUsdPerThousandTokens: 0.01,
     pricedOn: "2026-11-13",
