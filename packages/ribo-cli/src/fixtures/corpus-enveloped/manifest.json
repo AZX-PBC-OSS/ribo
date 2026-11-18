@@ -1,0 +1,10 @@
+{
+  "name": "enveloped-home-audit",
+  "schema": "schema.json",
+  "provenance": "synthetic",
+  "prompt": {
+    "instructions": "Extract the stated home and room facts.",
+    "fieldDescriptions": "prompt"
+  },
+  "description": "A small corpus whose shipped schema already carries provenance envelopes."
+}

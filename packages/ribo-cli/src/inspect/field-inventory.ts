@@ -54,6 +54,28 @@ const unwrapField = (field: z.ZodType, isRow = false): z.ZodType => {
 };
 
 /**
+ * Unwrap every recognised provenance envelope to the field-level schema its
+ * `value` member declares. The inventory and the corpus loader both use this
+ * one walk, so their leaf paths and the schema core envelopes for eval cannot
+ * disagree. Leaf schemas pass through intact, description included.
+ * @category Inspect
+ */
+export function unwrapFieldEnvelopes(schema: z.ZodObject): z.ZodObject {
+  const stripped = stripOptionalNullable(schema);
+  if (isExtractedSchema(stripped)) {
+    // A root envelope's only field name is the member the document carries.
+    return z.object({ value: unwrapField(stripped) });
+  }
+  // Each top-level group object is a row unit, as are collection elements —
+  // the rule core's shape walk and `enveloped()` apply.
+  const groups: Record<string, z.ZodType> = {};
+  for (const key of Object.keys(schema.shape)) {
+    groups[key] = unwrapField(fieldAt(schema.shape, key), true);
+  }
+  return z.object(groups);
+}
+
+/**
  * Walk a zod object schema for its FIELD inventory: core's
  * `walkLeafInventory` over the schema with every provenance envelope unwrapped
  * to its `value` member, so one entry per field — the count core's group
@@ -62,17 +84,5 @@ const unwrapField = (field: z.ZodType, isRow = false): z.ZodType => {
  * @category Inspect
  */
 export function walkFieldInventory(schema: z.ZodObject): LeafInventoryEntry[] {
-  const stripped = stripOptionalNullable(schema);
-  if (isExtractedSchema(stripped)) {
-    // A root that IS one envelope: one field, walked under the member name the
-    // document itself carries ("value") — the only name a root envelope has.
-    return walkLeafInventory(z.object({ value: unwrapField(stripped) }));
-  }
-  // Each top-level group object is a row unit, as are collection elements —
-  // the rule core's shape walk and `enveloped()` apply.
-  const groups: Record<string, z.ZodType> = {};
-  for (const key of Object.keys(schema.shape)) {
-    groups[key] = unwrapField(fieldAt(schema.shape, key), true);
-  }
-  return walkLeafInventory(z.object(groups));
+  return walkLeafInventory(unwrapFieldEnvelopes(schema));
 }
