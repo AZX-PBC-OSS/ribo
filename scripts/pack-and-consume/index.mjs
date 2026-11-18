@@ -367,6 +367,33 @@ function assertCouldNotRun(run, label) {
  * this repo is built that way — so the packed tarball gets its own proof, both static and dynamic.
  * A failure here fails the tier with a `cli-bin-run:` prefixed message naming this step.
  */
+/**
+ * T23: the CLI's docs ship inside the package, so an agent with only the installed tarball can
+ * read them (the docs site sits behind a login). The tarball must carry the docs/cli pages, and
+ * every relative link in its README must resolve to a file the tarball contains.
+ */
+function assertCliDocsInTarball(cliDir) {
+  log("cli-bin-run: checking the tarball ships the CLI docs pages the README links...");
+  const packageDir = join(cliDir, "package");
+  for (const page of ["index.md", "schema.md", "corpus.md", "scoring.md", "spend.md"]) {
+    if (!existsSync(join(packageDir, "docs", "cli", page))) {
+      throw new Error(`the @azx/ribo-cli tarball does not contain docs/cli/${page}`);
+    }
+  }
+  const readme = readFileSync(join(packageDir, "README.md"), "utf8");
+  const relativeLinks = [...readme.matchAll(/\]\(([^)\s]+)\)/g)]
+    .map((match) => match[1])
+    .filter((href) => !href.includes("://") && !href.startsWith("#"))
+    .map((href) => href.split("#")[0]);
+  for (const link of relativeLinks) {
+    if (!existsSync(join(packageDir, link))) {
+      throw new Error(
+        `the @azx/ribo-cli README's relative link "${link}" does not resolve to a file in the tarball`,
+      );
+    }
+  }
+}
+
 function runCliBinStep(tarballs) {
   log("cli-bin-run: extracting the @azx/ribo-cli tarball...");
   const CLI_DIR = join(SCRATCH_DIR, "cli");
@@ -374,6 +401,7 @@ function runCliBinStep(tarballs) {
   // The tarball's entries are prefixed `package/`, so extracting into CLI_DIR yields
   // CLI_DIR/package/dist — the extracted artifact tree, not a workspace link.
   execFileSync("tar", ["-xzf", tarballs["@azx/ribo-cli"], "-C", CLI_DIR]);
+  assertCliDocsInTarball(CLI_DIR);
 
   // Static: every import/export specifier in the emitted chunk(s) must be a node:* builtin —
   // zod, @azx/ribo-core (and its rxjs), commander and picocolors are bundled IN, not referenced.

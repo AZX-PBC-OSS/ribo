@@ -99,16 +99,26 @@ import { InputFault, readDocumentSource } from "./read-input.js";
 import { renderHumanReport } from "./render-human.js";
 
 /**
- * The docs site's CLI section — the pointer every command's help ends with,
- * for the formats the help does not spell out. The package's README covers
- * the same ground for a reader with only the installed tarball.
+ * The docs site's CLI section. The same pages ship inside the package — a
+ * generated, drift-checked copy of `docs/cli/` under the package's own
+ * `docs/cli/` — so every command's help names the INSTALLED page first: the
+ * site sits behind a login, and the installed copy is readable by anyone the
+ * tarball reached. The site URL is the secondary, online rendering.
  */
 const DOCS_URL = "https://ribo-docs.azx.helix.azxlabs.io/cli";
 
+/** The shipped docs directory, as it installs beside the package's README. */
+const INSTALLED_DOCS = "node_modules/@azx/ribo-cli/docs/cli";
+
+/** One command's docs pointer: the installed page primary, its online rendering secondary. */
+const docsPointer = (page: string, what: string): string =>
+  `Docs: ${INSTALLED_DOCS}/${page}.md — ${what} (online: ${DOCS_URL}/${page}.html).`;
+
 /** The root help's docs pointer. */
-const rootDocsPointer =
-  `Docs: ${DOCS_URL}/index.html — the CLI's overview, install and the ` +
-  "documents-to-scores walkthrough; the package's README covers the same ground.";
+const rootDocsPointer = docsPointer(
+  "index",
+  "the CLI's overview, install and the documents-to-scores walkthrough",
+);
 
 /** Reports a could-not-run fault under a command's name and exits 2. Stdout stays empty. */
 function failWith(command: string, message: string): never {
@@ -729,7 +739,10 @@ const schema = program
   .description("Sizing checks over a JSON Schema document")
   .addHelpText(
     "after",
-    `Docs: ${DOCS_URL}/schema.html — the schema dialect the subcommand reads, and what each report line means.`,
+    docsPointer(
+      "schema",
+      "the schema dialect the subcommand reads, and what each report line means",
+    ),
   );
 
 schema
@@ -763,7 +776,7 @@ schema
   .addHelpText("after", inspectHelp)
   .addHelpText(
     "after",
-    `Docs: ${DOCS_URL}/schema.html — the schema dialect this command reads, and what each report line means.`,
+    docsPointer("schema", "the schema dialect this command reads, and what each report line means"),
   )
   .action(run);
 
@@ -826,9 +839,9 @@ const evalCommand = program
   .addHelpText(
     "after",
     [
-      `Docs: the corpus format — ${DOCS_URL}/corpus.html`,
-      `      the verdicts and the run record — ${DOCS_URL}/scoring.html`,
-      `      the estimate and --max-spend — ${DOCS_URL}/spend.html`,
+      `Docs: the corpus format — ${INSTALLED_DOCS}/corpus.md (online: ${DOCS_URL}/corpus.html)`,
+      `      the verdicts and the run record — ${INSTALLED_DOCS}/scoring.md (online: ${DOCS_URL}/scoring.html)`,
+      `      the estimate and --max-spend — ${INSTALLED_DOCS}/spend.md (online: ${DOCS_URL}/spend.html)`,
     ].join("\n"),
   )
   .action(runEvalCommand);
@@ -951,7 +964,7 @@ const compareCommand = program
   .addHelpText("after", compareHelp)
   .addHelpText(
     "after",
-    `Docs: ${DOCS_URL}/scoring.html — the run record, the axes and the intersection rule.`,
+    docsPointer("scoring", "the run record, the axes and the intersection rule"),
   )
   .action(runCompare);
 
@@ -1050,7 +1063,7 @@ const corpusTextHelp = [
 const corpusCommand = program
   .command("corpus")
   .description("Read a corpus directory without spending: see what a run would send")
-  .addHelpText("after", `Docs: ${DOCS_URL}/corpus.html — the corpus format the subcommand reads.`);
+  .addHelpText("after", docsPointer("corpus", "the corpus format the subcommand reads"));
 
 const corpusTextCommand = corpusCommand
   .command("text")
@@ -1062,7 +1075,7 @@ const corpusTextCommand = corpusCommand
   .argument("[case-id]", "print this case alone, without a header")
   .option("--json", "emit the versioned JSON document of {caseId, kind, text} entries")
   .addHelpText("after", corpusTextHelp)
-  .addHelpText("after", `Docs: ${DOCS_URL}/corpus.html — the corpus format this command reads.`)
+  .addHelpText("after", docsPointer("corpus", "the corpus format this command reads"))
   .action(runCorpusText);
 
 // Every diagnostic this command writes — its own refusals and commander's

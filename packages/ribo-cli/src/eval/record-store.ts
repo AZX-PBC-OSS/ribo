@@ -15,9 +15,14 @@
  * - the lineage is computed HERE, from the directory's contents, because a
  *   lineage is a fact of the directory and not a caller's claim.
  *
- * Every read is zod-parsed, never cast (AGENTS §4): a malformed record raises
- * the could-not-run class naming its path, because a record that cannot be
- * parsed must never silently drop out of a lineage.
+ * A records directory accumulates strays — a report redirected there, a note
+ * exported beside the records — so a read skips a `.json` file that is not a
+ * run record at all, with one stderr line naming it, rather than refusing.
+ * A file that IS a record — a JSON object declaring the format's
+ * `contractVersion` — is zod-parsed, never cast (AGENTS §4), and one that
+ * fails the schema (a hand edit, an artefact of a newer contract version)
+ * raises the could-not-run class naming its path: a record must never
+ * silently drop out of a lineage.
  */
 import {
   existsSync,
@@ -110,14 +115,38 @@ const historyOf = (
     }));
 
 /**
+ * Is this parsed JSON a run record to parse for real? A record is a plain
+ * object declaring the format's `contractVersion` — the member every record
+ * this store writes carries. Anything else in the directory (a redirected
+ * report, a stray list, a note) is not a record at all: it is skipped, never
+ * judged by the schema.
+ */
+const isRecordCandidate = (document: unknown): document is Record<string, unknown> =>
+  typeof document === "object" &&
+  document !== null &&
+  !Array.isArray(document) &&
+  "contractVersion" in document;
+
+/**
+ * One stderr line for a directory entry that is not a run record, naming the
+ * file — the line is what keeps a skip from ever being silent.
+ */
+const skipNonRecord = (file: string, why: string): void => {
+  process.stderr.write(`eval: skipping "${file}" — not a run record: ${why}\n`);
+};
+
+/**
  * Read every record in a directory.
  *
  * A missing directory reads as an empty list — the no-records-yet state is
- * normal, not a fault. A malformed record raises the could-not-run class
- * naming its path.
+ * normal, not a fault. A `.json` file that is not a run record at all —
+ * unparseable JSON, or JSON that does not declare the record format's
+ * `contractVersion` — is skipped with one stderr line naming it. A file that
+ * IS a record but fails the schema — a hand edit, an artefact of a newer
+ * contract version — raises the could-not-run class naming its path.
  * @param dir - The records directory. Defaults to the run's own directory.
  * @returns The records, ordered by capture time.
- * @throws {@link EvalError} when a record file cannot be parsed.
+ * @throws {@link EvalError} when a record file fails the record schema.
  * @category Eval
  */
 export function readEvalRunRecords(dir?: string): EvalRunRecord[] {
@@ -135,10 +164,12 @@ export function readEvalRunRecords(dir?: string): EvalRunRecord[] {
     try {
       document = JSON.parse(readFileSync(file, "utf8")) as unknown;
     } catch (error) {
-      throw new EvalError(
-        `eval: the run record "${file}" could not be read: ${faultMessage(error)} — a record that ` +
-          "cannot be parsed must never silently drop out of a lineage (fix: delete or repair the file)",
-      );
+      skipNonRecord(file, `it is not valid JSON (${faultMessage(error)})`);
+      continue;
+    }
+    if (!isRecordCandidate(document)) {
+      skipNonRecord(file, "the JSON in it is not a run record object declaring a contractVersion");
+      continue;
     }
     const parsed = EvalRunRecordSchema.safeParse(document);
     if (!parsed.success) {
@@ -174,7 +205,7 @@ export function readEvalRunRecords(dir?: string): EvalRunRecord[] {
  * @param draft - The record to write, without its lineage.
  * @param dir - The records directory. Defaults to the run's own directory.
  * @returns The path of the file written.
- * @throws {@link EvalError} when the directory cannot be written, when a record already in it cannot be parsed, or when the record itself is invalid.
+ * @throws {@link EvalError} when the directory cannot be written, when a record already in it fails the record schema, or when the record itself is invalid.
  * @category Eval
  */
 export function writeEvalRunRecord(draft: EvalRunRecordDraft, dir?: string): string {
@@ -187,8 +218,10 @@ export function writeEvalRunRecord(draft: EvalRunRecordDraft, dir?: string): str
         "(fix: point --out at a writable directory)",
     );
   }
-  // The directory's own records decide the lineage, so a malformed sibling
-  // fails the write rather than dropping out of the lineage silently.
+  // The directory's own records decide the lineage, so a sibling that reads
+  // as a malformed record fails the write rather than dropping out of the
+  // lineage silently; a stray that is no record at all is skipped by the
+  // same read, with one stderr line naming it.
   const earlier = readEvalRunRecords(target);
   const identity = recordIdentity(draft);
   const record = EvalRunRecordSchema.safeParse({

@@ -115,17 +115,34 @@ out.
 - **guidance coverage** — described fields over walked fields. Anything short of full coverage is
   fields the model reads unguided.
 - **reformat findings** — one per field whose description asks for reformatting (see above).
-- **granularity violations** — groups not derived at leaf provenance granularity. Over a JSON
-  Schema document every group reports `"none"`, because the document form cannot carry provenance
-  envelopes; a zod-authored schema derived with `enveloped()` at leaf granularity is what clears
-  the list, and the judging combinators need it. Read it as "what this document cannot express",
-  not as a defect to fix in the JSON.
+- **granularity violations** — groups not derived at leaf provenance granularity, with the
+  granularity each appears derived at. What that means and when to act on it:
+  [Granularity violations](#granularity-violations) below.
 - **not visible in the input** — the construct classes a document can never carry: zod
   refinements and zod transforms. Always listed, never detected — if the source schema had them,
   they exist only in your zod copy.
 - **refusal** — the refusal constructing the extraction would raise, carried as a finding in the
   report, not a failure. Exit codes are unaffected by it.
 - **threshold** — one line per supplied `--max-depth` / `--max-piece-chars`, within or breached.
+
+## Granularity violations
+
+The **granularity violations** list names every group of the schema that is not derived at
+`"leaf"` provenance granularity, with the granularity the group appears derived at — `"row"` or
+`"none"`. Provenance granularity is the unit a group's `sourceSpan` citations attach to: one span
+per leaf (`"leaf"`), one span per row of a wide table (`"row"`), or no spans at all (`"none"`).
+The judging combinators (`consensusExtractor`, `validateExtractor`) refuse a group that is not at
+`"leaf"` granularity: they judge a result by walking per-leaf envelopes, and a `"row"` or
+`"none"` group has none to walk.
+
+Over a JSON Schema document every group reports `"none"`, always — the document form cannot carry
+provenance envelopes at all. Read the list as "what this document cannot express", not as a
+defect to fix in the JSON: there is nothing to act on while the schema stays a document. Act when
+the same schema is also authored in zod for the library side — deriving it with `enveloped()`
+leaves every group at the default `"leaf"` granularity, which is what clears the list. A `"row"`
+entry is different: a row derivation is a deliberate choice (a wide table, where per-cell
+citations are a fabrication risk), and it means that group cannot take part in leaf-granularity
+judging — the trade the choice was made for.
 
 ## What cannot be converted
 

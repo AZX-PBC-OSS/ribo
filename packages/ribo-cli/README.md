@@ -115,24 +115,28 @@ command below runs against it verbatim; substitute your own directory once the s
 2. **Write the schema.** One JSON Schema document in OpenAPI 3.0 form — top-level objects are
    groups, arrays of objects are collections, `enum` constrains a leaf, `"nullable": true` marks a
    leaf that may hold no value, and each leaf's `description` is the guidance the model reads. The
-   example's is
-   [`examples/basic-corpus/schema.json`](https://ribo-docs.azx.helix.azxlabs.io/cli/corpus.html).
-   The dialect, in full: <https://ribo-docs.azx.helix.azxlabs.io/cli/schema.html>.
+   example's is [`examples/basic-corpus/schema.json`](examples/basic-corpus/schema.json). The
+   dialect, in full: [docs/cli/schema.md](docs/cli/schema.md) (online:
+   <https://ribo-docs.azx.helix.azxlabs.io/cli/schema.html>).
 3. **Check it with `schema inspect`.**
    `ribo schema inspect node_modules/@azx/ribo-cli/examples/basic-corpus/schema.json` — every
    field described, no refusals, and the call counts per strategy.
 4. **Lay out the corpus.** A directory holding `manifest.json`, the schema, and one subdirectory
    per case. A case is its `case.json` plus exactly one input file — `input.txt` for the
    `transcript` and `text` kinds, `input.pdf` for a `document` case (which needs a text layer; a
-   scan without one is refused before any model call). The format, in full:
-   <https://ribo-docs.azx.helix.azxlabs.io/cli/corpus.html>.
+   scan without one is refused before any model call). The example's `service-sheet` is the
+   document case: its `case.json` carries the `capture` block (`capturedAt`, `pageCount`) every
+   document case declares. The format, in full: [docs/cli/corpus.md](docs/cli/corpus.md) (online:
+   <https://ribo-docs.azx.helix.azxlabs.io/cli/corpus.html>).
 5. **Read each case's text with `corpus text`.**
    `ribo corpus text node_modules/@azx/ribo-cli/examples/basic-corpus` — what the model will read,
    for free.
 6. **Write the expected answers.** Each case's `expected` maps a dotted leaf path to an
    `asserted` value (with optional `alternatives` and a `sourceSpan`) or a `declared-absent`
    entry; a leaf you say nothing about is simply not judged, and a `defaults` entry declares a
-   whole scope absent at once. The example's `morning-visit` case shows both kinds.
+   whole scope absent at once. The example's `morning-visit` case shows both kinds, and its
+   `service-sheet` case — a worksheet that says nothing the schema asks — shows the blanket form:
+   one `defaults` entry declaring every scope absent.
 7. **Run `eval` under a spend cap.**
    `ribo eval --corpus node_modules/@azx/ribo-cli/examples/basic-corpus --backend claude-cli --model claude-haiku-5-5 --strategy single-shot --max-spend 1.00 --out ./runs`.
    Read the estimate on stderr before you confirm anything — it is an upper bound, priced per
@@ -140,22 +144,29 @@ command below runs against it verbatim; substitute your own directory once the s
 8. **Read the report.** stdout carries one arm entry per `--strategy`: its settings, one result
    per case, the totals — the verdict counts beside the answer rate, the accuracy over answered
    and the accuracy over all, always together — and the record path. What each verdict and rate
-   means: <https://ribo-docs.azx.helix.azxlabs.io/cli/scoring.html>.
+   means: [docs/cli/scoring.md](docs/cli/scoring.md) (online:
+   <https://ribo-docs.azx.helix.azxlabs.io/cli/scoring.html>).
 9. **Change one thing and `compare`.** Re-run with one axis moved — a different `--strategy`, a
    different `--model`, an edited schema — then
    `ribo compare ./runs/<first>.json ./runs/<second>.json`. The report names the axes that
    differed and every cell whose verdict changed. How the records line up:
-   <https://ribo-docs.azx.helix.azxlabs.io/cli/scoring.html#compare>.
+   [docs/cli/scoring.md](docs/cli/scoring.md#compare) (online:
+   <https://ribo-docs.azx.helix.azxlabs.io/cli/scoring.html#compare>).
 
 ## The docs
 
-The full CLI section of the docs site:
+The full CLI docs ship inside the package — the same pages the docs site renders:
 
-- [Overview and install](https://ribo-docs.azx.helix.azxlabs.io/cli/index.html)
-- [Writing a schema for ribo](https://ribo-docs.azx.helix.azxlabs.io/cli/schema.html)
-- [The corpus format](https://ribo-docs.azx.helix.azxlabs.io/cli/corpus.html)
-- [Scoring and comparing runs](https://ribo-docs.azx.helix.azxlabs.io/cli/scoring.html)
-- [Spend: the estimate and the ceiling](https://ribo-docs.azx.helix.azxlabs.io/cli/spend.html)
+- [Overview and install](docs/cli/index.md) — online:
+  <https://ribo-docs.azx.helix.azxlabs.io/cli/index.html>
+- [Writing a schema for ribo](docs/cli/schema.md) — online:
+  <https://ribo-docs.azx.helix.azxlabs.io/cli/schema.html>
+- [The corpus format](docs/cli/corpus.md) — online:
+  <https://ribo-docs.azx.helix.azxlabs.io/cli/corpus.html>
+- [Scoring and comparing runs](docs/cli/scoring.md) — online:
+  <https://ribo-docs.azx.helix.azxlabs.io/cli/scoring.html>
+- [Spend: the estimate and the ceiling](docs/cli/spend.md) — online:
+  <https://ribo-docs.azx.helix.azxlabs.io/cli/spend.html>
 
 ## License
 

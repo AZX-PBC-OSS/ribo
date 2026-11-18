@@ -10,7 +10,7 @@
  * on a model, and transcription is free and local.
  */
 import type { DocumentCapture, Transcriber, Transcript } from "@azx/ribo-core";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import { loadCorpus } from "../corpus/loader.js";
 import { transcribeDocumentCases } from "./documents.js";
@@ -77,6 +77,42 @@ test("a document case whose PDF has no text layer refuses the whole run, before 
   // Must-fail: an implementation that skips the case and runs the rest
   // spends the other cases' calls and fails this assertion.
   expect(chat.calls.length).toBe(0);
+});
+
+test("the CLI's default document path prints no pdf.js Warning line, and a genuine failure still surfaces", async () => {
+  // The real default path: no transcriber injected, so the CLI's own
+  // loadPdfjs wiring runs. The committed fixture's fonts trip pdf.js's
+  // `Warning: …` lines at its default verbosity (spike 0013's PDFs print
+  // them too); at the CLI's errors-only verbosity none may reach stderr.
+  const corpus = loadCorpus(FIXTURE_CORPUS);
+  const warnings: string[] = [];
+  const warns = vi.spyOn(console, "warn").mockImplementation((...data: unknown[]) => {
+    warnings.push(data.map((entry) => String(entry)).join(" "));
+  });
+  const writes: string[] = [];
+  const stderr = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+    writes.push(String(chunk));
+    return true;
+  });
+  try {
+    const texts = await transcribeDocumentCases(corpus);
+    // The path still transcribes: the fixture's own words came back.
+    expect(texts.get("service-sheet")).toContain("Chain replaced");
+  } finally {
+    warns.mockRestore();
+    stderr.mockRestore();
+  }
+  // Must-fail: at pdf.js's default verbosity the fixture prints
+  // `Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` …`.
+  expect(warnings.join("\n")).not.toContain("Warning:");
+  expect(writes.join("")).not.toContain("Warning:");
+
+  // A genuine transcription failure still surfaces, naming the case.
+  const failure = await transcribeDocumentCases(loadCorpus(corpusWithNoTextLayerDocument())).catch(
+    (error: unknown) => error,
+  );
+  expect(failure).toBeInstanceOf(EvalError);
+  expect(failure instanceof Error ? failure.message : String(failure)).toContain("service-sheet");
 });
 
 test("a two-arm run transcribes each document once, not once per arm", async () => {

@@ -20,9 +20,10 @@ verbatim.
   **only** schema source; there is no `--schema` flag, so two corpora over different schemas are
   different corpora. The document faces the same dialect rules and the same refusals as
   [`ribo schema inspect`](/cli/schema).
-- `provenance` — the corpus's declaration about itself: `"real"` or `"synthetic"`. A declaration,
-  not a finding; a synthetic corpus is not a weaker one, and a reader comparing two runs must be
-  able to see which they are.
+- `provenance` — the corpus's declaration about itself, and the only valid values are `"real"`
+  and `"synthetic"`. A declaration, not a finding; a synthetic corpus is not a weaker one, and a
+  reader comparing two runs must be able to see which they are. Any other value is a refusal that
+  names the pair and the value the file carried.
 - `prompt.instructions` — the system instructions, passed verbatim to the extraction target. The
   optional `prompt.examples` (few-shot turn pairs: a `transcript` and the flat dotted-path `fields`
   it yields), `prompt.fieldDescriptions` (`"schema"` or `"prompt"` — where the field guidance
@@ -47,8 +48,17 @@ and so is a case holding neither — a case has exactly one input file today.
 
 A `document` case's PDF needs a **text layer**: the document is transcribed locally through pdf.js
 before the run starts, and a scan without a text layer refuses the run, naming the case, before
-any model call. A document case also declares a `capture` block (`capturedAt`, `pageCount`) — the
-corpus declares what was captured; the loader never fabricates it.
+any model call.
+
+A document case also declares a **`capture` block** — the corpus declares what was captured; the
+loader never fabricates it, and a document case missing the block is refused with both field
+names in the message. The two fields:
+
+- `capturedAt` — when the document was captured, as an ISO 8601 datetime string. It is provenance
+  metadata: the loader assembles it into the capture record the transcriber receives, and **no
+  part of scoring reads it** — no verdict or rate ever turns on `capturedAt`.
+- `pageCount` — how many pages the document has, as the corpus declares it. It completes the
+  capture record the transcriber is handed.
 
 The `case.json` fields:
 
@@ -105,6 +115,13 @@ with its span, and answering the collection by ordinal:
 nothing scored that the case did not claim:
 
 <<< @/../packages/ribo-cli/examples/basic-corpus/voicemail/case.json
+
+`service-sheet` — a document case: a one-page worksheet PDF with a text layer. The sheet says
+nothing the schema asks about, so the case declares every leaf absent through one `"*"` default,
+with `heating.servicedAt` also named explicitly — and its `case.json` carries the `capture` block
+every document case declares:
+
+<<< @/../packages/ribo-cli/examples/basic-corpus/service-sheet/case.json
 
 Read any case's text the way the model will receive it — `ribo corpus text <corpus-dir>
 [case-id]` — before writing its expectations. Transcript and text cases print verbatim; document

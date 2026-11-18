@@ -501,22 +501,39 @@ test("--out naming an existing file exits 2, and prints no report", async () => 
   }
 });
 
-test("a malformed record beside the run's own exits 2, naming the file", async () => {
+test("--out holding files that are not run records skips them with one stderr line each, and the run still writes its record", async () => {
   const corpus = corpusWithoutDocuments();
   const out = mkdtempSync(join(tmpdir(), "ribo-eval-out-"));
   try {
-    const broken = join(out, "broken.json");
-    writeFileSync(broken, "{ not a record");
+    // The strays a records directory accumulates: a truncated capture (a
+    // report's stdout redirected into --out) and JSON that is no record.
+    const truncated = join(out, "out2.json");
+    writeFileSync(truncated, '{"name": "workshop-bicycles", "arms":');
+    const notARecord = join(out, "notes.json");
+    writeFileSync(notARecord, JSON.stringify(["just", "a", "list"]));
 
-    const fault = await run(
+    const result = await run(
       [...baseArgs(corpus), "--strategy", "single-shot", "--out", out],
       {},
       out,
     );
 
-    expect(fault.status).toBe(2);
-    expect(fault.stdout).toBe("");
-    expect(fault.stderr).toContain(broken);
+    // Must-fail: before the skip, either file killed the run with exit 2
+    // before any model call ("could not be read: Unexpected end of JSON
+    // input").
+    expect(result.status).toBe(0);
+    const report = JSON.parse(result.stdout) as EvalReport;
+    expect(report.arms).toHaveLength(1);
+    const arm = report.arms[0]!;
+    expect(existsSync(arm.record)).toBe(true);
+    expect(readEvalRunRecords(out)).toHaveLength(1);
+
+    // One skip line per stray file, each naming its file.
+    for (const file of [truncated, notARecord]) {
+      const naming = result.stderr.split("\n").filter((line) => line.includes(file));
+      expect(naming).toHaveLength(1);
+      expect(naming[0]).toContain("skipping");
+    }
   } finally {
     rmSync(out, { recursive: true, force: true });
   }

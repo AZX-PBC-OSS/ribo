@@ -76,14 +76,30 @@ const pdfjsFileUrl = (subpath: string): string =>
   pathToFileURL(require.resolve(`pdfjs-dist/${subpath}`)).href;
 
 /**
+ * pdf.js wrapped at errors-only verbosity. Its per-document `Warning: …`
+ * lines (the `TT: undefined function` / `standardFontDataUrl` reminders) are
+ * noise on this command's stderr — stderr is where the CLI's own diagnostics
+ * live — so `getDocument` opens every document with `verbosity: 0`, pdf.js's
+ * ERRORS level. A genuine failure still rejects, and `transcribeDocumentCases`
+ * refuses the run naming the case. The wiring lives HERE, in the CLI's own
+ * loader wrap: the transcriber package stays browser-safe and untouched.
+ */
+const errorsOnly = (pdfjs: PdfjsModule): PdfjsModule => ({
+  ...pdfjs,
+  getDocument: (params) => pdfjs.getDocument({ ...params, verbosity: 0 }),
+});
+
+/**
  * The default transcriber: the real `PdfjsTranscriber`, constructed with the
- * legacy build through `loadPdfjs` and the legacy worker script's local path
- * as `workerSrc` — spike 0013's A5 configuration, verbatim.
+ * legacy build through `loadPdfjs` — wrapped errors-only, above — and the
+ * legacy worker script's local path as `workerSrc` (spike 0013's A5
+ * configuration, plus the verbosity wrap).
  */
 const defaultDocumentTranscriber = (): Transcriber<DocumentCapture> =>
   new PdfjsTranscriber({
     workerSrc: pdfjsFileUrl("legacy/build/pdf.worker.min.mjs"),
-    loadPdfjs: async () => (await import(pdfjsFileUrl("legacy/build/pdf.mjs"))) as PdfjsModule,
+    loadPdfjs: async () =>
+      errorsOnly((await import(pdfjsFileUrl("legacy/build/pdf.mjs"))) as PdfjsModule),
   });
 
 /** The message of a thrown fault — a non-Error sentinel must not read "undefined". */
