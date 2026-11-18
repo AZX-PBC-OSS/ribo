@@ -13,7 +13,7 @@ import { resolveExpectation } from "./corpus/expectations.js";
 const aCase = (document: Record<string, unknown>): CorpusCase =>
   CorpusCaseSchema.parse({
     id: "case",
-    kind: "transcript",
+    inputs: [{ file: "input.txt", kind: "transcript" }],
     expected: {},
     ...document,
   });

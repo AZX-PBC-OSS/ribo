@@ -1,6 +1,11 @@
 {
   "id": "06-homeowner-crosstalk",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "basedata.blowerDoorReading": {
       "status": "declared-absent",

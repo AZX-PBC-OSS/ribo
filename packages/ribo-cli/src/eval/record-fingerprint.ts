@@ -19,23 +19,31 @@
 import { createHash } from "node:crypto";
 
 import type { CorpusPromptInputs, LoadedCase, LoadedCorpus } from "../corpus.js";
+import { effectiveMarkCaptures } from "./case-text.js";
 import { jsonValue, schemaFingerprint } from "../inspect/fingerprint.js";
 import type { EvalRunRecord, EvalRunRecordIdentity } from "./record-schema.js";
 
 /**
  * The corpus fingerprint's input for one case.
  *
- * A document case's input is its BYTES: the bytes are the question, and the
- * capture metadata beside them describes the capture rather than answering
- * anything, so it is excluded. A text or transcript case's input is its exact
- * text.
+ * Every declared input contributes, in declared list order: its file name,
+ * its kind, and a SHA-256 digest of the exact file bytes — a document's bytes
+ * are the question (never its decoded text or its transcription), and a text
+ * input's digest is of the exact utf8 bytes on disk. The capture metadata
+ * beside a document's bytes describes the capture rather than answering
+ * anything, so it is excluded.
  * @param entry - The loaded case.
- * @returns The case's input, as the fingerprint sees it.
+ * @returns The case's inputs, as the fingerprint sees them.
  */
-const corpusCaseInput = (entry: LoadedCase): string =>
-  entry.input.kind === "document"
-    ? createHash("sha256").update(entry.input.bytes).digest("hex")
-    : entry.input.text;
+const corpusCaseInputs = (entry: LoadedCase): unknown =>
+  entry.inputs.map((input) => ({
+    file: input.file,
+    kind: input.kind,
+    content:
+      input.kind === "document"
+        ? createHash("sha256").update(input.bytes).digest("hex")
+        : createHash("sha256").update(input.text, "utf8").digest("hex"),
+  }));
 
 /**
  * The run fingerprint: a hash over the schema document and the prompt inputs.
@@ -62,11 +70,14 @@ export function runFingerprint(schemaDocument: unknown, promptInputs: CorpusProm
 /**
  * The corpus fingerprint: a hash over the corpus's cases only.
  *
- * Each case contributes its id, its kind, its input and its expectations —
- * the asserted entries, the declared-absent entries and the acceptable
- * alternatives alike. The schema, the prompt inputs and every other manifest
- * field are excluded: this fingerprint answers "are these the same
- * questions?", which the run fingerprint answers differently.
+ * Each case contributes its id, every declared input in list order (file,
+ * kind and the bytes' digest) and its expectations — the asserted entries,
+ * the declared-absent entries and the acceptable alternatives alike. The
+ * corpus-wide effective marker policy joins them once: reordering a case's
+ * inputs or flipping `markCaptures` changes what the model reads, so both are
+ * identity. The schema, the prompt inputs and every other manifest field are
+ * excluded: this fingerprint answers "are these the same questions?", which
+ * the run fingerprint answers differently.
  * @param corpus - The loaded corpus.
  * @returns The fingerprint, as 64 lowercase hex characters.
  * @category Eval
@@ -74,14 +85,15 @@ export function runFingerprint(schemaDocument: unknown, promptInputs: CorpusProm
 export function corpusFingerprint(corpus: LoadedCorpus): string {
   const cases = corpus.cases.map((entry) => ({
     id: entry.id,
-    kind: entry.kind,
-    input: corpusCaseInput(entry),
+    inputs: corpusCaseInputs(entry),
     expected: entry.expected,
     // A case with no defaults and a case with an empty list of defaults ask
     // the same questions, so they hash the same.
     defaults: entry.defaults ?? [],
   }));
-  return schemaFingerprint(jsonValue({ cases }));
+  return schemaFingerprint(
+    jsonValue({ cases, combine: { markCaptures: effectiveMarkCaptures(corpus) } }),
+  );
 }
 
 /**

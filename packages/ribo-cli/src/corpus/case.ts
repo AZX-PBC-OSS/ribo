@@ -108,26 +108,17 @@ export const CorpusCaptureBlockSchema = z.strictObject({
 export type CorpusCaptureBlock = z.infer<typeof CorpusCaptureBlockSchema>;
 
 /**
- * The case file: the case's id, its input kind, its expected answer and its
- * scoped defaults.
- *
- * The `capture` block is required for a document case and forbidden for the
- * other kinds — a capture record belongs to a document, and a non-document
- * case carrying one is an authoring mistake the loader refuses rather than
- * ignores.
+ * One declared input: a file in the case folder, its kind, and — for a
+ * document — its capture block.
  * @category Eval
  */
-export const CorpusCaseSchema = z
+export const CorpusCaseInputSchema = z
   .strictObject({
-    /** The case's id; it must equal the case directory's name. */
-    id: z.string().min(1),
+    /** The input file's name, directly inside the case folder. */
+    file: z.string().min(1),
     /** The input kind: `"transcript"`, `"text"` or `"document"`. */
     kind: z.enum(["transcript", "text", "document"]),
-    /** The expected answer, as a sparse map from dotted leaf path to entry. */
-    expected: z.record(z.string(), ExpectationEntrySchema),
-    /** The generic scoped defaults. */
-    defaults: z.array(ScopedDefaultSchema).optional(),
-    /** The capture metadata — a document case only. */
+    /** The capture metadata — a document input only. */
     capture: CorpusCaptureBlockSchema.optional(),
   })
   .superRefine((value, ctx) => {
@@ -136,18 +127,49 @@ export const CorpusCaseSchema = z
         code: "custom",
         path: ["capture"],
         message:
-          "a document case must declare a capture block (capturedAt, pageCount) — the corpus " +
-          "declares what was captured, and the loader never fabricates it",
+          `the document input "${value.file}" must declare a capture block (capturedAt, ` +
+          "pageCount) — the corpus declares what was captured, and the loader never fabricates it",
       });
     }
     if (value.kind !== "document" && value.capture !== undefined) {
       ctx.addIssue({
         code: "custom",
         path: ["capture"],
-        message: `a ${value.kind} case must not declare a capture block — only a document case carries one`,
+        message: `the ${value.kind} input "${value.file}" must not declare a capture block — only a document input carries one`,
       });
     }
   });
+
+/**
+ * One declared input, as the case file declares it.
+ * @category Eval
+ */
+export type CorpusCaseInput = z.infer<typeof CorpusCaseInputSchema>;
+
+/**
+ * The case file: the case's id, its ordered input files, its expected answer
+ * and its scoped defaults.
+ *
+ * The `capture` block is required on a document input and forbidden on the
+ * other kinds — a capture record belongs to a document, and a non-document
+ * input carrying one is an authoring mistake the loader refuses rather than
+ * ignores.
+ * @category Eval
+ */
+export const CorpusCaseSchema = z.strictObject({
+  /** The case's id; it must equal the case directory's name. */
+  id: z.string().min(1),
+  /**
+   * The case's input files, in the order they are read and joined. Every case
+   * has at least one; the old single-input shape (a case-level `kind` and one
+   * implied file) is retired.
+   */
+  inputs: z.array(CorpusCaseInputSchema).min(1),
+  /** The expected answer, as a sparse map from dotted leaf path to entry. */
+  expected: z.record(z.string(), ExpectationEntrySchema),
+  /** The generic scoped defaults. */
+  defaults: z.array(ScopedDefaultSchema).optional(),
+});
 
 /**
  * One expectation entry, as the case file declares it.
@@ -169,7 +191,7 @@ export type ScopedDefault = z.infer<typeof ScopedDefaultSchema>;
 export type CorpusCase = z.infer<typeof CorpusCaseSchema>;
 
 /**
- * The input kind: `"transcript"`, `"text"` or `"document"`.
+ * One input's kind: `"transcript"`, `"text"` or `"document"`.
  * @category Eval
  */
-export type CorpusCaseKind = CorpusCase["kind"];
+export type CorpusInputKind = CorpusCaseInput["kind"];

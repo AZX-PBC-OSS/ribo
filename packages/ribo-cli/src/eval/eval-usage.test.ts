@@ -79,7 +79,7 @@ test("the reported call count equals the requests the stub received, retries inc
   const corpus = loadCorpus(corpusWithCases("spoken-note"));
   const spoken = corpus.cases.find((entry) => entry.id === "spoken-note");
   if (spoken === undefined) throw new Error("the fixture lost its case");
-  if (spoken.input.kind === "document") throw new Error("the fixture case is a document case");
+  if (spoken.inputs[0]?.kind === "document") throw new Error("the fixture case is a document case");
 
   // The first attempt fails transiently; the retry succeeds.
   const chat = scriptedChat((request, context) => {
@@ -91,7 +91,7 @@ test("the reported call count equals the requests the stub received, retries inc
     schema: corpus.schema,
     prompt: corpus.manifest.prompt,
     manifestName: corpus.manifest.name,
-    cases: [{ id: spoken.id, kind: spoken.input.kind, text: spoken.input.text }],
+    cases: [{ id: spoken.id, text: spoken.inputs[0]?.text ?? "" }],
     chat,
     settings: { strategies: ["per-group"], model: "ribo-test" },
     // The retry never waits real backoff.

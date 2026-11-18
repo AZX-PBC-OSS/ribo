@@ -1,6 +1,11 @@
 {
   "id": "written-ticket",
-  "kind": "text",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "text"
+    }
+  ],
   "expected": {
     "service.date": {
       "status": "asserted",

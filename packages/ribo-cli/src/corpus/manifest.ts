@@ -70,6 +70,28 @@ export const CorpusPromptInputsSchema = z.strictObject({
 });
 
 /**
+ * The corpus's joining options: how a case's inputs become the one text the
+ * model reads. They change what the model reads, so they are part of the
+ * corpus's identity — never a CLI flag.
+ * @category Eval
+ */
+export const CorpusCombineOptionsSchema = z.strictObject({
+  /**
+   * Whether each input is prefixed with core's capture marker
+   * (`\n===== CAPTURE seq:N kind:K id:I =====\n`). Defaults to `true` — an
+   * absent block, an absent member and an explicit `true` all mean markers
+   * on, for one input and for many.
+   */
+  markCaptures: z.boolean().optional(),
+});
+
+/**
+ * The corpus's joining options, as the manifest declares them.
+ * @category Eval
+ */
+export type CorpusCombineOptions = z.infer<typeof CorpusCombineOptionsSchema>;
+
+/**
  * The corpus manifest — the corpus's declaration of its name, its schema
  * reference, its provenance and its prompt inputs.
  * @category Eval
@@ -83,6 +105,8 @@ export const CorpusManifestSchema = z.strictObject({
   provenance: z.enum(["real", "synthetic"]),
   /** The run's prompt inputs. */
   prompt: CorpusPromptInputsSchema,
+  /** How a case's inputs are joined into the one text the model reads. */
+  combine: CorpusCombineOptionsSchema.optional(),
   /** Free text for a human reader; nothing reads it. */
   description: z.string().optional(),
 });

@@ -41,13 +41,18 @@ import type { LoadedCorpus } from "../corpus.js";
 import { EvalError } from "./error.js";
 
 /**
- * The transcribed text of a corpus's document cases, keyed by case id.
- *
- * One map is one run's worth of transcription: built once, shared by the
- * spend guard's estimate and by every arm's run.
+ * The transcribed text of a corpus's document inputs, keyed by case id AND
+ * input file name — two documents in one case are different questions, so a
+ * key of case id alone would let one overwrite the other. The separator is
+ * safe because a case id is a directory name and an input file's name may not
+ * carry a path separator (the loader refuses both), so neither half can
+ * contain one.
  * @category Eval
  */
 export type DocumentTexts = ReadonlyMap<string, string>;
+
+/** The key a document input's transcription sits under in {@link DocumentTexts}. */
+export const documentTextKey = (caseId: string, file: string): string => `${caseId}/${file}`;
 
 /**
  * How {@link transcribeDocumentCases} transcribes.
@@ -107,51 +112,57 @@ const faultMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 /**
- * Transcribe every document case of a loaded corpus to text, once.
+ * Transcribe every document input of a loaded corpus to text, once.
  *
- * Cases are transcribed in corpus order, one at a time, through the same
- * `Transcriber<DocumentCapture>` seam core defines — the CLI drives
- * `transcribe()` directly and never consults `capability()` (under Node the
- * gate reports `unsupported-platform`, and spike 0013 showed the gate is not
- * the deciding layer). A corpus holding no document case returns an empty
- * map without touching pdf.js at all — a transcript corpus never resolves
- * `pdfjs-dist`.
+ * The corpus's cases are walked in corpus order and each case's inputs in
+ * declared order, and every document input is transcribed exactly once
+ * through the same `Transcriber<DocumentCapture>` seam core defines — the CLI
+ * drives `transcribe()` directly and never consults `capability()` (under
+ * Node the gate reports `unsupported-platform`, and spike 0013 showed the
+ * gate is not the deciding layer). A corpus holding no document input returns
+ * an empty map without constructing a transcriber at all — a transcript
+ * corpus never resolves `pdfjs-dist`.
  *
  * @param corpus - The loaded corpus, from `loadCorpus`.
  * @param options - The transcriber seam; absent, the real `PdfjsTranscriber`.
- * @returns The transcribed text of every document case, keyed by case id.
+ * @returns The transcribed text of every document input, keyed by
+ *   `documentTextKey` — case id and input file name together.
  * @throws {@link EvalError} when a document cannot be transcribed — the
- *   message names the case id and the reason, and the whole run is refused
- *   before any model call. A case is never skipped silently.
+ *   message names the case id, the input file and the reason, and the whole
+ *   run is refused before any model call. A case is never skipped silently.
  * @category Eval
  */
 export async function transcribeDocumentCases(
   corpus: LoadedCorpus,
   options?: DocumentTranscriptionOptions,
 ): Promise<DocumentTexts> {
+  const documents = corpus.cases.flatMap((entry) =>
+    entry.inputs
+      .filter((input) => input.kind === "document")
+      .map((input) => ({ case: entry, input })),
+  );
   const texts = new Map<string, string>();
-  const documents = corpus.cases.filter((entry) => entry.input.kind === "document");
   if (documents.length === 0) return texts;
   const transcriber = options?.transcriber ?? defaultDocumentTranscriber();
-  for (const entry of documents) {
-    if (entry.input.kind !== "document") continue;
+  for (const { case: entry, input } of documents) {
+    if (input.kind !== "document") continue;
     let text: string;
     try {
       const transcript = await transcriber.transcribe(
-        entry.input.capture,
-        new Blob([entry.input.bytes as BlobPart]),
+        input.capture,
+        new Blob([input.bytes as BlobPart]),
       );
       text = transcript.text;
     } catch (error) {
       const reason = error instanceof UnsupportedItemError ? ` (${error.reason})` : "";
       throw new EvalError(
-        `eval: the corpus case "${entry.id}" is a "document" case, and its PDF could not be ` +
+        `eval: the corpus case "${entry.id}"'s document input "${input.file}" could not be ` +
           `transcribed${reason}: ${faultMessage(error)} — the whole run is refused before any ` +
-          `model call, because a partially-run corpus measures nothing (fix: remove the case, ` +
+          `model call, because a partially-run corpus measures nothing (fix: remove the input, ` +
           `or replace its PDF with one that carries a text layer)`,
       );
     }
-    texts.set(entry.id, text);
+    texts.set(documentTextKey(entry.id, input.file), text);
   }
   return texts;
 }

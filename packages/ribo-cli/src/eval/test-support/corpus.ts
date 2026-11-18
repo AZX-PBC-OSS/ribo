@@ -102,6 +102,30 @@ export function corpusWithCases(...caseIds: readonly string[]): string {
 }
 
 /**
+ * A copy of the committed fixture corpus whose `service-sheet` case reads two
+ * inputs — the document PDF first, then a text note — the shipped example's
+ * shape.
+ * @param note - The note's text; the shipped example's neutral note by default.
+ * @returns The copied corpus's path.
+ * @category Eval
+ */
+export function corpusWithMixedInputsCase(note = "No additional observations.\n"): string {
+  return copiedCorpus(FIXTURE_CORPUS, (dir) => {
+    writeFileSync(path.join(dir, "service-sheet", "site-note.txt"), note);
+    editJson(path.join(dir, "service-sheet", "case.json"), (document) => {
+      document["inputs"] = [
+        {
+          file: "input.pdf",
+          kind: "document",
+          capture: { capturedAt: "2026-02-11T08:15:00Z", pageCount: 1 },
+        },
+        { file: "site-note.txt", kind: "text" },
+      ];
+    });
+  });
+}
+
+/**
  * Read a JSON file of a copied corpus, edit it, and write it back.
  * @param file - The file to edit.
  * @param edit - The edit to apply.

@@ -61,7 +61,9 @@ export { cliVersion, coreVersion } from "./versions.js";
 export { CorpusError } from "./corpus.js";
 export {
   CorpusCaseSchema,
+  CorpusCaseInputSchema,
   CorpusCaptureBlockSchema,
+  CorpusCombineOptionsSchema,
   CorpusExampleSchema,
   CorpusManifestSchema,
   CorpusPromptInputsSchema,
@@ -73,9 +75,11 @@ export {
 } from "./corpus.js";
 export type {
   CorpusCase,
-  CorpusCaseKind,
+  CorpusCaseInput,
+  CorpusCombineOptions,
   CorpusCaptureBlock,
   CorpusExample,
+  CorpusInputKind,
   CorpusManifest,
   CorpusProvenance,
   CorpusPromptInputs,

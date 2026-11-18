@@ -1,6 +1,11 @@
 {
   "id": "07-combustion-safety",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "health.healthAmbientCarbonMonoxide": {
       "status": "asserted",

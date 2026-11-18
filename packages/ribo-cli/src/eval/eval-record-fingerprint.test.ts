@@ -16,10 +16,33 @@ import path from "node:path";
 
 import { afterEach, expect, test } from "vitest";
 
-import { isRecordCurrent } from "./record-fingerprint.js";
+import { isRecordCurrent, corpusFingerprint } from "./record-fingerprint.js";
 import type { EvalRunRecord, EvalRunRecordDraft } from "./record-schema.js";
-import { corpusWithoutDocuments, removeTemporaries } from "./test-support/corpus.js";
+import {
+  copiedCorpus,
+  corpusWithoutDocuments,
+  editJson,
+  FIXTURE_CORPUS,
+  removeTemporaries,
+} from "./test-support/corpus.js";
 import { recordOverCorpus } from "./test-support/record.js";
+import { loadCorpus } from "../corpus/loader.js";
+
+/**
+ * Rewrite a copied corpus case's `inputs` list.
+ * @param dir - The copied corpus's directory.
+ * @param caseId - The case's id.
+ * @param inputs - The inputs list to write.
+ */
+const editCaseInputs = (
+  dir: string,
+  caseId: string,
+  inputs: readonly { file: string; kind: string }[],
+): void => {
+  editJson(path.join(dir, caseId, "case.json"), (document) => {
+    document["inputs"] = inputs;
+  });
+};
 
 afterEach(() => {
   removeTemporaries();
@@ -256,4 +279,89 @@ test("the two fingerprints cover their own input sets and no other", async () =>
   // An edited instruction does the reverse.
   expect(promptEdit.record.corpus.fingerprint).toBe(original.record.corpus.fingerprint);
   expect(promptEdit.record.fingerprint).not.toBe(original.record.fingerprint);
+});
+
+// ---------------------------------------------------------------------------
+// The corpus fingerprint's inputs list and combine policy — no chat, no
+// transcription: the fingerprint is a hash over the loaded corpus, so these
+// load and hash directly.
+// ---------------------------------------------------------------------------
+
+test("the corpus fingerprint is stable across loads, and a valid 64-hex digest", async () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS, (root) => {
+    writeFileSync(path.join(root, "spoken-note", "second.txt"), "a second input\n");
+    editCaseInputs(root, "spoken-note", [
+      { file: "input.txt", kind: "transcript" },
+      { file: "second.txt", kind: "text" },
+    ]);
+  });
+  const first = corpusFingerprint(loadCorpus(dir));
+  const second = corpusFingerprint(loadCorpus(dir));
+
+  expect(first).toMatch(/^[0-9a-f]{64}$/);
+  expect(second).toBe(first);
+});
+
+test("reordering a case's inputs changes the corpus fingerprint", () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS, (root) => {
+    writeFileSync(path.join(root, "spoken-note", "second.txt"), "a second input\n");
+    editCaseInputs(root, "spoken-note", [
+      { file: "input.txt", kind: "transcript" },
+      { file: "second.txt", kind: "text" },
+    ]);
+  });
+  const forward = corpusFingerprint(loadCorpus(dir));
+  editCaseInputs(dir, "spoken-note", [
+    { file: "second.txt", kind: "text" },
+    { file: "input.txt", kind: "transcript" },
+  ]);
+  const reversed = corpusFingerprint(loadCorpus(dir));
+
+  expect(reversed).not.toBe(forward);
+});
+
+test("flipping the effective markCaptures changes the corpus fingerprint", () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS);
+  const marked = corpusFingerprint(loadCorpus(dir));
+  editJson(path.join(dir, "manifest.json"), (document) => {
+    document["combine"] = { markCaptures: false };
+  });
+  const unmarked = corpusFingerprint(loadCorpus(dir));
+
+  expect(unmarked).not.toBe(marked);
+});
+
+test("omitted, empty and explicit-true combine blocks are one effective policy — and one fingerprint", () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS);
+  const omitted = corpusFingerprint(loadCorpus(dir));
+
+  editJson(path.join(dir, "manifest.json"), (document) => {
+    document["combine"] = {};
+  });
+  const empty = corpusFingerprint(loadCorpus(dir));
+  expect(empty).toBe(omitted);
+
+  editJson(path.join(dir, "manifest.json"), (document) => {
+    document["combine"] = { markCaptures: true };
+  });
+  const explicit = corpusFingerprint(loadCorpus(dir));
+  expect(explicit).toBe(omitted);
+});
+
+test("changing an input file's bytes changes the corpus fingerprint", () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS);
+  const before = corpusFingerprint(loadCorpus(dir));
+  writeFileSync(path.join(dir, "spoken-note", "input.txt"), "a different note\n");
+  const after = corpusFingerprint(loadCorpus(dir));
+
+  expect(after).not.toBe(before);
+});
+
+test("a cosmetic rewrite of an input file's JSON case keys leaves the corpus fingerprint unchanged", () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS);
+  const before = corpusFingerprint(loadCorpus(dir));
+  rewriteCosmetically(path.join(dir, "spoken-note", "case.json"));
+  const after = corpusFingerprint(loadCorpus(dir));
+
+  expect(after).toBe(before);
 });

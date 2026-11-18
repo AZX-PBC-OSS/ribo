@@ -1,6 +1,15 @@
 {
   "id": "service-sheet",
-  "kind": "document",
+  "inputs": [
+    {
+      "file": "input.pdf",
+      "kind": "document",
+      "capture": {
+        "capturedAt": "2026-02-11T08:15:00Z",
+        "pageCount": 1
+      }
+    }
+  ],
   "expected": {
     "service.notes": {
       "status": "asserted",
@@ -13,9 +22,5 @@
       "scope": "frame",
       "status": "declared-absent"
     }
-  ],
-  "capture": {
-    "capturedAt": "2026-02-11T08:15:00Z",
-    "pageCount": 1
-  }
+  ]
 }

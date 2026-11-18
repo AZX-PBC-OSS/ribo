@@ -51,15 +51,24 @@ test("the worked example covers a document case: it loads with its capture block
   const corpus = loadCorpus(EXAMPLE);
   const sheet = corpus.cases.find((entry) => entry.id === "service-sheet");
 
-  // Must-fail: without the document case this find comes back undefined.
-  expect(sheet?.kind).toBe("document");
-  if (sheet?.input.kind !== "document") throw new Error("service-sheet is not a document case");
+  // Must-fail: without the document input this find comes back undefined.
+  expect(sheet?.inputs).toHaveLength(2);
+  const [pdf, note] = sheet?.inputs ?? [];
+  if (pdf?.kind !== "document") throw new Error("service-sheet's first input is not a document");
 
   // The capture block the case declares, assembled into core's capture
   // record beside the PDF's bytes.
-  expect(sheet.input.capture.capturedAt).toBe("2026-02-11T08:15:00Z");
-  expect(sheet.input.capture.pageCount).toBe(1);
-  expect(sheet.input.bytes.byteLength).toBeGreaterThan(0);
+  expect(pdf.file).toBe("input.pdf");
+  expect(pdf.capture.capturedAt).toBe("2026-02-11T08:15:00Z");
+  expect(pdf.capture.pageCount).toBe(1);
+  expect(pdf.bytes.byteLength).toBeGreaterThan(0);
+
+  // The second input: a text note, read after the PDF in list order.
+  expect(note?.kind).toBe("text");
+  if (note?.kind !== "text") throw new Error("service-sheet's second input is not a text input");
+  expect(note.file).toBe("site-note.txt");
+  expect(note.text).toBe("No additional observations.\n");
+  if (sheet === undefined) throw new Error("service-sheet did not load");
 
   // The sheet says nothing the schema asks about, so the case declares the
   // leaves absent: `heating.servicedAt` explicitly, the rest through the

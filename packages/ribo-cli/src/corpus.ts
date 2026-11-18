@@ -16,15 +16,18 @@ export {
   CorpusManifestSchema,
   CorpusPromptInputsSchema,
   CorpusExampleSchema,
+  CorpusCombineOptionsSchema,
 } from "./corpus/manifest.js";
 export type {
   CorpusManifest,
   CorpusPromptInputs,
   CorpusExample,
   CorpusProvenance,
+  CorpusCombineOptions,
 } from "./corpus/manifest.js";
 export {
   CorpusCaseSchema,
+  CorpusCaseInputSchema,
   CorpusCaptureBlockSchema,
   ExpectationEntrySchema,
   ExpectationValueSchema,
@@ -32,7 +35,8 @@ export {
 } from "./corpus/case.js";
 export type {
   CorpusCase,
-  CorpusCaseKind,
+  CorpusCaseInput,
+  CorpusInputKind,
   CorpusCaptureBlock,
   ExpectationEntry,
   ExpectationStatus,

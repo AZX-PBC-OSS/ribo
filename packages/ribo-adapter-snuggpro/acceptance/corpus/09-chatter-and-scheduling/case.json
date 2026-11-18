@@ -1,6 +1,11 @@
 {
   "id": "09-chatter-and-scheduling",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "dhw.dhwType2": {
       "status": "asserted",

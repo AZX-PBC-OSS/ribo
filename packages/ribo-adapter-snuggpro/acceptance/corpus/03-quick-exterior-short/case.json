@@ -1,6 +1,11 @@
 {
   "id": "03-quick-exterior-short",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "basedata.floorsAboveGrade": {
       "status": "asserted",

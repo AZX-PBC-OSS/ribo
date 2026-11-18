@@ -12,15 +12,21 @@
 import type { DocumentCapture, Transcriber, Transcript } from "@azx/ribo-core";
 import { afterEach, expect, test, vi } from "vitest";
 
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { loadCorpus } from "../corpus/loader.js";
-import { transcribeDocumentCases } from "./documents.js";
+import { documentTextKey, transcribeDocumentCases } from "./documents.js";
 import { EvalError } from "./error.js";
 import { runEval } from "./run.js";
 import { stubChat } from "./test-support/stub-chat.js";
 import {
   FIXTURE_CORPUS,
   copiedCorpus,
+  corpusWithMixedInputsCase,
   corpusWithNoTextLayerDocument,
+  editJson,
   removeTemporaries,
 } from "./test-support/corpus.js";
 
@@ -45,6 +51,76 @@ test("a document case runs through runEval, and the prompt carries the PDF's ext
   // empty transcript for it, has no request containing the string.
   const sent = chat.calls.flatMap((request) => request.messages.map((message) => message.content));
   expect(sent.some((content) => content.includes("Chain replaced"))).toBe(true);
+  // The one-input document case is combined through core's combiner like any
+  // other: its text carries its own marker, and the prompt reads it.
+  expect(
+    sent.some(
+      (content) =>
+        content.includes("===== CAPTURE seq:1 kind:document id:input.pdf =====") &&
+        content.includes("Chain replaced"),
+    ),
+  ).toBe(true);
+});
+
+const corpusWithMixedCase = corpusWithMixedInputsCase;
+
+test("a two-input case reaches the model as one ordered, marked text", async () => {
+  const corpus = loadCorpus(corpusWithMixedCase());
+  const chat = stubChat();
+
+  const results = await runEval(corpus, chat, ARM);
+
+  // Extraction actually ran: one result for the case, the stub saw requests.
+  const sheet = results.filter((entry) => entry.caseId === "service-sheet");
+  expect(sheet).toHaveLength(1);
+  expect(sheet[0]?.status).toBe("extracted");
+  expect(chat.calls.length).toBeGreaterThan(0);
+  // Both inputs' text reaches the prompt, in list order, each under its own
+  // marker. Must-fail: an implementation that sends only one input, or drops
+  // the markers, has no request carrying this exact text.
+  const sent = chat.calls.flatMap((request) => request.messages.map((message) => message.content));
+  expect(
+    sent.some((content) => {
+      const first = content.indexOf("===== CAPTURE seq:1 kind:document id:input.pdf =====");
+      const pdf = content.indexOf("Chain replaced");
+      const second = content.indexOf("===== CAPTURE seq:2 kind:text id:site-note.txt =====");
+      const note = content.indexOf("No additional observations.");
+      return (
+        first !== -1 &&
+        second !== -1 &&
+        pdf !== -1 &&
+        note !== -1 &&
+        first < pdf &&
+        pdf < second &&
+        second < note
+      );
+    }),
+  ).toBe(true);
+});
+
+test("with markCaptures off, the same case's prompt carries both texts and no capture marker", async () => {
+  const dir = corpusWithMixedCase();
+  editJson(path.join(dir, "manifest.json"), (document) => {
+    document["combine"] = { markCaptures: false };
+  });
+  const corpus = loadCorpus(dir);
+  const chat = stubChat();
+  // The PDF's own transcription, so the expected one-space join is exact —
+  // core's unmarked join of the two parts, nothing else.
+  const documents = await transcribeDocumentCases(corpus);
+  const pdf = documents.get(documentTextKey("service-sheet", "input.pdf"));
+  if (pdf === undefined) throw new Error("the document input did not transcribe");
+
+  const results = await runEval(corpus, chat, ARM, { documents });
+
+  expect(results.some((entry) => entry.caseId === "service-sheet")).toBe(true);
+  expect(chat.calls.length).toBeGreaterThan(0);
+  // Core's other join: one space between the parts, no markers anywhere.
+  const sent = chat.calls.flatMap((request) => request.messages.map((message) => message.content));
+  expect(sent.some((content) => content.includes(`${pdf} No additional observations.\n`))).toBe(
+    true,
+  );
+  expect(sent.some((content) => content.includes("===== CAPTURE"))).toBe(false);
 });
 
 test("a mixed corpus — document, transcript and text cases — yields one result per case, in corpus order", async () => {
@@ -70,8 +146,9 @@ test("a document case whose PDF has no text layer refuses the whole run, before 
 
   expect(failure).toBeInstanceOf(EvalError);
   const message = failure instanceof Error ? failure.message : String(failure);
-  // The refusal names the case and the reason.
+  // The refusal names the case, the file and the reason.
   expect(message).toContain("service-sheet");
+  expect(message).toContain("input.pdf");
   expect(message).toContain("no-text-layer");
   // The whole run refused, not the case skipped: nothing was spent.
   // Must-fail: an implementation that skips the case and runs the rest
@@ -96,8 +173,9 @@ test("the CLI's default document path prints no pdf.js Warning line, and a genui
   });
   try {
     const texts = await transcribeDocumentCases(corpus);
-    // The path still transcribes: the fixture's own words came back.
-    expect(texts.get("service-sheet")).toContain("Chain replaced");
+    // The path still transcribes: the fixture's own words came back, under
+    // the per-input key.
+    expect(texts.get(documentTextKey("service-sheet", "input.pdf"))).toContain("Chain replaced");
   } finally {
     warns.mockRestore();
     stderr.mockRestore();
@@ -113,6 +191,82 @@ test("the CLI's default document path prints no pdf.js Warning line, and a genui
   );
   expect(failure).toBeInstanceOf(EvalError);
   expect(failure instanceof Error ? failure.message : String(failure)).toContain("service-sheet");
+});
+
+test("a two-document, two-arm run transcribes each document exactly once", async () => {
+  // A second case holding two PDFs: the map is keyed by case id AND file, so
+  // neither overwrites the other, and the bin's once-per-run call is what
+  // every arm shares.
+  const dir = copiedCorpus(FIXTURE_CORPUS, (root) => {
+    const pdf = readFileSync(path.join(root, "service-sheet", "input.pdf"));
+    mkdirSync(path.join(root, "second-sheet"));
+    writeFileSync(path.join(root, "second-sheet", "input.pdf"), pdf);
+    writeFileSync(path.join(root, "second-sheet", "annex.pdf"), pdf);
+    writeFileSync(
+      path.join(root, "second-sheet", "case.json"),
+      JSON.stringify(
+        {
+          id: "second-sheet",
+          inputs: [
+            {
+              file: "input.pdf",
+              kind: "document",
+              capture: { capturedAt: "2026-02-11T08:15:00Z", pageCount: 1 },
+            },
+            {
+              file: "annex.pdf",
+              kind: "document",
+              capture: { capturedAt: "2026-02-12T08:15:00Z", pageCount: 1 },
+            },
+          ],
+          expected: {},
+        },
+        null,
+        2,
+      ),
+    );
+  });
+  const corpus = loadCorpus(dir);
+
+  // The injectable seam: a transcriber that counts its calls and returns
+  // distinguishable text for each.
+  let transcribeCalls = 0;
+  const counting: Transcriber<DocumentCapture> = {
+    engine: "counting-stub",
+    capability: () => Promise.resolve({ status: "ready" }),
+    transcribe: (item): Promise<Transcript> => {
+      transcribeCalls += 1;
+      return Promise.resolve({
+        recordingId: item.id,
+        text: `the counted transcription ${transcribeCalls}`,
+        engine: "counting-stub",
+      });
+    },
+  };
+
+  const documents = await transcribeDocumentCases(corpus, { transcriber: counting });
+  // Exactly one call per document input across the corpus: the fixture's one
+  // plus the second case's two.
+  expect(transcribeCalls).toBe(3);
+
+  const chat = stubChat();
+  const first = await runEval(corpus, chat, ARM, { documents });
+  const second = await runEval(corpus, chat, ARM, { documents });
+
+  // No arm re-transcribed: still one call per document input. Must-fail: an
+  // implementation keyed only by case id would collapse the second case's
+  // two PDFs into one text, and one that re-transcribes per arm counts more.
+  expect(transcribeCalls).toBe(3);
+  expect(first).toHaveLength(4);
+  expect(second).toHaveLength(4);
+  // Both document inputs' text reaches each arm's prompts, distinguishable —
+  // so the second PDF's transcription was not lost to the first's key.
+  const sent = chat.calls.flatMap((request) => request.messages.map((message) => message.content));
+  expect(documents.size).toBe(3);
+  for (const text of documents.values()) {
+    expect(sent.some((content) => content.includes(text))).toBe(true);
+  }
+  expect(chat.calls.length).toBeGreaterThanOrEqual(first.length + second.length);
 });
 
 test("a two-arm run transcribes each document once, not once per arm", async () => {
@@ -149,7 +303,7 @@ test("a two-arm run transcribes each document once, not once per arm", async () 
   expect(sent.some((content) => content.includes("the counted transcription"))).toBe(true);
 });
 
-test("a run handed a transcription map that misses a document case refuses, naming the case", async () => {
+test("a run handed a transcription map that misses a document input refuses, naming the case and the file", async () => {
   const corpus = loadCorpus(FIXTURE_CORPUS);
   const chat = stubChat();
 
@@ -158,6 +312,56 @@ test("a run handed a transcription map that misses a document case refuses, nami
   );
 
   expect(failure).toBeInstanceOf(EvalError);
-  expect(failure instanceof Error ? failure.message : String(failure)).toContain("service-sheet");
+  const message = failure instanceof Error ? failure.message : String(failure);
+  expect(message).toContain("service-sheet");
+  expect(message).toContain("input.pdf");
+  expect(chat.calls.length).toBe(0);
+});
+
+test("a document input that fails after an earlier one transcribes still refuses the whole run, naming the later file", async () => {
+  const dir = corpusWithMixedCase();
+  // The later input is the scan: the earlier one transcribes fine.
+  writeFileSync(
+    path.join(dir, "service-sheet", "annex-scan.pdf"),
+    readFileSync(
+      fileURLToPath(
+        new URL("../../../ribo-transcriber-pdfjs/src/fixtures/no-text-layer.pdf", import.meta.url),
+      ),
+    ),
+  );
+  editJson(path.join(dir, "service-sheet", "case.json"), (document) => {
+    (document["inputs"] as Record<string, unknown>[]).push({
+      file: "annex-scan.pdf",
+      kind: "document",
+      capture: { capturedAt: "2026-02-12T08:15:00Z", pageCount: 1 },
+    });
+  });
+  const corpus = loadCorpus(dir);
+  const chat = stubChat();
+
+  const failure = await runEval(corpus, chat, ARM).catch((error: unknown) => error);
+
+  expect(failure).toBeInstanceOf(EvalError);
+  const message = failure instanceof Error ? failure.message : String(failure);
+  expect(message).toContain("service-sheet");
+  expect(message).toContain("annex-scan.pdf");
+  expect(message).toContain("no-text-layer");
+  // No partial result: the run refused before any model call.
+  expect(chat.calls.length).toBe(0);
+});
+
+test("a document input whose bytes pdf.js cannot open refuses the run, naming the case and the file", async () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS, (root) => {
+    writeFileSync(path.join(root, "service-sheet", "input.pdf"), "this is not a PDF\n");
+  });
+  const corpus = loadCorpus(dir);
+  const chat = stubChat();
+
+  const failure = await runEval(corpus, chat, ARM).catch((error: unknown) => error);
+
+  expect(failure).toBeInstanceOf(EvalError);
+  const message = failure instanceof Error ? failure.message : String(failure);
+  expect(message).toContain("service-sheet");
+  expect(message).toContain("input.pdf");
   expect(chat.calls.length).toBe(0);
 });

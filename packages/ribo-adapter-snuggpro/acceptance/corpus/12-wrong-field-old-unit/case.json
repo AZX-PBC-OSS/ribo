@@ -1,6 +1,11 @@
 {
   "id": "12-wrong-field-old-unit",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "basedata.blowerDoorReading": {
       "status": "asserted",

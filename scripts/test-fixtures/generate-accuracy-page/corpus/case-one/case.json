@@ -1,6 +1,11 @@
 {
   "id": "case-one",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "basedata.basedataYearBuilt": {
       "status": "asserted",
@@ -12,6 +17,8 @@
       "value": 38,
       "sourceSpan": "R-38 up top"
     },
-    "attic.atticInsulationDepth": { "status": "declared-absent" }
+    "attic.atticInsulationDepth": {
+      "status": "declared-absent"
+    }
   }
 }

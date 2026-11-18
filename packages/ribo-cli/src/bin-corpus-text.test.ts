@@ -6,7 +6,9 @@ import { beforeAll, expect, test, vi } from "vitest";
 
 import { buildCliOnce } from "./test-support/build-once.js";
 
-import { FIXTURE_CORPUS } from "./eval/test-support/corpus.js";
+import { collectCorpusText } from "./corpus/text.js";
+import { loadCorpus } from "./corpus/loader.js";
+import { FIXTURE_CORPUS, corpusWithMixedInputsCase } from "./eval/test-support/corpus.js";
 
 /**
  * @file `ribo corpus text`, driven through the BUILT bin: the text each
@@ -61,19 +63,20 @@ beforeAll(() => {
   buildCliOnce();
 }, 120_000);
 
-test("every case's text prints under a per-case header — the document case's extracted text included", async () => {
+test("every case's text prints under a per-case header — the document case's transcribed and marked text included", async () => {
   const result = await run([FIXTURE_CORPUS]);
 
   expect(result.status).toBe(0);
-  // A clear header per case, naming the case and its kind.
-  expect(result.stdout).toContain("== service-sheet (document) ==");
-  expect(result.stdout).toContain("== spoken-note (transcript) ==");
-  expect(result.stdout).toContain("== written-ticket (text) ==");
-  // The document case's extracted text: the fixture service sheet's own
-  // words. Must-fail: an implementation that skips the document case, or
-  // prints a placeholder for it, has no "Chain replaced" to print.
+  // A clear header per case, naming the case.
+  expect(result.stdout).toContain("== service-sheet ==");
+  expect(result.stdout).toContain("== spoken-note ==");
+  expect(result.stdout).toContain("== written-ticket ==");
+  // The combined model-facing text, markers included: the document case's
+  // transcription under its own capture marker.
+  expect(result.stdout).toContain("===== CAPTURE seq:1 kind:document id:input.pdf =====");
   expect(result.stdout).toContain("Chain replaced");
-  // The transcript and text cases' text, verbatim.
+  // The transcript and text cases' text, verbatim under their own markers.
+  expect(result.stdout).toContain("===== CAPTURE seq:1 kind:transcript id:input.txt =====");
   expect(result.stdout).toContain(
     "Customer brought in a steel frame bicycle, serial number BW-4471",
   );
@@ -92,7 +95,9 @@ test("a case id prints that case alone, with no header and no other case's text"
   expect(result.stdout).not.toContain("service-sheet");
   expect(result.stdout).not.toContain("written-ticket");
   expect(result.stdout).not.toContain("Ticket 88213");
-  expect(result.stdout).not.toContain("==");
+  // No case header — a header line is `== <id> ==`, distinct from a capture
+  // marker's `===== CAPTURE …` line.
+  expect(result.stdout).not.toMatch(/^== \S+ ==$/m);
 });
 
 test("an unknown case id exits 2, naming the id, with stdout empty", async () => {
@@ -107,7 +112,7 @@ test("an unknown case id exits 2, naming the id, with stdout empty", async () =>
   expect(result.stderr).toContain("(fix:");
 });
 
-test("--json emits the versioned document of {caseId, kind, text} entries", async () => {
+test("--json emits the version-2 document of {caseId, text} entries", async () => {
   const result = await run(["--json", FIXTURE_CORPUS]);
 
   expect(result.status).toBe(0);
@@ -116,11 +121,12 @@ test("--json emits the versioned document of {caseId, kind, text} entries", asyn
     readonly corpus: string;
     readonly cases: readonly {
       readonly caseId: string;
-      readonly kind: string;
       readonly text: string;
     }[];
   };
-  expect(document.contractVersion).toBe(1);
+  // Version 2 dropped the singular kind: a case's inputs may be of several
+  // kinds, and the command's contract is the combined text.
+  expect(document.contractVersion).toBe(2);
   expect(document.corpus).toBe("workshop-bicycles");
   expect(document.cases.map((entry) => entry.caseId)).toEqual([
     "service-sheet",
@@ -128,11 +134,11 @@ test("--json emits the versioned document of {caseId, kind, text} entries", asyn
     "written-ticket",
   ]);
   const byId = new Map(document.cases.map((entry) => [entry.caseId, entry]));
-  expect(byId.get("service-sheet")?.kind).toBe("document");
+  expect(byId.get("service-sheet")?.text).toContain(
+    "===== CAPTURE seq:1 kind:document id:input.pdf =====",
+  );
   expect(byId.get("service-sheet")?.text).toContain("Chain replaced");
-  expect(byId.get("spoken-note")?.kind).toBe("transcript");
   expect(byId.get("spoken-note")?.text).toContain("BW-4471");
-  expect(byId.get("written-ticket")?.kind).toBe("text");
   expect(byId.get("written-ticket")?.text).toContain("Ticket 88213");
 });
 
@@ -144,4 +150,29 @@ test("an unreadable corpus exits 2, naming the path", async () => {
   expect(result.stdout).toBe("");
   expect(result.stderr).toContain("ribo corpus text");
   expect(result.stderr).toContain(missing);
+});
+
+test("the two-input case prints both markers and matches the library's collected text", async () => {
+  const dir = corpusWithMixedInputsCase();
+  const result = await run([dir, "service-sheet"]);
+
+  expect(result.status).toBe(0);
+  // Both capture markers, both texts, in list order — and no header, one case.
+  const first = result.stdout.indexOf("===== CAPTURE seq:1 kind:document id:input.pdf =====");
+  const pdf = result.stdout.indexOf("Chain replaced");
+  const second = result.stdout.indexOf("===== CAPTURE seq:2 kind:text id:site-note.txt =====");
+  const note = result.stdout.indexOf("No additional observations.");
+  expect(first).toBeGreaterThanOrEqual(0);
+  expect(pdf).toBeGreaterThan(first);
+  expect(second).toBeGreaterThan(pdf);
+  expect(note).toBeGreaterThan(second);
+  expect(result.stdout).not.toContain("== service-sheet ==");
+  // No model call and no credential: the command's env carries neither.
+  expect(result.stdout).not.toContain("sk-");
+
+  // The library collection prints the same combined text. The text already
+  // ends in exactly one newline, so the printed output is the text itself.
+  const collected = await collectCorpusText(loadCorpus(dir), "service-sheet");
+  expect(collected.cases).toHaveLength(1);
+  expect(collected.cases[0]?.text).toBe(result.stdout);
 });

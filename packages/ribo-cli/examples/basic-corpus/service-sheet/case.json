@@ -1,6 +1,19 @@
 {
   "id": "service-sheet",
-  "kind": "document",
+  "inputs": [
+    {
+      "file": "input.pdf",
+      "kind": "document",
+      "capture": {
+        "capturedAt": "2026-02-11T08:15:00Z",
+        "pageCount": 1
+      }
+    },
+    {
+      "file": "site-note.txt",
+      "kind": "text"
+    }
+  ],
   "expected": {
     "heating.servicedAt": {
       "status": "declared-absent"
@@ -11,9 +24,5 @@
       "scope": "*",
       "status": "declared-absent"
     }
-  ],
-  "capture": {
-    "capturedAt": "2026-02-11T08:15:00Z",
-    "pageCount": 1
-  }
+  ]
 }
