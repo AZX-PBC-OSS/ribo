@@ -147,6 +147,16 @@ test("a record-shaped file that fails the schema â€” a newer contract version â€
   expect(() => writeEvalRunRecord(run.record, dir)).toThrow(newer);
 });
 
+test("an old-format record (capturedAt, no contractVersion) still fails the read, naming the file", () => {
+  const dir = tempDir();
+  const old = path.join(dir, "current-codex-cli.json");
+  // The retired format carries capturedAt but no contractVersion: it is a
+  // record, so it refuses rather than being skipped as a stray.
+  writeFileSync(old, JSON.stringify({ capturedAt: "2026-01-01T00:00:00.000Z", passed: true }));
+  expect(() => readEvalRunRecords(dir)).toThrow(EvalError);
+  expect(() => readEvalRunRecords(dir)).toThrow(old);
+});
+
 test("a record's lineage is the earlier records of the same identity in the directory", async () => {
   const dir = tempDir();
   const first = await recordOverCorpus(corpusWithoutDocuments(), settings, {

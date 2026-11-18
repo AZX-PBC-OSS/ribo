@@ -18,8 +18,8 @@
  * A records directory accumulates strays — a report redirected there, a note
  * exported beside the records — so a read skips a `.json` file that is not a
  * run record at all, with one stderr line naming it, rather than refusing.
- * A file that IS a record — a JSON object declaring the format's
- * `contractVersion` — is zod-parsed, never cast (AGENTS §4), and one that
+ * A file that IS a record — a JSON object carrying `contractVersion` or
+ * `capturedAt`, the member every record format (old and new) has — is zod-parsed, never cast (AGENTS §4), and one that
  * fails the schema (a hand edit, an artefact of a newer contract version)
  * raises the could-not-run class naming its path: a record must never
  * silently drop out of a lineage.
@@ -116,8 +116,9 @@ const historyOf = (
 
 /**
  * Is this parsed JSON a run record to parse for real? A record is a plain
- * object declaring the format's `contractVersion` — the member every record
- * this store writes carries. Anything else in the directory (a redirected
+ * object carrying `contractVersion` (every record this store writes) or
+ * `capturedAt` (which the retired old format also carries, so an old-format
+ * record still refuses rather than dropping out silently). Anything else in the directory (a redirected
  * report, a stray list, a note) is not a record at all: it is skipped, never
  * judged by the schema.
  */
@@ -125,7 +126,7 @@ const isRecordCandidate = (document: unknown): document is Record<string, unknow
   typeof document === "object" &&
   document !== null &&
   !Array.isArray(document) &&
-  "contractVersion" in document;
+  ("contractVersion" in document || "capturedAt" in document);
 
 /**
  * One stderr line for a directory entry that is not a run record, naming the
@@ -140,8 +141,8 @@ const skipNonRecord = (file: string, why: string): void => {
  *
  * A missing directory reads as an empty list — the no-records-yet state is
  * normal, not a fault. A `.json` file that is not a run record at all —
- * unparseable JSON, or JSON that does not declare the record format's
- * `contractVersion` — is skipped with one stderr line naming it. A file that
+ * unparseable JSON, or JSON carrying neither `contractVersion` nor
+ * `capturedAt` — is skipped with one stderr line naming it. A file that
  * IS a record but fails the schema — a hand edit, an artefact of a newer
  * contract version — raises the could-not-run class naming its path.
  * @param dir - The records directory. Defaults to the run's own directory.
@@ -168,7 +169,7 @@ export function readEvalRunRecords(dir?: string): EvalRunRecord[] {
       continue;
     }
     if (!isRecordCandidate(document)) {
-      skipNonRecord(file, "the JSON in it is not a run record object declaring a contractVersion");
+      skipNonRecord(file, "the JSON in it is not a run record object (no contractVersion or capturedAt)");
       continue;
     }
     const parsed = EvalRunRecordSchema.safeParse(document);
