@@ -83,6 +83,10 @@ lands on stdout only once every arm's record is on disk.
   table (the models this README and the docs name — gpt-4o, claude-sonnet-5-5, claude-haiku-5-5)
   is priced on that row; any other model is priced on the backend's reference row, and the
   estimate says it fell back and names the reference.
+- **Timeouts.** `--timeout <seconds>` sets the per-call timeout of the CLI backends (default 600;
+  a large-document prompt takes a CLI minutes to answer). A call over the limit fails its case
+  with a message naming the flag as the fix. On `openai-compatible` the flag is refused up front
+  — the HTTP transport has no per-call timeout to set.
 - **0** — the run finished; a case that failed is a measurement, not a fault.
 - **2** — could not run: a usage error, an unreadable corpus, an invalid setting, a missing
   credential, a missing or non-answering CLI binary, or a refused spend.

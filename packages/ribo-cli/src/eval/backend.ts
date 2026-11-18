@@ -14,6 +14,8 @@
  * lives here, in ONE place, so the preflight and the chat construction can
  * never disagree about which binary a flag names.
  */
+import type { spawn } from "node:child_process";
+
 import { openAiChat } from "@azx/ribo-chat-openai";
 import type { ChatClient } from "@azx/ribo-core";
 
@@ -100,13 +102,50 @@ export function cliBackendNameFor(backend: EvalCliBackend): CliBackendName {
 }
 
 /**
+ * The per-call timeout `ribo eval` gives the CLI backends (ms).
+ *
+ * The eval command's own default, deliberately longer than the transport's:
+ * a large-document corpus's prompt is hundreds of thousands of tokens, and a
+ * CLI takes minutes to answer one. The transport's default and the
+ * playground's `CLI_TIMEOUT_MS` stay what they were — they are the
+ * transport's and the dev server's knobs, not the eval command's. `--timeout`
+ * overrides this.
+ */
+const EVAL_CLI_TIMEOUT_MS = 600_000;
+
+/**
+ * The CLI backend client's options.
+ *
+ * Not the runner's settings: the timeout is a transport knob the run never
+ * records, so it lives here and not in `EvalSettings` — a record's shape is
+ * unchanged by it.
+ */
+export interface CreateCliBackendChatOptions {
+  /**
+   * Per-invocation timeout (ms). Defaults to {@link EVAL_CLI_TIMEOUT_MS} —
+   * the eval command's 600 s, not the transport's own shorter default.
+   */
+  readonly timeoutMs?: number;
+  /** Override `child_process.spawn` (tests). Forwarded to the transport. */
+  readonly spawnImpl?: typeof spawn;
+}
+
+/**
  * Build the CLI backend's client.
  *
  * The client spawns the operator's installed binary; there is no credential to
  * inject and no endpoint to point at.
  * @param backend - The flag's value.
+ * @param options - The per-call timeout and the spawn seam.
  * @returns The transport client.
  */
-export function createCliBackendChat(backend: EvalCliBackend): ChatClient {
-  return cliChat({ backend: cliBackendNameFor(backend) });
+export function createCliBackendChat(
+  backend: EvalCliBackend,
+  options?: CreateCliBackendChatOptions,
+): ChatClient {
+  return cliChat({
+    backend: cliBackendNameFor(backend),
+    timeoutMs: options?.timeoutMs ?? EVAL_CLI_TIMEOUT_MS,
+    ...(options?.spawnImpl === undefined ? {} : { spawnImpl: options.spawnImpl }),
+  });
 }

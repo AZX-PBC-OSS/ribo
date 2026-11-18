@@ -207,6 +207,20 @@ const parseCap = (value: string): number => {
 };
 
 /**
+ * A `--timeout` value is a positive integer number of seconds; anything else
+ * — zero, negative, fractional, non-numeric — is a usage error. Commander's
+ * invalid-argument diagnostic names the flag it failed on.
+ */
+const parseTimeout = (value: string): number => {
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new InvalidArgumentError(
+      `expected a positive integer number of seconds, but got "${value}"`,
+    );
+  }
+  return Number(value);
+};
+
+/**
  * A spend ceiling is a non-negative dollar amount: digits, optionally with a
  * decimal part. Anything else — a negative amount, an exponent, a currency
  * symbol, a word — is a usage error, named after the flag.
@@ -341,6 +355,7 @@ interface EvalFlags {
   readonly maxNullableUnionsPerGroup?: number;
   readonly maxSerializedCharsPerGroup?: number;
   readonly maxSpend?: number;
+  readonly timeout?: number;
   readonly yes?: boolean;
 }
 
@@ -447,6 +462,17 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
       );
     }
   }
+  // The mirror refusal: the HTTP transport has no per-call timeout knob, so
+  // the flag is refused up front there the way --response-cap is refused on
+  // the CLI backends — before the preflight, the corpus load, the credential
+  // lookup and any model call.
+  if (flags.timeout !== undefined && !isCliBackend(backend)) {
+    failEval(
+      `--timeout is not supported on the ${backend} backend — it sets the CLI backends' ` +
+        "per-call timeout, and the HTTP transport has no per-call timeout to set (fix: drop " +
+        "--timeout, or run against --backend claude-cli or --backend codex-cli)",
+    );
+  }
   // The preflight runs BEFORE planning: a missing binary is reported as a
   // missing binary, never as a corpus fault or a spend refusal. The
   // openai-compatible backend has no binary to check, so it skips this.
@@ -492,7 +518,14 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
   // so every case's usage names the transport that produced it.
   let chat: ChatClient | CapableChatClient;
   if (isCliBackend(backend)) {
-    chat = asCapableChat(createCliBackendChat(backend), backend);
+    chat = asCapableChat(
+      createCliBackendChat(backend, {
+        // Seconds on the flag, milliseconds on the transport; an absent flag
+        // leaves the eval CLI default to the factory.
+        ...(flags.timeout === undefined ? {} : { timeoutMs: flags.timeout * 1000 }),
+      }),
+      backend,
+    );
   } else {
     // The credential comes from the environment, or from the working
     // directory's gitignored `.env.local`; the environment wins. The refusal
@@ -664,6 +697,10 @@ const evalHelp = [
   "  tokens — a CLI has no wire-level keyword for it — so --response-cap with --backend claude-cli",
   "  or --backend codex-cli is refused up front, before the preflight: drop the flag, or run",
   "  against --backend openai-compatible, which honours it.",
+  "  --timeout sets the CLI backends' per-call timeout, in seconds (default: 600 — a large-document",
+  "  prompt takes a CLI minutes to answer, and a call over the limit fails its case with a message",
+  "  naming the flag as the fix). On --backend openai-compatible the flag is refused up front: the",
+  "  HTTP transport has no per-call timeout to set.",
   "",
   "Examples:",
   "  ribo eval --corpus ./corpora/workshop --backend openai-compatible --model gpt-4o --strategy single-shot",
@@ -764,6 +801,11 @@ const evalCommand = program
     parseThreshold,
   )
   .option("--response-cap <n>", "the cap on generated tokens per call", parseCap)
+  .option(
+    "--timeout <seconds>",
+    "the per-call timeout of the CLI backends, in seconds (default: 600)",
+    parseTimeout,
+  )
   .option(
     "--max-nullable-unions-per-group <n>",
     "split cap: the nullable unions a piece may carry — a group over it is partitioned across calls (absent, the library's own default stands)",

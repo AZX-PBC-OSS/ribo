@@ -353,11 +353,14 @@ export function workedExample(run) {
   const missed = pickCell(run, "short");
   const madeUp = pickCell(run, "fault");
 
+  // Filtered, like the problems list's rows: an outcome the run never produced has no real
+  // cell to show, its row renders "", and a "" in the join is the blank line
+  // assertNoBlankLines refuses.
   const rows = [
     egFoundRow(found, nCaptured),
     egMissedRow(missed, nShort),
     egMadeUpRow(madeUp, nFault),
-  ];
+  ].filter((row) => row !== "");
 
   return `<section class="ar-example" aria-labelledby="eg-h">
   <h2 class="ar-h" id="eg-h">Three real slots, to show what is being counted</h2>

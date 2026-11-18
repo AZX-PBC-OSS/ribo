@@ -605,6 +605,7 @@ test("ribo eval --help teaches the surface: flags, environment, exit codes", asy
     "--consensus-arbiter",
     "--max-retries",
     "--response-cap",
+    "--timeout",
     "--max-nullable-unions-per-group",
     "--max-serialized-chars-per-group",
     "--max-spend",

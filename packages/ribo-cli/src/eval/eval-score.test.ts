@@ -129,7 +129,7 @@ test("a default that says unmentioned leaves the leaf unjudged", () => {
   expect(cellOf(score, "silent", "name").origin).toBe("default");
 });
 
-test("a failed case is scored as an empty extraction", () => {
+test("a failed case is judged over every leaf, and its silence earns no credit", () => {
   const score = scoreEvalOverSchema({
     schema: SCHEMA,
     cases: [
@@ -146,17 +146,53 @@ test("a failed case is scored as an empty extraction", () => {
   });
 
   expect(cellOf(score, "broken", "name").verdict).toBe("missed");
-  expect(cellOf(score, "broken", "count").verdict).toBe("correct");
+  // A declared-absent leaf a failed case stayed silent on is missed, not
+  // correct: the failure said nothing, so its silence is not a chosen
+  // abstention and earns no credit.
+  expect(cellOf(score, "broken", "count").verdict).toBe("missed");
   expect(cellOf(score, "broken", "state").verdict).toBe("unscorable");
   // The failure's message travels with the case, so a reader can tell "missed
   // because the case failed" from "missed because the model abstained".
   expect(score.cases[0]?.error).toBe("the endpoint refused the request");
   expect(score.cases[0]?.status).toBe("failed");
+  // The judged cells stay in accuracy-over-all's denominator and never in
+  // its numerator: a run that produced nothing scores zero — not a quiet
+  // null (cells WERE judged), and never a high accuracy.
+  expect(score.totals.judged).toBe(2);
+  expect(score.totals.correct).toBe(0);
+  expect(score.totals.accuracyOverAll).toBe(0);
   // A failed run's answer rate is zero, not a quiet null.
-  expect(score.totals.judged).toBeGreaterThan(0);
   expect(score.totals.answered).toBe(0);
   expect(score.totals.answerRate).toBe(0);
   expect(score.totals.accuracyOverAnswered).toBeNull();
+});
+
+test("a mixed run's accuracy over all counts the failed case's cells in the denominator only", () => {
+  const expected = {
+    name: { status: "asserted", value: "steel" },
+    count: { status: "declared-absent" },
+  } as const;
+  const score = scoreEvalOverSchema({
+    schema: SCHEMA,
+    cases: [
+      { id: "good", expected, defaults: [] },
+      { id: "broken", expected, defaults: [] },
+    ],
+    results: [
+      extracted("good", { name: envelope("steel") }),
+      failed("broken", "the endpoint refused the request"),
+    ],
+  });
+
+  // "good": name correct, count correct (a chosen abstention) — two correct
+  // of two judged. "broken": both judged, both missed. The run is the
+  // extracted case's two correct cells over all four judged cells of both
+  // cases — the failed case contributes to the denominator, never the
+  // numerator.
+  expect(score.totals.correct).toBe(2);
+  expect(score.totals.missed).toBe(2);
+  expect(score.totals.judged).toBe(4);
+  expect(score.totals.accuracyOverAll).toBeCloseTo(2 / 4);
 });
 
 test("the totals count every verdict and compute the three rates", () => {

@@ -339,7 +339,13 @@ async function runCliOnce(
       const timer = setTimeout(() => {
         child.kill("SIGKILL");
         cleanup();
-        reject(new Error(`cliChat(${backendLabel}): did not respond within ${timeoutMs / 1000}s`));
+        reject(
+          new Error(
+            `cliChat(${backendLabel}): did not respond within ${timeoutMs / 1000}s ` +
+              "(fix: give the call longer — under `ribo eval`, pass --timeout <seconds>; " +
+              "a direct caller raises the timeoutMs option)",
+          ),
+        );
       }, timeoutMs);
 
       if (signal) {
