@@ -169,7 +169,10 @@ export function readEvalRunRecords(dir?: string): EvalRunRecord[] {
       continue;
     }
     if (!isRecordCandidate(document)) {
-      skipNonRecord(file, "the JSON in it is not a run record object (no contractVersion or capturedAt)");
+      skipNonRecord(
+        file,
+        "the JSON in it is not a run record object (no contractVersion or capturedAt)",
+      );
       continue;
     }
     const parsed = EvalRunRecordSchema.safeParse(document);
