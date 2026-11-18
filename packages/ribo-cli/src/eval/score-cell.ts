@@ -8,7 +8,9 @@
  *   `correct`;
  * - asserted and a different value — `wrong`;
  * - asserted and no value — `missed`;
- * - declared-absent and no value — `correct`;
+ * - declared-absent and no value — `correct`, unless the case failed: a
+ *   failure said nothing, so its silence on an absent leaf is not a chosen
+ *   abstention — `missed`, and no credit;
  * - declared-absent and a value — `hallucinated`;
  * - unmentioned, or an expectation the schema cannot hold — `unscorable`,
  *   with the reason.
@@ -146,7 +148,8 @@ const isComparable = (
 
 /**
  * Judge one cell.
- * @param params - The leaf, the resolved expectation and what the run produced.
+ * @param params - The leaf, the resolved expectation, what the run produced,
+ * and whether the case failed.
  * @returns The cell.
  * @category Eval
  */
@@ -154,6 +157,12 @@ export function judgeLeaf(params: {
   readonly leaf: LeafInventoryEntry;
   readonly expectation: ResolvedExpectation;
   readonly produced: readonly EvalJsonValue[];
+  /**
+   * Whether the case's extraction failed. A failed case SAID nothing, so its
+   * silence on a declared-absent leaf earns no credit: no value is `missed`,
+   * not `correct`. An extracted case is unaffected.
+   */
+  readonly caseFailed?: boolean;
 }): EvalCell {
   const { leaf, expectation } = params;
   const values = leaf.inArray ? params.produced : params.produced.slice(0, 1);
@@ -175,7 +184,10 @@ export function judgeLeaf(params: {
     return { ...base, verdict: "unscorable", reason: "unmentioned" };
   }
   if (expectation.status === "declared-absent") {
-    return { ...base, verdict: values.length === 0 ? "correct" : "hallucinated" };
+    if (values.length > 0) return { ...base, verdict: "hallucinated" };
+    // A failed case never chose silence: its absent leaves are missed, not
+    // correct, so a run that produced nothing earns nothing.
+    return { ...base, verdict: params.caseFailed === true ? "missed" : "correct" };
   }
   if (!isComparable(leaf, expectation)) {
     return { ...base, verdict: "unscorable", reason: "incomparable-expectation" };

@@ -124,7 +124,12 @@ const scoreCase = (
       leaf.path,
     );
     const produced = readProducedLeaf(fields, leaf.path, leaf.inArray);
-    cells[leaf.path] = judgeLeaf({ leaf, expectation, produced: produced.values });
+    cells[leaf.path] = judgeLeaf({
+      leaf,
+      expectation,
+      produced: produced.values,
+      caseFailed: result.status === "failed",
+    });
   }
   return {
     caseId: entry.id,
@@ -185,10 +190,12 @@ export function scoreEvalOverSchema(score: EvalSchemaScore): EvalScore {
  * The corpus enters here and nowhere else: the scorer reads no corpus files
  * itself and accepts no other corpus representation.
  *
- * A failed case is scored as an empty extraction: every asserted leaf is
- * missed and every declared-absent leaf is correct, so a run that produced
- * nothing can never score better than a run that tried, and a failed run's
- * answer rate is visibly zero rather than quietly absent.
+ * A failed case is judged over every leaf and earns no credit for silence:
+ * every asserted leaf is `missed`, and every declared-absent leaf is
+ * `missed` too — a failure said nothing, so its silence is not a chosen
+ * abstention. The cells stay judged, so a run that produced nothing scores
+ * zero over all rather than reading as accurate, and its answer rate is
+ * visibly zero rather than quietly absent.
  * @param corpus - The loaded corpus, from `loadCorpus`.
  * @param results - The run's results, one per case.
  * @returns The score.

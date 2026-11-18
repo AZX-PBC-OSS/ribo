@@ -282,6 +282,23 @@ test("a record carrying the self-describing hazards extension renders its counts
   expect(text).toMatch(/gate-hazards/);
 });
 
+test("a run with no captured and no fault cells renders — an absent worked-example row leaves no blank line", () => {
+  // The all-failed baseline's shape: answered 0, so no captured cell exists to show, and a
+  // row that renders "" used to survive the join as a blank line and trip the page guard.
+  const quiet = grid();
+  quiet["basedata.basedataYearBuilt"]["case-one"] = cell({});
+  quiet["basedata.basedataYearBuilt"]["case-two"] = cell({});
+  quiet["attic.atticInsulation"]["case-one"] = cell({});
+  quiet["attic.atticInsulationDepth"]["case-two"] = cell({});
+  const run = record({ grid: quiet });
+  const example = workedExample(run);
+  expect(example.split("\n").filter((line) => line.trim() === "")).toEqual([]);
+  expect(example).not.toMatch(/ar-eg-ok/);
+  expect(example).not.toMatch(/ar-eg-fault/);
+  const text = page([run]);
+  expect(text).toMatch(/Missed it\./);
+});
+
 // ---------------------------------------------------------------- verdict lookups
 // An out-of-vocabulary verdict is refused at record-parse time, so each lookup path is
 // driven directly with a synthetic cell — one test per path, so fixing one fall-through
