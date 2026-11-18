@@ -6,11 +6,13 @@ import { beforeAll, expect, test } from "vitest";
 import { buildCliOnce } from "./test-support/build-once.js";
 
 /**
- * @file Every command's `--help` ends with a pointer to the CLI section of
- * the docs site — the formats the help does not spell out (the corpus
- * format, the schema dialect, the verdicts) live there and in the shipped
- * README. One test per command, each pinning the pointer's exact tail text;
- * a pointer dropped or moved off the tail fails here.
+ * @file Every command's `--help` ends with a pointer to the CLI's docs — the
+ * installed package's own `docs/cli/` pages named FIRST (the docs site sits
+ * behind a login; the shipped copies are readable by anyone the tarball
+ * reached), the site's URL second as the online rendering of the same page.
+ * One test per command, each pinning the pointer's exact tail text; a
+ * pointer dropped, moved off the tail, or flipped back to site-first fails
+ * here.
  */
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
@@ -27,30 +29,47 @@ const helpOf = (...args: readonly string[]): string => {
   return result.stdout;
 };
 
+/** The pointer tail, escaped for a regex: installed path primary, site URL secondary. */
+const pointer = (page: string, what: string): string =>
+  `Docs: node_modules\\/@azx\\/ribo-cli\\/docs\\/cli\\/${page}\\.md — ${what} ` +
+  `\\(online: https:\\/\\/ribo-docs\\.azx\\.helix\\.azxlabs\\.io\\/cli\\/${page}\\.html\\)\\.$`;
+
 test("the root --help ends with the docs pointer", () => {
   expect(helpOf().trimEnd()).toMatch(
-    /Docs: https:\/\/ribo-docs\.azx\.helix\.azxlabs\.io\/cli\/index\.html — the CLI's overview, install and the documents-to-scores walkthrough; the package's README covers the same ground\.$/u,
+    new RegExp(
+      pointer("index", "the CLI's overview, install and the documents-to-scores walkthrough"),
+      "u",
+    ),
   );
 });
 
 test("ribo schema --help ends with the docs pointer", () => {
   expect(helpOf("schema").trimEnd()).toMatch(
-    /Docs: https:\/\/ribo-docs\.azx\.helix\.azxlabs\.io\/cli\/schema\.html — the schema dialect the subcommand reads, and what each report line means\.$/u,
+    new RegExp(
+      pointer("schema", "the schema dialect the subcommand reads, and what each report line means"),
+      "u",
+    ),
   );
 });
 
 test("ribo schema inspect --help ends with the docs pointer", () => {
   expect(helpOf("schema", "inspect").trimEnd()).toMatch(
-    /Docs: https:\/\/ribo-docs\.azx\.helix\.azxlabs\.io\/cli\/schema\.html — the schema dialect this command reads, and what each report line means\.$/u,
+    new RegExp(
+      pointer("schema", "the schema dialect this command reads, and what each report line means"),
+      "u",
+    ),
   );
 });
 
 test("ribo eval --help ends with the docs pointer", () => {
   expect(helpOf("eval").trimEnd()).toMatch(
     new RegExp(
-      "Docs: the corpus format — https://ribo-docs\\.azx\\.helix\\.azxlabs\\.io/cli/corpus\\.html\\n" +
-        "      the verdicts and the run record — https://ribo-docs\\.azx\\.helix\\.azxlabs\\.io/cli/scoring\\.html\\n" +
-        "      the estimate and --max-spend — https://ribo-docs\\.azx\\.helix\\.azxlabs\\.io/cli/spend\\.html$",
+      "Docs: the corpus format — node_modules\\/@azx\\/ribo-cli\\/docs\\/cli\\/corpus\\.md " +
+        "\\(online: https:\\/\\/ribo-docs\\.azx\\.helix\\.azxlabs\\.io\\/cli\\/corpus\\.html\\)\\n" +
+        "      the verdicts and the run record — node_modules\\/@azx\\/ribo-cli\\/docs\\/cli\\/scoring\\.md " +
+        "\\(online: https:\\/\\/ribo-docs\\.azx\\.helix\\.azxlabs\\.io\\/cli\\/scoring\\.html\\)\\n" +
+        "      the estimate and --max-spend — node_modules\\/@azx\\/ribo-cli\\/docs\\/cli\\/spend\\.md " +
+        "\\(online: https:\\/\\/ribo-docs\\.azx\\.helix\\.azxlabs\\.io\\/cli\\/spend\\.html\\)$",
       "u",
     ),
   );
@@ -58,18 +77,18 @@ test("ribo eval --help ends with the docs pointer", () => {
 
 test("ribo compare --help ends with the docs pointer", () => {
   expect(helpOf("compare").trimEnd()).toMatch(
-    /Docs: https:\/\/ribo-docs\.azx\.helix\.azxlabs\.io\/cli\/scoring\.html — the run record, the axes and the intersection rule\.$/u,
+    new RegExp(pointer("scoring", "the run record, the axes and the intersection rule"), "u"),
   );
 });
 
 test("ribo corpus --help ends with the docs pointer", () => {
   expect(helpOf("corpus").trimEnd()).toMatch(
-    /Docs: https:\/\/ribo-docs\.azx\.helix\.azxlabs\.io\/cli\/corpus\.html — the corpus format the subcommand reads\.$/u,
+    new RegExp(pointer("corpus", "the corpus format the subcommand reads"), "u"),
   );
 });
 
 test("ribo corpus text --help ends with the docs pointer", () => {
   expect(helpOf("corpus", "text").trimEnd()).toMatch(
-    /Docs: https:\/\/ribo-docs\.azx\.helix\.azxlabs\.io\/cli\/corpus\.html — the corpus format this command reads\.$/u,
+    new RegExp(pointer("corpus", "the corpus format this command reads"), "u"),
   );
 });

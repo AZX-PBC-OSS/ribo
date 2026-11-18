@@ -22,3 +22,18 @@ test("the title line ends with a line break before the first labelled row", () =
   // The first labelled row starts on its own line, not glued to the title.
   expect(rendered).toContain("\n  schema fingerprint");
 });
+
+test("the granularity violations line points at the shipped doc section that explains it", () => {
+  const report = inspectSchema({
+    type: "object",
+    properties: { address: { type: "string", description: "Street address" } },
+    required: ["address"],
+  });
+  const rendered = renderHumanReport(report);
+
+  // Must-fail: a bare count explains nothing to a reader with only the
+  // installed package; the line names the shipped page and its anchor.
+  expect(rendered).toMatch(
+    /granularity violations\s+\d+ — see node_modules\/@azx\/ribo-cli\/docs\/cli\/schema\.md#granularity-violations/u,
+  );
+});

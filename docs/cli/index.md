@@ -25,7 +25,9 @@ The bare name `ribo` resolves to an unrelated npm package. Invoke this CLI as `n
 :::
 
 The package's README is self-sufficient — it ships in the tarball and covers every command. These
-pages go deeper on the formats.
+pages go deeper on the formats, and they ship in the tarball too, under
+`node_modules/@azx/ribo-cli/docs/cli/` — a reader with only the installed package has the same
+text.
 
 ## The commands at a glance
 
@@ -54,7 +56,9 @@ files.
 2. **[Write the schema](/cli/schema)** — one JSON Schema document in OpenAPI 3.0 form, each leaf
    described.
 3. **Check it:** `ribo schema inspect node_modules/@azx/ribo-cli/examples/basic-corpus/schema.json`.
-4. **[Lay out the corpus](/cli/corpus)**: a `manifest.json`, the schema, one directory per case.
+4. **[Lay out the corpus](/cli/corpus)**: a `manifest.json`, the schema, one directory per case —
+   the example's `service-sheet` case is a document case, a PDF with a text layer and the
+   `capture` block every document case declares.
 5. **Read what the model will read:**
    `ribo corpus text node_modules/@azx/ribo-cli/examples/basic-corpus`.
 6. **Write the expected answers** in each case's `case.json` — asserted values, declared-absent

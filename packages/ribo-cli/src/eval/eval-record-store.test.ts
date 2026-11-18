@@ -11,7 +11,7 @@ import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import { EvalError } from "./error.js";
 import { isRecordCurrent, recordIdentity } from "./record-fingerprint.js";
@@ -87,20 +87,74 @@ test("a non-record entry in the directory is ignored", async () => {
   expect(records).toHaveLength(1);
 });
 
-test("a malformed record in the directory fails the read and the write, naming the file", async () => {
+test("reading a records directory skips files that are not run records — one stderr line each", async () => {
   const dir = tempDir();
-  const broken = path.join(dir, "broken.json");
-  writeFileSync(broken, "{ not a record");
-
-  expect(() => readEvalRunRecords(dir)).toThrow(EvalError);
-  expect(() => readEvalRunRecords(dir)).toThrow(broken);
-
   const run = await recordOverCorpus(corpusWithoutDocuments(), settings, {
     capturedAt: "2026-11-13T10:00:00.000Z",
   });
-  // A record that cannot be parsed must never silently drop out of a lineage.
+  writeEvalRunRecord(run.record, dir);
+  // The strays a real directory accumulates: a truncated capture (a report's
+  // stdout redirected into --out), a JSON value that is not an object, and a
+  // JSON object that is no record (a redirected report carries no
+  // contractVersion).
+  const truncated = path.join(dir, "out2.json");
+  writeFileSync(truncated, '{"name": "workshop-bicycles", "arms":');
+  const notAnObject = path.join(dir, "notes.json");
+  writeFileSync(notAnObject, JSON.stringify(["just", "a", "list"]));
+  const reportShaped = path.join(dir, "report.json");
+  writeFileSync(reportShaped, JSON.stringify({ name: "workshop-bicycles", arms: [] }));
+
+  const writes: string[] = [];
+  const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+    writes.push(typeof chunk === "string" ? chunk : String(chunk));
+    return true;
+  });
+  let records: ReturnType<typeof readEvalRunRecords>;
+  try {
+    records = readEvalRunRecords(dir);
+  } finally {
+    spy.mockRestore();
+  }
+
+  // Must-fail: before the skip, any one of these files threw the
+  // could-not-run class and refused the read outright.
+  expect(records).toHaveLength(1);
+  const lines = writes
+    .join("")
+    .split("\n")
+    .filter((line) => line.includes("skipping"));
+  for (const file of [truncated, notAnObject, reportShaped]) {
+    expect(
+      lines.filter((line) => line.includes(file)),
+      file,
+    ).toHaveLength(1);
+  }
+});
+
+test("a record-shaped file that fails the schema — a newer contract version — still fails the read and the write, naming the file", async () => {
+  const dir = tempDir();
+  const newer = path.join(dir, "newer.json");
+  const run = await recordOverCorpus(corpusWithoutDocuments(), settings, {
+    capturedAt: "2026-11-13T10:00:00.000Z",
+  });
+  // A record of a newer contract version IS a record: handled exactly as
+  // before the skip — a refusal, never a silent drop out of a lineage.
+  writeFileSync(newer, JSON.stringify({ ...run.record, history: [], contractVersion: 999 }));
+
+  expect(() => readEvalRunRecords(dir)).toThrow(EvalError);
+  expect(() => readEvalRunRecords(dir)).toThrow(newer);
   expect(() => writeEvalRunRecord(run.record, dir)).toThrow(EvalError);
-  expect(() => writeEvalRunRecord(run.record, dir)).toThrow(broken);
+  expect(() => writeEvalRunRecord(run.record, dir)).toThrow(newer);
+});
+
+test("an old-format record (capturedAt, no contractVersion) still fails the read, naming the file", () => {
+  const dir = tempDir();
+  const old = path.join(dir, "current-codex-cli.json");
+  // The retired format carries capturedAt but no contractVersion: it is a
+  // record, so it refuses rather than being skipped as a stray.
+  writeFileSync(old, JSON.stringify({ capturedAt: "2026-01-01T00:00:00.000Z", passed: true }));
+  expect(() => readEvalRunRecords(dir)).toThrow(EvalError);
+  expect(() => readEvalRunRecords(dir)).toThrow(old);
 });
 
 test("a record's lineage is the earlier records of the same identity in the directory", async () => {

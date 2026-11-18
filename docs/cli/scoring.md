@@ -22,6 +22,15 @@ expectation and what the run produced:
 `hallucinated` is its own verdict, not a flavour of `wrong`: the case said nothing happened, and
 the run said something did.
 
+**Declared-absent is not an asserted `false`.** The two are different claims and they score
+differently. Take a boolean leaf `insulation.present`: an entry
+`{ "status": "asserted", "value": false }` claims the document _says_ there is no insulation — a
+run producing `false` is `correct`, `true` is `wrong`, and no value is `missed`. An entry
+`{ "status": "declared-absent" }` claims the document says _nothing_ about insulation — a run
+that leaves the leaf empty is `correct`, and a run that produces any value at all, `false`
+included, is `hallucinated`. Assert `false` when the document denies; declare absent when it is
+silent.
+
 `unscorable` always carries its reason: `unmentioned` (the corpus says nothing about the leaf) or
 `incomparable-expectation` (an enum or literal expectation naming no member the schema declares —
 a corpus authoring fault, reported rather than scored as wrong). An unscorable cell counts in no

@@ -1,7 +1,9 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { expect, test } from "vitest";
+import { beforeAll, expect, test } from "vitest";
 
 /**
  * @file The packed tarball's contents, pinned over `npm pack --dry-run
@@ -26,12 +28,19 @@ const packedPaths = (): readonly string[] => {
   return parsed[0]!.files.map((entry) => entry.path);
 };
 
+// `npm pack` costs seconds per invocation, so the dry run happens once for
+// the whole file and every test reads the same list.
+let paths: readonly string[];
+
+beforeAll(() => {
+  paths = packedPaths();
+}, 60_000);
+
 test("the packed @azx/ribo-cli tarball contains README.md", () => {
-  expect(packedPaths()).toContain("README.md");
+  expect(paths).toContain("README.md");
 });
 
 test("the packed tarball ships the worked example corpus the README walks through", () => {
-  const paths = packedPaths();
   for (const file of [
     "examples/basic-corpus/manifest.json",
     "examples/basic-corpus/schema.json",
@@ -39,7 +48,26 @@ test("the packed tarball ships the worked example corpus the README walks throug
     "examples/basic-corpus/morning-visit/input.txt",
     "examples/basic-corpus/follow-up-letter/case.json",
     "examples/basic-corpus/voicemail/case.json",
+    "examples/basic-corpus/service-sheet/case.json",
+    "examples/basic-corpus/service-sheet/input.pdf",
   ]) {
     expect(paths).toContain(file);
+  }
+});
+
+test("the packed tarball ships the CLI docs pages, and every relative link in the README resolves in it", () => {
+  for (const page of ["index.md", "schema.md", "corpus.md", "scoring.md", "spend.md"]) {
+    expect(paths).toContain(`docs/cli/${page}`);
+  }
+  // The README links the shipped pages by relative path (the docs site sits
+  // behind a login), so each relative link must resolve to a packed file.
+  const readme = readFileSync(join(PACKAGE_DIR, "README.md"), "utf8");
+  const relativeLinks = [...readme.matchAll(/\]\(([^)\s]+)\)/g)]
+    .map((match) => match[1]!)
+    .filter((href) => !href.includes("://") && !href.startsWith("#"))
+    .map((href) => href.split("#")[0]!);
+  expect(relativeLinks.length).toBeGreaterThan(0);
+  for (const link of relativeLinks) {
+    expect(paths, link).toContain(link);
   }
 });

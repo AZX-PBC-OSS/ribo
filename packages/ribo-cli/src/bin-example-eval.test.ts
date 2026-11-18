@@ -137,9 +137,12 @@ test("ribo eval over the example corpus exits 0 and writes a run record", async 
   expect(report.name).toBe("energy-visit-notes");
   expect(report.arms).toHaveLength(1);
   const arm = report.arms[0]!;
+  // The document case runs too: its PDF is transcribed locally before any
+  // model call, through the same path `ribo eval` uses on any corpus.
   expect(arm.results.map((entry) => entry.caseId)).toEqual([
     "follow-up-letter",
     "morning-visit",
+    "service-sheet",
     "voicemail",
   ]);
   // The record the report names was written, and it parses as a run record.

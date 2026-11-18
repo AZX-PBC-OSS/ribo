@@ -258,6 +258,54 @@ test("a draft-2020-12-form schema is refused by the loader's own refusal", () =>
   expect(message).toContain("schema.json");
 });
 
+test("a manifest with an unknown provenance is refused, naming the allowed values and the received one", () => {
+  const dir = brokenCorpus((root) => {
+    editJson(path.join(root, "manifest.json"), (document) => {
+      document["provenance"] = "real-world";
+    });
+  });
+  const message = refusal(dir);
+  // Must-fail: zod's own text (`Invalid option: expected one of
+  // "real"|"synthetic"`) never says what the file carried.
+  expect(message).toContain(
+    'the field "provenance": expected one of real, synthetic, got "real-world"',
+  );
+});
+
+test("every enum the corpus format validates names its allowed values, through the one formatter", () => {
+  const badKind = brokenCorpus((root) => {
+    editJson(path.join(root, "spoken-note", "case.json"), (document) => {
+      document["kind"] = "letter";
+    });
+  });
+  expect(refusal(badKind)).toContain(
+    'the field "kind": expected one of transcript, text, document, got "letter"',
+  );
+
+  const badDefaultStatus = brokenCorpus((root) => {
+    editJson(path.join(root, "spoken-note", "case.json"), (document) => {
+      (document["defaults"] as Record<string, unknown>[])[0]!["status"] = "unknown";
+    });
+  });
+  const defaultMessage = refusal(badDefaultStatus);
+  expect(defaultMessage).toContain("expected one of declared-absent, unmentioned");
+  expect(defaultMessage).toContain('got "unknown"');
+
+  // An expectation entry's status is a discriminated union's discriminator —
+  // the same formatter renders it from the union's options.
+  const badExpectationStatus = brokenCorpus((root) => {
+    editJson(path.join(root, "spoken-note", "case.json"), (document) => {
+      (document["expected"] as Record<string, Record<string, unknown>>)["frame.material"]![
+        "status"
+      ] = "unknown";
+    });
+  });
+  const expectationMessage = refusal(badExpectationStatus);
+  expect(expectationMessage).toContain("frame.material");
+  expect(expectationMessage).toContain("expected one of asserted, declared-absent");
+  expect(expectationMessage).toContain('got "unknown"');
+});
+
 test("a manifest without its provenance is refused, naming the field", () => {
   const dir = brokenCorpus((root) => {
     editJson(path.join(root, "manifest.json"), (document) => {
@@ -478,7 +526,7 @@ test("a capture block on a case that is not a document is refused, naming the fi
   expect(message).toContain("capture");
 });
 
-test("a document case without its capture block is refused, naming the field", () => {
+test("a document case without its capture block is refused, naming the block's fields", () => {
   const dir = brokenCorpus((root) => {
     editJson(path.join(root, "service-sheet", "case.json"), (document) => {
       delete document["capture"];
@@ -486,6 +534,10 @@ test("a document case without its capture block is refused, naming the field", (
   });
   const message = refusal(dir);
   expect(message).toContain("capture");
+  // The refusal names the fields the block carries, so a corpus author can
+  // write the fix without reading the schema's types.
+  expect(message).toContain("capturedAt");
+  expect(message).toContain("pageCount");
 });
 
 test("an expectation entry's shape is refused, naming the leaf path", () => {

@@ -152,11 +152,15 @@ const readJson = (file: string, what: string): unknown => {
   }
 };
 
-/** Parse a document against a zod schema, refusing a malformed one by name. */
+/**
+ * Parse a document against a zod schema, refusing a malformed one by name.
+ * The raw document rides into the issue rendering so an enum refusal can
+ * name the value the file carried, not only the allowed set.
+ */
 const parseWith = <T>(schema: z.ZodType<T>, document: unknown, what: string): T => {
   const result = schema.safeParse(document);
   if (!result.success) {
-    throw new CorpusError(`${what} is invalid: ${describeIssues(result.error.issues)}`);
+    throw new CorpusError(`${what} is invalid: ${describeIssues(result.error.issues, document)}`);
   }
   return result.data;
 };

@@ -1,0 +1,19 @@
+{
+  "id": "service-sheet",
+  "kind": "document",
+  "expected": {
+    "heating.servicedAt": {
+      "status": "declared-absent"
+    }
+  },
+  "defaults": [
+    {
+      "scope": "*",
+      "status": "declared-absent"
+    }
+  ],
+  "capture": {
+    "capturedAt": "2026-02-11T08:15:00Z",
+    "pageCount": 1
+  }
+}

@@ -142,7 +142,14 @@ export function renderHumanReport(
       `    ${finding.path}: "${finding.description}" asks for ${finding.directive} reformatting\n`,
     );
   }
-  out.push(line("granularity violations", `${report.granularityViolations.length}`));
+  out.push(
+    line(
+      "granularity violations",
+      // The pointer names the shipped copy's path inside the installed
+      // package — readable where the docs site needs a login.
+      `${report.granularityViolations.length} — see node_modules/@azx/ribo-cli/docs/cli/schema.md#granularity-violations`,
+    ),
+  );
   for (const violation of report.granularityViolations) {
     out.push(
       `    ${violation.group}: derived at "${violation.granularity}" provenance granularity\n`,
