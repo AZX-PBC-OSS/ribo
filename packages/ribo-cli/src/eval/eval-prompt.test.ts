@@ -258,6 +258,25 @@ test('the field-descriptions mode is forwarded: under "prompt" the guidance appe
   expect(system.length).toBeGreaterThan(corpus.manifest.prompt.instructions.length);
 });
 
+test("a plain-schema corpus's complete single-shot prompt stays byte-identical", async () => {
+  const corpus = loadCorpus(corpusWithoutDocuments());
+  const chat = stubChat();
+
+  const results = await runEval(corpus, chat, {
+    strategies: ["single-shot"],
+    model: "ribo-test",
+  });
+
+  expect(results.every((result) => result.status === "extracted")).toBe(true);
+  const request = chat.calls[0];
+  if (request === undefined) throw new Error("the stub received no request");
+  expect(
+    JSON.stringify({ messages: request.messages, responseFormat: request.responseFormat }),
+  ).toMatchInlineSnapshot(
+    `"{"messages":[{"role":"system","content":"Read the bicycle's workshop note and extract the frame details and the service details."},{"role":"user","content":"Dropped off a steel frame, serial number BW-1000."},{"role":"assistant","content":"{\\"frame\\":{\\"material\\":{\\"value\\":\\"steel\\",\\"confidence\\":1,\\"sourceSpan\\":null},\\"serial\\":{\\"value\\":\\"BW-1000\\",\\"confidence\\":1,\\"sourceSpan\\":null}}}"},{"role":"user","content":"Customer brought in a steel frame bicycle, serial number BW-4471, for a brake pad replacement.\\n"}],"responseFormat":{"type":"json_schema","json_schema":{"name":"ribo-eval","schema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"frame":{"type":"object","properties":{"material":{"type":"object","properties":{"value":{"anyOf":[{"type":"string","description":"The frame's material."},{"type":"null"}]},"confidence":{"type":"number"},"sourceSpan":{"anyOf":[{"type":"string"},{"type":"null"}]}},"required":["value","confidence","sourceSpan"],"additionalProperties":false},"serial":{"type":"object","properties":{"value":{"anyOf":[{"type":"string","description":"The frame's serial number."},{"type":"null"}]},"confidence":{"type":"number"},"sourceSpan":{"anyOf":[{"type":"string"},{"type":"null"}]}},"required":["value","confidence","sourceSpan"],"additionalProperties":false}},"required":["material","serial"],"additionalProperties":false},"service":{"type":"object","properties":{"date":{"type":"object","properties":{"value":{"anyOf":[{"type":"string","description":"The day the work was carried out."},{"type":"null"}]},"confidence":{"type":"number"},"sourceSpan":{"anyOf":[{"type":"string"},{"type":"null"}]}},"required":["value","confidence","sourceSpan"],"additionalProperties":false},"notes":{"type":"object","properties":{"value":{"anyOf":[{"type":"string","description":"Free-form notes about the work."},{"type":"null"}]},"confidence":{"type":"number"},"sourceSpan":{"anyOf":[{"type":"string"},{"type":"null"}]}},"required":["value","confidence","sourceSpan"],"additionalProperties":false}},"required":["date","notes"],"additionalProperties":false}},"required":["frame","service"],"additionalProperties":false},"strict":true}}}"`,
+  );
+});
+
 // ---------------------------------------------------------------------------
 // A malformed example
 // ---------------------------------------------------------------------------

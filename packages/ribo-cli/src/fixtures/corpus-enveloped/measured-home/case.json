@@ -1,0 +1,9 @@
+{
+  "id": "measured-home",
+  "kind": "text",
+  "expected": {
+    "basedata.yearBuilt": { "status": "asserted", "value": 1978 },
+    "rooms.name": { "status": "asserted", "value": { "0": "Kitchen" } },
+    "rooms.floorArea": { "status": "asserted", "value": { "0": 12 } }
+  }
+}

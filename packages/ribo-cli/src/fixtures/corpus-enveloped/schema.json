@@ -1,0 +1,69 @@
+{
+  "type": "object",
+  "description": "An already-enveloped home audit extraction schema.",
+  "properties": {
+    "basedata": {
+      "type": "object",
+      "description": "Facts about the home.",
+      "properties": {
+        "yearBuilt": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "number",
+              "nullable": true,
+              "description": "The year the home was constructed."
+            },
+            "confidence": { "type": "number" },
+            "sourceSpan": { "type": "string", "nullable": true }
+          },
+          "required": ["value", "confidence", "sourceSpan"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["yearBuilt"],
+      "additionalProperties": false
+    },
+    "rooms": {
+      "type": "array",
+      "description": "The measured rooms.",
+      "items": {
+        "type": "object",
+        "description": "One measured room.",
+        "properties": {
+          "name": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "nullable": true,
+                "description": "The room's spoken name."
+              },
+              "confidence": { "type": "number" },
+              "sourceSpan": { "type": "string", "nullable": true }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          },
+          "floorArea": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "number",
+                "nullable": true,
+                "description": "The room's floor area in square metres."
+              },
+              "confidence": { "type": "number" },
+              "sourceSpan": { "type": "string", "nullable": true }
+            },
+            "required": ["value", "confidence", "sourceSpan"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "floorArea"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["basedata", "rooms"]
+}

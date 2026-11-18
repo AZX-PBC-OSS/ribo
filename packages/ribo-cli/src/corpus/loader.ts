@@ -4,7 +4,8 @@
  * The loader is the only way a corpus enters this package. It reads the
  * manifest, converts the corpus's schema document through the SAME loader the
  * `ribo schema inspect` command uses (`convertDocument`, per ADR 0038), takes
- * the leaf paths from the ONE field walk the report uses
+ * unwraps recognised envelopes through the SAME field-level walk the report
+ * uses (`unwrapFieldEnvelopes`), takes the leaf paths from its ONE field walk
  * (`walkFieldInventory`), takes the group keys from core's own classifier
  * (`topLevelKeyKinds`), and validates every case against those.
  *
@@ -20,7 +21,7 @@ import type { DocumentCapture, LeafInventoryEntry } from "@azx/ribo-core";
 import type { z } from "zod";
 
 import { convertDocument } from "../inspect/convert.js";
-import { walkFieldInventory } from "../inspect/field-inventory.js";
+import { unwrapFieldEnvelopes, walkFieldInventory } from "../inspect/field-inventory.js";
 import { CorpusCaseSchema } from "./case.js";
 import type { CorpusCase, CorpusCaseKind } from "./case.js";
 import { CorpusError } from "./error.js";
@@ -41,7 +42,7 @@ export interface LoadedCorpus {
   readonly manifest: CorpusManifest;
   /** The schema document as it was loaded — the run fingerprint hashes this. */
   readonly schemaDocument: unknown;
-  /** The converted schema. */
+  /** The converted field-level schema, with any loaded envelopes unwrapped once. */
   readonly schema: z.ZodObject;
   /** The schema's leaves, as the one field inventory reports them. */
   readonly leafInventory: readonly LeafInventoryEntry[];
@@ -187,7 +188,7 @@ const resolveSchemaPath = (root: string, reference: string): string => {
   return path.resolve(root, reference);
 };
 
-/** Read the corpus's schema document and convert it, refusing either failure. */
+/** Read and convert the corpus's schema, then unwrap any loaded field envelopes. */
 const loadSchema = (
   root: string,
   reference: string,
@@ -215,7 +216,7 @@ const loadSchema = (
     `the corpus's schema document "${reference}" (at "${schemaPath}")`,
   );
   try {
-    return { document, schema: convertDocument(document) };
+    return { document, schema: unwrapFieldEnvelopes(convertDocument(document)) };
   } catch (error) {
     throw new CorpusError(
       `the corpus's schema document "${reference}" was refused: ${faultMessage(error)}`,
