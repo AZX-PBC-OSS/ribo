@@ -92,39 +92,46 @@ test("the committed fixture corpus loads, with its manifest, its cases and its s
   expect(corpus.schemaDocument).toMatchObject({ type: "object" });
 });
 
-test("a text case's input is the file's exact utf8 bytes", () => {
+test("a text input's text is the file's exact utf8 bytes", () => {
   const corpus = loadCorpus(FIXTURE);
   const spoken = corpus.cases.find((entry) => entry.id === "spoken-note");
   if (spoken === undefined) throw new Error("the fixture's spoken case did not load");
-  expect(spoken.input.kind).toBe("transcript");
-  if (spoken.input.kind !== "transcript") throw new Error("the spoken case is not a transcript");
-  const expected = readFileSync(path.join(FIXTURE, "spoken-note", "input.txt"), "utf8");
-  expect(spoken.input.text).toBe(expected);
+  expect(spoken.inputs).toHaveLength(1);
+  const [spokenInput] = spoken.inputs;
+  expect(spokenInput?.kind).toBe("transcript");
+  if (spokenInput?.kind !== "transcript") throw new Error("the spoken input is not a transcript");
+  expect(spokenInput.file).toBe("input.txt");
+  expect(spokenInput.text).toBe(
+    readFileSync(path.join(FIXTURE, "spoken-note", "input.txt"), "utf8"),
+  );
 
   const ticket = corpus.cases.find((entry) => entry.id === "written-ticket");
   if (ticket === undefined) throw new Error("the fixture's ticket case did not load");
-  expect(ticket.input.kind).toBe("text");
-  if (ticket.input.kind !== "text") throw new Error("the ticket case is not a text case");
-  expect(ticket.input.text).toBe(
+  const [ticketInput] = ticket.inputs;
+  expect(ticketInput?.kind).toBe("text");
+  if (ticketInput?.kind !== "text") throw new Error("the ticket input is not a text input");
+  expect(ticketInput.text).toBe(
     readFileSync(path.join(FIXTURE, "written-ticket", "input.txt"), "utf8"),
   );
 });
 
-test("a document case loads as a capture record beside its bytes", () => {
+test("a document input loads as a capture record beside its bytes", () => {
   const corpus = loadCorpus(FIXTURE);
   const document = corpus.cases.find((entry) => entry.id === "service-sheet");
-  expect(document?.input.kind).toBe("document");
-  if (document?.input.kind !== "document") throw new Error("the document case did not load");
+  expect(document?.inputs).toHaveLength(1);
+  const [input] = document?.inputs ?? [];
+  expect(input?.kind).toBe("document");
+  if (input?.kind !== "document") throw new Error("the document input did not load");
 
   // The capture record is core's own shape, parsed against core's own schema.
-  const capture = baseDocumentCaptureSchema.parse(document.input.capture);
+  const capture = baseDocumentCaptureSchema.parse(input.capture);
   expect(capture.id).toBe("service-sheet");
   expect(capture.mimeType).toBe("application/pdf");
   expect(capture.capturedAt).toBe("2026-02-11T08:15:00Z");
   expect(capture.pageCount).toBe(1);
 
   const bytes = readFileSync(path.join(FIXTURE, "service-sheet", "input.pdf"));
-  expect(Buffer.from(document.input.bytes).equals(bytes)).toBe(true);
+  expect(Buffer.from(input.bytes).equals(bytes)).toBe(true);
 });
 
 test("the fixture's own expectations resolve as it declares them", () => {
@@ -275,11 +282,11 @@ test("a manifest with an unknown provenance is refused, naming the allowed value
 test("every enum the corpus format validates names its allowed values, through the one formatter", () => {
   const badKind = brokenCorpus((root) => {
     editJson(path.join(root, "spoken-note", "case.json"), (document) => {
-      document["kind"] = "letter";
+      (document["inputs"] as Record<string, unknown>[])[0]!["kind"] = "letter";
     });
   });
   expect(refusal(badKind)).toContain(
-    'the field "kind": expected one of transcript, text, document, got "letter"',
+    'the field "inputs.0.kind": expected one of transcript, text, document, got "letter"',
   );
 
   const badDefaultStatus = brokenCorpus((root) => {
@@ -421,7 +428,10 @@ test("an unknown key inside an example, an expectation entry, a default or a cap
 
   const dir4 = brokenCorpus((root) => {
     editJson(path.join(root, "service-sheet", "case.json"), (document) => {
-      const capture = document["capture"] as Record<string, unknown>;
+      const capture = (document["inputs"] as Record<string, unknown>[])[0]!["capture"] as Record<
+        string,
+        unknown
+      >;
       capture["nosuch"] = "x";
     });
   });
@@ -481,12 +491,18 @@ test("a corpus with no case directories is refused, naming the corpus root", () 
   expect(message).toContain("no case directories");
 });
 
-test("a case directory holding the other kind's input file is refused, naming the stray file", () => {
+test("an unrelated file in the case directory is ignored — only the declared inputs are read", () => {
+  // The explicit "inputs" list is authoritative: supporting material beside a
+  // case's declared files is the author's business, and it neither contributes
+  // text nor moves the corpus fingerprint.
   const dir = brokenCorpus((root) => {
-    writeFileSync(path.join(root, "spoken-note", "input.pdf"), "%PDF-1.4\n");
+    writeFileSync(path.join(root, "spoken-note", "site-photos.pdf"), "%PDF-1.4\n");
+    writeFileSync(path.join(root, "spoken-note", "scratch.txt"), "not an input\n");
   });
-  const message = refusal(dir);
-  expect(message).toContain(path.join(dir, "spoken-note", "input.pdf"));
+  const corpus = loadCorpus(dir);
+  const spoken = corpus.cases.find((entry) => entry.id === "spoken-note");
+  expect(spoken?.inputs).toHaveLength(1);
+  expect(spoken?.inputs[0]?.file).toBe("input.txt");
 });
 
 test("a default scoped to a path no leaf carries is refused, naming the scope", () => {
@@ -516,28 +532,57 @@ test("a scope string declared twice in one case is refused, naming it", () => {
   expect(message).toContain("two defaults");
 });
 
-test("a capture block on a case that is not a document is refused, naming the field", () => {
+test("a capture block on an input that is not a document is refused, naming the input", () => {
   const dir = brokenCorpus((root) => {
     editJson(path.join(root, "spoken-note", "case.json"), (document) => {
-      document["capture"] = { capturedAt: "2026-02-11T08:15:00Z", pageCount: 1 };
+      (document["inputs"] as Record<string, unknown>[])[0]!["capture"] = {
+        capturedAt: "2026-02-11T08:15:00Z",
+        pageCount: 1,
+      };
     });
   });
   const message = refusal(dir);
   expect(message).toContain("capture");
+  // The refusal names the offending input, by file.
+  expect(message).toContain("input.txt");
 });
 
-test("a document case without its capture block is refused, naming the block's fields", () => {
+test("a document input without its capture block is refused, naming the block's fields and the input", () => {
   const dir = brokenCorpus((root) => {
     editJson(path.join(root, "service-sheet", "case.json"), (document) => {
-      delete document["capture"];
+      delete (document["inputs"] as Record<string, unknown>[])[0]!["capture"];
     });
   });
   const message = refusal(dir);
   expect(message).toContain("capture");
   // The refusal names the fields the block carries, so a corpus author can
-  // write the fix without reading the schema's types.
+  // write the fix without reading the schema's types, and the input it belongs to.
   expect(message).toContain("capturedAt");
   expect(message).toContain("pageCount");
+  expect(message).toContain("input.pdf");
+});
+
+test("the retired single-input shape is refused with one line naming inputs", () => {
+  const dir = brokenCorpus((root) => {
+    writeFileSync(
+      path.join(root, "spoken-note", "case.json"),
+      JSON.stringify(
+        {
+          id: "spoken-note",
+          kind: "transcript",
+          expected: {},
+        },
+        null,
+        2,
+      ),
+    );
+  });
+  const message = refusal(dir);
+  // One line, naming the field to declare — never the generic unknown-key
+  // diagnostic, and never a normalization.
+  expect(message).toContain("spoken-note");
+  expect(message).toContain('"inputs"');
+  expect(message.split("\n")).toHaveLength(1);
 });
 
 test("an expectation entry's shape is refused, naming the leaf path", () => {
@@ -604,4 +649,131 @@ test("every corpus refusal is a CorpusError and a could-not-run fault", () => {
       expect(error).toBeInstanceOf(SchemaInspectError);
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// The inputs list: names, order, and the multi-input shape
+// ---------------------------------------------------------------------------
+
+test("a duplicate input file name in one case is refused, naming the case and the file", () => {
+  const dir = brokenCorpus((root) => {
+    writeFileSync(path.join(root, "spoken-note", "extra.txt"), "another\n");
+    editJson(path.join(root, "spoken-note", "case.json"), (document) => {
+      document["inputs"] = [
+        { file: "input.txt", kind: "transcript" },
+        { file: "input.txt", kind: "text" },
+      ];
+    });
+  });
+  const message = refusal(dir);
+  expect(message).toContain("spoken-note");
+  expect(message).toContain("input.txt");
+});
+
+test("a missing declared input file is refused, naming the case and the file", () => {
+  const dir = brokenCorpus((root) => {
+    editJson(path.join(root, "spoken-note", "case.json"), (document) => {
+      document["inputs"] = [
+        { file: "input.txt", kind: "transcript" },
+        { file: "second.txt", kind: "text" },
+      ];
+    });
+  });
+  const message = refusal(dir);
+  expect(message).toContain("spoken-note");
+  expect(message).toContain("second.txt");
+});
+
+test("an input file name that escapes the case directory is refused, naming the case and the file", () => {
+  const dir = brokenCorpus((root) => {
+    editJson(path.join(root, "spoken-note", "case.json"), (document) => {
+      document["inputs"] = [{ file: "../outside.txt", kind: "text" }];
+    });
+  });
+  const message = refusal(dir);
+  expect(message).toContain("spoken-note");
+  expect(message).toContain("../outside.txt");
+});
+
+test("an input file name carrying a path separator is refused, naming the case and the file", () => {
+  const dir = brokenCorpus((root) => {
+    editJson(path.join(root, "spoken-note", "case.json"), (document) => {
+      document["inputs"] = [{ file: "sub/input.txt", kind: "text" }];
+    });
+  });
+  const message = refusal(dir);
+  expect(message).toContain("spoken-note");
+  expect(message).toContain("sub/input.txt");
+});
+
+test("an empty inputs list is refused, naming the field", () => {
+  const dir = brokenCorpus((root) => {
+    editJson(path.join(root, "spoken-note", "case.json"), (document) => {
+      document["inputs"] = [];
+    });
+  });
+  const message = refusal(dir);
+  expect(message).toContain("inputs");
+});
+
+test("a case file without inputs and without the retired shape is refused, naming the field", () => {
+  const dir = brokenCorpus((root) => {
+    editJson(path.join(root, "spoken-note", "case.json"), (document) => {
+      delete document["inputs"];
+    });
+  });
+  const message = refusal(dir);
+  expect(message).toContain("inputs");
+});
+
+test("a case with two document entries loads with independent captures and bytes", () => {
+  const dir = brokenCorpus((root) => {
+    cpSync(
+      path.join(root, "service-sheet", "input.pdf"),
+      path.join(root, "service-sheet", "second.pdf"),
+    );
+    editJson(path.join(root, "service-sheet", "case.json"), (document) => {
+      document["inputs"] = [
+        {
+          file: "input.pdf",
+          kind: "document",
+          capture: { capturedAt: "2026-02-11T08:15:00Z", pageCount: 1 },
+        },
+        {
+          file: "second.pdf",
+          kind: "document",
+          capture: { capturedAt: "2026-03-01T09:00:00Z", pageCount: 2 },
+        },
+      ];
+    });
+  });
+  const corpus = loadCorpus(dir);
+  const sheet = corpus.cases.find((entry) => entry.id === "service-sheet");
+  if (sheet === undefined) throw new Error("the sheet case did not load");
+  expect(sheet.inputs).toHaveLength(2);
+  const [first, second] = sheet.inputs;
+  if (first?.kind !== "document" || second?.kind !== "document") {
+    throw new Error("the document inputs did not load");
+  }
+  expect(first.file).toBe("input.pdf");
+  expect(second.file).toBe("second.pdf");
+  expect(first.capture.capturedAt).toBe("2026-02-11T08:15:00Z");
+  expect(second.capture.capturedAt).toBe("2026-03-01T09:00:00Z");
+  expect(second.capture.pageCount).toBe(2);
+  expect(Buffer.from(second.bytes).equals(Buffer.from(first.bytes))).toBe(true);
+});
+
+test("the inputs list is loaded in the order the case file declares it", () => {
+  const dir = brokenCorpus((root) => {
+    writeFileSync(path.join(root, "spoken-note", "zzz.txt"), "zzz\n");
+    editJson(path.join(root, "spoken-note", "case.json"), (document) => {
+      document["inputs"] = [
+        { file: "zzz.txt", kind: "text" },
+        { file: "input.txt", kind: "transcript" },
+      ];
+    });
+  });
+  const corpus = loadCorpus(dir);
+  const spoken = corpus.cases.find((entry) => entry.id === "spoken-note");
+  expect(spoken?.inputs.map((input) => input.file)).toEqual(["zzz.txt", "input.txt"]);
 });

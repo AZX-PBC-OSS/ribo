@@ -19,9 +19,11 @@ import { runEval, runEvalOverSchema } from "./run.js";
 import { replyForSchema, stubChat } from "./test-support/stub-chat.js";
 import {
   corpusWithCases,
+  corpusWithMixedInputsCase,
   corpusWithoutDocuments,
   removeTemporaries,
 } from "./test-support/corpus.js";
+import { recordOverCorpus } from "./test-support/record.js";
 
 afterEach(() => {
   removeTemporaries();
@@ -34,8 +36,11 @@ afterEach(() => {
 test("a run from a loader-round-tripped schema matches a run from a hand-built one", async () => {
   const corpus = loadCorpus(corpusWithoutDocuments());
   const cases = corpus.cases.map((entry) => {
-    if (entry.input.kind === "document") throw new Error("the fixture case is a document case");
-    return { id: entry.id, kind: entry.input.kind, text: entry.input.text };
+    const [input] = entry.inputs;
+    if (input === undefined || input.kind === "document") {
+      throw new Error("the fixture case holds a document input");
+    }
+    return { id: entry.id, text: input.text };
   });
 
   // The same schema, built by hand: the fixture's bicycle workshop.
@@ -152,4 +157,20 @@ test("the presence-narrowed arm runs over the backend's client", async () => {
   const names = received.map((entry) => entry.body.response_format.json_schema.name);
   expect(names.some((name) => name.endsWith("-presence"))).toBe(true);
   expect(names.some((name) => name.startsWith("ribo-eval-"))).toBe(true);
+});
+
+test("a run/score/record round-trip over the two-input case yields one scored case row and stub calls", async () => {
+  const run = await recordOverCorpus(corpusWithMixedInputsCase(), {
+    strategies: ["single-shot"],
+    model: "ribo-test",
+  });
+
+  // The stub saw requests: the case actually reached extraction.
+  expect(run.calls).toBeGreaterThan(0);
+  // One scored case row for the two-input case — two inputs are still one
+  // extraction and one score, never per-input rows.
+  expect(run.score.cases.filter((entry) => entry.caseId === "service-sheet")).toHaveLength(1);
+  expect(run.score.totals.cases).toBe(3);
+  // The record carries the corpus fingerprint the migrated corpus hashes.
+  expect(run.record.corpus.fingerprint).toMatch(/^[0-9a-f]{64}$/);
 });

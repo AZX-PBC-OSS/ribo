@@ -22,9 +22,10 @@ below is mechanical and re-derivable from the spike's own files.
 ## Translation rules
 
 - **Case identity.** Each spike file `ground-truth/NN-slug.json` becomes a case directory
-  `NN-slug/` — the case id equals the directory name (the loader's own rule). `kind` is
-  `"transcript"`, and `input.txt` is a byte-for-byte copy of `transcripts/NN-slug.txt` (the
-  copy-fidelity test keeps it honest). No `capture` block: only a document case carries one.
+  `NN-slug/` — the case id equals the directory name (the loader's own rule). The case declares
+  one `inputs` entry: `{ "file": "input.txt", "kind": "transcript" }`, and `input.txt` is a
+  byte-for-byte copy of `transcripts/NN-slug.txt` (the copy-fidelity test keeps it honest). No
+  `capture` block: only a document entry carries one.
 - **Singleton leaves.** The spike's top-level `leaves` entries (the singleton groups, keyed by
   already-dotted paths) map key for key. An `asserted` entry's `member` (an enum's literal
   string) or `value` (a number or string) becomes the generic entry's `value`; `sourceSpan` is

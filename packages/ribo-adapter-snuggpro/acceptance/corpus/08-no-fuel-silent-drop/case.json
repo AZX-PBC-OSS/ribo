@@ -1,6 +1,11 @@
 {
   "id": "08-no-fuel-silent-drop",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "hvac.hvacSystemEquipmentType": {
       "status": "asserted",

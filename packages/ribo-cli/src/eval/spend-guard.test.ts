@@ -22,12 +22,13 @@
  */
 import { ChatError, describeExtraction, scriptedChat } from "@azx/ribo-core";
 import type { ChatRequest } from "@azx/ribo-core";
+import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 
 import { loadCorpus } from "../corpus/loader.js";
 import { colorsFor } from "../colors.js";
 import { describeCalls } from "../inspect/calls.js";
-import { transcribeDocumentCases } from "./documents.js";
+import { documentTextKey, transcribeDocumentCases } from "./documents.js";
 import { EvalError } from "./error.js";
 import { PRICE_TABLE, priceTokens } from "./pricing.js";
 import { runEvalOverSchema } from "./run.js";
@@ -39,7 +40,9 @@ import {
   FIXTURE_FLAT_CORPUS,
   FIXTURE_SPLIT_CORPUS,
   corpusWithCases,
+  corpusWithMixedInputsCase,
   corpusWithoutDocuments,
+  editJson,
   removeTemporaries,
 } from "./test-support/corpus.js";
 import type { EvalCaseResult, EvalSettings, EvalSplitCaps } from "./types.js";
@@ -82,8 +85,10 @@ const runArm = async (
     manifestName: corpus.manifest.name,
     cases: corpus.cases.map((entry) => ({
       id: entry.id,
-      kind: entry.input.kind === "document" ? ("text" as const) : entry.input.kind,
-      text: entry.input.kind === "document" ? "" : entry.input.text,
+      text: entry.inputs
+        .filter((input) => input.kind !== "document")
+        .map((input) => input.text)
+        .join(" "),
     })),
     chat,
     settings,
@@ -213,7 +218,7 @@ test("a document case's transcribed text is priced, not skipped", async () => {
   // implementation that skips document text when sizing prompts prices both
   // of these the same.
   const grown = new Map(documents);
-  grown.set("service-sheet", "chain replaced ".repeat(1000));
+  grown.set(documentTextKey("service-sheet", "input.pdf"), "chain replaced ".repeat(1000));
   const grownEstimate = estimateSpend({
     corpus,
     arms,
@@ -533,4 +538,49 @@ test("a model with no price row is priced on the reference row, and the estimate
   const lines = formatSpendEstimate(fallback, colorsFor({ isTTY: false })).join("\n");
   expect(lines).toContain("fell back");
   expect(lines).toContain("Claude Sonnet");
+});
+
+test("the priced longest prompt is the complete combined text with its markers, not one part", async () => {
+  const arms = [{ strategies: ["single-shot"], model: "ribo-test" }] as const;
+  // The note is by far the longer part: a guard that priced only the longest
+  // individual part would price the mixed corpus exactly as the note-only one.
+  const mixed = loadCorpus(corpusWithMixedInputsCase("x".repeat(2000) + "\n"));
+  const noteOnly = corpusWithMixedInputsCase("x".repeat(2000) + "\n");
+  editJson(path.join(noteOnly, "service-sheet", "case.json"), (document) => {
+    document["inputs"] = [{ file: "site-note.txt", kind: "text" }];
+  });
+
+  const documents = await transcribeDocumentCases(mixed);
+  const bothPriced = estimateSpend({
+    corpus: mixed,
+    arms,
+    backend: "openai-compatible",
+    model: "ribo-test",
+    documents,
+  });
+  const notePriced = estimateSpend({
+    corpus: loadCorpus(noteOnly),
+    arms,
+    backend: "openai-compatible",
+    model: "ribo-test",
+  });
+
+  // The mixed case prices strictly above the note-only one: the PDF's
+  // transcription and its marker are priced too.
+  expect(bothPriced.worstCasePromptTokens).toBeGreaterThan(notePriced.worstCasePromptTokens);
+
+  // And the markers are in the priced prompt: the same corpus with the
+  // manifest's combine block turned off prices strictly below.
+  const unmarkedDir = corpusWithMixedInputsCase("x".repeat(2000) + "\n");
+  editJson(path.join(unmarkedDir, "manifest.json"), (document) => {
+    document["combine"] = { markCaptures: false };
+  });
+  const unmarked = estimateSpend({
+    corpus: loadCorpus(unmarkedDir),
+    arms,
+    backend: "openai-compatible",
+    model: "ribo-test",
+    documents,
+  });
+  expect(bothPriced.worstCasePromptTokens).toBeGreaterThan(unmarked.worstCasePromptTokens);
 });

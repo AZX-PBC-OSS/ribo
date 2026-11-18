@@ -1030,15 +1030,13 @@ async function runCorpusText(
     return;
   }
   // One case reads as its text alone — pipeable, no header. Many cases read
-  // under a per-case header naming the case and its kind.
+  // under a per-case header naming the case.
   const only = text.cases.length === 1 ? text.cases[0] : undefined;
   if (only !== undefined) {
     process.stdout.write(printable(only.text));
     return;
   }
-  const blocks = text.cases.map(
-    (entry) => `== ${entry.caseId} (${entry.kind}) ==\n${printable(entry.text)}`,
-  );
+  const blocks = text.cases.map((entry) => `== ${entry.caseId} ==\n${printable(entry.text)}`);
   process.stdout.write(blocks.join("\n"));
 }
 
@@ -1046,13 +1044,15 @@ const corpusTextHelp = [
   "Exit codes:",
   "  0  the text was printed",
   "  2  the command could not run: a usage error, an unreadable corpus, an unknown case id,",
-  "     or a document that cannot be transcribed (no text layer, or bytes pdf.js cannot open)",
+  "     or a document input that cannot be transcribed (no text layer, or bytes pdf.js cannot",
+  "     open)",
   "",
   "What it prints:",
-  "  The text each case's prompt carries: transcript and text cases verbatim, document cases",
-  "  transcribed through the same path `ribo eval` uses. With a case id, that case alone,",
-  "  without a header; without one, every case under a per-case header. No model call is made",
-  "  and no credential is needed — transcription is local.",
+  "  The combined text each case's prompt carries: the case's declared inputs, joined in",
+  "  declared order — capture markers included when the corpus's manifest does not turn them",
+  "  off. Document inputs are transcribed through the same path `ribo eval` uses. With a case",
+  "  id, that case alone, without a header; without one, every case under a per-case header.",
+  "  No model call is made and no credential is needed — transcription is local.",
   "",
   "Examples:",
   "  ribo corpus text ./corpora/workshop",
@@ -1073,7 +1073,7 @@ const corpusTextCommand = corpusCommand
   )
   .argument("<corpus-dir>", "the corpus directory to read")
   .argument("[case-id]", "print this case alone, without a header")
-  .option("--json", "emit the versioned JSON document of {caseId, kind, text} entries")
+  .option("--json", "emit the versioned JSON document of {caseId, text} entries")
   .addHelpText("after", corpusTextHelp)
   .addHelpText("after", docsPointer("corpus", "the corpus format this command reads"))
   .action(runCorpusText);

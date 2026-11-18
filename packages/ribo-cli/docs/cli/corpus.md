@@ -30,6 +30,11 @@ verbatim.
   travels) and `prompt.groupInstructions` (a map from a group key to the instructions that
   **replace** the main ones for that group's calls; a key naming no group of the schema is
   refused) change the prompt, and therefore what the run measures.
+- `combine` — optional, and the ONLY place the joining options live. One member today:
+  `markCaptures` (a boolean, defaulting to `true`) — whether each input is prefixed with a
+  `===== CAPTURE … =====` marker before the inputs are joined. The option changes what the model
+  reads, so it is part of the corpus's identity, not a CLI flag; there is no command-line
+  override.
 - `description` — free text for a human reader. Nothing reads it.
 
 ## The schema
@@ -41,35 +46,51 @@ leaf described:
 
 ## A case directory
 
-Each case is one subdirectory named with a stable id, holding **`case.json` plus exactly one input
-file**. The file's name follows from the kind, stated once in the case file: `input.txt` for the
-`transcript` and `text` kinds, `input.pdf` for a `document` case. A case holding both is refused,
-and so is a case holding neither — a case has exactly one input file today.
+Each case is one subdirectory named with a stable id, holding **`case.json` plus its input
+files**. The case file declares its inputs as a non-empty, ordered `inputs` list; each entry is:
 
-A `document` case's PDF needs a **text layer**: the document is transcribed locally through pdf.js
-before the run starts, and a scan without a text layer refuses the run, naming the case, before
-any model call.
+- `file` — the input file's name, directly inside the case folder. A name carrying a path
+  separator (`/` or `\\`), an absolute path, or `.`/`..` is refused — an input may not escape
+  the case directory — and so is a name declared twice in one case or one that does not exist.
+  Other files in the folder are simply ignored: the list is authoritative.
+- `kind` — `"transcript"`, `"text"` or `"document"`. The kinds differ in how the input reaches
+  the model, never in how the answer is judged.
+- `capture` — a **`document` entry only** (required there, forbidden on the other kinds): the
+  corpus declares what was captured; the loader never fabricates it, and a document entry
+  missing the block is refused with both field names in the message. The two fields:
 
-A document case also declares a **`capture` block** — the corpus declares what was captured; the
-loader never fabricates it, and a document case missing the block is refused with both field
-names in the message. The two fields:
+  - `capturedAt` — when the document was captured, as an ISO 8601 datetime string. It is
+    provenance metadata: the loader assembles it into the capture record the transcriber
+    receives, and **no part of scoring reads it** — no verdict or rate ever turns on
+    `capturedAt`.
+  - `pageCount` — how many pages the document has, as the corpus declares it. It completes the
+    capture record the transcriber is handed.
 
-- `capturedAt` — when the document was captured, as an ISO 8601 datetime string. It is provenance
-  metadata: the loader assembles it into the capture record the transcriber receives, and **no
-  part of scoring reads it** — no verdict or rate ever turns on `capturedAt`.
-- `pageCount` — how many pages the document has, as the corpus declares it. It completes the
-  capture record the transcriber is handed.
+A case may declare **one input or many**. Every declared input is read in list order — a
+`transcript` or `text` entry as the file's exact UTF-8 text, a `document` entry transcribed
+locally through pdf.js (once per run, shared by every arm; the PDF needs a **text layer**, and
+a scan without one refuses the run, naming the case and the file, before any model call) — and
+the texts are then joined into **one** combined text by the same joining rule the storage relay
+uses: each part prefixed with `\n===== CAPTURE seq:N kind:K id:I =====\n` (`seq` is the 1-based
+position in the `inputs` list, `kind` the entry's kind, `id` the entry's file name) and
+concatenated, or — with `"combine": { "markCaptures": false }` — joined with a single space and
+no markers. Markers are **on by default, for one input as well as many**; `ribo corpus text`
+prints the combined text exactly as the model reads it, markers included.
+
+One case is still one extraction and one score: the combined text is extracted against the
+corpus's one schema, and the result is judged once against the case's `expected`. No per-input
+schema, answer or result exists.
 
 The `case.json` fields:
 
 - `id` — must equal the directory's name. A mismatch is a refusal, not a silent correction.
-- `kind` — `"transcript"`, `"text"` or `"document"`. The kinds differ in how the input reaches the
-  model, never in how the answer is judged.
+- `inputs` — the non-empty, ordered list of entries described above. The old single-input shape
+  (a case-level `kind` with one implied `input.txt`/`input.pdf`) is retired: a case still using
+  it is refused with a message naming `inputs`, not silently migrated.
 - `expected` — the expected answer, a **sparse map** from dotted leaf path to an expectation
-  entry. The keys are the flat leaf paths the schema declares (`heating.fuel`; a collection's leaf
-  is addressed once, element-relative: `upgrades.measure`).
+  entry. The keys are the flat leaf paths the schema declares (`heating.fuel`; a collection's
+  leaf is addressed once, element-relative: `upgrades.measure`).
 - `defaults` — optional scoped defaults (below).
-- `capture` — a `document` case only; forbidden for the other kinds.
 
 ## The expected answers
 
@@ -116,14 +137,20 @@ nothing scored that the case did not claim:
 
 <<< @/../packages/ribo-cli/examples/basic-corpus/voicemail/case.json
 
-`service-sheet` — a document case: a one-page worksheet PDF with a text layer. The sheet says
-nothing the schema asks about, so the case declares every leaf absent through one `"*"` default,
-with `heating.servicedAt` also named explicitly — and its `case.json` carries the `capture` block
-every document case declares:
+`service-sheet` — a **two-input** case: a one-page worksheet PDF with a text layer, then a text
+note. The sheet says nothing the schema asks about, so the case declares every leaf absent
+through one `"*"` default, with `heating.servicedAt` also named explicitly — and its first input
+carries the `capture` block every document entry declares. With markers on (the default), the
+case's combined text is the PDF's transcription under its `seq:1 kind:document id:input.pdf`
+marker followed by the note under its `seq:2 kind:text id:site-note.txt` marker:
 
 <<< @/../packages/ribo-cli/examples/basic-corpus/service-sheet/case.json
 
+The second input's note:
+
+<<< @/../packages/ribo-cli/examples/basic-corpus/service-sheet/site-note.txt
+
 Read any case's text the way the model will receive it — `ribo corpus text <corpus-dir>
-[case-id]` — before writing its expectations. Transcript and text cases print verbatim; document
-cases print transcribed, through the same path `ribo eval` uses, with no model call and no
-credential.
+[case-id]` — before writing its expectations. Every case prints its combined text — inputs in
+list order, capture markers included when they are on; document inputs transcribed, through the
+same path `ribo eval` uses, with no model call and no credential.

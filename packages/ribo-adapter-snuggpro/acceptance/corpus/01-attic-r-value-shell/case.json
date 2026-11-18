@@ -1,6 +1,11 @@
 {
   "id": "01-attic-r-value-shell",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "basedata.blowerDoorReading": {
       "status": "asserted",

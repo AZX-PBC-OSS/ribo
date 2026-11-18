@@ -28,10 +28,11 @@
 import { describeExtraction } from "@azx/ribo-core";
 import type { ExtractionDescription } from "@azx/ribo-core";
 
-import type { LoadedCase, LoadedCorpus } from "../corpus.js";
+import type { LoadedCorpus } from "../corpus.js";
 import { describeCalls } from "../inspect/calls.js";
 import type { CallsReport, SplitCapOptions } from "../inspect/calls.js";
 import type { EvalBackendName } from "./backend.js";
+import { caseTextOf } from "./case-text.js";
 import type { DocumentTexts } from "./documents.js";
 import { EvalError } from "./error.js";
 import { measurePromptChars } from "./prompt-size.js";
@@ -146,12 +147,12 @@ export interface SpendEstimateInput {
    */
   readonly model: string;
   /**
-   * The document cases' transcribed text, keyed by case id — the same map the
-   * run itself is driven with. A document case with no entry is a REFUSAL,
-   * never a zero: the guard prices the text the run will send, and a skipped
-   * document would undercount — the one direction the estimate may not err
-   * in. Transcription is free and local and happens before the estimate, so
-   * the text is always there to price.
+   * The document inputs' transcribed text, keyed by case id and file name —
+   * the same map the run itself is driven with. A document input with no
+   * entry is a REFUSAL, never a zero: the guard prices the text the run will
+   * send, and a skipped document would undercount — the one direction the
+   * estimate may not err in. Transcription is free and local and happens
+   * before the estimate, so the text is always there to price.
    */
   readonly documents?: DocumentTexts;
 }
@@ -171,39 +172,17 @@ const groupCountOf = (description: ExtractionDescription): number =>
   (description.keys ?? []).filter((key) => key.kind === "group").length;
 
 /**
- * The text one case's prompt carries: the loaded text of a transcript or text
- * case, the transcribed text of a document case.
- *
- * A document case with no transcribed text is a REFUSAL, never an empty
- * string: the guard may overcount, never undercount, and a document priced at
- * zero characters is an undercount with the case still counted.
- */
-const caseText = (entry: LoadedCase, documents: DocumentTexts | undefined): string => {
-  if (entry.input.kind !== "document") return entry.input.text;
-  const text = documents?.get(entry.id);
-  if (text === undefined) {
-    throw new EvalError(
-      `eval: the corpus case "${entry.id}" is a "document" case, but no transcribed text was ` +
-        "supplied for it — the estimate prices a document case on its transcribed text, exactly " +
-        "as it prices a transcript case's text, and a skipped document would understate the " +
-        "run's cost (fix: transcribe the corpus's document cases with transcribeDocumentCases " +
-        "before estimating, and pass the result in)",
-    );
-  }
-  return text;
-};
-
-/**
  * The longest transcript the corpus holds.
  *
- * A case carries its own transcript, and the longest one is the largest
- * prompt the run can send — the measurement the guard prices. A document
- * case's text is its transcription, priced exactly like a transcript case's.
+ * A case carries its own combined text — its inputs joined by core's
+ * combiner, in `case-text.ts` — and the longest one is the largest prompt the
+ * run can send: the measurement the guard prices. Markers and all: the
+ * estimate prices the text the model will actually read.
  */
 const longestTranscript = (corpus: LoadedCorpus, documents: DocumentTexts | undefined): string => {
   let longest = "";
   for (const entry of corpus.cases) {
-    const text = caseText(entry, documents);
+    const text = caseTextOf(corpus, entry, documents);
     if (text.length > longest.length) longest = text;
   }
   return longest;

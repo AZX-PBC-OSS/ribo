@@ -1,6 +1,11 @@
 {
   "id": "05-full-walkthrough",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "basedata.blowerDoorReading": {
       "status": "asserted",

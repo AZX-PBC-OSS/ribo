@@ -50,6 +50,7 @@ test("the packed tarball ships the worked example corpus the README walks throug
     "examples/basic-corpus/voicemail/case.json",
     "examples/basic-corpus/service-sheet/case.json",
     "examples/basic-corpus/service-sheet/input.pdf",
+    "examples/basic-corpus/service-sheet/site-note.txt",
   ]) {
     expect(paths).toContain(file);
   }

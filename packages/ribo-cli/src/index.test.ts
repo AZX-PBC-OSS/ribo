@@ -110,7 +110,9 @@ test("the barrel exports the package's public runtime surface", () => {
   expect(Object.keys(cli).sort()).toEqual([
     "CONTRACT_VERSION",
     "CorpusCaptureBlockSchema",
+    "CorpusCaseInputSchema",
     "CorpusCaseSchema",
+    "CorpusCombineOptionsSchema",
     "CorpusError",
     "CorpusExampleSchema",
     "CorpusManifestSchema",

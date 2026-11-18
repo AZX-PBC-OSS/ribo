@@ -1,6 +1,11 @@
 {
   "id": "spoken-note",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "frame.material": {
       "status": "asserted",

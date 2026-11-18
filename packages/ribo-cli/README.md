@@ -47,14 +47,15 @@ the answer should arrive as the source stated it). Reads the file at `<path>`, o
 
 ### `ribo corpus text <corpus-dir> [case-id]`
 
-Prints the text each case's prompt carries: transcript and text cases verbatim, document cases
+Prints the combined text each case's prompt carries: the case's declared inputs, joined in list
+order — capture markers included when the manifest does not turn them off; document inputs
 transcribed locally through the same pdf.js path `ribo eval` uses. No model call, no credential.
 With a case id it prints that case alone, without a header; without one, every case under a
 per-case header.
 
 - **0** — the text was printed.
-- **2** — could not run: an unreadable corpus, an unknown case id, or a document that cannot be
-  transcribed (no text layer, or bytes pdf.js cannot open).
+- **2** — could not run: an unreadable corpus, an unknown case id, or a document input that
+  cannot be transcribed (no text layer, or bytes pdf.js cannot open).
 
 ### `ribo eval --corpus <dir> --backend <name> --model <id> --strategy <ids> [...]`
 
@@ -122,11 +123,15 @@ command below runs against it verbatim; substitute your own directory once the s
    `ribo schema inspect node_modules/@azx/ribo-cli/examples/basic-corpus/schema.json` — every
    field described, no refusals, and the call counts per strategy.
 4. **Lay out the corpus.** A directory holding `manifest.json`, the schema, and one subdirectory
-   per case. A case is its `case.json` plus exactly one input file — `input.txt` for the
-   `transcript` and `text` kinds, `input.pdf` for a `document` case (which needs a text layer; a
-   scan without one is refused before any model call). The example's `service-sheet` is the
-   document case: its `case.json` carries the `capture` block (`capturedAt`, `pageCount`) every
-   document case declares. The format, in full: [docs/cli/corpus.md](docs/cli/corpus.md) (online:
+   per case. A case is its `case.json` plus its input files, declared as a non-empty ordered
+   `inputs` list — each entry a `file` directly in the case folder and a `kind` (`transcript`,
+   `text`, or `document`; a document entry also carries a `capture` block with `capturedAt` and
+   `pageCount`, and its PDF needs a text layer — a scan without one is refused before any model
+   call). A case's inputs are joined in list order into one text — capture markers on by
+   default, `"combine": { "markCaptures": false }` in the manifest to turn them off — and that
+   one text is extracted once and scored once per case. The example's `service-sheet` is the
+   two-input case: the worksheet PDF first, then a `site-note.txt` note. The format, in full:
+   [docs/cli/corpus.md](docs/cli/corpus.md) (online:
    <https://ribo-docs.azx.helix.azxlabs.io/cli/corpus.html>).
 5. **Read each case's text with `corpus text`.**
    `ribo corpus text node_modules/@azx/ribo-cli/examples/basic-corpus` — what the model will read,

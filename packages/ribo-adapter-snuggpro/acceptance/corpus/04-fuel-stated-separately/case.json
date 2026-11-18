@@ -1,6 +1,11 @@
 {
   "id": "04-fuel-stated-separately",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "health.healthAmbientCarbonMonoxide": {
       "status": "asserted",

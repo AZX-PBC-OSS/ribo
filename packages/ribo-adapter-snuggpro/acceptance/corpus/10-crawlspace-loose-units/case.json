@@ -1,6 +1,11 @@
 {
   "id": "10-crawlspace-loose-units",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "basedata.blowerDoorReading": {
       "status": "asserted",

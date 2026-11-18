@@ -680,6 +680,25 @@ test("an unreadable corpus path exits 2 naming the path", async () => {
   expect(received.length).toBe(0);
 });
 
+test("a case still in the retired single-input shape exits 2 with the targeted inputs message", async () => {
+  const corpus = copiedCorpus(FIXTURE_CORPUS, (dir) => {
+    writeFileSync(
+      join(dir, "spoken-note", "case.json"),
+      JSON.stringify({ id: "spoken-note", kind: "transcript", expected: {} }, null, 2),
+    );
+  });
+  const fault = await run([...baseArgs(corpus), "--strategy", "single-shot"]);
+
+  // The exit-code contract: exactly 0 and 2, and this is a could-not-run.
+  expect(fault.status).toBe(2);
+  expect(fault.stdout).toBe("");
+  // The refusal names the case and the field to declare — no backend was
+  // configured and no model call was made.
+  expect(fault.stderr).toContain("spoken-note");
+  expect(fault.stderr).toContain('"inputs"');
+  expect(received.length).toBe(0);
+});
+
 test("a corpus holding a document case runs: the PDF is transcribed under Node, exit 0, a record written", async () => {
   const corpus = copiedCorpus(FIXTURE_CORPUS);
   const result = await run([...baseArgs(corpus), "--strategy", "single-shot"]);

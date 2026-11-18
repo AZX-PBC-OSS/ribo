@@ -1,6 +1,6 @@
 {
   "id": "measured-home",
-  "kind": "text",
+  "inputs": [{ "file": "input.txt", "kind": "text" }],
   "expected": {
     "basedata.yearBuilt": { "status": "asserted", "value": 1978 },
     "rooms.name": { "status": "asserted", "value": { "0": "Kitchen" } },

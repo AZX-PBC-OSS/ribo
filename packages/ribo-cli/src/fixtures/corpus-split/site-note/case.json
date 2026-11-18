@@ -1,6 +1,11 @@
 {
   "id": "site-note",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "equipment.assetTag": {
       "status": "asserted",

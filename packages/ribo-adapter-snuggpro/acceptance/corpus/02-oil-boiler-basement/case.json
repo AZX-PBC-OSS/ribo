@@ -1,6 +1,11 @@
 {
   "id": "02-oil-boiler-basement",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "basedata.blowerDoorReading": {
       "status": "declared-absent",

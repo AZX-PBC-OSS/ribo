@@ -1,6 +1,11 @@
 {
   "id": "flat-note",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "note": {
       "status": "asserted",

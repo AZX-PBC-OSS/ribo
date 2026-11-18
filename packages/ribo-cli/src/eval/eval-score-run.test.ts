@@ -142,8 +142,11 @@ test("a value where the corpus declared absence is a hallucination, and is count
 test("the same run scores identically against a round-tripped schema and a hand-built one", async () => {
   const corpus = loadCorpus(corpusWithoutDocuments());
   const cases = corpus.cases.map((entry) => {
-    if (entry.input.kind === "document") throw new Error("the fixture case is a document case");
-    return { id: entry.id, kind: entry.input.kind, text: entry.input.text };
+    const [input] = entry.inputs;
+    if (input === undefined || input.kind === "document") {
+      throw new Error("the fixture case holds a document input");
+    }
+    return { id: entry.id, text: input.text };
   });
 
   // The same schema, built by hand: the fixture's bicycle workshop.

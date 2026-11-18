@@ -166,8 +166,16 @@ test("a transcript case and a text case both run, each with its own loaded text"
     const last = request.messages[request.messages.length - 1];
     return last?.content ?? "";
   });
-  expect(transcripts).toContain(spoken.input.kind === "transcript" ? spoken.input.text : "");
-  expect(transcripts).toContain(ticket.input.kind === "text" ? ticket.input.text : "");
+  const spokenText = spoken.inputs[0];
+  const ticketText = ticket.inputs[0];
+  if (spokenText === undefined || spokenText.kind === "document") {
+    throw new Error("the spoken input did not load as text");
+  }
+  if (ticketText === undefined || ticketText.kind === "document") {
+    throw new Error("the ticket input did not load as text");
+  }
+  expect(transcripts.some((content) => content.includes(spokenText.text))).toBe(true);
+  expect(transcripts.some((content) => content.includes(ticketText.text))).toBe(true);
 });
 
 // ---------------------------------------------------------------------------
@@ -269,9 +277,10 @@ test("a case whose ladder exhausts is captured, and the remaining cases still ru
   // Must-fail: an implementation that aborts the whole run at the first
   // failing case reports one failure, not one per case.
   for (const entry of corpus.cases) {
-    if (entry.input.kind === "document") continue;
-    const text = entry.input.text;
-    expect(results.some((result) => result.error?.includes(text))).toBe(true);
+    for (const input of entry.inputs) {
+      if (input.kind === "document") continue;
+      expect(results.some((result) => result.error?.includes(input.text))).toBe(true);
+    }
   }
   // At most: the report's own single-shot count per case.
   expect(chat.calls.length).toBeLessThanOrEqual((calls.singleShot ?? 0) * results.length);

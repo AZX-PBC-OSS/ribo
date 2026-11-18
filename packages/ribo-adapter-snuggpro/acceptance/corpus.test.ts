@@ -148,7 +148,9 @@ test("the migrated corpus loads through loadCorpus from @azx/ribo-cli's public e
   expect(corpus.cases.map((c) => c.id)).toEqual(spikeSlugs);
   expect(corpus.manifest.provenance).toBe("real");
   for (const testCase of corpus.cases) {
-    expect(testCase.kind).toBe("transcript");
+    expect(testCase.inputs).toHaveLength(1);
+    expect(testCase.inputs[0]?.kind).toBe("transcript");
+    expect(testCase.inputs[0]?.file).toBe("input.txt");
   }
 });
 

@@ -1,6 +1,11 @@
 {
   "id": "case-two",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "attic.atticInsulation": {
       "status": "asserted",

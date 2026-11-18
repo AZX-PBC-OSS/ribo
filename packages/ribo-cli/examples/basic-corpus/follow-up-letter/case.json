@@ -1,6 +1,11 @@
 {
   "id": "follow-up-letter",
-  "kind": "text",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "text"
+    }
+  ],
   "expected": {
     "home.address": {
       "status": "asserted",

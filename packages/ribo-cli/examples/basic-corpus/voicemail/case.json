@@ -1,6 +1,11 @@
 {
   "id": "voicemail",
-  "kind": "transcript",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
   "expected": {
     "home.address": {
       "status": "asserted",

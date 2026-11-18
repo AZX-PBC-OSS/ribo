@@ -23,7 +23,7 @@ import type { z } from "zod";
 import { convertDocument } from "../inspect/convert.js";
 import { unwrapFieldEnvelopes, walkFieldInventory } from "../inspect/field-inventory.js";
 import { CorpusCaseSchema } from "./case.js";
-import type { CorpusCase, CorpusCaseKind } from "./case.js";
+import type { CorpusCase, CorpusCaseInput } from "./case.js";
 import { CorpusError } from "./error.js";
 import { scopeCovers } from "./expectations.js";
 import { describeIssues } from "./issues.js";
@@ -53,20 +53,18 @@ export interface LoadedCorpus {
 }
 
 /**
- * A loaded case: its id, its kind, its input and its expectations.
+ * A loaded case: its id, its ordered loaded inputs and its expectations.
  * @category Eval
  */
 export interface LoadedCase {
   /** The case's id — the directory's name. */
   readonly id: string;
-  /** The case's input kind. */
-  readonly kind: CorpusCaseKind;
   /** The case directory's absolute path. */
   readonly dir: string;
   /** The case file's absolute path. */
   readonly caseFile: string;
-  /** The case's input, loaded. */
-  readonly input: LoadedCaseInput;
+  /** The case's inputs, loaded, in the order the case file declares them. */
+  readonly inputs: readonly LoadedCaseInput[];
   /** The expected answer, as the case file declares it. */
   readonly expected: CorpusCase["expected"];
   /** The scoped defaults, with their scopes normalized to read-only arrays. */
@@ -74,8 +72,8 @@ export interface LoadedCase {
 }
 
 /**
- * A loaded case's input: the text of a transcript or text case, or a
- * document's capture record beside its bytes.
+ * One loaded input: the text of a transcript or text entry, or a document's
+ * capture record beside its bytes.
  *
  * The bytes travel separately from the record, the way core's
  * `Transcriber.transcribe(item, bytes)` seam takes them.
@@ -84,23 +82,20 @@ export interface LoadedCase {
 export type LoadedCaseInput =
   | {
       readonly kind: "transcript" | "text";
+      /** The input file's name, as the case file declares it. */
+      readonly file: string;
       /** The input file's exact utf8 contents, verbatim. */
       readonly text: string;
     }
   | {
       readonly kind: "document";
+      /** The input file's name, as the case file declares it. */
+      readonly file: string;
       /** The capture record the case declares, assembled and parsed. */
       readonly capture: DocumentCapture;
       /** The input file's bytes. */
       readonly bytes: Uint8Array;
     };
-
-/** The input file each kind names — the kind is stated once, in the case file. */
-const INPUT_FILE_NAMES: Record<CorpusCaseKind, string> = {
-  transcript: "input.txt",
-  text: "input.txt",
-  document: "input.pdf",
-};
 
 /** The message out of a thrown fault — a non-Error sentinel must not read "undefined". */
 const faultMessage = (error: unknown): string =>
@@ -282,55 +277,98 @@ const checkDefaults = (
   }
 };
 
-/** Load one case's input file, refusing a missing one and a stray one. */
-const loadCaseInput = (
+/**
+ * One retired-shape refusal, stated once: the case-level `kind` / top-level
+ * `capture` shape with an implied single input file is retired, not kept
+ * alongside `inputs` — so it is refused with one line that names the field to
+ * declare, never normalized and never accepted.
+ */
+const refuseRetiredCaseShape = (caseFilePath: string, document: unknown): void => {
+  if (typeof document !== "object" || document === null) return;
+  const doc = document as Record<string, unknown>;
+  if (!("kind" in doc) || "inputs" in doc) return;
+  const id = typeof doc.id === "string" ? doc.id : "";
+  throw new CorpusError(
+    `the corpus case file "${caseFilePath}"${id === "" ? "" : ` (case "${id}")`} uses the ` +
+      `retired single-input shape (a case-level "kind" naming one implied input file) — declare ` +
+      `"inputs" instead: a non-empty ordered list of entries, each { "file", "kind" } with a ` +
+      `"capture" block on a document entry (fix: rewrite the case file with "inputs")`,
+  );
+};
+
+/** Refuse an input file name that is not a direct child of the case directory. */
+const refuseUnsafeFileName = (caseId: string, file: string): void => {
+  if (file.includes("/") || file.includes("\\") || path.isAbsolute(file)) {
+    throw new CorpusError(
+      `the corpus case "${caseId}" declares the input file "${file}" — an input file is named ` +
+        `directly inside the case folder, so its name may not carry a path separator or escape ` +
+        `the directory (fix: name a file in the case folder, and put "../"-style paths out of ` +
+        `your head)`,
+    );
+  }
+  if (file === "." || file === "..") {
+    throw new CorpusError(
+      `the corpus case "${caseId}" declares the input file "${file}" — an input file's name ` +
+        `may not be a path component like "${file}" (fix: name a file in the case folder)`,
+    );
+  }
+};
+
+/** Load the case's declared input files, in the order the case file lists them. */
+const loadCaseInputs = (
   caseDir: string,
   caseId: string,
-  kind: CorpusCaseKind,
-  captureBlock: CorpusCase["capture"],
-): LoadedCaseInput => {
-  const expectedName = INPUT_FILE_NAMES[kind];
-  const strayName = kind === "document" ? "input.txt" : "input.pdf";
-  const strayPath = path.join(caseDir, strayName);
-  if (isFile(strayPath)) {
-    throw new CorpusError(
-      `the corpus case "${caseId}" declares kind "${kind}", so its input file is ${expectedName}, ` +
-        `but the case directory also holds "${strayPath}" — exactly one input file per case, named ` +
-        `after the kind (fix: remove the stray file)`,
-    );
+  entries: readonly CorpusCaseInput[],
+): LoadedCaseInput[] => {
+  const seen = new Set<string>();
+  const loaded: LoadedCaseInput[] = [];
+  for (const entry of entries) {
+    const file = entry.file;
+    if (seen.has(file)) {
+      throw new CorpusError(
+        `the corpus case "${caseId}" declares the input file "${file}" twice — each file may ` +
+          `appear once in "inputs" (fix: drop the duplicate entry)`,
+      );
+    }
+    seen.add(file);
+    refuseUnsafeFileName(caseId, file);
+    const inputPath = path.join(caseDir, file);
+    if (!exists(inputPath)) {
+      throw new CorpusError(
+        `the corpus case "${caseId}" declares the input file "${file}" (at "${inputPath}") — ` +
+          `that file does not exist (fix: create it, or drop the entry from "inputs")`,
+      );
+    }
+    if (!isFile(inputPath)) {
+      throw new CorpusError(
+        `the corpus case "${caseId}" declares the input file "${file}" (at "${inputPath}") — ` +
+          `that path is not a file (fix: make it a readable file, or drop the entry from "inputs")`,
+      );
+    }
+    const bytes = readBytes(inputPath, `the corpus case "${caseId}"'s input file "${inputPath}"`);
+    if (entry.kind !== "document") {
+      loaded.push({ kind: entry.kind, file, text: bytes.toString("utf8") });
+      continue;
+    }
+    const captureBlock = entry.capture;
+    if (captureBlock === undefined) {
+      throw new CorpusError(
+        `the corpus case "${caseId}"'s document input "${file}" has no capture block — the ` +
+          `corpus declares what was captured (fix: declare "capturedAt" and "pageCount" on the ` +
+          `entry)`,
+      );
+    }
+    const capture: DocumentCapture = baseDocumentCaptureSchema.parse({
+      id: caseId,
+      kind: "document",
+      mimeType: "application/pdf",
+      ctx: {},
+      capturedAt: captureBlock.capturedAt,
+      pageCount: captureBlock.pageCount,
+    });
+    loaded.push({ kind: "document", file, capture, bytes: new Uint8Array(bytes) });
   }
-  const inputPath = path.join(caseDir, expectedName);
-  if (!exists(inputPath)) {
-    throw new CorpusError(
-      `the corpus case "${caseId}" declares kind "${kind}", so its input file is "${inputPath}" — ` +
-        `that file does not exist (fix: create it)`,
-    );
-  }
-  if (!isFile(inputPath)) {
-    throw new CorpusError(
-      `the corpus case "${caseId}" declares kind "${kind}", so its input file is "${inputPath}" — ` +
-        `that path is not a file (fix: make it the case's input file)`,
-    );
-  }
-  const bytes = readBytes(inputPath, `the corpus case "${caseId}"'s input file "${inputPath}"`);
-  if (kind !== "document") {
-    return { kind, text: bytes.toString("utf8") };
-  }
-  if (captureBlock === undefined) {
-    throw new CorpusError(
-      `the corpus case "${caseId}" declares kind "document" but no capture block — the corpus ` +
-        `declares what was captured (fix: declare "capturedAt" and "pageCount" in the case file)`,
-    );
-  }
-  const capture: DocumentCapture = baseDocumentCaptureSchema.parse({
-    id: caseId,
-    kind: "document",
-    mimeType: "application/pdf",
-    ctx: {},
-    capturedAt: captureBlock.capturedAt,
-    pageCount: captureBlock.pageCount,
-  });
-  return { kind: "document", capture, bytes: new Uint8Array(bytes) };
+  return loaded;
 };
 
 /** Load one case directory. */
@@ -344,6 +382,7 @@ const loadCase = (root: string, dirName: string, leafPaths: ReadonlySet<string>)
     );
   }
   const document = readJson(caseFilePath, `the corpus case file "${caseFilePath}"`);
+  refuseRetiredCaseShape(caseFilePath, document);
   const caseFile = parseWith(CorpusCaseSchema, document, `the corpus case file "${caseFilePath}"`);
   if (caseFile.id !== dirName) {
     throw new CorpusError(
@@ -354,13 +393,12 @@ const loadCase = (root: string, dirName: string, leafPaths: ReadonlySet<string>)
   }
   checkExpectedLeaves(caseFile, caseFilePath, leafPaths);
   checkDefaults(caseFile, caseFilePath, leafPaths);
-  const input = loadCaseInput(caseDir, caseFile.id, caseFile.kind, caseFile.capture);
+  const inputs = loadCaseInputs(caseDir, caseFile.id, caseFile.inputs);
   return {
     id: caseFile.id,
-    kind: caseFile.kind,
     dir: caseDir,
     caseFile: caseFilePath,
-    input,
+    inputs,
     expected: caseFile.expected,
     defaults: caseFile.defaults,
   };
