@@ -62,3 +62,8 @@ backend sends it in each request, and the CLI backends pass it to the binary the
 
 One caveat: a CLI cannot cap generated tokens, so `--response-cap` with a CLI backend is refused up
 front; run against `--backend openai-compatible`, which honours the cap.
+
+`--timeout <seconds>` sets how long one CLI call may run before its case fails (default 600 — a
+large-document prompt takes a CLI minutes to answer, and a timed-out call's failure names the
+flag as the fix). On `openai-compatible` the flag is refused up front, the mirror of the
+`--response-cap` refusal: the HTTP transport has no per-call timeout to set.

@@ -36,9 +36,11 @@ silent.
 a corpus authoring fault, reported rather than scored as wrong). An unscorable cell counts in no
 denominator.
 
-A case whose extraction **failed** is scored as an empty extraction: every asserted leaf is
-`missed`, every declared-absent leaf is `correct`. A run that produced nothing can never score
-better than a run that tried, and a failed run's answer rate is visibly zero rather than quietly
+A case whose extraction **failed** is judged over every leaf and earns no credit for silence:
+every asserted leaf is `missed`, and every declared-absent leaf is `missed` too — the failure
+said nothing, so its silence is not a chosen abstention. The cells stay judged: they count in
+accuracy-over-all's denominator and never in its numerator, so a run that produced nothing scores
+zero rather than reading as accurate, and its answer rate is visibly zero rather than quietly
 absent.
 
 Two rules decide whether the produced value _is_ the expected one:
