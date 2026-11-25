@@ -991,6 +991,21 @@ export type {
   LeafValue,
 } from "./extraction/shape/leaf-inventory.js";
 
+// The shared field interpretation and the portable semantic-plan artifact. The parser takes JSON
+// data plus the extraction schema; identity uses Web Crypto so browser and eval consumers agree.
+export { unwrapFieldEnvelopes, walkFieldInventory } from "./extraction/field-inventory.js";
+export {
+  parseSchemaPlan,
+  planFingerprint,
+  schemaPlanSchema,
+  SCHEMA_PLAN_CONTRACT_VERSION,
+} from "./extraction/schema-plan.js";
+export type {
+  SchemaPlan,
+  SchemaPlanPiece,
+  SchemaPlanProvenance,
+} from "./extraction/schema-plan.js";
+
 // Chunking was built here and REMOVED after measurement. `chunkedExtractor` split a
 // transcript past a context window, extracted each piece and merged. Measured against
 // the real corpus it inflated a collection group's instance count in 13 of 14
