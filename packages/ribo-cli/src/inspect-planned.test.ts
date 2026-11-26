@@ -15,8 +15,8 @@ import type { SplitCapOptions } from "./inspect/calls.js";
 import { convertDocument } from "./inspect/convert.js";
 import { SchemaInspectError } from "./inspect/error.js";
 import { schemaFingerprint } from "./inspect/fingerprint.js";
-import { inspectPlanned, selectPieceCharsThreshold } from "./inspect/planned.js";
-import type { PlannedPackedCallRow } from "./inspect/planned.js";
+import { inspectPlanned } from "./inspect/planned.js";
+import { selectPieceCharsThreshold } from "./inspect/threshold-rows.js";
 import { schemaPlanFreshness } from "./schema-plan.js";
 
 const leaf = (description: string) => ({ type: "string", nullable: true, description });
@@ -182,20 +182,6 @@ function expectedRows(targets: readonly DryRunTarget[]) {
   });
 }
 
-function packedRow(size: number): PlannedPackedCallRow {
-  return {
-    semantic: "Synthetic planned piece",
-    key: "home",
-    requestName: "planned-packed-call",
-    paths: ["home.identity.address"],
-    callIndex: 1,
-    callCount: 1,
-    nullableUnions: 0,
-    serializedChars: size,
-    depth: 1,
-  };
-}
-
 test("planned rows match core dry-run requests under union, byte and combined caps without chat", () => {
   const capSets: readonly SplitCapOptions[] = [
     { maxNullableUnionsPerGroup: 4 },
@@ -318,33 +304,15 @@ test("piece-character selection uses planned packed calls with a plan and rule-b
   });
   expect(withPlan).toEqual({
     measure: "pieceChars",
+    layout: "planned",
     limit: planned.worstPackedCall.serializedChars,
     measured: planned.worstPackedCall.serializedChars,
     breached: false,
-    piece: planned.worstPackedCall.requestName,
+    piece: `${planned.worstPackedCall.semantic} — call ${planned.worstPackedCall.callIndex} of ${planned.worstPackedCall.callCount}`,
   });
   expect(withoutPlan.measured).toBe(ruleBased!.serializedChars);
+  expect(withoutPlan.layout).toBe("rule-based");
   expect(withoutPlan.breached).toBe(true);
-
-  const cases = [
-    { name: "rule-based only", rule: 200, planned: 100, limit: 150 },
-    { name: "planned only", rule: 100, planned: 200, limit: 150 },
-    { name: "both", rule: 200, planned: 300, limit: 150 },
-    { name: "neither", rule: 100, planned: 120, limit: 150 },
-  ];
-  for (const entry of cases) {
-    const rule = { key: "rule", serializedChars: entry.rule };
-    const plannedOnly = selectPieceCharsThreshold({
-      limit: entry.limit,
-      ruleBased: rule,
-      planned: packedRow(entry.planned),
-    });
-    const ruleOnly = selectPieceCharsThreshold({ limit: entry.limit, ruleBased: rule });
-    expect(plannedOnly.measured, `${entry.name} with plan`).toBe(entry.planned);
-    expect(plannedOnly.breached, `${entry.name} with plan`).toBe(entry.planned > entry.limit);
-    expect(ruleOnly.measured, `${entry.name} without plan`).toBe(entry.rule);
-    expect(ruleOnly.breached, `${entry.name} without plan`).toBe(entry.rule > entry.limit);
-  }
 });
 
 test("stale plans refuse before measurement and fingerprint-only drift returns a note", () => {
@@ -449,5 +417,5 @@ test("an over-cap projected property refuses construction with or without a piec
     expect(outcome).not.toHaveProperty("threshold");
   }
 
-  expect(inspectSchema(nestedDocument).contractVersion).toBe(3);
+  expect(inspectSchema(nestedDocument).contractVersion).toBe(4);
 });

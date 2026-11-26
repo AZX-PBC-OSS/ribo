@@ -1,6 +1,9 @@
 import {
   describeExtraction,
   MAX_NULLABLE_UNIONS_PER_CALL,
+  parseSchemaPlan,
+  planFingerprint,
+  SCHEMA_PLAN_CONTRACT_VERSION,
   serializedNestingDepth,
 } from "@azx/ribo-core";
 import { readFileSync } from "node:fs";
@@ -10,6 +13,11 @@ import { expect, test } from "vitest";
 
 import { SchemaInspectReportSchema, SchemaInspectError, inspectSchema } from "./index.js";
 import type { SchemaInspectOptions } from "./index.js";
+import { inspectSchemaWithPlan } from "./inspect-schema.js";
+import { convertDocument } from "./inspect/convert.js";
+import { schemaFingerprint } from "./inspect/fingerprint.js";
+import type { PlannedPackedCallRow } from "./inspect/planned.js";
+import { selectPieceCharsThreshold } from "./inspect/threshold-rows.js";
 
 /**
  * @file The report's measure agreement (design §3), the depth threshold, the
@@ -217,6 +225,8 @@ test("a depth cap reports the breach by the measure the split's header probe rec
   expect(report.thresholds).toHaveLength(1);
   const row = report.thresholds![0]!;
   expect(row.measure).toBe("depth");
+  expect(row.layout).toBe("shared");
+  expect(row).not.toHaveProperty("piece");
   expect(row.limit).toBe(3);
   expect(row.breached).toBe(true);
   // The same number the split's header probe records: `serializedNestingDepth`
@@ -239,6 +249,7 @@ test("a pieceChars cap reports the worst piece by name", () => {
   const report = inspectSchema(mixed, { maxPieceChars: 1 });
   const row = report.thresholds![0]!;
   expect(row.measure).toBe("pieceChars");
+  expect(row.layout).toBe("rule-based");
   expect(row.limit).toBe(1);
   expect(row.breached).toBe(true);
   expect(row.measured).toBe(report.worstPiece?.serializedChars);
@@ -266,6 +277,9 @@ test("a threshold over a refused split measures null and does not breach", () =>
 
 test("the serialized report parses against its own zod shape and names the core version", () => {
   const report = inspectSchema(grouped, { maxDepth: 12, maxPieceChars: 4096 });
+  expect(report.contractVersion).toBe(4);
+  expect(report.planFingerprint).toBeUndefined();
+  expect(report.planned).toBeUndefined();
   const round = SchemaInspectReportSchema.parse(JSON.parse(JSON.stringify(report)));
   // Compile-time: the zod schema's inferred shape and the report interface are
   // the same contract — a field added to one and not the other fails here.
@@ -279,6 +293,341 @@ test("the serialized report parses against its own zod shape and names the core 
     ),
   ) as { version: string };
   expect(report.coreVersion).toBe(coreManifest.version);
+});
+
+// --- Planned v4 reports ------------------------------------------------------------
+
+const packedRow = (size: number): PlannedPackedCallRow => ({
+  semantic: "Synthetic planned piece",
+  key: "home",
+  requestName: "planned-packed-call",
+  paths: ["home.identity.address"],
+  callIndex: 1,
+  callCount: 1,
+  nullableUnions: 0,
+  serializedChars: size,
+  depth: 1,
+});
+
+test("piece thresholds cover rule-based-only, planned-only, both and neither size breaches", () => {
+  const cases = [
+    { name: "rule-based only", rule: 200, planned: 100, limit: 150 },
+    { name: "planned only", rule: 100, planned: 200, limit: 150 },
+    { name: "both", rule: 200, planned: 300, limit: 150 },
+    { name: "neither", rule: 100, planned: 120, limit: 150 },
+  ];
+  for (const entry of cases) {
+    const rule = { key: "rule", serializedChars: entry.rule };
+    const withPlan = selectPieceCharsThreshold({
+      limit: entry.limit,
+      ruleBased: rule,
+      planned: packedRow(entry.planned),
+    });
+    const withoutPlan = selectPieceCharsThreshold({ limit: entry.limit, ruleBased: rule });
+    expect(withPlan.measured, `${entry.name} with plan`).toBe(entry.planned);
+    expect(withPlan.layout, `${entry.name} with plan`).toBe("planned");
+    expect(withPlan.breached, `${entry.name} with plan`).toBe(entry.planned > entry.limit);
+    expect(withoutPlan.measured, `${entry.name} without plan`).toBe(entry.rule);
+    expect(withoutPlan.layout, `${entry.name} without plan`).toBe("rule-based");
+    expect(withoutPlan.breached, `${entry.name} without plan`).toBe(entry.rule > entry.limit);
+  }
+});
+
+const plannedDocument = {
+  type: "object",
+  properties: {
+    home: {
+      type: "object",
+      properties: {
+        identity: {
+          type: "object",
+          properties: {
+            address: {
+              type: "string",
+              nullable: true,
+              description:
+                "The street address, with enough guidance to make the semantic piece oversized.",
+            },
+            yearBuilt: {
+              type: "number",
+              nullable: true,
+              description:
+                "The construction year, with enough guidance to make the semantic piece oversized.",
+            },
+          },
+          required: ["address", "yearBuilt"],
+        },
+        condition: {
+          type: "object",
+          properties: {
+            roof: {
+              type: "string",
+              nullable: true,
+              description:
+                "The roof condition, with enough guidance to make the semantic piece oversized.",
+            },
+            heating: {
+              type: "string",
+              nullable: true,
+              description:
+                "The heating condition, with enough guidance to make the semantic piece oversized.",
+            },
+          },
+          required: ["roof", "heating"],
+        },
+      },
+      required: ["identity", "condition"],
+    },
+  },
+  required: ["home"],
+};
+
+const plannedPiece = {
+  name: "Whole home",
+  description: "The semantic home layout is reviewed before core packs it.",
+  key: "home",
+  paths: [
+    "home.identity.address",
+    "home.identity.yearBuilt",
+    "home.condition.roof",
+    "home.condition.heating",
+  ],
+};
+
+const planned = parseSchemaPlan(
+  {
+    version: SCHEMA_PLAN_CONTRACT_VERSION,
+    schemaFingerprint: schemaFingerprint(plannedDocument),
+    fieldPaths: plannedPiece.paths,
+    pieces: [plannedPiece],
+    provenance: {
+      model: "stub-model",
+      backend: "stub-backend",
+      createdAt: "2026-10-01T02:03:04.000Z",
+    },
+  },
+  convertDocument(plannedDocument),
+);
+
+// Cuts across the rule-based object groups, so the planned and rule-based worst
+// sizes differ: the planned one is larger under a tight cap, smaller under a loose one.
+const crossCutPlan = parseSchemaPlan(
+  {
+    version: SCHEMA_PLAN_CONTRACT_VERSION,
+    schemaFingerprint: schemaFingerprint(plannedDocument),
+    fieldPaths: plannedPiece.paths,
+    pieces: [
+      {
+        name: "Most of the home",
+        description: "Identity and roof are reviewed together.",
+        key: "home",
+        paths: ["home.identity.address", "home.identity.yearBuilt", "home.condition.roof"],
+      },
+      {
+        name: "Heating",
+        description: "Heating is reviewed alone.",
+        key: "home",
+        paths: ["home.condition.heating"],
+      },
+    ],
+    provenance: {
+      model: "stub-model",
+      backend: "stub-backend",
+      createdAt: "2026-10-01T02:03:04.000Z",
+    },
+  },
+  convertDocument(plannedDocument),
+);
+
+test("real reports judge rule-based-only, planned-only, both and neither piece breaches by the selected layout", async () => {
+  const measure = async (cap: number) => {
+    const withPlan = await inspectSchemaWithPlan(plannedDocument, {
+      plan: crossCutPlan,
+      maxSerializedCharsPerGroup: cap,
+    });
+    const rule = inspectSchema(plannedDocument, { maxSerializedCharsPerGroup: cap });
+    return {
+      planned: Math.max(...withPlan.planned!.packedCalls.map((call) => call.serializedChars)),
+      ruleBased: rule.worstPiece!.serializedChars,
+    };
+  };
+  const tight = await measure(1_600);
+  const loose = await measure(100_000);
+  // Preconditions: each layout is the larger one under one of the caps.
+  expect(tight.planned).toBeGreaterThan(tight.ruleBased);
+  expect(loose.ruleBased).toBeGreaterThan(loose.planned);
+
+  const between = (low: number, high: number) => Math.floor((low + high) / 2);
+  const cases = [
+    {
+      name: "planned only",
+      cap: 1_600,
+      limit: between(tight.ruleBased, tight.planned),
+      planned: true,
+      rule: false,
+    },
+    {
+      name: "rule-based only",
+      cap: 100_000,
+      limit: between(loose.planned, loose.ruleBased),
+      planned: false,
+      rule: true,
+    },
+    { name: "both", cap: 1_600, limit: 1, planned: true, rule: true },
+    { name: "neither", cap: 100_000, limit: 100_000, planned: false, rule: false },
+  ];
+  for (const entry of cases) {
+    const withPlan = await inspectSchemaWithPlan(plannedDocument, {
+      plan: crossCutPlan,
+      maxSerializedCharsPerGroup: entry.cap,
+      maxPieceChars: entry.limit,
+    });
+    const withoutPlan = inspectSchema(plannedDocument, {
+      maxSerializedCharsPerGroup: entry.cap,
+      maxPieceChars: entry.limit,
+    });
+    const planRow = withPlan.thresholds!.find((row) => row.measure === "pieceChars")!;
+    const ruleRow = withoutPlan.thresholds!.find((row) => row.measure === "pieceChars")!;
+    expect(planRow.layout, entry.name).toBe("planned");
+    expect(planRow.breached, `${entry.name} with plan`).toBe(entry.planned);
+    expect(ruleRow.layout, entry.name).toBe("rule-based");
+    expect(ruleRow.breached, `${entry.name} without plan`).toBe(entry.rule);
+  }
+});
+
+test("the existing no-plan inspectSchema call remains synchronous", () => {
+  const report = inspectSchema(grouped, { maxDepth: 50 });
+  expect(report).not.toBeInstanceOf(Promise);
+  expect(report.contractVersion).toBe(4);
+  expect(report.thresholds).toEqual([
+    {
+      measure: "depth",
+      layout: "shared",
+      limit: 50,
+      measured: report.whole!.depth,
+      breached: false,
+    },
+  ]);
+});
+
+test("activated v4 round-trips its exact planned document shape and core plan identity", async () => {
+  const report = await inspectSchemaWithPlan(plannedDocument, {
+    plan: planned,
+    maxSerializedCharsPerGroup: 1_600,
+    maxDepth: 50,
+    maxPieceChars: 100_000,
+  });
+  const round = SchemaInspectReportSchema.parse(JSON.parse(JSON.stringify(report)));
+  const asReport: typeof round = report;
+  const fromRound: typeof report = round;
+  expect(asReport).toEqual(fromRound);
+  expect(report.contractVersion).toBe(4);
+  expect(report.planFingerprint).toBe(await planFingerprint(planned));
+  expect(Object.keys(report).sort()).toEqual(
+    [
+      "contractVersion",
+      "cliVersion",
+      "coreVersion",
+      "schemaFingerprint",
+      "planFingerprint",
+      "leafCount",
+      "splitCaps",
+      "groupCount",
+      "looseKeyCount",
+      "keys",
+      "path",
+      "callShape",
+      "whole",
+      "pieces",
+      "worstPiece",
+      "calls",
+      "guidanceCoverage",
+      "reformatFindings",
+      "granularityViolations",
+      "notVisible",
+      "thresholds",
+      "planned",
+    ].sort(),
+  );
+  expect(Object.keys(report.planned!).sort()).toEqual(
+    ["semanticPieces", "packedCalls", "totals", "notes"].sort(),
+  );
+  expect(Object.keys(report.planned!.semanticPieces[0]!).sort()).toEqual(
+    ["name", "key", "paths", "packedCount", "nullableUnions", "serializedChars", "depth"].sort(),
+  );
+  expect(Object.keys(report.planned!.packedCalls[0]!).sort()).toEqual(
+    [
+      "semantic",
+      "key",
+      "requestName",
+      "paths",
+      "callIndex",
+      "callCount",
+      "nullableUnions",
+      "serializedChars",
+      "depth",
+    ].sort(),
+  );
+});
+
+test("a planned report judges only compliant packed calls from an oversized semantic piece", async () => {
+  const ruleBased = inspectSchema(plannedDocument);
+  const report = await inspectSchemaWithPlan(plannedDocument, {
+    plan: planned,
+    maxSerializedCharsPerGroup: 1_600,
+    maxDepth: 1,
+    maxPieceChars: ruleBased.worstPiece!.serializedChars,
+  });
+  const semantic = report.planned!.semanticPieces[0]!;
+  const packed = report.planned!.packedCalls;
+  const worst = packed.reduce((current, row) =>
+    row.serializedChars > current.serializedChars ? row : current,
+  );
+  const depthRows = report.thresholds!.filter((row) => row.measure === "depth");
+  const pieceRow = report.thresholds!.find((row) => row.measure === "pieceChars")!;
+
+  expect(semantic.serializedChars).toBeGreaterThan(worst.serializedChars);
+  expect(semantic.packedCount).toBeGreaterThan(1);
+  expect(packed.every((row) => row.serializedChars <= 1_600)).toBe(true);
+  expect(report.planned!.totals).toEqual({ semanticPieces: 1, packedCalls: packed.length });
+  expect(depthRows).toEqual([
+    {
+      measure: "depth",
+      layout: "shared",
+      limit: 1,
+      measured: report.whole!.depth,
+      breached: true,
+    },
+  ]);
+  expect(pieceRow).toEqual({
+    measure: "pieceChars",
+    layout: "planned",
+    limit: ruleBased.worstPiece!.serializedChars,
+    measured: worst.serializedChars,
+    breached: false,
+    piece: `${semantic.name} — call ${worst.callIndex} of ${worst.callCount}`,
+  });
+  // The unplanned whole-piece breach is not judged when planned packed calls are the selected layout.
+  expect(ruleBased.worstPiece!.serializedChars).toBeGreaterThan(worst.serializedChars);
+  expect(report.worstPiece!.serializedChars).toBe(
+    Math.max(...report.pieces!.map((piece) => piece.serializedChars)),
+  );
+});
+
+test("a planned unsplit call uses its semantic name rather than its internal request name", async () => {
+  const report = await inspectSchemaWithPlan(plannedDocument, {
+    plan: planned,
+    maxPieceChars: 1,
+  });
+  const row = report.thresholds!.find((entry) => entry.measure === "pieceChars")!;
+  const worst = report.planned!.packedCalls.reduce((current, call) =>
+    call.serializedChars > current.serializedChars ? call : current,
+  );
+  expect(worst.callCount).toBe(1);
+  expect(row.layout).toBe("planned");
+  expect(row.piece).toBe(worst.semantic);
+  expect(row.piece).not.toBe(worst.requestName);
+  expect(row.breached).toBe(true);
 });
 
 // --- Unwanted paths (criterion 10) ------------------------------------------------

@@ -23,6 +23,86 @@ test("the title line ends with a line break before the first labelled row", () =
   expect(rendered).toContain("\n  schema fingerprint");
 });
 
+test("thresholds label rule-based and shared layouts", () => {
+  const report = inspectSchema(
+    {
+      type: "object",
+      properties: { address: { type: "string", description: "Street address" } },
+      required: ["address"],
+    },
+    { maxDepth: 50, maxPieceChars: 100_000 },
+  );
+  const rendered = renderHumanReport(report);
+
+  expect(rendered).toContain("threshold depth (shared)");
+  expect(rendered).toContain("threshold pieceChars (rule-based)");
+});
+
+test("planned rendering names the exact judged packed call and its semantic layout", () => {
+  const base = inspectSchema({
+    type: "object",
+    properties: { address: { type: "string", description: "Street address" } },
+    required: ["address"],
+  });
+  const rendered = renderHumanReport({
+    ...base,
+    planFingerprint: "b".repeat(64),
+    planned: {
+      semanticPieces: [
+        {
+          name: "Home details",
+          key: "home",
+          paths: ["home.address"],
+          packedCount: 3,
+          nullableUnions: 2,
+          serializedChars: 500,
+          depth: 4,
+        },
+      ],
+      packedCalls: [
+        {
+          semantic: "Home details",
+          key: "home",
+          requestName: "ribo-inspect-0-home-1",
+          paths: ["home.address"],
+          callIndex: 2,
+          callCount: 3,
+          nullableUnions: 2,
+          serializedChars: 180,
+          depth: 4,
+        },
+      ],
+      totals: { semanticPieces: 1, packedCalls: 3 },
+      notes: [],
+    },
+    thresholds: [
+      {
+        measure: "depth",
+        layout: "shared",
+        limit: 3,
+        measured: 4,
+        breached: true,
+      },
+      {
+        measure: "pieceChars",
+        layout: "planned",
+        limit: 100,
+        measured: 180,
+        breached: true,
+        piece: "Home details — call 2 of 3",
+      },
+    ],
+  });
+
+  expect(rendered).toContain("threshold depth (shared)");
+  expect(rendered).toContain("threshold pieceChars (planned)");
+  expect(rendered).toContain("piece Home details — call 2 of 3");
+  expect(rendered).toContain("planned totals");
+  expect(rendered).toContain("1 semantic piece(s), 3 packed call(s)");
+  expect(rendered).toContain("Home details — call 2 of 3");
+  expect(rendered).toContain("ribo-inspect-0-home-1");
+});
+
 test("the granularity violations line points at the shipped doc section that explains it", () => {
   const report = inspectSchema({
     type: "object",

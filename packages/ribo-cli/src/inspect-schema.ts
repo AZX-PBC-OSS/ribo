@@ -9,9 +9,13 @@
  * the bin stays exactly as thin as it is today — it reads bytes, `JSON.parse`s
  * and maps `SchemaInspectError` to exit 2.
  */
+import { planFingerprint } from "@azx/ribo-core";
+import type { SchemaPlan } from "@azx/ribo-core";
+
 import { convertDocument } from "./inspect/convert.js";
 import { SchemaInspectError } from "./inspect/error.js";
 import type { SchemaInspectOptions } from "./inspect/options.js";
+import { inspectPlanned } from "./inspect/planned.js";
 import { assembleReport } from "./inspect/report.js";
 import { SchemaInspectReportSchema } from "./inspect/report-schema.js";
 import type { SchemaInspectReport } from "./inspect/report-schema.js";
@@ -60,12 +64,44 @@ export function inspectSchema(
   document: unknown,
   options: SchemaInspectOptions = {},
 ): SchemaInspectReport {
+  if (options.plan !== undefined) {
+    throw new SchemaInspectError(
+      "planned inspection is asynchronous; call inspectSchemaWithPlan with the parsed plan",
+    );
+  }
   const schema = convertDocument(document);
-  const report = assembleReport(document, schema, options);
+  return parseReport(assembleReport(document, schema, options));
+}
+
+/** Inspect the retained rule-based layout and a parsed plan's actual packed calls. */
+export async function inspectSchemaWithPlan(
+  document: unknown,
+  options: SchemaInspectOptions & { readonly plan: SchemaPlan },
+): Promise<SchemaInspectReport> {
+  const schema = convertDocument(document);
+  const fingerprint = await planFingerprint(options.plan);
+  const inspection = inspectPlanned({
+    document,
+    schema,
+    plan: options.plan,
+    caps: {
+      ...(options.maxNullableUnionsPerGroup === undefined
+        ? {}
+        : { maxNullableUnionsPerGroup: options.maxNullableUnionsPerGroup }),
+      ...(options.maxSerializedCharsPerGroup === undefined
+        ? {}
+        : { maxSerializedCharsPerGroup: options.maxSerializedCharsPerGroup }),
+    },
+  });
+  return parseReport(
+    assembleReport(document, schema, options, { inspection, planFingerprint: fingerprint }),
+  );
+}
+
+function parseReport(report: SchemaInspectReport): SchemaInspectReport {
   // The contract's own trust boundary: the library parses its serialized
   // report shape before returning it, so a drift between the builder and the
   // exported schema fails here, loudly, rather than shipping a malformed
   // contract.
-  const parsed: SchemaInspectReport = SchemaInspectReportSchema.parse(report);
-  return parsed;
+  return SchemaInspectReportSchema.parse(report);
 }

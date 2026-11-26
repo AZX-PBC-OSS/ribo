@@ -23,18 +23,74 @@ const Measures = z.object({
   depth: z.number(),
 });
 
+const PlannedSemanticPieces = Measures.extend({
+  /** The reviewed semantic piece's name. */
+  name: z.string(),
+  /** The top-level key that owns the piece. */
+  key: z.string(),
+  /** Leaf paths in reviewed plan order. */
+  paths: z.array(z.string()),
+  /** Actual packed calls core produced from this semantic piece. */
+  packedCount: z.number(),
+});
+
+const PlannedPackedCalls = Measures.extend({
+  /** The semantic piece this actual call belongs to. */
+  semantic: z.string(),
+  /** The top-level key that owns the call. */
+  key: z.string(),
+  /** Core's actual request-target name. */
+  requestName: z.string(),
+  /** Leaf paths carried by this packed call. */
+  paths: z.array(z.string()),
+  /** One-based index within the semantic piece's packed calls. */
+  callIndex: z.number(),
+  /** Total packed calls for the semantic piece. */
+  callCount: z.number(),
+});
+
+/** One threshold comparison and the layout whose measurement it judges. */
+export const ThresholdRowSchema = z
+  .object({
+    measure: z.enum(["depth", "pieceChars"]),
+    /** Depth is shared; piece size explicitly names the rule-based or planned call set. */
+    layout: z.enum(["rule-based", "planned", "shared"]),
+    /** The supplied limit. */
+    limit: z.number(),
+    /** The measured value; `null` when the underlying measure is unavailable. */
+    measured: z.number().nullable(),
+    breached: z.boolean(),
+    /** The exact judged piece or packed call; never present on shared depth. */
+    piece: z.string().optional(),
+  })
+  .superRefine((row, context) => {
+    if (row.measure === "depth" && (row.layout !== "shared" || row.piece !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "depth thresholds require the shared layout and omit piece",
+      });
+    }
+    if (row.measure === "pieceChars" && row.layout === "shared") {
+      context.addIssue({
+        code: "custom",
+        message: "pieceChars thresholds require a rule-based or planned layout",
+      });
+    }
+  });
+
 /**
  * The version of the report's JSON contract (design §7). Owned by the CLI and
  * bumped when a field is added or its meaning changes — numbers computed by
  * unchanged core symbols do not bump it. v2 grew the v1 skeleton report
  * (contract, versions, `leafCount`) to the full sizing report; v3 corrected
  * the inventory to count schema FIELDS, not provenance-envelope members, and
- * added `splitCaps` and the split-cap options.
+ * added `splitCaps` and the split-cap options. v4 adds planned semantic and
+ * packed-call measurements, core's plan identity, and explicit threshold layouts.
  *
  * It lives beside the zod `contractVersion` literal below so the writer, the
  * exported schema and the exported constant cannot drift apart.
  */
-export const CONTRACT_VERSION = 3;
+export const CONTRACT_VERSION = 4;
 
 /**
  * The report's serialized shape, as a zod schema. Exported so the bin, and
@@ -43,13 +99,27 @@ export const CONTRACT_VERSION = 3;
  */
 export const SchemaInspectReportSchema = z.object({
   /** The version of this JSON contract itself — see `CONTRACT_VERSION`. */
-  contractVersion: z.literal(3),
+  contractVersion: z.literal(4),
   /** The `@azx/ribo-cli` version that produced the numbers. */
   cliVersion: z.string(),
   /** The `@azx/ribo-core` version the measures were computed with. */
   coreVersion: z.string(),
   /** 64 lowercase hex characters: SHA-256 over the document's canonical JSON. */
   schemaFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
+  /** Core's canonical semantic plan identity; present only for planned inspection. */
+  planFingerprint: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
+  /** Planned semantic pieces and the actual packed calls measured under the split caps. */
+  planned: z
+    .object({
+      semanticPieces: z.array(PlannedSemanticPieces),
+      packedCalls: z.array(PlannedPackedCalls),
+      totals: z.object({ semanticPieces: z.number(), packedCalls: z.number() }),
+      notes: z.array(z.string()),
+    })
+    .optional(),
   /** Supported schema fields, one per provenance envelope — see `walkFieldInventory`. */
   leafCount: z.number(),
   /**
@@ -154,20 +224,7 @@ export const SchemaInspectReportSchema = z.object({
    * Thresholds are comparisons the CLI makes on reported numbers, never fed
    * into the split.
    */
-  thresholds: z
-    .array(
-      z.object({
-        measure: z.enum(["depth", "pieceChars"]),
-        /** The supplied limit. */
-        limit: z.number(),
-        /** The measured value; `null` when the underlying measure is unavailable. */
-        measured: z.number().nullable(),
-        breached: z.boolean(),
-        /** The worst piece's name, for `pieceChars`. */
-        piece: z.string().optional(),
-      }),
-    )
-    .optional(),
+  thresholds: z.array(ThresholdRowSchema).optional(),
   /**
    * The refusal construction would raise, carried verbatim — a finding, not a
    * failure (design §4).
@@ -232,9 +289,36 @@ export interface NotVisibleConstruct {
   detail: string;
 }
 
+/** One reviewed semantic piece before core's cap packer runs. */
+export interface PlannedSemanticPieceReport extends MeasuresReport {
+  name: string;
+  key: string;
+  paths: string[];
+  packedCount: number;
+}
+
+/** One actual packed request target emitted by core's planned dry run. */
+export interface PlannedPackedCallReport extends MeasuresReport {
+  semantic: string;
+  key: string;
+  requestName: string;
+  paths: string[];
+  callIndex: number;
+  callCount: number;
+}
+
+/** The planned semantic layout and the actual calls it becomes under the caps. */
+export interface PlannedInspectionReport {
+  semanticPieces: PlannedSemanticPieceReport[];
+  packedCalls: PlannedPackedCallReport[];
+  totals: { semanticPieces: number; packedCalls: number };
+  notes: string[];
+}
+
 /** One supplied threshold's comparison, as data for the flags ticket to read. */
 export interface ThresholdRow {
   measure: "depth" | "pieceChars";
+  layout: "rule-based" | "planned" | "shared";
   limit: number;
   measured: number | null;
   breached: boolean;
@@ -248,19 +332,22 @@ export interface RefusalReport {
 }
 
 /**
- * The versioned report `inspectSchema` returns (design §7). v3 corrects the
- * inventory to count schema fields (not provenance-envelope members) and adds
- * `splitCaps` beside the split-cap options.
+ * The versioned report `inspectSchema` returns (design §7). v4 retains the
+ * rule-based measurements and adds planned rows, totals and core plan identity.
  */
 export interface SchemaInspectReport {
   /** The version of this JSON contract itself (see `CONTRACT_VERSION`). */
-  contractVersion: 3;
+  contractVersion: 4;
   /** The `@azx/ribo-cli` version that produced the numbers. */
   cliVersion: string;
   /** The `@azx/ribo-core` version the measures were computed with. */
   coreVersion: string;
   /** SHA-256 over the document's canonical JSON — 64 lowercase hex characters. */
   schemaFingerprint: string;
+  /** Core's canonical semantic plan identity; present only for planned inspection. */
+  planFingerprint?: string;
+  /** Planned semantic and packed-call measurements; present only with a plan. */
+  planned?: PlannedInspectionReport;
   /** Supported schema fields, one per provenance envelope (see `walkFieldInventory`). */
   leafCount: number;
   /** The split configuration the partition was computed under (see the zod copy above). */

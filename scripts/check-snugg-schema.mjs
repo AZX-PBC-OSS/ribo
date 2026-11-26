@@ -142,17 +142,17 @@ if (binRun.status !== 0) {
 }
 
 // The bin reported success: verify the pinned report contract before trusting
-// the green — a T5 contract bump must turn this stage red, not un-gate it.
+// the green — a contract bump or missing threshold layout must turn this stage red.
 let report;
 try {
   report = JSON.parse(binRun.stdout);
 } catch {
   die(1, "report contract drift: the bin's --json output is not valid JSON");
 }
-if (report?.contractVersion !== 3) {
+if (report?.contractVersion !== 4) {
   die(
     1,
-    `report contract drift: expected "contractVersion": 3, but the bin reported ` +
+    `report contract drift: expected "contractVersion": 4, but the bin reported ` +
       `${JSON.stringify(report?.contractVersion)} — re-pin scripts/check-snugg-schema.mjs ` +
       "deliberately against the new contract",
   );
@@ -167,6 +167,12 @@ if (depthRow === undefined || depthRow.limit !== Number(maxDepth)) {
 }
 if (charsRow === undefined || charsRow.limit !== Number(maxPieceChars)) {
   drift(`no pieceChars threshold row at limit ${maxPieceChars} in the report`);
+}
+if (depthRow.layout !== "shared" || Object.hasOwn(depthRow, "piece")) {
+  drift('depth threshold must have layout "shared" and omit piece');
+}
+if (charsRow.layout !== "rule-based") {
+  drift('a no-plan pieceChars threshold must have layout "rule-based"');
 }
 if (depthRow.breached !== false || charsRow.breached !== false) {
   // Unreachable when the bin exits 0 — a breach is an exit 1. Guarded anyway so
