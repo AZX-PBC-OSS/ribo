@@ -8,14 +8,9 @@ final:
   - slow
 
 checks:
-  - name: the tests the change touches
-    command: "pnpm vitest run {{tests}}"
-    speed: fast
-    when_changed:
-      - packages/**
-      - scripts/**
-      - playground/**
-      - examples/**
+  # No "tests the change touches" entry: each brief declares its own focused
+  # tests, and when it does the pack credits the run to the brief, not to this
+  # entry, so a green run stops as unproven. The full gate runs every test.
 
   - name: the workspace type check
     command: "pnpm typecheck"
