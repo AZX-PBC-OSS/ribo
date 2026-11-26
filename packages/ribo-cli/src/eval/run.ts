@@ -7,28 +7,41 @@
  * inputs directly, so a test can drive the same run from a schema that never
  * went through the loader; it is not exported from the barrel.
  *
- * Cases run in order, one at a time. A case whose ladder exhausts is a
- * measurement, not an abort: the failure is captured, the remaining cases
- * still run, and the run resolves with both.
+ * Preparation validates caller input and any reviewed plan, derives effective
+ * settings and constructs the arm before transcription. Cases then run in
+ * order, one at a time. A case whose ladder exhausts is a measurement, not an
+ * abort: the failure is captured, the remaining cases still run, and the run
+ * resolves with both.
  */
+import { parseSchemaPlan, planFingerprint } from "@azx/ribo-core";
 import type {
   AnnotatedTranscript,
   CapableChatClient,
   ChatClient,
+  DocumentCapture,
   ExtractionUsage,
+  SchemaPlan,
+  Transcriber,
 } from "@azx/ribo-core";
 import type { z } from "zod";
 
 import type { CorpusPromptInputs, LoadedCorpus } from "../corpus.js";
 import { buildArm } from "./arm.js";
+import type { EvalExtractor } from "./arm.js";
 import { caseTextOf } from "./case-text.js";
 import { asCapableChat } from "./chat.js";
 import { transcribeDocumentCases } from "./documents.js";
 import type { DocumentTexts } from "./documents.js";
 import { EvalError } from "./error.js";
-import { validateEvalSettingsInput } from "./settings.js";
+import { validateEvalSettings, validateEvalSettingsInput } from "./settings.js";
 import { buildEvalTarget } from "./target.js";
-import type { EvalCaseResult, EvalJsonValue, EvalSettingsInput, EvalUsage } from "./types.js";
+import type {
+  EvalCaseResult,
+  EvalJsonValue,
+  EvalSettings,
+  EvalSettingsInput,
+  EvalUsage,
+} from "./types.js";
 
 /**
  * One case's input to the runner: its id and its combined text.
@@ -62,6 +75,8 @@ export interface EvalSchemaRun {
   readonly chat: ChatClient | CapableChatClient;
   /** The caller's settings, without runner-owned plan identity. */
   readonly settings: EvalSettingsInput;
+  /** The parsed semantic plan, required by a planned ladder and forbidden otherwise. */
+  readonly plan?: SchemaPlan;
   /** The injectable sleep between retry attempts, so a test never waits real backoff. */
   readonly delay?: (ms: number) => Promise<void>;
 }
@@ -90,20 +105,28 @@ const toUsage = (usage: ExtractionUsage, engine: string): EvalUsage => ({
     : { cacheCreationPromptTokens: usage.cacheCreationPromptTokens }),
 });
 
-/**
- * Run one arm over a set of cases, from a schema and a set of prompt inputs.
- *
- * This is the internal seam: it accepts a zod schema, so a test can drive the
- * same run from a directly-built schema as from a loader-round-tripped one.
- * The public entry is the corpus-shaped one; this one is not exported from the
- * barrel.
- * @param run - The schema, the prompt inputs, the cases, the transport and the settings.
- * @returns One result per case, in the order the cases were given.
- * @throws {@link EvalError} when the settings or the schema cannot drive an arm.
- * @category Eval
- */
-export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseResult[]> {
+interface PreparedEvalRun {
+  readonly arm: EvalExtractor;
+  readonly chat: CapableChatClient;
+  readonly settings: EvalSettings;
+}
+
+/** Validate and construct everything that can refuse a run before transcription. */
+async function prepareEvalRun(run: Omit<EvalSchemaRun, "cases">): Promise<PreparedEvalRun> {
   validateEvalSettingsInput(run.settings);
+  const planned = run.settings.strategies.includes("planned");
+  if (planned && run.plan === undefined) {
+    throw new EvalError(
+      'eval: the "planned" strategy requires options.plan — pass the parsed, reviewed schema plan ' +
+        "separately from settings; the runner derives its fingerprint (fix: supply the plan)",
+    );
+  }
+  if (!planned && run.plan !== undefined) {
+    throw new EvalError(
+      'eval: options.plan is forbidden unless "strategies" contains "planned" — a non-planned ' +
+        "run has no semantic plan to execute (fix: remove the plan, or name the planned strategy)",
+    );
+  }
 
   // Core's presence fill phase takes no field-descriptions option, so under
   // "prompt" the rung would run in schema mode while the record claims prompt.
@@ -119,37 +142,73 @@ export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseRes
     );
   }
 
+  let plan: SchemaPlan | undefined;
+  if (run.plan !== undefined) {
+    try {
+      plan = parseSchemaPlan(run.plan, run.schema);
+    } catch (error) {
+      throw new EvalError(
+        `eval: options.plan does not exactly cover the corpus's schema — ${faultMessage(error)} ` +
+          "(fix: supply a current reviewed plan with exact field membership)",
+      );
+    }
+  }
+
   const { target, groups } = buildEvalTarget(
     run.schema,
     run.prompt,
     run.manifestName,
     run.settings.splitCaps ?? {},
   );
+  const settings: EvalSettings = {
+    ...run.settings,
+    ...(plan === undefined ? {} : { planFingerprint: await planFingerprint(plan) }),
+  };
+  validateEvalSettings(settings);
 
   const chat = asCapableChat(run.chat);
-  const arm = buildArm({
-    target,
-    groups,
-    chat,
-    model: run.settings.model,
-    settings: run.settings,
-    // The per-group instructions are ALWAYS passed, even when the manifest
-    // declares none: core's hook is what projects a group's example to that
-    // group, and a group with no entry of its own falls back to the main
-    // instructions.
-    groupInstructions: (groupKey: string): string =>
-      run.prompt.groupInstructions?.[groupKey] ?? run.prompt.instructions,
-    ...(run.prompt.fieldDescriptions === undefined
-      ? {}
-      : { fieldDescriptions: run.prompt.fieldDescriptions }),
-    ...(run.delay === undefined ? {} : { delay: run.delay }),
-  });
+  let arm: EvalExtractor;
+  try {
+    arm = buildArm({
+      target,
+      groups,
+      chat,
+      model: settings.model,
+      settings,
+      ...(plan === undefined ? {} : { plan }),
+      // The per-group instructions are ALWAYS passed, even when the manifest
+      // declares none: core's hook is what projects a group's example to that
+      // group, and a group with no entry of its own falls back to the main
+      // instructions. Planned extraction takes its semantic guidance from the plan.
+      groupInstructions: (groupKey: string): string =>
+        run.prompt.groupInstructions?.[groupKey] ?? run.prompt.instructions,
+      ...(run.prompt.fieldDescriptions === undefined
+        ? {}
+        : { fieldDescriptions: run.prompt.fieldDescriptions }),
+      ...(run.delay === undefined ? {} : { delay: run.delay }),
+    });
+  } catch (error) {
+    if (planned && !(error instanceof EvalError)) {
+      throw new EvalError(
+        `eval: the planned call layout could not be constructed — ${faultMessage(error)} ` +
+          "(fix: correct the reviewed plan or the split caps)",
+      );
+    }
+    throw error;
+  }
+  return { arm, chat, settings };
+}
 
+/** Run an already-prepared arm, capturing extraction failures as case results. */
+async function executePreparedRun(
+  prepared: PreparedEvalRun,
+  cases: readonly EvalCaseInput[],
+): Promise<EvalCaseResult[]> {
   const results: EvalCaseResult[] = [];
-  for (const entry of run.cases) {
+  for (const entry of cases) {
     const transcript: AnnotatedTranscript = { text: entry.text, annotations: {} };
     try {
-      const result = await arm.extract(transcript, {});
+      const result = await prepared.arm.extract(transcript, {});
       results.push({
         caseId: entry.id,
         status: "extracted",
@@ -158,7 +217,7 @@ export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseRes
         // construction (they came out of a JSON Schema's parse).
         fields: result.fields,
         ...(result.raw === undefined ? {} : { raw: result.raw as EvalJsonValue }),
-        usage: toUsage(result.usage, chat.engine),
+        usage: toUsage(result.usage, prepared.chat.engine),
       });
     } catch (error) {
       results.push({ caseId: entry.id, status: "failed", error: faultMessage(error) });
@@ -168,7 +227,24 @@ export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseRes
 }
 
 /**
- * How one arm's run gets its document cases' text.
+ * Run one arm over a set of cases, from a schema and a set of prompt inputs.
+ *
+ * This is the internal seam: it accepts a zod schema, so a test can drive the
+ * same run from a directly-built schema as from a loader-round-tripped one.
+ * The public entry is the corpus-shaped one; this one is not exported from the
+ * barrel.
+ * @param run - The schema, the prompt inputs, the cases, the transport and the settings.
+ * @returns One result per case, in the order the cases were given.
+ * @throws {@link EvalError} when the settings, plan or schema cannot drive an arm.
+ * @category Eval
+ */
+export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseResult[]> {
+  const prepared = await prepareEvalRun(run);
+  return executePreparedRun(prepared, run.cases);
+}
+
+/**
+ * How one arm's run gets its document cases' text and optional semantic plan.
  * @category Eval
  */
 export interface RunEvalOptions {
@@ -180,34 +256,89 @@ export interface RunEvalOptions {
    * map to every arm.
    */
   readonly documents?: DocumentTexts;
+  /** The parsed semantic plan, required by a planned ladder and forbidden otherwise. */
+  readonly plan?: SchemaPlan;
+  /** The document transcriber. Absent, the CLI's pdf.js-backed transcriber is used. */
+  readonly transcriber?: Transcriber<DocumentCapture>;
 }
 
 /**
- * Run one arm over a loaded corpus.
+ * The results and the runner-issued settings that produced them.
+ * @category Eval
+ */
+export interface RunEvalWithSettingsResult {
+  /** One result per case, in corpus order. */
+  readonly results: EvalCaseResult[];
+  /** The effective settings, including core's derived fingerprint for a planned run. */
+  readonly settings: EvalSettings;
+}
+
+/**
+ * Run one arm over a loaded corpus and return its results and effective settings.
  *
  * The corpus enters here and nowhere else: the runner reads no corpus files
  * itself and accepts no other corpus representation, so a run can never happen
- * over a corpus that was not validated.
+ * over a corpus that was not validated. A parsed plan travels in `options`, never
+ * in JSON settings. The runner rechecks its exact schema coverage, constructs its
+ * planned layout and derives `settings.planFingerprint` through core before any
+ * transcription or chat request.
  *
  * Every case runs on its combined text — its declared inputs, joined by core's
  * combiner in `case-text.ts` (a document input's contribution is its PDF's
  * transcription). The text comes from `options.documents` when the caller
- * transcribed already (the bin does, once per run, shared by every arm), and
- * from `transcribeDocumentCases` here when it did not. A document input that
- * cannot be transcribed, or whose transcription the caller did not supply,
- * refuses the whole run, before any model call — a partially-run corpus would
- * measure nothing.
+ * transcribed already, and from `transcribeDocumentCases` here when it did not.
+ * A document input that cannot be transcribed, or whose transcription the caller
+ * did not supply, refuses the whole run before any model call.
  *
  * The transport may be a plain `ChatClient` or an already-capable one: a
- * capable client carries its own engine id, and the run's usage reports it —
- * which is how a run against a CLI backend records which transport produced
- * its fields.
+ * capable client carries its own engine id, and the run's usage reports it.
  * @param corpus - The loaded corpus, from `loadCorpus`.
  * @param chat - The transport every call goes through.
- * @param settings - The arm's settings.
- * @param options - The document inputs' transcribed text, when the caller has it.
+ * @param settings - The caller's settings, without runner-owned plan identity.
+ * @param options - Document transcription, transcriber and parsed-plan inputs.
+ * @returns The case results and the effective settings used to produce them.
+ * @throws {@link EvalError} when the inputs cannot be prepared or a document cannot be transcribed.
+ * @category Eval
+ */
+export async function runEvalWithSettings(
+  corpus: LoadedCorpus,
+  chat: ChatClient | CapableChatClient,
+  settings: EvalSettingsInput,
+  options?: RunEvalOptions,
+): Promise<RunEvalWithSettingsResult> {
+  const prepared = await prepareEvalRun({
+    schema: corpus.schema,
+    prompt: corpus.manifest.prompt,
+    manifestName: corpus.manifest.name,
+    chat,
+    settings,
+    ...(options?.plan === undefined ? {} : { plan: options.plan }),
+  });
+  const documents =
+    options?.documents ??
+    (await transcribeDocumentCases(
+      corpus,
+      options?.transcriber === undefined ? undefined : { transcriber: options.transcriber },
+    ));
+  const cases: EvalCaseInput[] = corpus.cases.map((entry) => ({
+    id: entry.id,
+    text: caseTextOf(corpus, entry, documents),
+  }));
+  const results = await executePreparedRun(prepared, cases);
+  return { results, settings: prepared.settings };
+}
+
+/**
+ * Run one arm over a loaded corpus and return only its case results.
+ *
+ * This is the compatibility wrapper over {@link runEvalWithSettings}; callers
+ * building records use that entry to obtain the runner-issued effective settings.
+ * @param corpus - The loaded corpus, from `loadCorpus`.
+ * @param chat - The transport every call goes through.
+ * @param settings - The caller's settings, without runner-owned plan identity.
+ * @param options - Document transcription, transcriber and parsed-plan inputs.
  * @returns One result per case, in the corpus's case order.
- * @throws {@link EvalError} when a document input cannot be transcribed, the settings are invalid, or the schema cannot be driven.
+ * @throws {@link EvalError} when the inputs cannot be prepared or a document cannot be transcribed.
  * @category Eval
  */
 export async function runEval(
@@ -216,20 +347,5 @@ export async function runEval(
   settings: EvalSettingsInput,
   options?: RunEvalOptions,
 ): Promise<EvalCaseResult[]> {
-  validateEvalSettingsInput(settings);
-
-  const documents = options?.documents ?? (await transcribeDocumentCases(corpus));
-  const cases: EvalCaseInput[] = corpus.cases.map((entry) => ({
-    id: entry.id,
-    text: caseTextOf(corpus, entry, documents),
-  }));
-
-  return runEvalOverSchema({
-    schema: corpus.schema,
-    prompt: corpus.manifest.prompt,
-    manifestName: corpus.manifest.name,
-    cases,
-    chat,
-    settings,
-  });
+  return (await runEvalWithSettings(corpus, chat, settings, options)).results;
 }

@@ -149,6 +149,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "recordIdentity",
     "resolveExpectation",
     "runEval",
+    "runEvalWithSettings",
     "runFingerprint",
     "schemaPlanFreshness",
     "scoreEvalRun",

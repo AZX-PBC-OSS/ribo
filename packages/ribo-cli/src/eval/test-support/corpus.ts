@@ -63,6 +63,89 @@ export function corpusWithoutDocuments(): string {
 }
 
 /**
+ * A copy holding only the document case, for preflight refusals that must
+ * prove transcription never started.
+ * @returns The copied corpus's path.
+ * @category Eval
+ */
+export function corpusWithDocumentCase(): string {
+  return copiedCorpus(FIXTURE_CORPUS, (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory() && entry.name !== "service-sheet") {
+        rmSync(path.join(dir, entry.name), { recursive: true, force: true });
+      }
+    }
+  });
+}
+
+/**
+ * A copied corpus with nested objects and collections, plus a prompt-mode
+ * manifest. Its plan belongs to each test: this helper supplies no plan and
+ * never writes one into the corpus.
+ * @returns The copied corpus's path.
+ * @category Eval
+ */
+export function corpusWithNestedRows(): string {
+  return copiedCorpus(FIXTURE_CORPUS, (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory() && entry.name !== "spoken-note") {
+        rmSync(path.join(dir, entry.name), { recursive: true, force: true });
+      }
+    }
+    writeFileSync(
+      path.join(dir, "schema.json"),
+      `${JSON.stringify(
+        {
+          type: "object",
+          properties: {
+            building: {
+              type: "object",
+              properties: {
+                details: {
+                  type: "object",
+                  properties: {
+                    year: { type: "number", description: "The construction year." },
+                    color: { type: "string", description: "The exterior colour." },
+                  },
+                  required: ["year", "color"],
+                },
+              },
+              required: ["details"],
+            },
+            systems: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "The system name." },
+                  serial: { type: "string", description: "The system serial." },
+                },
+                required: ["name", "serial"],
+              },
+            },
+          },
+          required: ["building", "systems"],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    editJson(path.join(dir, "manifest.json"), (document) => {
+      const prompt = document["prompt"] as Record<string, unknown>;
+      prompt["examples"] = [];
+      prompt["fieldDescriptions"] = "prompt";
+      prompt["groupInstructions"] = {
+        building: "Manifest group guidance must not replace the semantic plan.",
+      };
+    });
+    editJson(path.join(dir, "spoken-note", "case.json"), (document) => {
+      document["expected"] = {};
+      delete document["defaults"];
+    });
+  });
+}
+
+/**
  * The transcriber package's scanned-PDF fixture, referenced in place: a PDF
  * with no text layer, which the document path refuses (the transcriber's
  * `no-text-layer` guard).

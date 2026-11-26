@@ -18,7 +18,7 @@ import { loadCorpus } from "../corpus/loader.js";
 import type { LoadedCorpus } from "../corpus.js";
 import { describeCalls } from "../inspect/calls.js";
 import { EvalError } from "./error.js";
-import { runEval } from "./run.js";
+import { runEval, runEvalWithSettings } from "./run.js";
 import { stubChat } from "./test-support/stub-chat.js";
 import {
   FIXTURE_CORPUS,
@@ -56,6 +56,20 @@ test("runEval runs the arm over every transcript and text case, one result per c
   const first = results[0];
   expect(first?.fields).toMatchObject({ frame: { material: { value: "sample" } } });
   expect(first?.usage?.calls).toBeGreaterThanOrEqual(1);
+});
+
+test("runEvalWithSettings returns effective non-planned settings beside unchanged results", async () => {
+  const corpus = loadCorpus(corpusWithoutDocuments());
+  const settings = { strategies: ["single-shot"], model: "ribo-test" } as const;
+  const chat = stubChat();
+
+  const run = await runEvalWithSettings(corpus, chat, settings);
+
+  expect(run.settings).toEqual(settings);
+  expect(run.settings).not.toHaveProperty("planFingerprint");
+  expect(run.results.map((entry) => entry.caseId)).toEqual(["spoken-note", "written-ticket"]);
+  expect(run.results.every((entry) => entry.status === "extracted")).toBe(true);
+  expect(chat.calls.length).toBeGreaterThan(0);
 });
 
 test("the runner's cost is the extractor's cost, as the inspect report counts it", async () => {
