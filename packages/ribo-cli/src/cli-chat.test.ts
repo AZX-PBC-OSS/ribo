@@ -18,6 +18,8 @@ import { ChatError, type ChatRequest } from "@azx/ribo-core";
 
 import { cliChat, extractLastJsonObject } from "./cli-chat.js";
 import type { CliShapeResult } from "./cli-chat.js";
+import { createCliBackendChat } from "./eval/backend.js";
+import { prepareOperatorBackend } from "./operator/backend.js";
 
 /** A minimal request carrying a small, real JSON Schema — enough for ajv to actually validate
  *  a reply against, which is the whole point of this transport. */
@@ -314,6 +316,46 @@ describe("cliChat — shape conformance is a first-class, separately-reported re
     );
     expect(calls).toHaveLength(2);
     expect(shapeResults).toEqual([{ backend: "codex", attempts: 2, conforming: false }]);
+  });
+
+  test("authoring alone limits CLI shape work to one attempt while direct and eval clients retain default retries and shape results", async () => {
+    const authoringProcess = fakeSpawn(() => ({ stdout: "not JSON" }));
+    const authoringResults: CliShapeResult[] = [];
+    const authoring = await prepareOperatorBackend({
+      backend: "codex-cli",
+      requiredCalls: 1,
+      spawnImpl: authoringProcess.spawnImpl,
+      preflightImpl: vi.fn(async () => {}),
+      onShapeResult: (result) => authoringResults.push(result),
+    });
+
+    expect(authoring).toBeDefined();
+    await expect(authoring?.complete(sampleRequest)).rejects.toThrow(
+      /no schema-conforming JSON after 1 attempt/u,
+    );
+    expect(authoringProcess.calls).toHaveLength(1);
+    expect(authoringResults).toEqual([{ backend: "codex", attempts: 1, conforming: false }]);
+
+    const directProcess = fakeSpawn(() => ({ stdout: "not JSON" }));
+    const directResults: CliShapeResult[] = [];
+    const direct = cliChat({
+      backend: "codex",
+      spawnImpl: directProcess.spawnImpl,
+      onShapeResult: (result) => directResults.push(result),
+    });
+    await expect(direct.complete(sampleRequest)).rejects.toThrow(/after 3 attempt/u);
+    expect(directProcess.calls).toHaveLength(3);
+    expect(directResults).toEqual([{ backend: "codex", attempts: 3, conforming: false }]);
+
+    const evalProcess = fakeSpawn(() => ({ stdout: "not JSON" }));
+    const evalResults: CliShapeResult[] = [];
+    const legacy = createCliBackendChat("codex-cli", {
+      spawnImpl: evalProcess.spawnImpl,
+      onShapeResult: (result) => evalResults.push(result),
+    });
+    await expect(legacy.complete(sampleRequest)).rejects.toThrow(/after 3 attempt/u);
+    expect(evalProcess.calls).toHaveLength(3);
+    expect(evalResults).toEqual([{ backend: "codex", attempts: 3, conforming: false }]);
   });
 
   test("a CLI that cannot be started fails immediately — no retry burned, no shape verdict reported", async () => {

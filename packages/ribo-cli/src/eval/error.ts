@@ -11,7 +11,7 @@
  * invalid settings object, a corpus holding a document case, a schema the arm
  * cannot drive, an example naming no leaf.
  */
-import { SchemaInspectError } from "../inspect/error.js";
+import { OperatorError } from "../operator/error.js";
 
 /**
  * The eval fault: a run that could not be started, or could not be driven.
@@ -20,7 +20,7 @@ import { SchemaInspectError } from "../inspect/error.js";
  * refusals do.
  * @category Eval
  */
-export class EvalError extends SchemaInspectError {
+export class EvalError extends OperatorError {
   constructor(message: string) {
     super(message);
     this.name = "EvalError";
