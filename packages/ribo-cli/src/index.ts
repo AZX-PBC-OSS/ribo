@@ -57,6 +57,12 @@
 export { CONTRACT_VERSION, SchemaInspectError, inspectSchema } from "./inspect-schema.js";
 export type { SchemaInspectOptions, SchemaInspectReport } from "./inspect-schema.js";
 export { SchemaInspectReportSchema } from "./inspect-schema.js";
+export { planSchema, schemaPlanFreshness } from "./schema-plan.js";
+export type {
+  PlanSchemaOptions,
+  SchemaPlanFreshness,
+  SchemaPlanFreshnessStatus,
+} from "./schema-plan.js";
 export { cliVersion, coreVersion } from "./versions.js";
 export { CorpusError } from "./corpus.js";
 export {
