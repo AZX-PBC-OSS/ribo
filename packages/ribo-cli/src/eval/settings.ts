@@ -61,9 +61,10 @@ export function evalPlanIdentityProblem(
 }
 
 /**
- * Refuse caller input carrying the runner-owned plan identity, then apply the
- * effective-settings rules. The property's presence is refused even when its
- * runtime value is undefined.
+ * Refuse caller input carrying the runner-owned plan identity, then validate
+ * the options a caller controls. Plan presence and identity are preparation's
+ * concern: a planned caller supplies a plan, not the fingerprint derived from it.
+ * The property's presence is refused even when its runtime value is undefined.
  */
 export function validateEvalSettingsInput(settings: EvalSettingsInput): void {
   if ("planFingerprint" in settings) {
@@ -72,7 +73,7 @@ export function validateEvalSettingsInput(settings: EvalSettingsInput): void {
         "the runner derives planned identity from core's plan (fix: remove the fingerprint)",
     );
   }
-  validateEvalSettings(settings);
+  validateSettings(settings, false);
 }
 
 /**
@@ -87,6 +88,11 @@ export function validateEvalSettingsInput(settings: EvalSettingsInput): void {
  * @category Eval
  */
 export function validateEvalSettings(settings: EvalSettings): void {
+  validateSettings(settings, true);
+}
+
+/** Validate caller-controlled options, optionally including runner-issued identity. */
+function validateSettings(settings: EvalSettingsInput, checkPlanIdentity: boolean): void {
   const strategies = strategyIds(settings.strategies);
   if (strategies.length === 0) {
     throw new EvalError(
@@ -110,9 +116,11 @@ export function validateEvalSettings(settings: EvalSettings): void {
     }
     seen.add(id);
   }
-  const planIdentityProblem = evalPlanIdentityProblem(settings);
-  if (planIdentityProblem !== undefined) {
-    throw new EvalError(`eval settings: ${planIdentityProblem}`);
+  if (checkPlanIdentity) {
+    const planIdentityProblem = evalPlanIdentityProblem(settings);
+    if (planIdentityProblem !== undefined) {
+      throw new EvalError(`eval settings: ${planIdentityProblem}`);
+    }
   }
   if (typeof settings.model !== "string" || settings.model.length === 0) {
     throw new EvalError(

@@ -1,9 +1,9 @@
 /**
  * @file One strategy, one extractor: the executable rungs an arm's ladder is
- * built from, plus the explicit refusal for planned execution.
+ * built from.
  *
  * Each executable rung is core's own constructor — `singleShotExtractor`,
- * `perGroupExtractor`, and the presence-narrowed arm hand-assembled through
+ * `perGroupExtractor`, `plannedExtractor`, and the presence-narrowed arm hand-assembled through
  * `phasedExtractor` over `presencePhase` and `presenceFillPhase`, so the
  * settings' retry budget reaches it. Nothing here re-implements a strategy;
  * the runner only wires the options the settings carry.
@@ -16,6 +16,7 @@
 import {
   perGroupExtractor,
   phasedExtractor,
+  plannedExtractor,
   presenceFillPhase,
   presencePhase,
   singleShotExtractor,
@@ -28,6 +29,7 @@ import type {
   FieldDescriptionsMode,
   Group,
   NoProvenance,
+  SchemaPlan,
 } from "@azx/ribo-core";
 
 import { EvalError } from "./error.js";
@@ -46,8 +48,10 @@ export interface EvalStrategyContext {
   readonly chat: CapableChatClient;
   /** The model id the calls carry. */
   readonly model: string;
-  /** The arm's settings. */
+  /** The arm's runner-issued effective settings. */
   readonly settings: EvalSettings;
+  /** The parsed semantic plan, supplied separately from JSON settings. */
+  readonly plan?: SchemaPlan;
   /** The per-group instructions, as core's hook takes them. */
   readonly groupInstructions?: (groupKey: string) => string;
   /** Where the field descriptions travel, as the manifest declares. */
@@ -133,9 +137,26 @@ export function buildStrategy(
     });
   }
 
-  throw new EvalError(
-    'eval: the "planned" strategy is not implemented yet — refusing to substitute another ' +
-      "strategy or invoke a fallback (fix: remove planned from the ladder until planned execution " +
-      "is available)",
-  );
+  if (context.plan === undefined) {
+    throw new EvalError(
+      'eval: the "planned" strategy requires a parsed schema plan in the strategy context — ' +
+        "the runner supplies it separately from settings (fix: pass the reviewed plan)",
+    );
+  }
+  return plannedExtractor({
+    target: context.target,
+    plan: context.plan,
+    chat: context.chat,
+    model: context.model,
+    ...maxTokens,
+    ...(settings.maxRetries === undefined ? {} : { maxRetries: settings.maxRetries }),
+    ...(settings.splitCaps?.maxNullableUnionsPerGroup === undefined
+      ? {}
+      : { maxNullableUnionsPerGroup: settings.splitCaps.maxNullableUnionsPerGroup }),
+    ...(settings.splitCaps?.maxSerializedCharsPerGroup === undefined
+      ? {}
+      : { maxSerializedCharsPerGroup: settings.splitCaps.maxSerializedCharsPerGroup }),
+    ...guidance,
+    ...(context.delay === undefined ? {} : { delay: context.delay }),
+  });
 }

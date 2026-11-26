@@ -100,8 +100,8 @@ export type {
   ScopedDefault,
   ScopedDefaultStatus,
 } from "./corpus.js";
-export { runEval } from "./eval/run.js";
-export type { RunEvalOptions } from "./eval/run.js";
+export { runEval, runEvalWithSettings } from "./eval/run.js";
+export type { RunEvalOptions, RunEvalWithSettingsResult } from "./eval/run.js";
 export { transcribeDocumentCases } from "./eval/documents.js";
 export type { DocumentTexts, DocumentTranscriptionOptions } from "./eval/documents.js";
 export { scoreEvalRun } from "./eval/score.js";

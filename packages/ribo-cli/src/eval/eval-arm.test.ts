@@ -10,7 +10,13 @@
  * Every count is read from the inspect command's own `describeCalls`; the
  * assertions are at-most, never a restated formula.
  */
-import { ChatError, scriptedChat } from "@azx/ribo-core";
+import {
+  ChatError,
+  parseSchemaPlan,
+  planFingerprint,
+  SCHEMA_PLAN_CONTRACT_VERSION,
+  scriptedChat,
+} from "@azx/ribo-core";
 import type { ScriptedChatClient } from "@azx/ribo-core";
 import { afterEach, expect, test } from "vitest";
 
@@ -238,10 +244,10 @@ test("the majority arbiter accepts the value the candidates agreed on", async ()
 });
 
 // ---------------------------------------------------------------------------
-// Planned execution is not available yet
+// Planned execution
 // ---------------------------------------------------------------------------
 
-test("a planned caller without runner-issued identity refuses before chat", async () => {
+test("a planned caller without a parsed plan refuses before chat", async () => {
   const chat = stubChat();
   const failure = await runEval(fixture(), chat, {
     strategies: ["planned"],
@@ -249,7 +255,9 @@ test("a planned caller without runner-issued identity refuses before chat", asyn
   }).catch((error: unknown) => error);
 
   expect(failure).toBeInstanceOf(EvalError);
-  expect(failure instanceof Error ? failure.message : String(failure)).toContain("planFingerprint");
+  expect(failure instanceof Error ? failure.message : String(failure)).toMatch(
+    /planned.*options\.plan|options\.plan.*planned/iu,
+  );
   expect(chat.calls).toHaveLength(0);
 });
 
@@ -275,7 +283,61 @@ test("a caller-smuggled planFingerprint refuses before chat", async () => {
   expect(chat.calls).toHaveLength(0);
 });
 
-test("an effective planned ladder refuses as unimplemented instead of invoking a fallback", () => {
+test("buildArm constructs a planned rung from its separate parsed-plan context", async () => {
+  const corpus = fixture();
+  const chat = stubChat();
+  const { target, groups } = buildEvalTarget(
+    corpus.schema,
+    corpus.manifest.prompt,
+    corpus.manifest.name,
+    {},
+  );
+  const plan = parseSchemaPlan(
+    {
+      version: SCHEMA_PLAN_CONTRACT_VERSION,
+      schemaFingerprint: "a".repeat(64),
+      fieldPaths: ["frame.material", "frame.serial", "service.date", "service.notes"],
+      pieces: [
+        {
+          name: "Frame",
+          description: "Frame facts stay together.",
+          key: "frame",
+          paths: ["frame.material", "frame.serial"],
+        },
+        {
+          name: "Service",
+          description: "Service facts stay together.",
+          key: "service",
+          paths: ["service.date", "service.notes"],
+        },
+      ],
+      provenance: {
+        model: "planning-stub",
+        backend: "stub-backend",
+        createdAt: "2026-11-13T09:00:00.000Z",
+      },
+    },
+    corpus.schema,
+  );
+
+  const arm = buildArm({
+    target,
+    groups,
+    chat: asCapableChat(chat),
+    model: "ribo-test",
+    plan,
+    settings: {
+      strategies: ["planned", "single-shot"],
+      model: "ribo-test",
+      planFingerprint: await planFingerprint(plan),
+    },
+  });
+
+  expect(arm.extract).toBeInstanceOf(Function);
+  expect(chat.calls).toHaveLength(0);
+});
+
+test("buildArm refuses a planned rung whose construction context has no plan", () => {
   const corpus = fixture();
   const chat = stubChat();
   const { target, groups } = buildEvalTarget(
@@ -297,6 +359,6 @@ test("an effective planned ladder refuses as unimplemented instead of invoking a
         planFingerprint: "a".repeat(64),
       },
     }),
-  ).toThrow(/planned.*not implemented/iu);
+  ).toThrow(/planned.*plan|plan.*planned/iu);
   expect(chat.calls).toHaveLength(0);
 });
