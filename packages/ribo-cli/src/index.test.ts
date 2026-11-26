@@ -17,6 +17,7 @@ import {
   SchemaInspectError,
   ScopedDefaultSchema,
   inspectSchema,
+  initSchema,
   loadCorpus,
   planSchema,
   resolveExpectation,
@@ -141,6 +142,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "coreVersion",
     "corpusFingerprint",
     "createOpenAiCompatibleChat",
+    "initSchema",
     "inspectSchema",
     "isRecordCurrent",
     "loadCorpus",
@@ -158,9 +160,11 @@ test("the barrel exports the package's public runtime surface", () => {
   ]);
 });
 
-test("the public runtime barrel deliberately includes the schema-planning and freshness exports", () => {
+test("the public runtime barrel deliberately includes schema initialization and planning", () => {
+  expect(cli.initSchema).toBe(initSchema);
   expect(cli.planSchema).toBe(planSchema);
   expect(cli.schemaPlanFreshness).toBe(schemaPlanFreshness);
+  expect(typeof initSchema).toBe("function");
   expect(typeof planSchema).toBe("function");
   expect(typeof schemaPlanFreshness).toBe("function");
 });
