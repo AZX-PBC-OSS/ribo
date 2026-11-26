@@ -18,7 +18,9 @@ import {
   ScopedDefaultSchema,
   inspectSchema,
   loadCorpus,
+  planSchema,
   resolveExpectation,
+  schemaPlanFreshness,
 } from "./index.js";
 
 const manifest = JSON.parse(
@@ -142,15 +144,24 @@ test("the barrel exports the package's public runtime surface", () => {
     "inspectSchema",
     "isRecordCurrent",
     "loadCorpus",
+    "planSchema",
     "readEvalRunRecords",
     "recordIdentity",
     "resolveExpectation",
     "runEval",
     "runFingerprint",
+    "schemaPlanFreshness",
     "scoreEvalRun",
     "transcribeDocumentCases",
     "writeEvalRunRecord",
   ]);
+});
+
+test("the public runtime barrel deliberately includes the schema-planning and freshness exports", () => {
+  expect(cli.planSchema).toBe(planSchema);
+  expect(cli.schemaPlanFreshness).toBe(schemaPlanFreshness);
+  expect(typeof planSchema).toBe("function");
+  expect(typeof schemaPlanFreshness).toBe("function");
 });
 
 test("the CLI transport's internals stay off the public surface", () => {
