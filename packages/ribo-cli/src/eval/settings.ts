@@ -8,13 +8,19 @@
  * names the offending setting.
  */
 import { EvalError } from "./error.js";
-import type { EvalConsensusArbiter, EvalSettings, EvalStrategyId } from "./types.js";
+import type {
+  EvalConsensusArbiter,
+  EvalSettings,
+  EvalSettingsInput,
+  EvalStrategyId,
+} from "./types.js";
 
 /** The strategy ids an arm's ladder may name. */
 export const EVAL_STRATEGY_IDS: readonly EvalStrategyId[] = [
   "single-shot",
   "per-group",
   "presence-narrowed",
+  "planned",
 ];
 
 /** The consensus policies the modifier may arbitrate with. */
@@ -31,13 +37,51 @@ const strategyIds = (value: unknown): readonly EvalStrategyId[] =>
   Array.isArray(value) ? (value as EvalStrategyId[]) : [];
 
 /**
+ * The cross-field plan-identity rule, shared by effective-settings validation
+ * and the persisted document wrapper. A returned problem is phrased for either
+ * an EvalError or a zod issue at `settings.planFingerprint`.
+ */
+export function evalPlanIdentityProblem(
+  settings: Pick<EvalSettings, "strategies" | "planFingerprint">,
+): string | undefined {
+  const planned = settings.strategies.includes("planned");
+  if (planned && settings.planFingerprint === undefined) {
+    return (
+      '"planFingerprint" is required when "strategies" contains "planned" — the runner derives ' +
+      "it from core's semantic plan (fix: use the runner-issued effective settings)"
+    );
+  }
+  if (!planned && settings.planFingerprint !== undefined) {
+    return (
+      '"planFingerprint" is forbidden unless "strategies" contains "planned" — a non-planned ' +
+      "run has no semantic plan identity (fix: remove the fingerprint)"
+    );
+  }
+  return undefined;
+}
+
+/**
+ * Refuse caller input carrying the runner-owned plan identity, then apply the
+ * effective-settings rules. The property's presence is refused even when its
+ * runtime value is undefined.
+ */
+export function validateEvalSettingsInput(settings: EvalSettingsInput): void {
+  if ("planFingerprint" in settings) {
+    throw new EvalError(
+      'eval settings: "planFingerprint" is runner-issued and cannot be supplied by a caller — ' +
+        "the runner derives planned identity from core's plan (fix: remove the fingerprint)",
+    );
+  }
+  validateEvalSettings(settings);
+}
+
+/**
  * Refuse a settings object the runner cannot drive.
  *
- * The refusals are the four the format can carry — an empty ladder, an unknown
- * strategy id, a consensus count below two, an arbiter without a count — plus
- * the two the ladder itself carries: a missing model id and the same strategy
- * twice (core's sequential engine refuses duplicate candidate ids, and a
- * repeated rung is an authoring mistake worth naming).
+ * The refusals cover malformed ladders and models, modifier mismatches and
+ * plan identity. A repeated rung is refused because core's sequential engine
+ * refuses duplicate candidate ids, and a repeated rung is an authoring mistake
+ * worth naming.
  * @param settings - The settings the caller passed in.
  * @throws {@link EvalError} when the settings cannot drive an arm.
  * @category Eval
@@ -65,6 +109,10 @@ export function validateEvalSettings(settings: EvalSettings): void {
       );
     }
     seen.add(id);
+  }
+  const planIdentityProblem = evalPlanIdentityProblem(settings);
+  if (planIdentityProblem !== undefined) {
+    throw new EvalError(`eval settings: ${planIdentityProblem}`);
   }
   if (typeof settings.model !== "string" || settings.model.length === 0) {
     throw new EvalError(

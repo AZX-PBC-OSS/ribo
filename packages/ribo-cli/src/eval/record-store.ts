@@ -43,7 +43,7 @@ import type {
   EvalRunRecordDraft,
   EvalRunRecordHistoryEntry,
 } from "./record-schema.js";
-import { EvalRunRecordSchema } from "./record-schema.js";
+import { EvalRunRecordDocumentSchema } from "./record-schema.js";
 
 /**
  * The records directory a run writes to when it names none: `./ribo-eval-runs/`
@@ -175,7 +175,7 @@ export function readEvalRunRecords(dir?: string): EvalRunRecord[] {
       );
       continue;
     }
-    const parsed = EvalRunRecordSchema.safeParse(document);
+    const parsed = EvalRunRecordDocumentSchema.safeParse(document);
     if (!parsed.success) {
       throw new EvalError(
         `eval: the run record "${file}" is not a valid run record: ${parsed.error.issues
@@ -228,7 +228,7 @@ export function writeEvalRunRecord(draft: EvalRunRecordDraft, dir?: string): str
   // same read, with one stderr line naming it.
   const earlier = readEvalRunRecords(target);
   const identity = recordIdentity(draft);
-  const record = EvalRunRecordSchema.safeParse({
+  const record = EvalRunRecordDocumentSchema.safeParse({
     ...draft,
     history: historyOf(earlier, identity, draft.capturedAt),
   });

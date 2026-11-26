@@ -16,7 +16,7 @@ import { loadCorpus } from "../corpus/loader.js";
 import { runEval } from "./run.js";
 import { scoreEvalRun } from "./score.js";
 import { buildEvalRunRecord } from "./record-build.js";
-import { EvalRunRecordSchema } from "./record-schema.js";
+import { EvalRunRecordDocumentSchema, EvalRunRecordSchema } from "./record-schema.js";
 import type { EvalRunRecord } from "./record-schema.js";
 import { replyFor } from "./test-support/stub-chat.js";
 import { corpusWithoutDocuments, removeTemporaries } from "./test-support/corpus.js";
@@ -123,6 +123,54 @@ test("the schema refuses a record it cannot vouch for", async () => {
 
   // The record the run produced is itself valid.
   expect(EvalRunRecordSchema.safeParse(valid).success).toBe(true);
+});
+
+test("the document wrapper accepts both v1 settings forms and enforces planned identity", async () => {
+  const run = await recordOverCorpus(corpusWithoutDocuments(), settings);
+  const valid = complete(run.record);
+  const planned = {
+    ...valid,
+    settings: { strategies: ["planned"], planFingerprint: "a".repeat(64) },
+  };
+
+  expect(EvalRunRecordDocumentSchema.safeParse(valid).success).toBe(true);
+  expect(EvalRunRecordDocumentSchema.safeParse(planned).success).toBe(true);
+
+  const missing = { ...planned, settings: { strategies: ["planned"] } };
+  const forbidden = {
+    ...valid,
+    settings: { ...valid.settings, planFingerprint: "b".repeat(64) },
+  };
+  for (const candidate of [missing, forbidden]) {
+    // The base schema remains structural; the document wrapper owns the
+    // cross-field rule and places its issue on the identity member.
+    expect(EvalRunRecordSchema.safeParse(candidate).success).toBe(true);
+    const parsed = EvalRunRecordDocumentSchema.safeParse(candidate);
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(
+        parsed.error.issues.some((issue) => issue.path.join(".") === "settings.planFingerprint"),
+      ).toBe(true);
+    }
+  }
+
+  const misplaced = { ...missing, planFingerprint: "a".repeat(64) };
+  expect(EvalRunRecordDocumentSchema.safeParse(misplaced).success).toBe(false);
+});
+
+test("the base record schema remains a plain strict object with shape and extend", async () => {
+  const run = await recordOverCorpus(corpusWithoutDocuments(), settings);
+  const valid = complete(run.record);
+  const extended = EvalRunRecordSchema.extend({
+    reviewNote: EvalRunRecordSchema.shape.model.optional(),
+  });
+
+  expect(extended.parse({ ...valid, reviewNote: "checked" }).reviewNote).toBe("checked");
+  expect(EvalRunRecordSchema.safeParse({ ...valid, reviewNote: "checked" }).success).toBe(false);
+  expect(EvalRunRecordDocumentSchema.safeParse({ ...valid, extra: "no" }).success).toBe(false);
+  expect(EvalRunRecordDocumentSchema.safeParse({ ...valid, contractVersion: 2 }).success).toBe(
+    false,
+  );
 });
 
 test("the record carries the corpus's identity, the model beside the settings, and a dense grid", async () => {

@@ -26,7 +26,7 @@ export type EvalJsonValue =
  * and the design doc spell them.
  * @category Eval
  */
-export type EvalStrategyId = "single-shot" | "per-group" | "presence-narrowed";
+export type EvalStrategyId = "single-shot" | "per-group" | "presence-narrowed" | "planned";
 
 /**
  * The consensus policies the runner can arbitrate with.
@@ -64,6 +64,8 @@ export interface EvalSplitCaps {
 export interface EvalSettings {
   /** The arm's ordered ladder of strategy ids — one or more, tried in order. */
   readonly strategies: readonly EvalStrategyId[];
+  /** Core's semantic plan fingerprint, issued by the runner for a planned ladder. */
+  readonly planFingerprint?: string;
   /** The model id sent to the endpoint. Required. */
   readonly model: string;
   /** How many candidates the consensus modifier runs the whole ladder as. */
@@ -77,6 +79,13 @@ export interface EvalSettings {
   /** The split caps the group-shaped calls pack under. */
   readonly splitCaps?: EvalSplitCaps;
 }
+
+/**
+ * The settings a caller may supply. Plan identity is deliberately absent: the
+ * runner derives it from core's plan and issues the full effective settings.
+ * @category Eval
+ */
+export type EvalSettingsInput = Omit<EvalSettings, "planFingerprint">;
 
 /**
  * What one case's extraction cost.

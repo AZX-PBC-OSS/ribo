@@ -23,7 +23,7 @@ import { z } from "zod";
 import type { EvalBackendName } from "./backend.js";
 import { EVAL_BACKENDS } from "./backend.js";
 import { EVAL_UNSCORABLE_REASONS, EVAL_VERDICTS } from "./score-types.js";
-import { EVAL_CONSENSUS_ARBITERS, EVAL_STRATEGY_IDS } from "./settings.js";
+import { EVAL_CONSENSUS_ARBITERS, EVAL_STRATEGY_IDS, evalPlanIdentityProblem } from "./settings.js";
 import type { EvalJsonValue, EvalSettings } from "./types.js";
 
 /**
@@ -62,14 +62,17 @@ const evalJsonValueSchema: z.ZodType<EvalJsonValue> = z.lazy(() =>
  *
  * The model is NOT here: it is the record's own field, beside the settings,
  * because ADR 0041 makes the four identity fields four separate facts. The
- * schema is structural — the cross-field rules (an arbiter needs a candidate
- * count) stay with the runner's own settings validation, which every record
- * this package writes has already passed.
+ * base schema is structural. The document wrapper below shares the planned
+ * identity rule with effective-settings validation; the runner's other
+ * cross-field rules (an arbiter needs a candidate count) have already passed
+ * for every record this package writes.
  * @category Eval
  */
 export const EvalRunRecordSettingsSchema = z.strictObject({
   /** The arm's ordered ladder of strategy ids. */
   strategies: z.array(z.enum(EVAL_STRATEGY_IDS)).min(1).readonly(),
+  /** Core's semantic plan fingerprint, issued by the runner for a planned ladder. */
+  planFingerprint: z.string().optional(),
   /** How many candidates the consensus modifier ran the ladder as. */
   consensusCandidates: z.number().int().min(2).optional(),
   /** The consensus policy the candidates were arbitrated with. */
@@ -106,7 +109,11 @@ export type EvalRunRecordSettings = z.infer<typeof EvalRunRecordSettingsSchema>;
 type SettingsParity =
   EvalRunRecordSettings extends Omit<EvalSettings, "model">
     ? Omit<EvalSettings, "model"> extends EvalRunRecordSettings
-      ? true
+      ? keyof EvalRunRecordSettings extends keyof Omit<EvalSettings, "model">
+        ? keyof Omit<EvalSettings, "model"> extends keyof EvalRunRecordSettings
+          ? true
+          : never
+        : never
       : never
     : never;
 
@@ -238,6 +245,20 @@ export const EvalRunRecordSchema = z.strictObject({
   history: z.array(EvalRunRecordHistoryEntrySchema),
   /** The optional hazard extension. */
   hazards: EvalRunRecordHazardsSchema.optional(),
+});
+
+/**
+ * The persisted document contract: the plain v1 object plus the semantic
+ * planned-identity rule. The base object remains available for extension.
+ */
+export const EvalRunRecordDocumentSchema = EvalRunRecordSchema.superRefine((record, context) => {
+  const problem = evalPlanIdentityProblem(record.settings);
+  if (problem === undefined) return;
+  context.addIssue({
+    code: "custom",
+    path: ["settings", "planFingerprint"],
+    message: problem,
+  });
 });
 
 /**

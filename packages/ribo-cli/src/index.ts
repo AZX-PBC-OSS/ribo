@@ -160,6 +160,7 @@ export type {
   EvalConsensusArbiter,
   EvalJsonValue,
   EvalSettings,
+  EvalSettingsInput,
   EvalSplitCaps,
   EvalStrategyId,
   EvalUsage,

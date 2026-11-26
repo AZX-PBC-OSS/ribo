@@ -33,7 +33,7 @@ export interface EvalRunRecordInput {
   readonly corpus: LoadedCorpus;
   /** The backend the run used. */
   readonly backend: EvalBackendName;
-  /** The arm's settings, as the runner received them. */
+  /** The runner-issued effective settings, including any semantic plan identity. */
   readonly settings: EvalSettings;
   /** The arm's results, one per case. */
   readonly results: readonly EvalCaseResult[];
@@ -53,6 +53,7 @@ export interface EvalRunRecordInput {
  */
 const persistedSettings = (settings: EvalSettings): EvalRunRecordSettings => ({
   strategies: settings.strategies,
+  ...(settings.planFingerprint === undefined ? {} : { planFingerprint: settings.planFingerprint }),
   ...(settings.consensusCandidates === undefined
     ? {}
     : { consensusCandidates: settings.consensusCandidates }),

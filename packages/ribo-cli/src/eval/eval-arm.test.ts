@@ -17,14 +17,18 @@ import { afterEach, expect, test } from "vitest";
 import { loadCorpus } from "../corpus/loader.js";
 import { describeCalls } from "../inspect/calls.js";
 import { describeExtraction } from "@azx/ribo-core";
+import { buildArm } from "./arm.js";
+import { asCapableChat } from "./chat.js";
+import { EvalError } from "./error.js";
 import { runEval } from "./run.js";
+import { buildEvalTarget } from "./target.js";
 import { replyFor, stubChat } from "./test-support/stub-chat.js";
 import {
   corpusWithCases,
   corpusWithoutDocuments,
   removeTemporaries,
 } from "./test-support/corpus.js";
-import type { EvalSettings } from "./types.js";
+import type { EvalSettings, EvalSettingsInput } from "./types.js";
 
 afterEach(() => {
   removeTemporaries();
@@ -231,4 +235,68 @@ test("the majority arbiter accepts the value the candidates agreed on", async ()
   expect(chat.calls.length).toBeLessThanOrEqual(
     (calls.consensusPerCandidate ?? 0) * 3 * results.length,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Planned execution is not available yet
+// ---------------------------------------------------------------------------
+
+test("a planned caller without runner-issued identity refuses before chat", async () => {
+  const chat = stubChat();
+  const failure = await runEval(fixture(), chat, {
+    strategies: ["planned"],
+    model: "ribo-test",
+  }).catch((error: unknown) => error);
+
+  expect(failure).toBeInstanceOf(EvalError);
+  expect(failure instanceof Error ? failure.message : String(failure)).toContain("planFingerprint");
+  expect(chat.calls).toHaveLength(0);
+});
+
+test("a caller-smuggled planFingerprint refuses before chat", async () => {
+  type InputCannotSupplyPlanIdentity = "planFingerprint" extends keyof EvalSettingsInput
+    ? never
+    : true;
+  const _inputCannotSupplyPlanIdentity: InputCannotSupplyPlanIdentity = true;
+  expect(_inputCannotSupplyPlanIdentity).toBe(true);
+
+  const chat = stubChat();
+  const smuggled = {
+    strategies: ["planned"],
+    model: "ribo-test",
+    planFingerprint: "a".repeat(64),
+  } as EvalSettingsInput & { readonly planFingerprint: string };
+  const failure = await runEval(fixture(), chat, smuggled).catch((error: unknown) => error);
+
+  expect(failure).toBeInstanceOf(EvalError);
+  expect(failure instanceof Error ? failure.message : String(failure)).toMatch(
+    /planFingerprint.*runner|runner.*planFingerprint/iu,
+  );
+  expect(chat.calls).toHaveLength(0);
+});
+
+test("an effective planned ladder refuses as unimplemented instead of invoking a fallback", () => {
+  const corpus = fixture();
+  const chat = stubChat();
+  const { target, groups } = buildEvalTarget(
+    corpus.schema,
+    corpus.manifest.prompt,
+    corpus.manifest.name,
+    {},
+  );
+
+  expect(() =>
+    buildArm({
+      target,
+      groups,
+      chat: asCapableChat(chat),
+      model: "ribo-test",
+      settings: {
+        strategies: ["planned", "single-shot"],
+        model: "ribo-test",
+        planFingerprint: "a".repeat(64),
+      },
+    }),
+  ).toThrow(/planned.*not implemented/iu);
+  expect(chat.calls).toHaveLength(0);
 });
