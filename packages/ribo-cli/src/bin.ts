@@ -100,6 +100,7 @@ import { inspectSchema, inspectSchemaWithPlan, SchemaInspectError } from "./insp
 import type { ThresholdRow } from "./inspect/report-schema.js";
 import { InputFault, readDocumentSource } from "./read-input.js";
 import { renderHumanReport } from "./render-human.js";
+import { registerSchemaInitCommand } from "./schema-init/command.js";
 import { registerSchemaPlanCommand } from "./schema-plan/command.js";
 import { schemaPlanFreshness, schemaPlanUpdateCommand } from "./schema-plan/freshness.js";
 
@@ -909,6 +910,7 @@ schema
   .action(run);
 
 registerSchemaPlanCommand(schema);
+registerSchemaInitCommand(schema);
 
 const evalCommand = program
   .command("eval")

@@ -3,12 +3,13 @@
  *
  * An update never writes its input. A named destination must be distinct and
  * new: the complete artifact is staged beside it and published with a hard
- * link, whose no-clobber behavior also closes the probe/publish race. Review
- * text is emitted only after the artifact reaches its selected destination.
+ * link, whose no-clobber behavior also closes the probe/publish race. A
+ * directory artifact is staged as a complete sibling tree and published by
+ * one rename that refuses a non-empty raced target. Review text follows successful publication only.
  */
 import { randomUUID } from "node:crypto";
-import { link, lstat, unlink, writeFile } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { link, lstat, mkdir, mkdtemp, rename, rm, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import process from "node:process";
 
 import { OperatorError } from "./error.js";
@@ -80,23 +81,29 @@ const hasCode = (error: unknown, code: string): boolean =>
 const destinationAdvice =
   "(fix: choose a distinct new --out path, or omit --out to write the artifact to stdout)";
 
-const existingDestinationError = (destination: string): OperatorError =>
+const existingDestinationError = (
+  destination: string,
+  advice: string = destinationAdvice,
+): OperatorError =>
   new OperatorError(
-    `the output destination "${destination}" already exists — refusing to overwrite it ` +
-      destinationAdvice,
+    `the output destination "${destination}" already exists — refusing to overwrite it ` + advice,
   );
 
-async function probeDestination(fs: OperatorOutputFileSystem, destination: string): Promise<void> {
+async function probeDestination(
+  fs: Pick<OperatorOutputFileSystem, "lstat">,
+  destination: string,
+  advice?: string,
+): Promise<void> {
   try {
     await fs.lstat(destination);
   } catch (error) {
     if (hasCode(error, "ENOENT")) return;
     throw new OperatorError(
       `could not inspect the output destination "${destination}": ${faultMessage(error)} ` +
-        destinationAdvice,
+        (advice ?? destinationAdvice),
     );
   }
-  throw existingDestinationError(destination);
+  throw existingDestinationError(destination, advice);
 }
 
 async function removeStaging(fs: OperatorOutputFileSystem, staging: string): Promise<void> {
@@ -160,7 +167,10 @@ function emit(stream: OperatorOutputStream, text: string, channel: string): void
  */
 export async function assertOperatorOutputIsNew(
   out: string,
-  options: Pick<WriteOperatorOutputOptions, "cwd" | "fs"> = {},
+  options: {
+    readonly cwd?: string;
+    readonly fs?: Pick<OperatorOutputFileSystem, "lstat">;
+  } = {},
 ): Promise<void> {
   await probeDestination(
     options.fs ?? defaultFileSystem,
@@ -204,4 +214,164 @@ export async function writeOperatorOutput(
     emit(stderr, request.review, "review text to stderr");
   }
   return { destination: "file", path: destination };
+}
+
+/**
+ * Refuse a destination whose parent directory is missing or not a directory, so the
+ * caller can stop before spending on an artifact that could never be written.
+ */
+export async function assertOperatorOutputParentExists(
+  out: string,
+  options: { readonly cwd?: string; readonly fs?: Pick<OperatorOutputFileSystem, "lstat"> } = {},
+): Promise<void> {
+  const parent = dirname(resolve(options.cwd ?? process.cwd(), out));
+  let stats: unknown;
+  try {
+    stats = await (options.fs ?? defaultFileSystem).lstat(parent);
+  } catch (error) {
+    throw new OperatorError(
+      `the output destination's parent directory "${parent}" is not usable: ${faultMessage(error)} ` +
+        "(fix: create the parent directory first, or choose another path)",
+    );
+  }
+  const isDirectory = (stats as { isDirectory?: () => boolean } | undefined)?.isDirectory;
+  if (typeof isDirectory === "function" && !isDirectory.call(stats)) {
+    throw new OperatorError(
+      `the output destination's parent "${parent}" is not a directory ` +
+        "(fix: choose a path inside an existing directory)",
+    );
+  }
+}
+
+/** One relative file in a directory artifact; binary bytes are never decoded. */
+export interface OperatorDirectoryEntry {
+  readonly path: string;
+  readonly contents: string | Uint8Array;
+}
+
+/** Filesystem operations for staging and publishing a complete directory. */
+export interface OperatorDirectoryFileSystem {
+  readonly lstat: (path: string) => Promise<unknown>;
+  readonly mkdtemp: (prefix: string) => Promise<string>;
+  readonly mkdir: (path: string) => Promise<void>;
+  readonly writeFile: (path: string, contents: string | Uint8Array) => Promise<void>;
+  readonly rename: (source: string, destination: string) => Promise<void>;
+  readonly rm: (path: string) => Promise<void>;
+}
+
+/** The real directory filesystem, exported for focused fault-injection adapters. */
+export const defaultOperatorDirectoryFileSystem: OperatorDirectoryFileSystem = {
+  lstat: (path) => lstat(path),
+  mkdtemp: (prefix) => mkdtemp(prefix),
+  mkdir: async (path) => {
+    await mkdir(path, { recursive: true });
+  },
+  writeFile: async (path, contents) => {
+    await writeFile(path, contents, { flag: "wx" });
+  },
+  rename: (source, destination) => rename(source, destination),
+  rm: async (path) => {
+    await rm(path, { recursive: true, force: true });
+  },
+};
+
+/** A complete directory artifact and the diagnostics to emit after publication. */
+export interface WriteOperatorDirectoryOutputRequest {
+  readonly out: string;
+  readonly entries: readonly OperatorDirectoryEntry[];
+  readonly review?: string;
+}
+
+/** Where the complete directory was published. */
+export interface OperatorDirectoryOutputResult {
+  readonly destination: "directory";
+  readonly path: string;
+}
+
+/** Injectable process and filesystem dependencies for directory output. */
+export interface WriteOperatorDirectoryOutputOptions {
+  readonly cwd?: string;
+  readonly stderr?: OperatorOutputStream;
+  readonly fs?: OperatorDirectoryFileSystem;
+}
+
+const directoryDestinationAdvice =
+  "(fix: choose a distinct new --corpus path, or omit --corpus to skip scaffold creation)";
+
+function stagedEntryPath(staging: string, entry: OperatorDirectoryEntry): string {
+  if (entry.path.length === 0 || isAbsolute(entry.path)) {
+    throw new OperatorError(`the directory artifact entry "${entry.path}" is not a relative file`);
+  }
+  const target = resolve(staging, entry.path);
+  const rel = relative(staging, target);
+  if (rel.length === 0 || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new OperatorError(
+      `the directory artifact entry "${entry.path}" escapes its staging directory ` +
+        "(fix: use relative file paths inside the artifact)",
+    );
+  }
+  return target;
+}
+
+async function removeStagingDirectory(
+  fs: OperatorDirectoryFileSystem,
+  staging: string,
+): Promise<void> {
+  try {
+    await fs.rm(staging);
+  } catch (error) {
+    if (!hasCode(error, "ENOENT")) throw error;
+  }
+}
+
+/**
+ * Stage every entry beneath a unique sibling and publish with one directory
+ * rename, refusing a non-empty raced target. Failed writes remove the staged tree.
+ */
+export async function writeOperatorDirectoryOutput(
+  request: WriteOperatorDirectoryOutputRequest,
+  options: WriteOperatorDirectoryOutputOptions = {},
+): Promise<OperatorDirectoryOutputResult> {
+  const stderr = options.stderr ?? process.stderr;
+  const destination = resolve(options.cwd ?? process.cwd(), request.out);
+  const fs = options.fs ?? defaultOperatorDirectoryFileSystem;
+  await probeDestination(fs, destination, directoryDestinationAdvice);
+  const staging = await fs.mkdtemp(join(dirname(destination), `.${basename(destination)}.ribo-`));
+
+  let publishing = false;
+  try {
+    for (const entry of request.entries) {
+      const target = stagedEntryPath(staging, entry);
+      await fs.mkdir(dirname(target));
+      await fs.writeFile(target, entry.contents);
+    }
+    // Renaming a directory cannot replace a non-empty destination that won
+    // the probe/publish race; the original tree remains untouched.
+    publishing = true;
+    await fs.rename(staging, destination);
+  } catch (error) {
+    try {
+      await removeStagingDirectory(fs, staging);
+    } catch (cleanupError) {
+      throw new OperatorError(
+        `could not write the directory artifact to "${destination}": ${faultMessage(error)}; ` +
+          `also could not remove the staged directory "${staging}": ${faultMessage(cleanupError)} ` +
+          directoryDestinationAdvice,
+      );
+    }
+    // Only the publishing rename means the destination appeared; an EEXIST while
+    // staging is two entries colliding inside the artifact.
+    if (publishing && (hasCode(error, "EEXIST") || hasCode(error, "ENOTEMPTY"))) {
+      throw existingDestinationError(destination, directoryDestinationAdvice);
+    }
+    throw new OperatorError(
+      `could not write the directory artifact to "${destination}": ${faultMessage(error)} ` +
+        directoryDestinationAdvice,
+    );
+  }
+
+  if (request.review !== undefined && request.review.length > 0) {
+    emit(stderr, request.review, "review text to stderr");
+  }
+  return { destination: "directory", path: destination };
 }

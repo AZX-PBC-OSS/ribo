@@ -51,7 +51,8 @@ export interface SchemaInitDraft {
   readonly provenance: SchemaInitProvenance;
 }
 
-const MAX_REPAIRS = 2;
+/** The semantic repair bound shared by drafting and its command's spend estimate. */
+export const SCHEMA_INIT_REPAIRS = 2;
 
 /**
  * Draft a supported OpenAPI 3.0 object schema from named loaded samples.
@@ -78,7 +79,7 @@ export async function initSchema(
   let activeRequest = base;
   let lastProblems: readonly string[] = ["no response was validated"];
 
-  for (let repair = 0; repair <= MAX_REPAIRS; repair++) {
+  for (let repair = 0; repair <= SCHEMA_INIT_REPAIRS; repair++) {
     const completion = await options.chat.complete(activeRequest);
     const validated = validateSchemaInitProposal(completion.content, samples);
     if (validated.success) {
@@ -91,7 +92,7 @@ export async function initSchema(
       };
     }
     lastProblems = validated.problems;
-    if (repair < MAX_REPAIRS) {
+    if (repair < SCHEMA_INIT_REPAIRS) {
       activeRequest = repairSchemaInitPrompt(
         base,
         completion.content,
