@@ -47,7 +47,10 @@ const acquire = (): void => {
 /** The built bin's path, building it first unless this run already has. */
 export function buildCliOnce(): string {
   // Outside dist/, so the marker can never be packed.
-  const marker = join(tmpdir(), `ribo-cli-built-${inject("riboCliRunToken")}`);
+  // Without the global setup (a run from the package directory) there is no token; a shared
+  // "undefined" marker would then outlive the run and serve a stale dist/, so scope it to this process.
+  const token = inject("riboCliRunToken") ?? `process-${process.pid}`;
+  const marker = join(tmpdir(), `ribo-cli-built-${token}`);
   acquire();
   try {
     if (!existsSync(marker)) {

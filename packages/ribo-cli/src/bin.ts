@@ -56,7 +56,8 @@ import process from "node:process";
 import { readFileSync } from "node:fs";
 import { Command, InvalidArgumentError, Option } from "commander";
 
-import type { CapableChatClient, ChatClient } from "@azx/ribo-core";
+import { schemaPlanSchema } from "@azx/ribo-core";
+import type { CapableChatClient, ChatClient, SchemaPlan } from "@azx/ribo-core";
 
 import { colorsFor } from "./colors.js";
 import { loadCorpus } from "./corpus.js";
@@ -93,11 +94,12 @@ import type {
   EvalStrategyId,
 } from "./eval/types.js";
 import type { EvalScoreTotals } from "./eval/score-types.js";
-import { inspectSchema, SchemaInspectError } from "./inspect-schema.js";
+import { inspectSchema, inspectSchemaWithPlan, SchemaInspectError } from "./inspect-schema.js";
 import type { ThresholdRow } from "./inspect/report-schema.js";
 import { InputFault, readDocumentSource } from "./read-input.js";
 import { renderHumanReport } from "./render-human.js";
 import { registerSchemaPlanCommand } from "./schema-plan/command.js";
+import { schemaPlanFreshness, schemaPlanUpdateCommand } from "./schema-plan/freshness.js";
 
 /**
  * The docs site's CLI section. The same pages ship inside the package — a
@@ -245,13 +247,52 @@ const parseSpend = (value: string): number => {
 
 interface InspectFlags {
   readonly json?: boolean;
+  readonly plan?: string;
   readonly maxDepth?: number;
   readonly maxPieceChars?: number;
   readonly maxNullableUnionsPerGroup?: number;
   readonly maxSerializedCharsPerGroup?: number;
 }
 
-function run(path: string | undefined, flags: InspectFlags): void {
+/** Read and validate the plan artifact before planned inspection can produce a report. */
+function readInspectPlan(path: string): SchemaPlan {
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch (error) {
+    throw new SchemaInspectError(
+      `could not read the schema plan at ${path}: ${
+        error instanceof Error ? error.message : String(error)
+      } (fix: pass a readable schema-plan file)`,
+    );
+  }
+  if (raw.trim() === "") {
+    throw new SchemaInspectError(
+      `the schema plan at ${path} was empty (fix: supply a complete schema-plan artifact)`,
+    );
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(raw) as unknown;
+  } catch (error) {
+    throw new SchemaInspectError(
+      `the schema plan at ${path} is not valid JSON: ${
+        error instanceof Error ? error.message : String(error)
+      } (fix: repair the JSON input)`,
+    );
+  }
+  const parsed = schemaPlanSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new SchemaInspectError(
+      `the schema plan at ${path} is invalid: ${parsed.error.issues
+        .map((issue) => `${issue.path.join(".") || "plan"}: ${issue.message}`)
+        .join("; ")} (fix: pass a complete schema-plan artifact)`,
+    );
+  }
+  return parsed.data;
+}
+
+async function run(path: string | undefined, flags: InspectFlags): Promise<void> {
   let raw: string;
   try {
     raw = readDocumentSource(path, process.stdin.isTTY === true);
@@ -266,17 +307,32 @@ function run(path: string | undefined, flags: InspectFlags): void {
     fail(`the input is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
   let report: ReturnType<typeof inspectSchema>;
+  const options = {
+    ...(flags.maxDepth === undefined ? {} : { maxDepth: flags.maxDepth }),
+    ...(flags.maxPieceChars === undefined ? {} : { maxPieceChars: flags.maxPieceChars }),
+    ...(flags.maxNullableUnionsPerGroup === undefined
+      ? {}
+      : { maxNullableUnionsPerGroup: flags.maxNullableUnionsPerGroup }),
+    ...(flags.maxSerializedCharsPerGroup === undefined
+      ? {}
+      : { maxSerializedCharsPerGroup: flags.maxSerializedCharsPerGroup }),
+  };
   try {
-    report = inspectSchema(document, {
-      ...(flags.maxDepth === undefined ? {} : { maxDepth: flags.maxDepth }),
-      ...(flags.maxPieceChars === undefined ? {} : { maxPieceChars: flags.maxPieceChars }),
-      ...(flags.maxNullableUnionsPerGroup === undefined
-        ? {}
-        : { maxNullableUnionsPerGroup: flags.maxNullableUnionsPerGroup }),
-      ...(flags.maxSerializedCharsPerGroup === undefined
-        ? {}
-        : { maxSerializedCharsPerGroup: flags.maxSerializedCharsPerGroup }),
-    });
+    if (flags.plan === undefined) {
+      report = inspectSchema(document, options);
+    } else {
+      const plan = readInspectPlan(flags.plan);
+      const freshness = schemaPlanFreshness(document, plan);
+      if (freshness.status === "stale") {
+        fail(
+          `the schema plan at ${flags.plan} is stale: ${freshness.notes.join("; ")} ` +
+            `(fix: ${schemaPlanUpdateCommand(path, flags.plan, plan)})`,
+        );
+      }
+      for (const note of freshness.notes)
+        process.stderr.write(`ribo schema inspect: note: ${note}\n`);
+      report = await inspectSchemaWithPlan(document, { ...options, plan });
+    }
   } catch (error) {
     if (error instanceof SchemaInspectError) fail(error.message);
     throw error;
@@ -304,6 +360,11 @@ const inspectHelp = [
   "  1  the report was computed, and a supplied threshold was breached — the full report is still on stdout",
   "  2  the command could not run: unreadable file, empty input, malformed JSON, not a JSON Schema document,",
   "     an unconvertible document, a refused draft-2020-12-form document, or a usage error",
+  "",
+  "Layouts:",
+  "  --max-piece-chars judges the worst rule-based piece without --plan, and only the planned packed calls with --plan.",
+  "  --max-depth always judges the whole schema's shared depth, with or without --plan.",
+  "  An invalid, stale or unbuildable plan exits 2 with no report, regardless of threshold flags.",
   "",
   "Split caps (unlike the thresholds above, these ARE fed into the split):",
   "  --max-serialized-chars-per-group <n>       pack pieces against this serialized-character cap",
@@ -755,13 +816,17 @@ schema
   .argument("[path]", "path to the JSON Schema document file, or - for stdin")
   .option("--json", "emit the versioned JSON contract instead of the human rendering")
   .option(
+    "--plan <path>",
+    "path to a schema plan; measure its actual packed calls for the piece-character threshold",
+  )
+  .option(
     "--max-depth <n>",
-    "threshold on the whole schema's nesting depth; a breach exits 1 with the report still on stdout",
+    "threshold on the whole schema's nesting depth, shared by rule-based and planned layouts; a breach exits 1 with the report still on stdout",
     parseThreshold,
   )
   .option(
     "--max-piece-chars <n>",
-    "threshold on the worst piece's serialized character count; a breach exits 1 with the report still on stdout",
+    "threshold on the worst rule-based piece without --plan, or the worst actual planned packed call with --plan; a breach exits 1 with the report still on stdout",
     parseThreshold,
   )
   .option(

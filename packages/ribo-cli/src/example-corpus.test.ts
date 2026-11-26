@@ -1,8 +1,13 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parseSchemaPlan, planFingerprint } from "@azx/ribo-core";
 import { expect, test } from "vitest";
 
 import { inspectSchema, loadCorpus, resolveExpectation } from "./index.js";
+import { inspectSchemaWithPlan } from "./inspect-schema.js";
+import { convertDocument } from "./inspect/convert.js";
 
 /**
  * @file The committed worked example the README and the docs site's CLI
@@ -95,5 +100,22 @@ test("inspectSchema over the example's schema reports every leaf described", () 
   expect(report.guidanceCoverage.total).toBe(report.leafCount);
   expect(report.guidanceCoverage.described).toBe(report.guidanceCoverage.total);
   expect(report.guidanceCoverage.ratio).toBe(1);
+  expect(report.refusal).toBeUndefined();
+});
+
+test("the committed example plan exactly covers its schema and produces a planned report", async () => {
+  const corpus = loadCorpus(EXAMPLE);
+  const value = JSON.parse(readFileSync(join(EXAMPLE, "plan.json"), "utf8")) as unknown;
+  const plan = parseSchemaPlan(value, convertDocument(corpus.schemaDocument));
+
+  expect(plan.fieldPaths).toEqual(corpus.leafInventory.map((leaf) => leaf.path));
+  const report = await inspectSchemaWithPlan(corpus.schemaDocument, { plan });
+  expect(report.planFingerprint).toBe(await planFingerprint(plan));
+  expect(report.planned?.semanticPieces.map((piece) => piece.name)).toEqual(
+    plan.pieces.map((piece) => piece.name),
+  );
+  expect(report.planned?.packedCalls.flatMap((call) => call.paths).sort()).toEqual(
+    [...plan.fieldPaths].sort(),
+  );
   expect(report.refusal).toBeUndefined();
 });

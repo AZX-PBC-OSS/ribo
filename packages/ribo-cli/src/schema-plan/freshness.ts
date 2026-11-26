@@ -1,6 +1,7 @@
 import { schemaPlanSchema } from "@azx/ribo-core";
 import type { SchemaPlan } from "@azx/ribo-core";
 
+import { OPERATOR_BACKENDS } from "../operator/backend.js";
 import { convertDocument } from "../inspect/convert.js";
 import { walkFieldInventory } from "../inspect/field-inventory.js";
 import { schemaFingerprint } from "../inspect/fingerprint.js";
@@ -68,4 +69,30 @@ export function schemaPlanFreshness(
   }
 
   return { status: "unchanged", added, removed, notes: [] };
+}
+
+const shellWord = (word: string): string =>
+  /^[\w./:@=+-]+$/u.test(word) ? word : `'${word.replaceAll("'", `'\\''`)}'`;
+
+/**
+ * The `schema plan --update` command that repairs a stale plan, filled in as far as the caller
+ * knows: an unknown schema path or an unrecorded backend stays a placeholder.
+ */
+export function schemaPlanUpdateCommand(
+  schemaPath: string | undefined,
+  planPath: string,
+  plan: SchemaPlan,
+): string {
+  const { backend, model } = plan.provenance;
+  const knownBackend = (OPERATOR_BACKENDS as readonly string[]).includes(backend);
+  return [
+    "ribo schema plan",
+    schemaPath === undefined || schemaPath === "-" ? "<schema>" : shellWord(schemaPath),
+    "--update",
+    shellWord(planPath),
+    "--backend",
+    knownBackend ? backend : "<backend>",
+    "--model",
+    shellWord(model),
+  ].join(" ");
 }
