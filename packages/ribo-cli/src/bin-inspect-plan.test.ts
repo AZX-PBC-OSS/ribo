@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { parseSchemaPlan, planFingerprint, SCHEMA_PLAN_CONTRACT_VERSION } from "@azx/ribo-core";
 import type { SchemaPlan, SchemaPlanPiece } from "@azx/ribo-core";
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
 
 import { SchemaInspectReportSchema } from "./index.js";
 import type { SchemaInspectReport } from "./index.js";
@@ -14,6 +14,9 @@ import { convertDocument } from "./inspect/convert.js";
 import { schemaFingerprint } from "./inspect/fingerprint.js";
 import { schemaPlanFreshness } from "./schema-plan.js";
 import { buildCliOnce } from "./test-support/build-once.js";
+
+// Each test spawns the built bin several times; under a full parallel run that outlasts the default.
+vi.setConfig({ testTimeout: 30_000 });
 
 /**
  * @file The installed inspect command's plan input, diagnostics and threshold selection. Every
