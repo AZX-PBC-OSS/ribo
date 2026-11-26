@@ -1,3 +1,5 @@
+import type { SchemaPlan } from "@azx/ribo-core";
+
 /**
  * Options of `inspectSchema`. The threshold options (`maxDepth`,
  * `maxPieceChars`) are comparisons the CLI makes on the report's own numbers —
@@ -9,15 +11,20 @@
  */
 export interface SchemaInspectOptions {
   /**
+   * A parsed schema plan. The asynchronous planned inspect entry measures its semantic pieces and
+   * actual packed calls; the synchronous no-plan entry deliberately does not accept it.
+   */
+  readonly plan?: SchemaPlan;
+  /**
    * Threshold on the whole schema's measured nesting depth. A comparison the
    * caller makes on the reported number — supplying it can never change the
    * reported partitioning, because the split does not pack against depth.
    */
   readonly maxDepth?: number;
   /**
-   * Threshold on the worst piece's serialized character count. A comparison on
-   * the reported number — supplying it can never change the reported
-   * partitioning.
+   * Threshold on serialized characters in the worst rule-based piece without a plan, or the worst
+   * actual planned packed call with one. A comparison on the reported number — supplying it can
+   * never change the reported partitioning.
    */
   readonly maxPieceChars?: number;
   /**

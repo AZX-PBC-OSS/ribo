@@ -309,6 +309,9 @@ function runCaptured(command, args, cwd) {
   };
 }
 
+// Generous limits, so the run exits 0 while the report still carries threshold rows.
+const THRESHOLD_FLAGS = ["--max-depth", "1000", "--max-piece-chars", "10000000"];
+
 function assertInspectReport(run, label) {
   if (run.status !== 0) {
     throw new Error(
@@ -330,7 +333,7 @@ function assertInspectReport(run, label) {
     readFileSync(join(REPO_ROOT, "packages", "ribo-core", "package.json"), "utf8"),
   ).version;
   const checks = [
-    ["contractVersion === 3", report.contractVersion === 3],
+    ["contractVersion === 4", report.contractVersion === 4],
     [`cliVersion === ${expectedCliVersion}`, report.cliVersion === expectedCliVersion],
     [`coreVersion === ${expectedCoreVersion}`, report.coreVersion === expectedCoreVersion],
     [
@@ -338,6 +341,16 @@ function assertInspectReport(run, label) {
       report.leafCount === INSPECT_FIXTURE_LEAF_COUNT,
     ],
   ];
+  const rowFor = (measure) => report.thresholds?.find((row) => row.measure === measure);
+  const depthRow = rowFor("depth");
+  const charsRow = rowFor("pieceChars");
+  checks.push(
+    [
+      'depth threshold has layout "shared" and no piece',
+      depthRow?.layout === "shared" && !Object.hasOwn(depthRow, "piece"),
+    ],
+    ['no-plan pieceChars threshold has layout "rule-based"', charsRow?.layout === "rule-based"],
+  );
   const failed = checks.filter(([, ok]) => !ok).map(([name]) => name);
   if (failed.length > 0) {
     throw new Error(
@@ -429,12 +442,20 @@ function runCliBinStep(tarballs) {
   // is what --json emits.
   log("cli-bin-run: running the extracted dist bin against the fixture...");
   assertInspectReport(
-    runCaptured(process.execPath, [binFile, "schema", "inspect", fixtureName, "--json"], isolated),
+    runCaptured(
+      process.execPath,
+      [binFile, "schema", "inspect", fixtureName, "--json", ...THRESHOLD_FLAGS],
+      isolated,
+    ),
     "the extracted dist/bin.js",
   );
   log("cli-bin-run: running the installed node_modules/.bin/ribo against the fixture...");
   assertInspectReport(
-    runCaptured(installedBin, ["schema", "inspect", fixtureName, "--json"], isolated),
+    runCaptured(
+      installedBin,
+      ["schema", "inspect", fixtureName, "--json", ...THRESHOLD_FLAGS],
+      isolated,
+    ),
     "the installed node_modules/.bin/ribo",
   );
 

@@ -1,5 +1,5 @@
 import { describeExtraction, MAX_NULLABLE_UNIONS_PER_CALL } from "@azx/ribo-core";
-import type { ExtractionDescription, ExtractionPieceDescription } from "@azx/ribo-core";
+import type { ExtractionPieceDescription } from "@azx/ribo-core";
 import type { z } from "zod";
 
 import { cliVersion, coreVersion } from "../versions.js";
@@ -12,8 +12,10 @@ import { collectGranularityViolations } from "./granularity.js";
 import { NOT_VISIBLE_CONSTRUCTS } from "./not-visible.js";
 import { findReformatFindings } from "./reformat-lint.js";
 import type { SchemaInspectOptions } from "./options.js";
+import type { PlannedInspection } from "./planned.js";
 import { CONTRACT_VERSION } from "./report-schema.js";
-import type { SchemaInspectReport, ThresholdRow, WorstPieceReport } from "./report-schema.js";
+import type { SchemaInspectReport } from "./report-schema.js";
+import { buildThresholdRows } from "./threshold-rows.js";
 
 /** The message out of a thrown fault, reworded to the input's vocabulary. */
 const faultMessage = (error: unknown): string =>
@@ -34,43 +36,11 @@ const worstPieceOf = (
   return worst;
 };
 
-/** The worst piece's name, in the request-name vocabulary: `${key}` or `${key}-<part>`. */
-const pieceLabel = (piece: WorstPieceReport): string =>
-  piece.part === undefined ? piece.key : `${piece.key}-${piece.part}`;
-
-/**
- * One row per supplied threshold. Thresholds are comparisons the CLI makes on
- * reported numbers — never fed into the split (design §1). When the underlying
- * measure is unavailable (a refusal left no pieces), `measured` is `null` and
- * `breached` is `false`; the report's `refusal` row already says why.
- */
-const thresholdRows = (
-  options: SchemaInspectOptions,
-  description: ExtractionDescription,
-  worst: WorstPieceReport | undefined,
-): ThresholdRow[] => {
-  const rows: ThresholdRow[] = [];
-  if (options.maxDepth !== undefined) {
-    const measured = description.whole === undefined ? null : description.whole.depth;
-    rows.push({
-      measure: "depth",
-      limit: options.maxDepth,
-      measured,
-      breached: measured !== null && measured > options.maxDepth,
-    });
-  }
-  if (options.maxPieceChars !== undefined) {
-    const measured = worst === undefined ? null : worst.serializedChars;
-    rows.push({
-      measure: "pieceChars",
-      limit: options.maxPieceChars,
-      measured,
-      breached: measured !== null && measured > options.maxPieceChars,
-      ...(worst === undefined ? {} : { piece: pieceLabel(worst) }),
-    });
-  }
-  return rows;
-};
+/** Planned measurements and the identity computed by core for the same parsed plan. */
+export interface PlannedReportInput {
+  readonly inspection: PlannedInspection;
+  readonly planFingerprint: string;
+}
 
 /**
  * Assemble the report from everything the walk and the description measured.
@@ -83,6 +53,7 @@ export function assembleReport(
   document: unknown,
   schema: z.ZodObject,
   options: SchemaInspectOptions,
+  planned?: PlannedReportInput,
 ): SchemaInspectReport {
   let entries;
   try {
@@ -130,6 +101,23 @@ export function assembleReport(
     reformatFindings: findReformatFindings(entries),
     granularityViolations: collectGranularityViolations(schema),
     notVisible: [...NOT_VISIBLE_CONSTRUCTS],
+    ...(planned === undefined
+      ? {}
+      : {
+          planFingerprint: planned.planFingerprint,
+          planned: {
+            semanticPieces: planned.inspection.semanticPieces.map((piece) => ({
+              ...piece,
+              paths: [...piece.paths],
+            })),
+            packedCalls: planned.inspection.packedCalls.map((call) => ({
+              ...call,
+              paths: [...call.paths],
+            })),
+            totals: { ...planned.inspection.totals },
+            notes: [...planned.inspection.notes],
+          },
+        }),
     worstPiece:
       worst === undefined
         ? null
@@ -171,8 +159,19 @@ export function assembleReport(
       }));
     }
     report.calls = describeCalls(description, splitCaps);
-    const thresholds = thresholdRows(options, description, worst);
-    if (thresholds.length > 0) report.thresholds = thresholds;
+  }
+
+  // A plan supplies its own packed-call measurement even if the retained rule-based derivation
+  // refused. Without a plan, threshold presence remains exactly where the existing report put it.
+  const thresholds = buildThresholdRows({
+    maxDepth: options.maxDepth,
+    maxPieceChars: options.maxPieceChars,
+    depth: description.whole?.depth ?? null,
+    ruleBased: worst ?? null,
+    planned: planned?.inspection.worstPackedCall,
+  });
+  if (thresholds.length > 0 && (keys !== undefined || planned !== undefined)) {
+    report.thresholds = thresholds;
   }
 
   return report;

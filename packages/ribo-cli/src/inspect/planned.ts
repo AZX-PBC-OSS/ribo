@@ -19,7 +19,6 @@ import type { z } from "zod";
 import { schemaPlanFreshness } from "../schema-plan/freshness.js";
 import type { SplitCapOptions } from "./calls.js";
 import { SchemaInspectError } from "./error.js";
-import type { ThresholdRow, WorstPieceReport } from "./report-schema.js";
 
 const TARGET_NAME = "ribo-inspect";
 
@@ -64,13 +63,6 @@ export interface InspectPlannedOptions {
   readonly schema: z.ZodObject;
   readonly plan: SchemaPlan;
   readonly caps: SplitCapOptions;
-}
-
-/** Inputs for selecting the one measured call set a piece threshold judges. */
-export interface SelectPieceCharsThresholdOptions {
-  readonly limit: number;
-  readonly ruleBased?: WorstPieceReport | null;
-  readonly planned?: PlannedPackedCallRow | null;
 }
 
 class PlannedInspectionChatInvoked extends Error {
@@ -254,35 +246,4 @@ export function inspectPlanned({
     if (error instanceof PlannedInspectionChatInvoked) throw error;
     throw constructionRefusal(error);
   }
-}
-
-const ruleBasedLabel = (piece: WorstPieceReport): string =>
-  piece.part === undefined ? piece.key : `${piece.key}-${piece.part}`;
-
-/**
- * Select the only piece-character measurement a threshold may judge: planned packed calls whenever
- * a plan was requested, otherwise the existing rule-based worst piece.
- */
-export function selectPieceCharsThreshold({
-  limit,
-  ruleBased,
-  planned,
-}: SelectPieceCharsThresholdOptions): ThresholdRow {
-  if (planned !== undefined && planned !== null) {
-    return {
-      measure: "pieceChars",
-      limit,
-      measured: planned.serializedChars,
-      breached: planned.serializedChars > limit,
-      piece: planned.requestName,
-    };
-  }
-  const measured = ruleBased?.serializedChars ?? null;
-  return {
-    measure: "pieceChars",
-    limit,
-    measured,
-    breached: measured !== null && measured > limit,
-    ...(ruleBased === undefined || ruleBased === null ? {} : { piece: ruleBasedLabel(ruleBased) }),
-  };
 }

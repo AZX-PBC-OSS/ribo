@@ -309,7 +309,7 @@ test("a malformed artifact surfaces the bin's own diagnostic and fails could-not
   expect(run.stderr).toContain("not valid JSON");
 });
 
-test("a stub bin emitting a drifted report fails the threshold class, naming the drifted element", () => {
+test("stub bins refuse v3 or malformed layouts and accept a required-layout v4 report", () => {
   const stubReport = (body: string): string =>
     [
       "#!/usr/bin/env node",
@@ -320,7 +320,7 @@ test("a stub bin emitting a drifted report fails the threshold class, naming the
 
   const fullReport = (overrides: Record<string, unknown>): string =>
     JSON.stringify({
-      contractVersion: 3,
+      contractVersion: 4,
       cliVersion: "0.0.0",
       coreVersion: "0.0.0",
       schemaFingerprint: "a".repeat(64),
@@ -331,19 +331,27 @@ test("a stub bin emitting a drifted report fails the threshold class, naming the
       granularityViolations: [],
       notVisible: [],
       thresholds: [
-        { measure: "depth", limit: 14, measured: 14, breached: false },
-        { measure: "pieceChars", limit: 32768, measured: 12, breached: false },
+        { measure: "depth", layout: "shared", limit: 14, measured: 14, breached: false },
+        {
+          measure: "pieceChars",
+          layout: "rule-based",
+          limit: 32768,
+          measured: 12,
+          breached: false,
+        },
       ],
       ...overrides,
     });
 
   const cases: [string, string][] = [
-    ["a stale contractVersion", stubReport(fullReport({ contractVersion: 2 }))],
+    ["a v3 contractVersion", stubReport(fullReport({ contractVersion: 3 }))],
     [
       "a missing threshold row",
       stubReport(
         fullReport({
-          thresholds: [{ measure: "depth", limit: 14, measured: 14, breached: false }],
+          thresholds: [
+            { measure: "depth", layout: "shared", limit: 14, measured: 14, breached: false },
+          ],
         }),
       ),
     ],
@@ -352,8 +360,83 @@ test("a stub bin emitting a drifted report fails the threshold class, naming the
       stubReport(
         fullReport({
           thresholds: [
-            { measure: "depth", limit: 99, measured: 14, breached: false },
+            { measure: "depth", layout: "shared", limit: 99, measured: 14, breached: false },
+            {
+              measure: "pieceChars",
+              layout: "rule-based",
+              limit: 32768,
+              measured: 12,
+              breached: false,
+            },
+          ],
+        }),
+      ),
+    ],
+    [
+      "a missing depth layout",
+      stubReport(
+        fullReport({
+          thresholds: [
+            { measure: "depth", limit: 14, measured: 14, breached: false },
+            {
+              measure: "pieceChars",
+              layout: "rule-based",
+              limit: 32768,
+              measured: 12,
+              breached: false,
+            },
+          ],
+        }),
+      ),
+    ],
+    [
+      "a missing piece layout",
+      stubReport(
+        fullReport({
+          thresholds: [
+            { measure: "depth", layout: "shared", limit: 14, measured: 14, breached: false },
             { measure: "pieceChars", limit: 32768, measured: 12, breached: false },
+          ],
+        }),
+      ),
+    ],
+    [
+      "a non-shared depth layout",
+      stubReport(
+        fullReport({
+          thresholds: [
+            { measure: "depth", layout: "planned", limit: 14, measured: 14, breached: false },
+            {
+              measure: "pieceChars",
+              layout: "rule-based",
+              limit: 32768,
+              measured: 12,
+              breached: false,
+            },
+          ],
+        }),
+      ),
+    ],
+    [
+      "a depth row carrying a piece",
+      stubReport(
+        fullReport({
+          thresholds: [
+            {
+              measure: "depth",
+              layout: "shared",
+              limit: 14,
+              measured: 14,
+              breached: false,
+              piece: "home",
+            },
+            {
+              measure: "pieceChars",
+              layout: "rule-based",
+              limit: 32768,
+              measured: 12,
+              breached: false,
+            },
           ],
         }),
       ),
@@ -376,6 +459,21 @@ test("a stub bin emitting a drifted report fails the threshold class, naming the
     expect(run.status, label).toBe(1);
     expect(run.stderr, label).toContain("report contract drift");
   }
+
+  const validStub = join(dir, "stub-valid-v4.mjs");
+  writeFileSync(validStub, stubReport(fullReport({})));
+  const valid = runScript([
+    "--max-depth",
+    "14",
+    "--max-piece-chars",
+    "32768",
+    ARTIFACT,
+    "--bin",
+    validStub,
+  ]);
+  expect(valid.status).toBe(0);
+  expect(valid.stdout).toContain("depth 14/14");
+  expect(valid.stdout).toContain("worst piece 12/32768");
 });
 
 // --- The real-artifact rehearsal (criterion 10) ---------------------------------------

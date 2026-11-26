@@ -15,6 +15,7 @@ import { createColors } from "picocolors";
 
 import type { Colors } from "./colors.js";
 
+import { plannedPackedCallLabel } from "./inspect/threshold-rows.js";
 import type {
   FlatReasonReport,
   SchemaInspectReport,
@@ -81,6 +82,9 @@ export function renderHumanReport(
   out.push(`${pc.bold("ribo schema inspect — sizing report")}\n`);
   out.push("");
   out.push(line("schema fingerprint", report.schemaFingerprint));
+  if (report.planFingerprint !== undefined) {
+    out.push(line("plan fingerprint", report.planFingerprint));
+  }
   out.push(line("cli version", report.cliVersion));
   out.push(line("core version", report.coreVersion));
   out.push(line("fields", `${report.leafCount}`));
@@ -124,6 +128,34 @@ export function renderHumanReport(
         : `nullable unions ${report.splitCaps.maxNullableUnionsPerGroup}, serialized chars ${report.splitCaps.maxSerializedCharsPerGroup}`,
     ),
   );
+  if (report.planned !== undefined) {
+    out.push(
+      line(
+        "planned totals",
+        `${report.planned.totals.semanticPieces} semantic piece(s), ` +
+          `${report.planned.totals.packedCalls} packed call(s)`,
+      ),
+    );
+    for (const piece of report.planned.semanticPieces) {
+      out.push(
+        line(
+          "planned semantic",
+          `${piece.name} (${piece.serializedChars} serialized chars, ` +
+            `${piece.packedCount} packed call(s))`,
+        ),
+      );
+    }
+    for (const call of report.planned.packedCalls) {
+      out.push(
+        line(
+          "planned packed call",
+          `${plannedPackedCallLabel(call)} [${call.requestName}] ` +
+            `(${call.serializedChars} serialized chars)`,
+        ),
+      );
+    }
+    for (const note of report.planned.notes) out.push(line("planned note", note));
+  }
   if (report.calls !== undefined) {
     for (const [name, value] of callsText(report.calls)) out.push(line(name, value));
   }
@@ -164,7 +196,7 @@ export function renderHumanReport(
   }
   if (report.thresholds !== undefined) {
     for (const row of report.thresholds) {
-      out.push(line(`threshold ${row.measure}`, thresholdText(pc, row)));
+      out.push(line(`threshold ${row.measure} (${row.layout})`, thresholdText(pc, row)));
     }
   }
   return out.join("");
