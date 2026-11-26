@@ -26,9 +26,9 @@ import { asCapableChat } from "./chat.js";
 import { transcribeDocumentCases } from "./documents.js";
 import type { DocumentTexts } from "./documents.js";
 import { EvalError } from "./error.js";
-import { validateEvalSettings } from "./settings.js";
+import { validateEvalSettingsInput } from "./settings.js";
 import { buildEvalTarget } from "./target.js";
-import type { EvalCaseResult, EvalJsonValue, EvalSettings, EvalUsage } from "./types.js";
+import type { EvalCaseResult, EvalJsonValue, EvalSettingsInput, EvalUsage } from "./types.js";
 
 /**
  * One case's input to the runner: its id and its combined text.
@@ -60,8 +60,8 @@ export interface EvalSchemaRun {
   readonly cases: readonly EvalCaseInput[];
   /** The transport every call goes through. */
   readonly chat: ChatClient | CapableChatClient;
-  /** The arm's settings. */
-  readonly settings: EvalSettings;
+  /** The caller's settings, without runner-owned plan identity. */
+  readonly settings: EvalSettingsInput;
   /** The injectable sleep between retry attempts, so a test never waits real backoff. */
   readonly delay?: (ms: number) => Promise<void>;
 }
@@ -103,7 +103,7 @@ const toUsage = (usage: ExtractionUsage, engine: string): EvalUsage => ({
  * @category Eval
  */
 export async function runEvalOverSchema(run: EvalSchemaRun): Promise<EvalCaseResult[]> {
-  validateEvalSettings(run.settings);
+  validateEvalSettingsInput(run.settings);
 
   // Core's presence fill phase takes no field-descriptions option, so under
   // "prompt" the rung would run in schema mode while the record claims prompt.
@@ -213,10 +213,10 @@ export interface RunEvalOptions {
 export async function runEval(
   corpus: LoadedCorpus,
   chat: ChatClient | CapableChatClient,
-  settings: EvalSettings,
+  settings: EvalSettingsInput,
   options?: RunEvalOptions,
 ): Promise<EvalCaseResult[]> {
-  validateEvalSettings(settings);
+  validateEvalSettingsInput(settings);
 
   const documents = options?.documents ?? (await transcribeDocumentCases(corpus));
   const cases: EvalCaseInput[] = corpus.cases.map((entry) => ({

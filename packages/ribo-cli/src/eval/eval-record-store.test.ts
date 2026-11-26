@@ -14,6 +14,7 @@ import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { EvalError } from "./error.js";
+import { buildEvalRunRecord } from "./record-build.js";
 import { isRecordCurrent, recordIdentity } from "./record-fingerprint.js";
 import type { EvalRunRecordDraft } from "./record-schema.js";
 import {
@@ -230,6 +231,73 @@ test("a caller cannot claim a lineage: the draft carries none, and the store's w
 
   const records = readEvalRunRecords(dir);
   expect(records[0]?.history).toEqual([]);
+});
+
+test("mixed old and planned v1 records keep distinct lineage and unchanged non-planned history", async () => {
+  const dir = tempDir();
+  const run = await recordOverCorpus(corpusWithoutDocuments(), settings);
+  const at = (capturedAt: string, effectiveSettings: EvalSettings): EvalRunRecordDraft =>
+    buildEvalRunRecord({
+      corpus: run.corpus,
+      backend: "openai-compatible",
+      settings: effectiveSettings,
+      results: run.results,
+      score: run.score,
+      capturedAt,
+    });
+  const planned = (planFingerprint: string): EvalSettings => ({
+    strategies: ["planned"],
+    model: "ribo-test",
+    planFingerprint,
+  });
+
+  const oldFirst = at("2026-11-13T10:00:00.000Z", settings);
+  const plannedAFirst = at("2026-11-13T10:30:00.000Z", planned("a".repeat(64)));
+  const oldSecond = at("2026-11-13T11:00:00.000Z", settings);
+  const plannedBFirst = at("2026-11-13T11:30:00.000Z", planned("b".repeat(64)));
+  const plannedASecond = at("2026-11-13T12:00:00.000Z", planned("a".repeat(64)));
+  const oldThird = at("2026-11-13T12:30:00.000Z", settings);
+  for (const record of [
+    oldFirst,
+    plannedAFirst,
+    oldSecond,
+    plannedBFirst,
+    plannedASecond,
+    oldThird,
+  ]) {
+    writeEvalRunRecord(record, dir);
+  }
+
+  const records = readEvalRunRecords(dir);
+  const readAt = (capturedAt: string) => records.find((record) => record.capturedAt === capturedAt);
+  expect(records).toHaveLength(6);
+  expect(recordIdentity(plannedAFirst)).not.toBe(recordIdentity(plannedBFirst));
+  expect(recordIdentity(plannedAFirst)).not.toBe(recordIdentity(oldFirst));
+  expect(readAt(plannedAFirst.capturedAt)?.history).toEqual([]);
+  expect(readAt(plannedBFirst.capturedAt)?.history).toEqual([]);
+  expect(readAt(plannedASecond.capturedAt)?.history.map((entry) => entry.capturedAt)).toEqual([
+    plannedAFirst.capturedAt,
+  ]);
+  expect(readAt(oldSecond.capturedAt)?.history.map((entry) => entry.capturedAt)).toEqual([
+    oldFirst.capturedAt,
+  ]);
+  expect(readAt(oldThird.capturedAt)?.history.map((entry) => entry.capturedAt)).toEqual([
+    oldFirst.capturedAt,
+    oldSecond.capturedAt,
+  ]);
+});
+
+test("the store applies the planned identity rule on both writes and reads", async () => {
+  const dir = tempDir();
+  const run = await recordOverCorpus(corpusWithoutDocuments(), settings);
+  const invalid: EvalRunRecordDraft = {
+    ...run.record,
+    settings: { strategies: ["planned"] },
+  };
+
+  expect(() => writeEvalRunRecord(invalid, dir)).toThrow(/planFingerprint/u);
+  writeFileSync(path.join(dir, "invalid.json"), JSON.stringify({ ...invalid, history: [] }));
+  expect(() => readEvalRunRecords(dir)).toThrow(/planFingerprint/u);
 });
 
 test("a run over several arms writes one record per arm, each current against its own settings", async () => {

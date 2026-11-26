@@ -1,8 +1,8 @@
 /**
- * @file One strategy, one extractor: the three rungs an arm's ladder is built
- * from.
+ * @file One strategy, one extractor: the executable rungs an arm's ladder is
+ * built from, plus the explicit refusal for planned execution.
  *
- * Each rung is core's own constructor — `singleShotExtractor`,
+ * Each executable rung is core's own constructor — `singleShotExtractor`,
  * `perGroupExtractor`, and the presence-narrowed arm hand-assembled through
  * `phasedExtractor` over `presencePhase` and `presenceFillPhase`, so the
  * settings' retry budget reaches it. Nothing here re-implements a strategy;
@@ -30,6 +30,7 @@ import type {
   NoProvenance,
 } from "@azx/ribo-core";
 
+import { EvalError } from "./error.js";
 import type { EvalSettings, EvalStrategyId } from "./types.js";
 
 /**
@@ -105,28 +106,36 @@ export function buildStrategy(
     });
   }
 
-  return phasedExtractor({
-    target: context.target,
-    phases: [
-      presencePhase({ groups: context.groups, chat: context.chat, model: context.model }),
-      presenceFillPhase({
-        target: context.target,
-        groups: context.groups,
-        chat: context.chat,
-        model: context.model,
-        ...maxTokens,
-        ...(context.groupInstructions === undefined
-          ? {}
-          : { groupInstructions: context.groupInstructions }),
-        ...(settings.splitCaps?.maxNullableUnionsPerGroup === undefined
-          ? {}
-          : { maxNullableUnionsPerGroup: settings.splitCaps.maxNullableUnionsPerGroup }),
-        ...(settings.splitCaps?.maxSerializedCharsPerGroup === undefined
-          ? {}
-          : { maxSerializedCharsPerGroup: settings.splitCaps.maxSerializedCharsPerGroup }),
-      }),
-    ],
-    ...(settings.maxRetries === undefined ? {} : { maxRetries: settings.maxRetries }),
-    ...(context.delay === undefined ? {} : { delay: context.delay }),
-  });
+  if (id === "presence-narrowed") {
+    return phasedExtractor({
+      target: context.target,
+      phases: [
+        presencePhase({ groups: context.groups, chat: context.chat, model: context.model }),
+        presenceFillPhase({
+          target: context.target,
+          groups: context.groups,
+          chat: context.chat,
+          model: context.model,
+          ...maxTokens,
+          ...(context.groupInstructions === undefined
+            ? {}
+            : { groupInstructions: context.groupInstructions }),
+          ...(settings.splitCaps?.maxNullableUnionsPerGroup === undefined
+            ? {}
+            : { maxNullableUnionsPerGroup: settings.splitCaps.maxNullableUnionsPerGroup }),
+          ...(settings.splitCaps?.maxSerializedCharsPerGroup === undefined
+            ? {}
+            : { maxSerializedCharsPerGroup: settings.splitCaps.maxSerializedCharsPerGroup }),
+        }),
+      ],
+      ...(settings.maxRetries === undefined ? {} : { maxRetries: settings.maxRetries }),
+      ...(context.delay === undefined ? {} : { delay: context.delay }),
+    });
+  }
+
+  throw new EvalError(
+    'eval: the "planned" strategy is not implemented yet — refusing to substitute another ' +
+      "strategy or invoke a fallback (fix: remove planned from the ladder until planned execution " +
+      "is available)",
+  );
 }
