@@ -23,7 +23,7 @@ import type {
   Transcriber,
   Transcript,
 } from "@azx/ribo-core";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { z } from "zod";
 
 import { loadCorpus } from "../corpus/loader.js";
@@ -45,6 +45,9 @@ import {
   removeTemporaries,
 } from "./test-support/corpus.js";
 import type { EvalSettingsInput } from "./types.js";
+
+// The document cases run real pdf.js transcription, which outlasts the default under a full parallel run.
+vi.setConfig({ testTimeout: 30_000 });
 
 afterEach(() => {
   removeTemporaries();

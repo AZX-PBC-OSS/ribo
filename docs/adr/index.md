@@ -86,3 +86,4 @@ receives.
 | [0042](./0042-join-corpus-case-inputs-with-the-core-combiner.md)                        | A corpus case reads several input files, joined by the core combiner                           | Accepted |
 | [0043](./0043-a-schema-plan-is-a-reviewed-core-owned-partition.md)                      | A schema plan is a reviewed core-owned partition                                               | Accepted |
 | [0044](./0044-planned-eval-freshness-includes-the-semantic-plan.md)                     | Planned eval freshness includes the semantic plan                                              | Accepted |
+| [0045](./0045-schema-init-drafts-only-evidence-linked-declarations.md)                  | Schema init drafts only evidence-linked declarations                                           | Accepted |
