@@ -9,11 +9,13 @@
  *
  * The bound is an UPPER bound, and it is built that way on purpose:
  *
- * - the per-group and per-piece calls are measured over the WHOLE group, while
- *   the real call is pinned to a projected group or a partitioned piece — a
+ * - the ordinary per-group calls are measured over the WHOLE group, while the
+ *   real call is pinned to a projected group or a partitioned piece — a
  *   narrowing, so the whole group is the larger measurement;
- * - the wire schema is measured as the WHOLE extraction schema, while a
- *   group-shaped call carries its own group's schema — again the larger one;
+ * - planned calls are measured over core's actual projected dry-run targets,
+ *   including each target's own semantic instructions and wire schema;
+ * - the ordinary group-shaped wire measurement uses the WHOLE extraction
+ *   schema, again the larger one;
  * - the transcript is the corpus's longest, while a case carries its own.
  *
  * ONE prompt is not core's to give: the presence phase's two-message shape is
@@ -28,6 +30,7 @@
 import { buildGroupMessages, buildMessages, toJsonSchemaForWire } from "@azx/ribo-core";
 import type { ChatMessage, ExtractionTarget, FieldDescriptionsMode, Group } from "@azx/ribo-core";
 
+import { EvalError } from "./error.js";
 import type { EvalStrategyId } from "./types.js";
 
 /**
@@ -46,6 +49,8 @@ export interface PromptSizeInput {
   readonly groupInstructions?: (groupKey: string) => string;
   /** The longest transcript the corpus holds. */
   readonly transcript: string;
+  /** Core's actual packed planned targets, when a rung is planned. */
+  readonly plannedTargets?: readonly ExtractionTarget<Record<string, unknown>>[];
 }
 
 /**
@@ -85,12 +90,18 @@ const charsOf = (messages: readonly ChatMessage[]): number =>
  * its own group's schema: the whole is the larger measurement, and the guard
  * prices the larger one.
  */
-const wireChars = (input: PromptSizeInput): number => {
-  const rendered = toJsonSchemaForWire(input.target.extractionSchema, {
-    keepDescriptions: input.fieldDescriptions !== "prompt",
+const targetWireChars = (
+  target: ExtractionTarget<Record<string, unknown>>,
+  fieldDescriptions: FieldDescriptionsMode | undefined,
+): number => {
+  const rendered = toJsonSchemaForWire(target.extractionSchema, {
+    keepDescriptions: fieldDescriptions !== "prompt",
   });
   return JSON.stringify(rendered).length;
 };
+
+const wireChars = (input: PromptSizeInput): number =>
+  targetWireChars(input.target, input.fieldDescriptions);
 
 /**
  * The characters of the group-shaped calls' messages: the per-group builder,
@@ -130,6 +141,31 @@ const presenceMessageChars = (input: PromptSizeInput): number => {
   return largest;
 };
 
+/** The largest actual planned request, with messages and wire schema kept as one target. */
+const plannedPromptChars = (input: PromptSizeInput): number => {
+  if (input.plannedTargets === undefined) {
+    throw new EvalError(
+      "the planned strategy has no dry-run targets for prompt measurement " +
+        "(fix: supply the reviewed plan used by the run)",
+    );
+  }
+  let largest = 0;
+  for (const target of input.plannedTargets) {
+    const messages = buildMessages(
+      target,
+      input.transcript,
+      input.fieldDescriptions === undefined
+        ? undefined
+        : { fieldDescriptions: input.fieldDescriptions },
+    );
+    largest = Math.max(
+      largest,
+      charsOf(messages) + targetWireChars(target, input.fieldDescriptions),
+    );
+  }
+  return largest;
+};
+
 /**
  * Measure the largest prompt a run over these strategies would send.
  *
@@ -154,16 +190,23 @@ export function measurePromptChars(
           ? undefined
           : { fieldDescriptions: input.fieldDescriptions },
       );
-      largest = Math.max(largest, charsOf(messages));
+      largest = Math.max(largest, charsOf(messages) + wireChars(input));
       continue;
     }
     if (strategy === "per-group") {
-      largest = Math.max(largest, groupMessageChars(input));
+      largest = Math.max(largest, groupMessageChars(input) + wireChars(input));
+      continue;
+    }
+    if (strategy === "planned") {
+      largest = Math.max(largest, plannedPromptChars(input));
       continue;
     }
     // The presence-narrowed arm makes both kinds of call: the presence phase's
     // own question, and the fill's group-shaped extraction.
-    largest = Math.max(largest, presenceMessageChars(input), groupMessageChars(input));
+    largest = Math.max(
+      largest,
+      Math.max(presenceMessageChars(input), groupMessageChars(input)) + wireChars(input),
+    );
   }
-  return largest + wireChars(input);
+  return largest;
 }

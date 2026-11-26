@@ -261,6 +261,19 @@ test("a document case with no transcribed text refuses the estimate, naming the 
 // A missing bound refuses
 // ---------------------------------------------------------------------------
 
+test("a planned arm without its semantic plan refuses instead of borrowing another rung's bound", () => {
+  const corpus = loadCorpus(corpusWithoutDocuments());
+
+  expect(() =>
+    estimateSpend({
+      corpus,
+      arms: [{ strategies: ["planned"], model: "ribo-test" }],
+      backend: "openai-compatible",
+      model: "ribo-test",
+    }),
+  ).toThrow(/planned.*plan|plan.*planned/u);
+});
+
 test("a presence-narrowed arm over a schema with no groups refuses, naming the bound", () => {
   const corpus = loadCorpus(FIXTURE_FLAT_CORPUS);
 
