@@ -42,7 +42,9 @@ its whole envelope. A non-owner cannot replace an owner's citation, including an
 **Only planned extraction receives schema-aware merging.** `groupedExtractor` accepts a key-aware
 same-key merger and defaults to the unchanged shallow `mergeGroupPieces`. The planned merger is
 bound to the full enveloped schema: it recurses through ordinary objects and index-aligned arrays,
-while envelopes, row citations, scalars and null remain atomic. Own-property presence, not
+while envelopes, row citations, scalars and null leaves remain atomic. A null object or array
+yields to the other piece's value, since a piece with nothing for its share of a branch returns
+null for the whole branch. Own-property presence, not
 truthiness, decides ownership. Duplicate atomic values throw with their dotted/indexed path rather
 than deep-merging or selecting a winner. Unequal arrays retain the longer input and partial
 elements; the existing closing full-schema parse remains authoritative.

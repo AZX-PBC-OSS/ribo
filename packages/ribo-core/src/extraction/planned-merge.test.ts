@@ -383,3 +383,30 @@ test("unequal collection lengths retain the longer partial output for the author
     SchemaParseError,
   );
 });
+
+test("a piece that returns null for an optional branch defers to the piece that filled it", () => {
+  const schema = enveloped(
+    z.object({
+      site: z.object({
+        address: z
+          .object({
+            street: z.string().nullable().optional(),
+            city: z.string().nullable().optional(),
+          })
+          .nullable()
+          .optional(),
+        units: z
+          .array(z.object({ name: z.string().nullable().optional() }))
+          .nullable()
+          .optional(),
+      }),
+    }),
+    { provenance: { site: "none" } },
+  );
+
+  const filled = { address: { city: envelope("Oakland") }, units: [{ name: envelope("A") }] };
+  const empty = { address: null, units: null };
+  expect(mergeValue(schema, "site", empty, filled)).toEqual(filled);
+  expect(mergeValue(schema, "site", filled, empty)).toEqual(filled);
+  expect(mergeValue(schema, "site", empty, empty)).toEqual(empty);
+});

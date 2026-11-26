@@ -1,7 +1,8 @@
 /**
  * @file The planned-only, schema-bound same-key merge. Ordinary objects and arrays are branches;
- * envelopes, row citations, scalars and null are atomic values. ADR 0043 keeps this out of the
- * legacy shallow merge, whose overlapping-piece behavior remains unchanged.
+ * envelopes, row citations, scalars and null leaves are atomic values, and a null branch yields to
+ * the other piece. ADR 0043 keeps this out of the legacy shallow merge, whose overlapping-piece
+ * behavior remains unchanged.
  */
 
 import { z } from "zod";
@@ -80,6 +81,11 @@ function mergeObjects(
 function mergeNode(schema: z.ZodType, existing: unknown, incoming: unknown, path: string): unknown {
   const stripped = stripOptionalNullable(schema);
   if (isExtractedSchema(stripped)) return duplicate(path);
+  // A null branch means that piece had nothing for its share of it; another piece may have.
+  if (stripped instanceof z.ZodArray || stripped instanceof z.ZodObject) {
+    if (existing === null) return incoming;
+    if (incoming === null) return existing;
+  }
   if (stripped instanceof z.ZodArray && Array.isArray(existing) && Array.isArray(incoming)) {
     return mergeArrays(stripped.element as z.ZodType, existing, incoming, path);
   }
