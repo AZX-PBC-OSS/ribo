@@ -1,6 +1,6 @@
 /**
  * @file Compile semantic schema-plan pieces through the existing per-group plan and cap packers.
- * Internal until the planned extractor wires scheduling and merging.
+ * Internal machinery behind the public `plannedPerGroupPlan` dry run and `plannedExtractor`.
  */
 
 import { z } from "zod";

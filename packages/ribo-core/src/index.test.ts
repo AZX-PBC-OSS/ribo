@@ -173,6 +173,8 @@ test("the barrel exports the package's public runtime surface", () => {
     "phaseBuilder",
     "phasedExtractor",
     "planFingerprint",
+    "plannedExtractor",
+    "plannedPerGroupPlan",
     "pluginStorageDocumentSchema",
     "pluginStorageEntryId",
     "preferEngineOrder",

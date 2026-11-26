@@ -612,6 +612,51 @@ describe("groupedExtractor — GroupUnit events", () => {
     expect(partOne.every((event) => event.parts === 2)).toBe(true);
     expect(partTwo.every((event) => event.parts === 2)).toBe(true);
   });
+
+  test("legacy overlap replaces an incoming leaf envelope wholesale rather than deep-merging it", async () => {
+    const first = hvacLeaf("Boiler");
+    const replacement = {
+      value: "Furnace",
+      confidence: 0.4,
+      sourceSpan: "replacement citation",
+    };
+    const second = { ...hvacLeaf("Furnace"), equipmentType: replacement };
+    const extractor = groupedExtractor({
+      target,
+      groups: {
+        hvac: [groupEntry("hvac", first), groupEntry("hvac", second)],
+        attic: groupEntry("attic", atticLeaf("10-12")),
+      },
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.fields.hvac).toEqual(second);
+    // The closing zod parse clones its output; raw retains the merge's own object identity.
+    expect((result.raw as Fields).hvac.equipmentType).toBe(replacement);
+  });
+
+  test("a custom key-aware same-key merger is used only where pieces share a named key", async () => {
+    const mergeKeys: string[] = [];
+    const first = hvacLeaf("Boiler");
+    const second = hvacLeaf("Furnace");
+    const extractor = groupedExtractor({
+      target,
+      groups: {
+        hvac: [groupEntry("hvac", first), groupEntry("hvac", second)],
+        attic: groupEntry("attic", atticLeaf("10-12")),
+      },
+      mergeSameKey: (existing, _incoming, key) => {
+        mergeKeys.push(key);
+        return existing;
+      },
+    });
+
+    const result = await extractor.extract(transcript);
+
+    expect(result.fields.hvac).toEqual(first);
+    expect(mergeKeys).toEqual(["hvac"]);
+  });
 });
 
 // --- The non-grouped fallback arm --------------------------------------------

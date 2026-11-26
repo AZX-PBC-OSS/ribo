@@ -105,6 +105,14 @@ type NamedGroupEntries<V extends Record<string, unknown>, P> = {
 export type GroupMap<V extends Record<string, unknown>, P = NoProvenance> = NamedGroupEntries<V, P>;
 
 /**
+ * Recombine two values for the same named top-level key. The key is supplied for a schema-bound
+ * merger; the default remains the legacy shallow {@link mergeGroupPieces}. Planned extraction uses
+ * this seam for nested branches without changing ordinary grouped extraction (ADR 0043).
+ * @category Extraction
+ */
+export type GroupPieceMerger = (existing: unknown, incoming: unknown, key: string) => unknown;
+
+/**
  * The unwrapped portion's entry (or ordered piece list): pieces whose schema
  * is not nested under a group key, whose parsed responses merge by shallow
  * assign. For an all-flat schema that portion is the whole schema — the
@@ -239,6 +247,12 @@ interface GroupedExtractorOptionsBase<V extends Record<string, unknown>, P>
    * benefit.
    */
   readonly normalize?: (fields: Enveloped<V, P>) => Enveloped<V, P>;
+  /**
+   * Merge two settled pieces sharing a named top-level key. Defaults to {@link mergeGroupPieces},
+   * preserving its shallow later-piece-wins behavior. This is not used for the unwrapped portion.
+   * Planned extraction injects its schema-bound merger here (ADR 0043).
+   */
+  readonly mergeSameKey?: GroupPieceMerger;
 }
 
 /**
@@ -295,8 +309,8 @@ interface GroupEntry {
  *      single-shot call, a `PhaseUnit` from a wrapper) flow through whatever
  *      `onUnit` its own builder gave it.
  *   3. Merge the settled results by top-level key — one entry per key assigns
- *      directly; a partitioned group's pieces recombine with
- *      `mergeGroupPieces`.
+ *      directly; a partitioned group's pieces recombine through `mergeSameKey`,
+ *      which defaults to `mergeGroupPieces`.
  *   4. **Second trust-boundary parse**: parse the merged whole against the full
  *      `extractionSchema`. This is not redundant — it catches a merge that
  *      produced a shape no single entry would have.
@@ -325,6 +339,7 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
   onUnit,
   onRetryBudget,
   requireRetryBudget = false,
+  mergeSameKey = mergeGroupPieces,
 }: GroupedExtractorOptions<V, P>): Extractor<Enveloped<V, P>> {
   // The public spelling keeps the unwrapped portion OUT of the groups map — an
   // `unwrapped` option, not a "" key (ADR 0023, as amended). The fold below
@@ -694,7 +709,7 @@ export function groupedExtractor<V extends Record<string, unknown>, P = NoProven
         } else {
           const value = fields[entry.key];
           merged[entry.key] =
-            entry.key in merged ? mergeGroupPieces(merged[entry.key], value) : value;
+            entry.key in merged ? mergeSameKey(merged[entry.key], value, entry.key) : value;
         }
         // The statedEmptyGroups union, here rather than in the pool: schedule
         // order, not arrival order, so two entries stating one key resolve
