@@ -155,6 +155,20 @@ function emit(stream: OperatorOutputStream, text: string, channel: string): void
 }
 
 /**
+ * Refuse an existing `--out` before any paid work. The write still publishes with
+ * no-clobber semantics, so a destination created after this probe is never replaced.
+ */
+export async function assertOperatorOutputIsNew(
+  out: string,
+  options: Pick<WriteOperatorOutputOptions, "cwd" | "fs"> = {},
+): Promise<void> {
+  await probeDestination(
+    options.fs ?? defaultFileSystem,
+    resolve(options.cwd ?? process.cwd(), out),
+  );
+}
+
+/**
  * Emit an authoring artifact without modifying an input or replacing a file.
  * Refusals and staged-write faults are shared {@link OperatorError}s and occur
  * before either artifact or review text is emitted.

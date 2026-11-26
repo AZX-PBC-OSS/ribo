@@ -97,6 +97,7 @@ import { inspectSchema, SchemaInspectError } from "./inspect-schema.js";
 import type { ThresholdRow } from "./inspect/report-schema.js";
 import { InputFault, readDocumentSource } from "./read-input.js";
 import { renderHumanReport } from "./render-human.js";
+import { registerSchemaPlanCommand } from "./schema-plan/command.js";
 
 /**
  * The docs site's CLI section. The same pages ship inside the package — a
@@ -779,6 +780,8 @@ schema
     docsPointer("schema", "the schema dialect this command reads, and what each report line means"),
   )
   .action(run);
+
+registerSchemaPlanCommand(schema);
 
 const evalCommand = program
   .command("eval")
