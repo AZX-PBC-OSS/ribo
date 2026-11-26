@@ -63,6 +63,27 @@ export type {
   SchemaPlanFreshness,
   SchemaPlanFreshnessStatus,
 } from "./schema-plan.js";
+export { initSchema } from "./schema-init.js";
+export type {
+  InitSchemaOptions,
+  SchemaInitCollectionDeclaration,
+  SchemaInitDraft,
+  SchemaInitEnumMember,
+  SchemaInitEvidence,
+  SchemaInitLeafDeclaration,
+  SchemaInitLeafKind,
+  SchemaInitNodeDeclaration,
+  SchemaInitObjectDeclaration,
+  SchemaInitOpenApiCollection,
+  SchemaInitOpenApiLeaf,
+  SchemaInitOpenApiNode,
+  SchemaInitOpenApiObject,
+  SchemaInitPropertyDeclaration,
+  SchemaInitProposal,
+  SchemaInitProvenance,
+  SchemaInitSample,
+  SchemaInitSampleSource,
+} from "./schema-init.js";
 export { cliVersion, coreVersion } from "./versions.js";
 export { CorpusError } from "./corpus.js";
 export {
