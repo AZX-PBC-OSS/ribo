@@ -522,6 +522,12 @@ ${claims.join("\n")}
     <dd><code>${safe(run.model)}</code></dd>
     <dt>Settings</dt>
     <dd><code>${safe(settingsSummary(run.settings))}</code></dd>${
+      run.settings.planFingerprint == null
+        ? ""
+        : `
+    <dt>Plan fingerprint</dt>
+    <dd><code>${safe(run.settings.planFingerprint)}</code></dd>`
+    }${
       run.hazards
         ? `
     <dt>Stop-checks</dt>

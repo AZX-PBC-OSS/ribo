@@ -26,7 +26,7 @@
  * `1 + maxRetries` times.
  */
 import { describeExtraction } from "@azx/ribo-core";
-import type { ExtractionDescription } from "@azx/ribo-core";
+import type { ExtractionDescription, SchemaPlan } from "@azx/ribo-core";
 
 import type { LoadedCorpus } from "../corpus.js";
 import { describeCalls } from "../inspect/calls.js";
@@ -36,11 +36,13 @@ import type { EvalBackendName } from "./backend.js";
 import { caseTextOf } from "./case-text.js";
 import type { DocumentTexts } from "./documents.js";
 import { EvalError } from "./error.js";
+import { plannedEvalDryRunTargets } from "./plan.js";
+import type { PlannedEvalTarget } from "./plan.js";
 import { measurePromptChars } from "./prompt-size.js";
 import { priceFor, priceTokens } from "./pricing.js";
 import type { PriceResolution } from "./pricing.js";
 import { buildEvalTarget } from "./target.js";
-import type { EvalSettings, EvalStrategyId } from "./types.js";
+import type { EvalSettingsInput, EvalStrategyId } from "./types.js";
 
 export {
   CHARS_PER_TOKEN,
@@ -115,8 +117,8 @@ export interface SpendEstimate {
 export interface SpendEstimateInput {
   /** The loaded corpus the run measures. */
   readonly corpus: LoadedCorpus;
-  /** One settings object per arm, in flag order. */
-  readonly arms: readonly EvalSettings[];
+  /** One caller-supplied settings object per arm, in flag order. */
+  readonly arms: readonly EvalSettingsInput[];
   /** The backend the run spends against. */
   readonly backend: EvalBackendName;
   /**
@@ -135,6 +137,8 @@ export interface SpendEstimateInput {
    * before the estimate, so the text is always there to price.
    */
   readonly documents?: DocumentTexts;
+  /** The one parsed semantic plan shared by every planned arm. */
+  readonly plan?: SchemaPlan;
 }
 
 /**
@@ -145,7 +149,8 @@ export interface SpendEstimateInput {
  * packs under the same caps. The estimate therefore describes the call model
  * once, under the caps the run will actually use.
  */
-const splitCapsOf = (arms: readonly EvalSettings[]): SplitCapOptions => arms[0]?.splitCaps ?? {};
+const splitCapsOf = (arms: readonly EvalSettingsInput[]): SplitCapOptions =>
+  arms[0]?.splitCaps ?? {};
 
 /** The description's group count — the groups the presence phase would walk. */
 const groupCountOf = (description: ExtractionDescription): number =>
@@ -195,8 +200,17 @@ const rungCalls = (
   strategy: EvalStrategyId,
   calls: CallsReport,
   description: ExtractionDescription,
+  plannedTargets: readonly PlannedEvalTarget[] | undefined,
 ): number => {
   if (strategy === "single-shot") return calls.singleShot ?? 1;
+  if (strategy === "planned") {
+    if (plannedTargets !== undefined) return plannedTargets.length;
+    return refuseMissingBound(
+      strategy,
+      "no parsed semantic plan was supplied",
+      "pass the reviewed plan shared by the planned arms",
+    );
+  }
   if (strategy === "per-group") {
     if (calls.perGroup !== null) return calls.perGroup;
     return refuseMissingBound(
@@ -234,6 +248,20 @@ export function estimateSpend(input: SpendEstimateInput): SpendEstimate {
   const { corpus, arms, backend, model, documents } = input;
   const splitCaps = splitCapsOf(arms);
 
+  const planned = arms.some((arm) => arm.strategies.includes("planned"));
+  if (planned && input.plan === undefined) {
+    throw new EvalError(
+      "the planned strategy requires the run's parsed semantic plan before its calls can be " +
+        "estimated (fix: pass --plan with the reviewed schema-plan artifact)",
+    );
+  }
+  if (!planned && input.plan !== undefined) {
+    throw new EvalError(
+      "a semantic plan was supplied to an eval estimate with no planned rung — the plan would " +
+        "be silently ignored (fix: remove the plan, or name the planned strategy)",
+    );
+  }
+
   const description = describeExtraction({
     schema: corpus.schema,
     ...(splitCaps.maxNullableUnionsPerGroup === undefined
@@ -245,23 +273,39 @@ export function estimateSpend(input: SpendEstimateInput): SpendEstimate {
   });
   const calls = describeCalls(description, splitCaps);
 
+  // A planned bound needs core's projected targets. Ordinary rungs keep the
+  // guard's original bound-first ordering, including its named no-group refusal.
+  const plannedArm = arms.find((arm) => arm.strategies.includes("planned"));
+  const targetBundle =
+    plannedArm === undefined
+      ? undefined
+      : buildEvalTarget(corpus.schema, corpus.manifest.prompt, corpus.manifest.name, splitCaps);
+  const plannedTargets =
+    input.plan === undefined || plannedArm === undefined || targetBundle === undefined
+      ? undefined
+      : plannedEvalDryRunTargets({
+          target: targetBundle.target,
+          plan: input.plan,
+          settings: plannedArm,
+          ...(corpus.manifest.prompt.fieldDescriptions === undefined
+            ? {}
+            : { fieldDescriptions: corpus.manifest.prompt.fieldDescriptions }),
+        });
+
   // The bounds FIRST: a rung whose bound the call model cannot state refuses
   // the run before anything is measured or priced.
   const rungsByArm = arms.map((arm) =>
     arm.strategies.map((strategy) => ({
       strategy,
-      calls: rungCalls(strategy, calls, description),
+      calls: rungCalls(strategy, calls, description, plannedTargets),
     })),
   );
 
   // The target the prompts are measured from — the runner's own derivation, so
   // the measured prompts are the prompts the run will send.
-  const { target, groups } = buildEvalTarget(
-    corpus.schema,
-    corpus.manifest.prompt,
-    corpus.manifest.name,
-    splitCaps,
-  );
+  const { target, groups } =
+    targetBundle ??
+    buildEvalTarget(corpus.schema, corpus.manifest.prompt, corpus.manifest.name, splitCaps);
   const transcript = longestTranscript(corpus, documents);
   const groupInstructions = (groupKey: string): string =>
     corpus.manifest.prompt.groupInstructions?.[groupKey] ?? corpus.manifest.prompt.instructions;
@@ -285,6 +329,7 @@ export function estimateSpend(input: SpendEstimateInput): SpendEstimate {
           : { fieldDescriptions: corpus.manifest.prompt.fieldDescriptions }),
         groupInstructions,
         transcript,
+        ...(plannedTargets === undefined ? {} : { plannedTargets }),
       },
       arm.strategies,
     );

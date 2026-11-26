@@ -72,25 +72,27 @@ import {
   createOpenAiCompatibleChat,
 } from "./eval/backend.js";
 import { transcribeDocumentCases } from "./eval/documents.js";
-import { runEval } from "./eval/run.js";
+import { prepareEvalPlan } from "./eval/plan.js";
+import { runEvalWithSettings } from "./eval/run.js";
 import { scoreEvalRun } from "./eval/score.js";
 import { buildEvalRunRecord } from "./eval/record-build.js";
 import { compareEvalRunRecords } from "./eval/compare.js";
 import { renderCompareReport } from "./eval/render-compare.js";
 import type { EvalRunRecord, EvalRunRecordDraft } from "./eval/record-schema.js";
-import { EvalRunRecordSchema } from "./eval/record-schema.js";
+import { EvalRunRecordDocumentSchema } from "./eval/record-schema.js";
 import { EVAL_RUN_RECORDS_DEFAULT_DIR, writeEvalRunRecord } from "./eval/record-store.js";
 import { enforceSpendCeiling } from "./eval/spend-ceiling.js";
 import { formatSpendEstimate } from "./eval/spend-display.js";
 import { terminalConfirmation } from "./eval/spend-prompt.js";
 import { DEFAULT_MAX_SPEND_USD, estimateSpend } from "./eval/spend-guard.js";
 import { lookupSecret } from "./eval/secrets.js";
-import { validateEvalSettings } from "./eval/settings.js";
+import { validateEvalSettingsInput } from "./eval/settings.js";
 import type { EvalCliBackend, EvalBackendName } from "./eval/backend.js";
 import type {
   EvalCaseResult,
   EvalConsensusArbiter,
   EvalSettings,
+  EvalSettingsInput,
   EvalStrategyId,
 } from "./eval/types.js";
 import type { EvalScoreTotals } from "./eval/score-types.js";
@@ -420,6 +422,7 @@ interface EvalFlags {
   readonly model: string;
   readonly strategy: readonly string[];
   readonly out?: string;
+  readonly plan?: string;
   readonly consensus?: string;
   readonly consensusArbiter?: string;
   readonly maxRetries?: number;
@@ -468,7 +471,7 @@ function collectStrategy(value: string, previous: readonly string[]): readonly s
  * forwarded, so the strategies' own defaults stand rather than a copied
  * table.
  */
-function buildEvalSettings(ladder: readonly string[], flags: EvalFlags): EvalSettings {
+function buildEvalSettings(ladder: readonly string[], flags: EvalFlags): EvalSettingsInput {
   const splitCaps =
     flags.maxNullableUnionsPerGroup === undefined && flags.maxSerializedCharsPerGroup === undefined
       ? undefined
@@ -504,13 +507,11 @@ function buildEvalSettings(ladder: readonly string[], flags: EvalFlags): EvalSet
  * only once every arm has finished, so a refusal on the last arm leaves
  * stdout empty.
  *
- * The order is fixed: the preflight (a missing binary is a missing binary,
- * never a spend refusal), then the corpus, then the settings, then the
- * document cases' transcription (free and local, once per run, shared by
- * every arm — a document that cannot be transcribed refuses the run here,
- * before any model call), then the credential, then the estimate — printed
- * before any model call and priced over the transcribed text — and only
- * then the run.
+ * Ordinary eval retains its order: preflight, corpus, settings, transcription,
+ * credential, estimate, run. A planned invocation instead proves plan usage,
+ * freshness and construction after the corpus load and BEFORE that same
+ * preflight. Both paths transcribe once, price the transcribed text before any
+ * model call, and persist the runner-issued effective settings.
  */
 async function runEvalCommand(flags: EvalFlags): Promise<void> {
   if (flags.strategy.length === 0) {
@@ -545,33 +546,77 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
         "--timeout, or run against --backend claude-cli or --backend codex-cli)",
     );
   }
-  // The preflight runs BEFORE planning: a missing binary is reported as a
-  // missing binary, never as a corpus fault or a spend refusal. The
-  // openai-compatible backend has no binary to check, so it skips this.
-  if (isCliBackend(backend)) {
+  const preflight = async (): Promise<void> => {
+    if (!isCliBackend(backend)) return;
     try {
       await preflightCliBackend(cliBackendNameFor(backend));
     } catch (error) {
       if (error instanceof SchemaInspectError) failEval(error.message);
       throw error;
     }
-  }
-  let corpus;
-  try {
-    corpus = loadCorpus(flags.corpus);
-  } catch (error) {
-    if (error instanceof SchemaInspectError) failEval(error.message);
-    throw error;
-  }
-  // Every arm's settings are built up front: the guard prices the whole run,
-  // and an invalid setting is refused before anything is priced.
-  const settings = flags.strategy.map((ladder) => buildEvalSettings(splitLadder(ladder), flags));
-  for (const arm of settings) {
+  };
+  const load = (): ReturnType<typeof loadCorpus> => {
     try {
-      validateEvalSettings(arm);
+      return loadCorpus(flags.corpus);
     } catch (error) {
       if (error instanceof SchemaInspectError) failEval(error.message);
       throw error;
+    }
+  };
+  const ladders = flags.strategy.map(splitLadder);
+  const plannedInvocation =
+    flags.plan !== undefined || ladders.some((ladder) => ladder.includes("planned"));
+  let corpus: ReturnType<typeof loadCorpus>;
+  let settings: readonly EvalSettingsInput[];
+  let plan: SchemaPlan | undefined;
+
+  if (plannedInvocation) {
+    // Planned usage is knowable before input or backend work. The ordinary
+    // path below deliberately retains its original preflight-first ordering.
+    settings = ladders.map((ladder) => buildEvalSettings(ladder, flags));
+    for (const arm of settings) {
+      try {
+        validateEvalSettingsInput(arm);
+      } catch (error) {
+        if (error instanceof SchemaInspectError) failEval(error.message);
+        throw error;
+      }
+    }
+    const planned = settings.some((arm) => arm.strategies.includes("planned"));
+    if (planned && flags.plan === undefined) {
+      failEval(
+        'the "planned" strategy requires --plan <path> — the run executes one reviewed semantic ' +
+          "plan and derives its identity through core (fix: pass the schema-plan artifact)",
+      );
+    }
+    if (!planned && flags.plan !== undefined) {
+      failEval(
+        "--plan requires at least one arm with the planned strategy — a non-planned run would " +
+          "silently ignore the artifact (fix: remove --plan, or name the planned strategy)",
+      );
+    }
+    corpus = load();
+    try {
+      // The plan path is narrowed by the pairing refusal above.
+      const prepared = await prepareEvalPlan(corpus, settings, flags.plan!);
+      plan = prepared.plan;
+      for (const note of prepared.notes) writeEvalErr(`schema plan note: ${note}`);
+    } catch (error) {
+      if (error instanceof SchemaInspectError) failEval(error.message);
+      throw error;
+    }
+    await preflight();
+  } else {
+    await preflight();
+    corpus = load();
+    settings = ladders.map((ladder) => buildEvalSettings(ladder, flags));
+    for (const arm of settings) {
+      try {
+        validateEvalSettingsInput(arm);
+      } catch (error) {
+        if (error instanceof SchemaInspectError) failEval(error.message);
+        throw error;
+      }
     }
   }
   // The document cases' transcription: once per run, before the estimate and
@@ -618,7 +663,14 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
   // cannot state refuses here too, and no flag overrides that one.
   let estimate;
   try {
-    estimate = estimateSpend({ corpus, arms: settings, backend, model: flags.model, documents });
+    estimate = estimateSpend({
+      corpus,
+      arms: settings,
+      backend,
+      model: flags.model,
+      documents,
+      ...(plan === undefined ? {} : { plan }),
+    });
   } catch (error) {
     if (error instanceof SchemaInspectError) failEval(error.message);
     throw error;
@@ -642,8 +694,15 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
   const recordsDir = flags.out ?? EVAL_RUN_RECORDS_DEFAULT_DIR;
   for (const arm of settings) {
     let results: readonly EvalCaseResult[];
+    let effectiveSettings: EvalSettings;
     try {
-      results = await runEval(corpus, chat, arm, { documents });
+      const armPlan = arm.strategies.includes("planned") ? plan : undefined;
+      const executed = await runEvalWithSettings(corpus, chat, arm, {
+        documents,
+        ...(armPlan === undefined ? {} : { plan: armPlan }),
+      });
+      results = executed.results;
+      effectiveSettings = executed.settings;
     } catch (error) {
       if (error instanceof SchemaInspectError) failEval(error.message);
       throw error;
@@ -660,7 +719,7 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
       draft = buildEvalRunRecord({
         corpus,
         backend,
-        settings: arm,
+        settings: effectiveSettings,
         results,
         score,
       });
@@ -671,7 +730,7 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
       if (error instanceof SchemaInspectError) failEval(error.message);
       throw error;
     }
-    arms.push({ settings: arm, results, fingerprint, totals, record, draft });
+    arms.push({ settings: effectiveSettings, results, fingerprint, totals, record, draft });
   }
   if (arms.length > 1) writeCrossArmSummary(arms);
   // The stdout report keeps the shape T9b shipped — the draft travels to the
@@ -751,6 +810,9 @@ const evalHelp = [
   "  ordered fallback ladder: --strategy single-shot,per-group runs per-group only when single-shot",
   "  fails terminally. A run with more than one arm prints a cross-arm comparison summary to stderr,",
   "  the first arm against each later arm; the stdout report is unchanged.",
+  "  --plan <path> supplies the reviewed schema plan every planned arm shares. It is required with",
+  "  the planned strategy and forbidden without it. Stale or unbuildable plans are refused before",
+  "  preflight, transcription or spend; fingerprint-only drift prints one note and the run continues.",
   "",
   "Spend:",
   "  Every run prints an upper-bound cost estimate to stderr before the first model call, and",
@@ -869,6 +931,10 @@ const evalCommand = program
     `the records directory the run records will be written to (default: ./${EVAL_RUN_RECORDS_DEFAULT_DIR} under the current directory)`,
   )
   .option(
+    "--plan <path>",
+    "the reviewed schema-plan artifact every planned arm executes; required with planned and forbidden otherwise",
+  )
+  .option(
     "--consensus <n>",
     "the consensus modifier's candidate count (an integer of at least two)",
   )
@@ -959,7 +1025,7 @@ function readRecord(file: string): EvalRunRecord {
         "(fix: pass the path of a record `ribo eval` wrote)",
     );
   }
-  const parsed = EvalRunRecordSchema.safeParse(document);
+  const parsed = EvalRunRecordDocumentSchema.safeParse(document);
   if (!parsed.success) {
     failCompare(
       `the run record "${file}" is not a valid run record: ${parsed.error.issues

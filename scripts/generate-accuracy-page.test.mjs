@@ -246,6 +246,29 @@ test("a current record renders without the stale notice, naming its backend, mod
   expect(text).toMatch(/4 &times;[\s\S]*2 = 8 slots/);
 });
 
+test("base and planned v1 records render with visible plan identity and unchanged staleness", () => {
+  const identity = "c".repeat(64);
+  const base = record();
+  const planned = record({
+    settings: { strategies: ["planned"], planFingerprint: identity },
+  });
+  expect(base.contractVersion).toBe(1);
+  expect(planned.contractVersion).toBe(1);
+
+  const text = page([base, planned]);
+  expect(text).toContain(identity);
+  expect(text).toMatch(/Plan fingerprint/);
+  expect(text).not.toMatch(/ar-stale/);
+
+  const stale = record({
+    fingerprint: "a".repeat(64),
+    settings: { strategies: ["planned"], planFingerprint: identity },
+  });
+  const staleText = page([stale]);
+  expect(staleText).toMatch(/ar-stale/);
+  expect(staleText).toContain(identity);
+});
+
 test("a record whose run fingerprint differs from the current corpus's renders stale", () => {
   const stale = record({ fingerprint: "a".repeat(64) });
   expect(stale.fingerprint).not.toBe(runFingerprint(CORPUS.schemaDocument, CORPUS.manifest.prompt));
