@@ -67,6 +67,27 @@ export interface DocumentTranscriptionOptions {
   readonly transcriber?: Transcriber<DocumentCapture>;
 }
 
+/** One document at the shared eval/schema-init transcription boundary. */
+export interface DocumentDescriptor {
+  readonly caseId: string;
+  readonly file: string;
+  readonly capture: DocumentCapture;
+  readonly bytes: Uint8Array;
+}
+
+/** A document beside the actual text its one transcription returned. */
+export interface TranscribedDocument {
+  readonly document: DocumentDescriptor;
+  readonly text: string;
+}
+
+/** Internal construction seam; the public corpus API retains its original options. */
+export interface DocumentBatchOptions extends DocumentTranscriptionOptions {
+  readonly createTranscriber?: () => Transcriber<DocumentCapture>;
+  /** Words the refusal for a document that cannot be transcribed; eval's wording by default. */
+  readonly refuse?: (document: DocumentDescriptor, detail: string) => Error;
+}
+
 const require = nodeModule.createRequire(import.meta.url);
 
 /**
@@ -112,6 +133,42 @@ const faultMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 /**
+ * Transcribe descriptors sequentially, once each, through the one default
+ * pdf.js path. Empty batches do not construct a transcriber.
+ */
+export async function transcribeDocuments(
+  documents: readonly DocumentDescriptor[],
+  options?: DocumentBatchOptions,
+): Promise<readonly TranscribedDocument[]> {
+  if (documents.length === 0) return [];
+  const transcriber =
+    options?.transcriber ?? options?.createTranscriber?.() ?? defaultDocumentTranscriber();
+  const texts: TranscribedDocument[] = [];
+  for (const document of documents) {
+    let text: string;
+    try {
+      const transcript = await transcriber.transcribe(
+        document.capture,
+        new Blob([document.bytes as BlobPart]),
+      );
+      text = transcript.text;
+    } catch (error) {
+      const reason = error instanceof UnsupportedItemError ? ` (${error.reason})` : "";
+      const detail = `could not be transcribed${reason}: ${faultMessage(error)}`;
+      if (options?.refuse !== undefined) throw options.refuse(document, detail);
+      throw new EvalError(
+        `eval: the corpus case "${document.caseId}"'s document input "${document.file}" ${detail} ` +
+          `— the whole run is refused before any model call, because a partially-run corpus ` +
+          `measures nothing (fix: remove the input, or replace its PDF with one that carries a ` +
+          `text layer)`,
+      );
+    }
+    texts.push({ document, text });
+  }
+  return texts;
+}
+
+/**
  * Transcribe every document input of a loaded corpus to text, once.
  *
  * The corpus's cases are walked in corpus order and each case's inputs in
@@ -137,32 +194,24 @@ export async function transcribeDocumentCases(
   options?: DocumentTranscriptionOptions,
 ): Promise<DocumentTexts> {
   const documents = corpus.cases.flatMap((entry) =>
-    entry.inputs
-      .filter((input) => input.kind === "document")
-      .map((input) => ({ case: entry, input })),
+    entry.inputs.flatMap((input) =>
+      input.kind === "document"
+        ? [
+            {
+              caseId: entry.id,
+              file: input.file,
+              capture: input.capture,
+              bytes: input.bytes,
+            },
+          ]
+        : [],
+    ),
   );
-  const texts = new Map<string, string>();
-  if (documents.length === 0) return texts;
-  const transcriber = options?.transcriber ?? defaultDocumentTranscriber();
-  for (const { case: entry, input } of documents) {
-    if (input.kind !== "document") continue;
-    let text: string;
-    try {
-      const transcript = await transcriber.transcribe(
-        input.capture,
-        new Blob([input.bytes as BlobPart]),
-      );
-      text = transcript.text;
-    } catch (error) {
-      const reason = error instanceof UnsupportedItemError ? ` (${error.reason})` : "";
-      throw new EvalError(
-        `eval: the corpus case "${entry.id}"'s document input "${input.file}" could not be ` +
-          `transcribed${reason}: ${faultMessage(error)} — the whole run is refused before any ` +
-          `model call, because a partially-run corpus measures nothing (fix: remove the input, ` +
-          `or replace its PDF with one that carries a text layer)`,
-      );
-    }
-    texts.set(documentTextKey(entry.id, input.file), text);
-  }
-  return texts;
+  const transcribed = await transcribeDocuments(documents, options);
+  return new Map(
+    transcribed.map(({ document, text }) => [
+      documentTextKey(document.caseId, document.file),
+      text,
+    ]),
+  );
 }
