@@ -9,15 +9,18 @@
  * run here drives the suite's stub chat: no test reaches a network or spends
  * on a model, and transcription is free and local.
  */
+import { UnsupportedItemError } from "@azx/ribo-core";
 import type { DocumentCapture, Transcriber, Transcript } from "@azx/ribo-core";
 import { afterEach, expect, test, vi } from "vitest";
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadCorpus } from "../corpus/loader.js";
+import { loadSchemaInitSamples } from "../schema-init/samples.js";
 import { documentTextKey, transcribeDocumentCases } from "./documents.js";
+import { OperatorError } from "../operator/error.js";
 import { EvalError } from "./error.js";
 import { runEval } from "./run.js";
 import { stubChat } from "./test-support/stub-chat.js";
@@ -36,6 +39,50 @@ afterEach(() => {
 
 /** The arm every run here measures. */
 const ARM = { strategies: ["single-shot"], model: "ribo-test" } as const;
+
+/** Add a standalone single-document case to a copied corpus. */
+const addDocumentCase = (root: string, id: string): void => {
+  cpSync(path.join(root, "service-sheet"), path.join(root, id), { recursive: true });
+  editJson(path.join(root, id, "case.json"), (document) => {
+    document["id"] = id;
+  });
+};
+
+interface RecordedDocumentCall {
+  readonly capture: DocumentCapture;
+  readonly bytes: Blob;
+}
+
+/** Record the complete transcriber boundary, optionally rejecting one call. */
+const recordingTranscriber = (failure?: { readonly at: number; readonly error: unknown }) => {
+  const calls: RecordedDocumentCall[] = [];
+  const transcriber: Transcriber<DocumentCapture> = {
+    engine: "parity-stub",
+    capability: () => Promise.resolve({ status: "ready" }),
+    transcribe: (capture, bytes): Promise<Transcript> => {
+      const index = calls.length;
+      calls.push({ capture, bytes });
+      // This parity case deliberately rejects with a non-Error; preserving it is the subject.
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      if (index === failure?.at) return Promise.reject(failure.error);
+      return Promise.resolve({
+        recordingId: capture.id,
+        text: `actual transcript for ${capture.id}`,
+        engine: "parity-stub",
+      });
+    },
+  };
+  return { calls, transcriber };
+};
+
+/** Resolve Blob bytes so two transcription paths can be compared exactly. */
+const observedCalls = async (calls: readonly RecordedDocumentCall[]) =>
+  Promise.all(
+    calls.map(async ({ capture, bytes }) => ({
+      capture,
+      bytes: Buffer.from(await bytes.arrayBuffer()),
+    })),
+  );
 
 test("a document case runs through runEval, and the prompt carries the PDF's extracted text", async () => {
   const corpus = loadCorpus(FIXTURE_CORPUS);
@@ -192,6 +239,87 @@ test("the CLI's default document path prints no pdf.js Warning line, and a genui
   expect(failure).toBeInstanceOf(EvalError);
   expect(failure instanceof Error ? failure.message : String(failure)).toContain("service-sheet");
 });
+
+test("standalone samples and corpus documents have identical capture, byte, order and text behavior", async () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS, (root) => addDocumentCase(root, "second-sheet"));
+  const corpus = loadCorpus(dir);
+  const sources = corpus.cases
+    .filter((entry) => entry.inputs.some((input) => input.kind === "document"))
+    .map((entry) => entry.dir);
+  const standalone = recordingTranscriber();
+  const evaluated = recordingTranscriber();
+
+  const samples = await loadSchemaInitSamples(sources, { transcriber: standalone.transcriber });
+  const documents = await transcribeDocumentCases(corpus, { transcriber: evaluated.transcriber });
+
+  expect(await observedCalls(standalone.calls)).toEqual(await observedCalls(evaluated.calls));
+  expect(standalone.calls.map((call) => call.capture.id)).toEqual([
+    "second-sheet",
+    "service-sheet",
+  ]);
+  expect(standalone.calls).toHaveLength(2);
+  expect(evaluated.calls).toHaveLength(2);
+  expect(samples.map((sample) => sample.text)).toEqual([...documents.values()]);
+  expect(samples.map((sample) => sample.source.capture)).toEqual(
+    standalone.calls.map((call) => call.capture),
+  );
+});
+
+test.each([
+  {
+    label: "UnsupportedItemError",
+    expected: "(no-text-layer)",
+    fault: () =>
+      new UnsupportedItemError({
+        engine: "parity-stub",
+        reason: "no-text-layer",
+        detail: "the parity fixture has no text",
+      }),
+  },
+  {
+    label: "a non-Error fault",
+    expected: "non-Error parity sentinel",
+    fault: () => "non-Error parity sentinel",
+  },
+])(
+  "standalone and corpus transcription retain $label failure parity",
+  async ({ expected, fault }) => {
+    const dir = copiedCorpus(FIXTURE_CORPUS, (root) => {
+      addDocumentCase(root, "second-sheet");
+      addDocumentCase(root, "third-sheet");
+    });
+    const corpus = loadCorpus(dir);
+    const sources = corpus.cases
+      .filter((entry) => entry.inputs.some((input) => input.kind === "document"))
+      .map((entry) => entry.dir);
+    const standalone = recordingTranscriber({ at: 1, error: fault() });
+    const evaluated = recordingTranscriber({ at: 1, error: fault() });
+
+    const sampleFailure = await loadSchemaInitSamples(sources, {
+      transcriber: standalone.transcriber,
+    }).catch((error: unknown) => error);
+    const evalFailure = await transcribeDocumentCases(corpus, {
+      transcriber: evaluated.transcriber,
+    }).catch((error: unknown) => error);
+
+    // Each caller words its own refusal around the same failure detail.
+    expect(sampleFailure).toBeInstanceOf(OperatorError);
+    expect(evalFailure).toBeInstanceOf(EvalError);
+    const sampleMessage =
+      sampleFailure instanceof Error ? sampleFailure.message : String(sampleFailure);
+    const evalMessage = evalFailure instanceof Error ? evalFailure.message : String(evalFailure);
+    const detail = /could not be transcribed.*? — /u.exec(evalMessage)?.[0];
+    expect(detail).toBeDefined();
+    expect(sampleMessage).toContain(detail!);
+    expect(sampleMessage).not.toContain("eval:");
+    expect(sampleMessage).toContain(expected);
+    expect(sampleMessage).toContain("service-sheet");
+    expect(sampleMessage).toContain("input.pdf");
+    expect(standalone.calls).toHaveLength(2);
+    expect(evaluated.calls).toHaveLength(2);
+    expect(await observedCalls(standalone.calls)).toEqual(await observedCalls(evaluated.calls));
+  },
+);
 
 test("a two-document, two-arm run transcribes each document exactly once", async () => {
   // A second case holding two PDFs: the map is keyed by case id AND file, so
