@@ -4,11 +4,14 @@
  * The question is asked through an injected confirmation, so the suite never
  * touches a real terminal: the answers are the ones an operator can give.
  */
+import { Readable, Writable } from "node:stream";
 import { expect, test, vi } from "vitest";
 
+import { OperatorError } from "../operator/error.js";
 import { EvalError } from "./error.js";
 import { enforceSpendCeiling } from "./spend-ceiling.js";
 import type { SpendEstimate } from "./spend-guard.js";
+import { terminalConfirmation } from "./spend-prompt.js";
 
 /** An estimate over the ceiling. */
 const estimate = (usd: number): SpendEstimate => ({
@@ -98,6 +101,40 @@ test("an over-ceiling run the operator declined refuses, naming the estimate and
   expect(message).toContain("(fix:");
   expect(message).toContain("--max-spend");
   expect(message).toContain("--yes");
+});
+
+test("the eval ceiling adapter preserves EvalError, legacy diagnostic text and TTY behavior while sharing the OperatorError ancestry", async () => {
+  const input = Object.assign(Readable.from(["y\n"]), { isTTY: false });
+  const output = Object.assign(
+    new Writable({
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    }),
+    { isTTY: false },
+  );
+  const confirmation = terminalConfirmation({ input, output });
+  expect(confirmation).toBeUndefined();
+
+  let error: unknown;
+  try {
+    await enforceSpendCeiling({
+      estimate: estimate(12),
+      maxSpendUsd: 10,
+      yes: false,
+      ...(confirmation === undefined ? {} : { confirmation }),
+    });
+    throw new Error("expected the ceiling to refuse");
+  } catch (caught) {
+    error = caught;
+  }
+
+  expect(error).toBeInstanceOf(EvalError);
+  expect(error).toBeInstanceOf(OperatorError);
+  expect((error as Error).message).toBe(
+    "the estimated spend (USD 12) is above the ceiling (USD 10) — the run was refused before " +
+      "any model call (fix: raise the ceiling with --max-spend 13.20, or confirm the run with --yes)",
+  );
 });
 
 test("an over-ceiling run with no terminal refuses without asking", async () => {

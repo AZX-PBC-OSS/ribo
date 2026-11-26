@@ -25,6 +25,7 @@ import { join } from "node:path";
 
 import type { CliBackendName } from "./cli-chat.js";
 import { EvalError } from "./eval/error.js";
+import type { OperatorError } from "./operator/error.js";
 
 /** How long the `--version` probe may run before the binary counts as not answering. */
 const PREFLIGHT_TIMEOUT_MS = 15_000;
@@ -40,6 +41,8 @@ export interface CliPreflightOptions {
   readonly spawnImpl?: typeof spawn;
   /** How long the probe may run (ms). Default 15_000. */
   readonly timeoutMs?: number;
+  /** The command layer's refusal class. Defaults to eval's adapter. */
+  readonly createError?: (message: string) => OperatorError;
 }
 
 /** The message of a thrown fault — a non-Error sentinel must not read "undefined". */
@@ -65,6 +68,7 @@ export async function preflightCliBackend(
 ): Promise<void> {
   const spawnImpl = options.spawnImpl ?? spawn;
   const timeoutMs = options.timeoutMs ?? PREFLIGHT_TIMEOUT_MS;
+  const createError = options.createError ?? ((message: string) => new EvalError(message));
   // A throwaway temp cwd, exactly like the transport's own shell-out: an
   // agentic CLI must never roam the operator's repository to answer `--version`.
   const cwd = mkdtempSync(join(tmpdir(), "ribo-cli-preflight-"));
@@ -89,7 +93,7 @@ export async function preflightCliBackend(
         settle();
         child.kill("SIGKILL");
         reject(
-          new EvalError(
+          createError(
             `the ${backend} CLI did not answer --version within ${Math.round(timeoutMs / 1000)}s — ` +
               "the backend cannot be run (fix: check that the CLI starts and is authenticated, then " +
               "re-run)",
@@ -101,7 +105,7 @@ export async function preflightCliBackend(
       child.on("error", (cause: Error) => {
         settle();
         reject(
-          new EvalError(
+          createError(
             `the ${backend} CLI was not found on PATH — the backend cannot be run ` +
               `(${messageOf(cause)}) (fix: install the ${backend} CLI and sign in, then re-run)`,
           ),
@@ -115,7 +119,7 @@ export async function preflightCliBackend(
           return;
         }
         reject(
-          new EvalError(
+          createError(
             `the ${backend} CLI did not answer --version — it exited with code ${String(code)}` +
               `${err.length === 0 ? "" : `: ${err.slice(0, 200)}`} (fix: check that the ${backend} ` +
               "CLI is installed and authenticated, then re-run)",

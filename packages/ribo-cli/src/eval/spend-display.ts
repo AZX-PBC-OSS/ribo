@@ -14,24 +14,15 @@
  * other diagnostic in this package.
  */
 import type { Colors } from "../colors.js";
-import { DEFAULT_COMPLETION_TOKENS } from "./spend-guard.js";
+import {
+  DEFAULT_COMPLETION_TOKENS,
+  formatPriceResolution,
+  groupDigits,
+  usd,
+} from "../operator/spend.js";
 import type { SpendEstimate } from "./spend-guard.js";
 
-/** Group a number's digits with thousands separators: 2700 becomes "2,700". */
-const groupDigits = (value: number): string =>
-  Math.round(value)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-
-/**
- * A dollar amount: up to four decimals, with the trailing zeros dropped.
- *
- * Four decimals is finer than a cent, so a small ceiling still reads as the
- * number it is, and the trailing zeros are dropped so a round ceiling still
- * reads as round.
- */
-export const usd = (value: number): string =>
-  `USD ${value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "")}`;
+export { usd } from "../operator/spend.js";
 
 /**
  * One arm's call line: the ladder, the rung counts and the multipliers.
@@ -87,25 +78,6 @@ export function formatSpendEstimate(estimate: SpendEstimate, colors: Colors): st
     ),
   );
 
-  // Which row priced the estimate is stated, never silent: a model priced
-  // on its own dated row names it; a model with no row fell back to the
-  // backend's reference row, and the line says so and names the reference.
-  const price = estimate.price;
-  const which =
-    price.matched === "model"
-      ? `${price.backend} — model ${price.model}, priced on its own dated row`
-      : `${price.backend} — model ${price.model} has no dated row of its own, so the estimate ` +
-        `fell back to ${price.rowName}`;
-  lines.push(
-    colors.dim(
-      `  price: ${which}: USD ${price.promptUsdPerThousandTokens} per 1K ` +
-        `prompt tokens, USD ${price.completionUsdPerThousandTokens} per 1K completion ` +
-        `tokens (priced ${price.pricedOn}; ${price.source})`,
-    ),
-  );
-
-  if (estimate.price.assumption !== undefined) {
-    lines.push(colors.dim(`  assumption: ${estimate.price.assumption}`));
-  }
+  lines.push(...formatPriceResolution(estimate.price, colors));
   return lines;
 }

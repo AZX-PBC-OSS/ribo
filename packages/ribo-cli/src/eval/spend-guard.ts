@@ -31,6 +31,7 @@ import type { ExtractionDescription } from "@azx/ribo-core";
 import type { LoadedCorpus } from "../corpus.js";
 import { describeCalls } from "../inspect/calls.js";
 import type { CallsReport, SplitCapOptions } from "../inspect/calls.js";
+import { CHARS_PER_TOKEN, DEFAULT_COMPLETION_TOKENS } from "../operator/spend.js";
 import type { EvalBackendName } from "./backend.js";
 import { caseTextOf } from "./case-text.js";
 import type { DocumentTexts } from "./documents.js";
@@ -41,32 +42,11 @@ import type { PriceResolution } from "./pricing.js";
 import { buildEvalTarget } from "./target.js";
 import type { EvalSettings, EvalStrategyId } from "./types.js";
 
-/**
- * The ceiling the guard applies when the operator names none: USD 10.00.
- *
- * A guard that only guards when configured does not fix the problem it was
- * built for, so the ceiling has a default and the flag tunes it.
- */
-export const DEFAULT_MAX_SPEND_USD = 10;
-
-/**
- * The completion tokens a call is assumed to generate when the run sets no
- * response cap: 4,096.
- *
- * An unset cap puts no `maxTokens` on the wire, so the estimate has to bound
- * the completion side some other way — and a stated assumption is the honest
- * way to bound it. The number is one constant, not a table.
- */
-export const DEFAULT_COMPLETION_TOKENS = 4096;
-
-/**
- * The characters one token is assumed to be worth: 2.
- *
- * Deliberately conservative — real tokenizers land nearer four characters per
- * token for English prose, so the estimate's prompt side is roughly twice the
- * tokens the run will really spend.
- */
-export const CHARS_PER_TOKEN = 2;
+export {
+  CHARS_PER_TOKEN,
+  DEFAULT_COMPLETION_TOKENS,
+  DEFAULT_MAX_SPEND_USD,
+} from "../operator/spend.js";
 
 /**
  * One rung of an arm's ladder, and the calls it can make per case.
