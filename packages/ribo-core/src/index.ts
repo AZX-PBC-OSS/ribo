@@ -479,6 +479,7 @@ export type {
   GroupedEntries,
   GroupedExtractorOptions,
   GroupMap,
+  GroupPieceMerger,
   UnwrappedEntry,
 } from "./extraction/grouped-extractor.js";
 
@@ -840,6 +841,14 @@ export type {
   PerGroupOptions,
   PerGroupPlan,
 } from "./extraction/strategies/per-group.js";
+
+// A reviewed schema plan is a static, core-owned partition. Compile it without chat for inspection,
+// or execute it through the same grouped engine with the planned-only nested merge (ADR 0043).
+export { plannedExtractor, plannedPerGroupPlan } from "./extraction/strategies/planned.js";
+export type {
+  PlannedExtractorOptions,
+  PlannedPerGroupPlan,
+} from "./extraction/strategies/planned.js";
 
 // The entry point that takes a RAW zod schema: the `enveloped()` derivation and
 // the single-shot-vs-per-group selection run inside, so a newcomer hands over

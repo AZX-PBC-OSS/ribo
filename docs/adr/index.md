@@ -84,3 +84,4 @@ receives.
 | [0040](./0040-the-presence-narrowed-fill-honours-the-same-split-caps-as-per-group.md)   | The presence-narrowed fill honours the same split caps as per-group                            | Accepted |
 | [0041](./0041-eval-run-record-keys-freshness-on-backend-model-settings-fingerprint.md)  | The eval run record keys freshness on backend, model, settings, fingerprint                    | Accepted |
 | [0042](./0042-join-corpus-case-inputs-with-the-core-combiner.md)                        | A corpus case reads several input files, joined by the core combiner                           | Accepted |
+| [0043](./0043-a-schema-plan-is-a-reviewed-core-owned-partition.md)                      | A schema plan is a reviewed core-owned partition                                               | Accepted |
