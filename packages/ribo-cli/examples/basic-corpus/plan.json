@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "schemaFingerprint": "7efbd2d508e9b120552d9826d2dd277b49986e8c27b3652c1639c25167fe56de",
+  "fieldPaths": [
+    "home.address",
+    "home.yearBuilt",
+    "heating.fuel",
+    "heating.servicedAt",
+    "upgrades.measure",
+    "upgrades.estimatedCost"
+  ],
+  "pieces": [
+    {
+      "name": "Home identity",
+      "description": "The home's address and construction year belong together.",
+      "key": "home",
+      "paths": ["home.address", "home.yearBuilt"]
+    },
+    {
+      "name": "Heating system",
+      "description": "The heating fuel and service date describe one system.",
+      "key": "heating",
+      "paths": ["heating.fuel", "heating.servicedAt"]
+    },
+    {
+      "name": "Recommended upgrades",
+      "description": "Each recommendation's measure and estimated cost stay together.",
+      "key": "upgrades",
+      "paths": ["upgrades.measure", "upgrades.estimatedCost"]
+    }
+  ],
+  "provenance": {
+    "model": "manual-example",
+    "backend": "manual",
+    "createdAt": "2026-10-01T02:03:04.000Z"
+  }
+}
