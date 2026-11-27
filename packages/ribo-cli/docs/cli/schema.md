@@ -120,8 +120,7 @@ out.
   the schema carrying forced partitions. That is a shape fact, not a missing bound —
   `ribo eval --strategy single-shot` still sends one call per attempt on a per-group schema; it is
   the schema's single-shot classification that is unavailable. A count of "unavailable" is the
-  model's own answer, never a zero. Of the four strategies, only `presence-narrowed` needs every
-  leaf inside a group at `"leaf"` provenance granularity — see
+  model's own answer, never a zero. Only `presence-narrowed` needs every leaf inside a group at `"leaf"` provenance granularity — see
   [Which strategies need leaf granularity](#which-strategies-need-leaf-granularity); the others
   run a schema with top-level scalars or looser granularity as-is.
 - **guidance coverage** — described fields over walked fields. Anything short of full coverage is
