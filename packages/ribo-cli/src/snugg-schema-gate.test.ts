@@ -309,7 +309,7 @@ test("a malformed artifact surfaces the bin's own diagnostic and fails could-not
   expect(run.stderr).toContain("not valid JSON");
 });
 
-test("stub bins refuse v3 or malformed layouts and accept a required-layout v4 report", () => {
+test("stub bins refuse v3 or malformed layouts and accept a required-layout v5 report", () => {
   const stubReport = (body: string): string =>
     [
       "#!/usr/bin/env node",
@@ -320,7 +320,7 @@ test("stub bins refuse v3 or malformed layouts and accept a required-layout v4 r
 
   const fullReport = (overrides: Record<string, unknown>): string =>
     JSON.stringify({
-      contractVersion: 4,
+      contractVersion: 5,
       cliVersion: "0.0.0",
       coreVersion: "0.0.0",
       schemaFingerprint: "a".repeat(64),

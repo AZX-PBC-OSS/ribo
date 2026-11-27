@@ -139,3 +139,14 @@ test("the schema doc distinguishes unbuildable-plan exit 2 with no report from a
     /exit 1[^\n]*report is still on stdout|report is still on stdout[^\n]*exit 1/u,
   );
 });
+
+test("schema docs explain call-count reasons and explicit single-shot eval behavior", () => {
+  // The old explanation was wrong for single-shot: a flat schema is not why
+  // the single-shot count is unavailable — the per-group shape's exclusions
+  // are. The doc names the union cap as one of those causes and states that
+  // an explicit single-shot eval run still sends one call per attempt.
+  expect(SCHEMA_DOC).not.toContain("a flat schema has no per-group bound");
+  expect(SCHEMA_DOC).toMatch(/nullable unions over the cap/u);
+  expect(SCHEMA_DOC).toContain("--max-nullable-unions-per-group");
+  expect(SCHEMA_DOC).toMatch(/ribo eval --strategy single-shot[^.]*still sends one call/u);
+});

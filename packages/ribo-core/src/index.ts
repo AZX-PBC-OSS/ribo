@@ -818,6 +818,7 @@ export type {
   ExtractionRefusal,
   ExtractionRefusalStage,
   SchemaMeasures,
+  SingleShotExclusion,
 } from "./extraction/schema/describe-extraction.js";
 
 // The per-group managed-LLM extractor (R3 Task 2) — one chat call per top-level

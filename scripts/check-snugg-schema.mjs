@@ -149,10 +149,10 @@ try {
 } catch {
   die(1, "report contract drift: the bin's --json output is not valid JSON");
 }
-if (report?.contractVersion !== 4) {
+if (report?.contractVersion !== 5) {
   die(
     1,
-    `report contract drift: expected "contractVersion": 4, but the bin reported ` +
+    `report contract drift: expected "contractVersion": 5, but the bin reported ` +
       `${JSON.stringify(report?.contractVersion)} — re-pin scripts/check-snugg-schema.mjs ` +
       "deliberately against the new contract",
   );

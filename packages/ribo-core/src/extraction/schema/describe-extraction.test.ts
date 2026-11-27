@@ -164,6 +164,80 @@ describe("describeExtraction — the call shape and its measurements", () => {
     }
   });
 
+  test("a per-group schema over the union cap reports the measured count and cap", () => {
+    // Nine enveloped leaves cost 18 unions — over the 16-union default — so
+    // the per-group shape is selected and the exclusion names both numbers.
+    const nineLeaf = enveloped(
+      z
+        .object({
+          gamma: z
+            .object({
+              g1: leaf(),
+              g2: leaf(),
+              g3: leaf(),
+              g4: leaf(),
+              g5: leaf(),
+              g6: leaf(),
+              g7: leaf(),
+              g8: leaf(),
+              g9: leaf(),
+            })
+            .strict()
+            .optional(),
+        })
+        .strict(),
+    );
+
+    const report = describeExtraction({ extractionSchema: nineLeaf });
+
+    expect(report.callShape).toBe("per-group");
+    expect(report.singleShotExclusions).toEqual([{ kind: "union-cap", measured: 18, cap: 16 }]);
+  });
+
+  test("a per-group schema over a supplied byte cap reports the measured size and cap", () => {
+    // A single-group schema that fits the union cap, pushed per-group only by
+    // a byte cap the caller supplied: the exclusion carries the measured
+    // serialized size and the supplied limit, never an invented one.
+    const schema = enveloped(
+      z.object({ alpha: z.object({ a1: leaf(), a2: leaf() }).strict().optional() }).strict(),
+    );
+    const whole = describeExtraction({ extractionSchema: schema }).whole;
+    expect(whole).toBeDefined();
+
+    const report = describeExtraction({
+      extractionSchema: schema,
+      maxSerializedCharsPerGroup: 1,
+    });
+
+    expect(report.callShape).toBe("per-group");
+    expect(report.singleShotExclusions).toEqual([
+      { kind: "byte-cap", measured: whole?.serializedChars, cap: 1 },
+    ]);
+  });
+
+  test("forced partitions exclude single-shot even when the whole schema fits", () => {
+    // Two leaves, well under every cap — the partitions record alone forces
+    // the per-group shape, so that is the exclusion named.
+    const schema = enveloped(
+      z.object({ alpha: z.object({ a1: leaf(), a2: leaf() }).strict().optional() }).strict(),
+    );
+
+    const report = describeExtraction({
+      extractionSchema: schema,
+      partitions: { alpha: { alpha: ["a1"] } },
+    });
+
+    expect(report.callShape).toBe("per-group");
+    expect(report.singleShotExclusions).toEqual([{ kind: "forced-partitions" }]);
+  });
+
+  test("a single-shot schema reports no single-shot exclusions", () => {
+    const report = describeExtraction({ extractionSchema: small });
+
+    expect(report.callShape).toBe("single-shot");
+    expect(report.singleShotExclusions).toBeUndefined();
+  });
+
   test("a flat schema over a supplied byte cap reports flat pieces sharing the empty key, each under the cap", () => {
     const described = (what: string) =>
       leaf().describe(`${what}: a considerably long vendor-style description text field`);

@@ -78,8 +78,10 @@ _stale_ (field membership drifted), which is what `ribo eval` refuses and what t
 Sizes a JSON Schema document in OpenAPI 3.0 form before the first model call: how many fields the
 schema carries, how ribo would split it into calls, what each strategy costs in calls per attempt,
 how many fields carry `description` guidance, and which fields ask a model to reformat (a finding —
-the answer should arrive as the source stated it). Reads the file at `<path>`, or stdin when
-`<path>` is `-` or absent and stdin is piped.
+the answer should arrive as the source stated it). Every unavailable call count states the reason
+it is unavailable — single-shot reads "not selected" with the measured condition core reported
+(the union cap, a supplied byte cap, or forced partitions), with the measured value and limit.
+Reads the file at `<path>`, or stdin when `<path>` is `-` or absent and stdin is piped.
 
 With `--plan <path>`, the report gains the plan's semantic pieces and the **actual planned packed
 calls** the plan produces under the split caps, plus core's plan fingerprint.

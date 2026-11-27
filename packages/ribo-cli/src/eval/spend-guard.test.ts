@@ -597,3 +597,26 @@ test("the priced longest prompt is the complete combined text with its markers, 
   });
   expect(bothPriced.worstCasePromptTokens).toBeGreaterThan(unmarked.worstCasePromptTokens);
 });
+
+test("the presence-narrowed refusal text equals the calls report reason", () => {
+  const corpus = loadCorpus(FIXTURE_FLAT_CORPUS);
+  const caps: EvalSplitCaps = {};
+  const report = describeCalls(describeExtraction({ schema: corpus.schema, ...caps }), caps);
+  expect(report.presenceNarrowedAtMost).toBeNull();
+  expect(report.presenceNarrowedReason).toBeDefined();
+
+  let message = "";
+  try {
+    estimateSpend({
+      corpus,
+      arms: [{ strategies: ["presence-narrowed"], model: "ribo-test", splitCaps: caps }],
+      backend: "openai-compatible",
+      model: "ribo-test",
+    });
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+  // The guard reads the report's reason — it never restates a second copy
+  // of the arithmetic that could drift from the row the operator sees.
+  expect(message).toContain(report.presenceNarrowedReason!);
+});

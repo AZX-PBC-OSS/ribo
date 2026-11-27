@@ -26,7 +26,7 @@
  * `1 + maxRetries` times.
  */
 import { describeExtraction } from "@azx/ribo-core";
-import type { ExtractionDescription, SchemaPlan } from "@azx/ribo-core";
+import type { SchemaPlan } from "@azx/ribo-core";
 
 import type { LoadedCorpus } from "../corpus.js";
 import { describeCalls } from "../inspect/calls.js";
@@ -152,10 +152,6 @@ export interface SpendEstimateInput {
 const splitCapsOf = (arms: readonly EvalSettingsInput[]): SplitCapOptions =>
   arms[0]?.splitCaps ?? {};
 
-/** The description's group count — the groups the presence phase would walk. */
-const groupCountOf = (description: ExtractionDescription): number =>
-  (description.keys ?? []).filter((key) => key.kind === "group").length;
-
 /**
  * The longest transcript the corpus holds.
  *
@@ -199,7 +195,6 @@ const refuseMissingBound = (strategy: EvalStrategyId, reason: string, fix: strin
 const rungCalls = (
   strategy: EvalStrategyId,
   calls: CallsReport,
-  description: ExtractionDescription,
   plannedTargets: readonly PlannedEvalTarget[] | undefined,
 ): number => {
   if (strategy === "single-shot") return calls.singleShot ?? 1;
@@ -222,15 +217,11 @@ const rungCalls = (
     );
   }
   if (calls.presenceNarrowedAtMost !== null) return calls.presenceNarrowedAtMost;
-  const reason =
-    description.refusal !== undefined
-      ? `core's derivation refused the schema: ${description.refusal.message}`
-      : groupCountOf(description) === 0
-        ? "the schema declares no groups, so the presence phase has nothing to ask about"
-        : (calls.perGroupReason ?? "the fill's split could not be derived over this schema");
+  // The report states the reason — the same text the calls row carries —
+  // never a second derivation that could drift from it.
   return refuseMissingBound(
     strategy,
-    reason,
+    calls.presenceNarrowedReason ?? "the calls report stated no reason for the missing bound",
     "use a schema with groups, or drop presence-narrowed from the arm",
   );
 };
@@ -297,7 +288,7 @@ export function estimateSpend(input: SpendEstimateInput): SpendEstimate {
   const rungsByArm = arms.map((arm) =>
     arm.strategies.map((strategy) => ({
       strategy,
-      calls: rungCalls(strategy, calls, description, plannedTargets),
+      calls: rungCalls(strategy, calls, plannedTargets),
     })),
   );
 

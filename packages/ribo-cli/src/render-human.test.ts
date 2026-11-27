@@ -117,3 +117,66 @@ test("the granularity violations line points at the shipped doc section that exp
     /granularity violations\s+\d+ — see node_modules\/@azx\/ribo-cli\/docs\/cli\/schema\.md#granularity-violations/u,
   );
 });
+
+test("call lines never render a bare unavailable and single-shot says not selected with core's reason", () => {
+  // Three shapes, covering every nullable count: an over-union schema
+  // (single-shot null), a wire-unsafe group key (per-group and consensus
+  // null), and a no-group schema (presence-narrowed null).
+  const overUnion = inspectSchema(
+    {
+      type: "object",
+      properties: {
+        alpha: {
+          type: "object",
+          properties: {
+            a1: { type: "string", nullable: true },
+            a2: { type: "number", nullable: true },
+            a3: { type: "boolean", nullable: true },
+            a4: { type: "string", nullable: true },
+          },
+          required: ["a1", "a2", "a3", "a4"],
+        },
+        beta: {
+          type: "object",
+          properties: { b1: { type: "string", nullable: true } },
+          required: ["b1"],
+        },
+      },
+      required: ["alpha", "beta"],
+    },
+    { maxNullableUnionsPerGroup: 3 },
+  );
+  const wireUnsafe = inspectSchema({
+    type: "object",
+    properties: {
+      "hvac: system": {
+        type: "object",
+        properties: { fuel: { type: "string", nullable: true } },
+        required: ["fuel"],
+      },
+    },
+    required: ["hvac: system"],
+  });
+  const noGroups = inspectSchema({
+    type: "object",
+    properties: { note: { type: "string", nullable: true } },
+    required: ["note"],
+  });
+
+  for (const report of [overUnion, wireUnsafe, noGroups]) {
+    const rendered = renderHumanReport(report);
+    for (const lineText of rendered.split("\n")) {
+      if (lineText.includes("unavailable")) {
+        // The bare word explains nothing; every unavailable line carries its
+        // reason after the em dash.
+        expect(lineText).toContain("unavailable — ");
+      }
+    }
+  }
+
+  const rendered = renderHumanReport(overUnion);
+  expect(rendered).toMatch(/single-shot\s+not selected — /u);
+  expect(rendered).toContain("nullable unions");
+  expect(rendered).toContain("--max-nullable-unions-per-group");
+  expect(overUnion.calls?.singleShot).toBeNull();
+});

@@ -86,20 +86,67 @@ export const ThresholdRowSchema = z
  * the inventory to count schema FIELDS, not provenance-envelope members, and
  * added `splitCaps` and the split-cap options. v4 adds planned semantic and
  * packed-call measurements, core's plan identity, and explicit threshold layouts.
+ * v5 pairs every nullable call count with the reason it is null — a null count
+ * without its reason fails the parse, and a non-null count carrying one does too.
  *
  * It lives beside the zod `contractVersion` literal below so the writer, the
  * exported schema and the exported constant cannot drift apart.
  */
-export const CONTRACT_VERSION = 4;
+export const CONTRACT_VERSION = 5;
 
 /**
- * The report's serialized shape, as a zod schema. Exported so the bin, and
+ * The per-strategy call counts. The refine is the null-count contract v5
+ * added: a nullable count carries its reason — the reason a reader needs
+ * when the count is absent — and a non-null count carries none, since a
+ * number that explains itself would drift from the number.
+ */
+const CallsSchema = z
+  .object({
+    singleShot: z.number().nullable(),
+    /** Present exactly when `singleShot` is `null` — why it is. */
+    singleShotReason: z.string().optional(),
+    perGroup: z.number().nullable(),
+    /** Present exactly when `perGroup` is `null` — why it is. */
+    perGroupReason: z.string().optional(),
+    presenceNarrowedAtMost: z.number().nullable(),
+    /** Present exactly when `presenceNarrowedAtMost` is `null` — why it is. */
+    presenceNarrowedReason: z.string().optional(),
+    consensusPerCandidate: z.number().nullable(),
+    /** Present exactly when `consensusPerCandidate` is `null` — why it is. */
+    consensusReason: z.string().optional(),
+    maxRetriesDefault: z.number(),
+  })
+  .superRefine((calls, context) => {
+    const pairs: readonly (readonly [string, number | null, string | undefined])[] = [
+      ["single-shot", calls.singleShot, calls.singleShotReason],
+      ["per-group", calls.perGroup, calls.perGroupReason],
+      ["presence-narrowed", calls.presenceNarrowedAtMost, calls.presenceNarrowedReason],
+      ["consensus", calls.consensusPerCandidate, calls.consensusReason],
+    ];
+    for (const [name, count, reason] of pairs) {
+      if (count === null && reason === undefined) {
+        context.addIssue({
+          code: "custom",
+          message: `the ${name} call count is null without its reason`,
+        });
+      }
+      if (count !== null && reason !== undefined) {
+        context.addIssue({
+          code: "custom",
+          message: `the ${name} call count is not null and carries a reason`,
+        });
+      }
+    }
+  });
+
+/**
+ * The versioned report's serialized shape, as a zod schema. Exported so the bin, and
  * any consumer scripting against the contract, validate against the same
  * shape the entry parses every report through before returning.
  */
 export const SchemaInspectReportSchema = z.object({
   /** The version of this JSON contract itself — see `CONTRACT_VERSION`. */
-  contractVersion: z.literal(4),
+  contractVersion: z.literal(5),
   /** The `@azx/ribo-cli` version that produced the numbers. */
   cliVersion: z.string(),
   /** The `@azx/ribo-core` version the measures were computed with. */
@@ -181,16 +228,7 @@ export const SchemaInspectReportSchema = z.object({
     })
     .nullable(),
   /** The per-strategy call counts — present whenever the derive survived. */
-  calls: z
-    .object({
-      singleShot: z.number().nullable(),
-      perGroup: z.number().nullable(),
-      perGroupReason: z.string().optional(),
-      presenceNarrowedAtMost: z.number().nullable(),
-      consensusPerCandidate: z.number().nullable(),
-      maxRetriesDefault: z.number(),
-    })
-    .optional(),
+  calls: CallsSchema.optional(),
   /**
    * Described fields over walked fields, by `renderFieldGuidance`'s own filter
    * (`description !== undefined`); `ratio` is `0` when `total` is `0`.
@@ -332,12 +370,13 @@ export interface RefusalReport {
 }
 
 /**
- * The versioned report `inspectSchema` returns (design §7). v4 retains the
- * rule-based measurements and adds planned rows, totals and core plan identity.
+ * The versioned report `inspectSchema` returns (design §7). v5 pairs every
+ * nullable call count with its reason and leaves the v4 rows untouched: the
+ * rule-based measurements and the planned rows read exactly as they did.
  */
 export interface SchemaInspectReport {
   /** The version of this JSON contract itself (see `CONTRACT_VERSION`). */
-  contractVersion: 4;
+  contractVersion: 5;
   /** The `@azx/ribo-cli` version that produced the numbers. */
   cliVersion: string;
   /** The `@azx/ribo-core` version the measures were computed with. */
@@ -376,10 +415,17 @@ export interface SchemaInspectReport {
   /** The per-strategy call counts. */
   calls?: {
     singleShot: number | null;
+    /** Present exactly when `singleShot` is `null`. */
+    singleShotReason?: string;
     perGroup: number | null;
+    /** Present exactly when `perGroup` is `null`. */
     perGroupReason?: string;
     presenceNarrowedAtMost: number | null;
+    /** Present exactly when `presenceNarrowedAtMost` is `null`. */
+    presenceNarrowedReason?: string;
     consensusPerCandidate: number | null;
+    /** Present exactly when `consensusPerCandidate` is `null`. */
+    consensusReason?: string;
     maxRetriesDefault: number;
   };
   /** Described fields over walked fields. */
