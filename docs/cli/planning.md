@@ -55,11 +55,11 @@ stored plan, compares it with the current schema **without a model call**, and r
 - **fingerprint-only** — the schema's bytes changed but its field membership did not; one note,
   and the plan stays valid.
 - **stale** — field membership drifted (leaves added or removed). The plan is refused by
-  `eval`, and the only fix is `ribo schema plan --update`, which re-plans the drifted membership
-  and reports what moved.
+  `eval`, and the fix is `ribo schema plan --update`.
 
-An update never reads a model's suggestion over your review of it — but it does spend a call, so
-the same estimate-and-ceiling discipline applies.
+An update keeps your reviewed assignments: removed leaves drop out of their pieces, and only added
+leaves go to the model to be placed. A schema with no added leaves needs no model call; one with
+added leaves spends one call under the same estimate and `--max-spend` ceiling.
 
 ### The two update output forms
 
@@ -97,10 +97,9 @@ A planned arm is estimated, capped and persisted like any other arm: the estimat
 different is identity: the record's optional `settings.planFingerprint` names the exact plan the
 arm executed. The field is **additive at record version 1** — old records and new records share
 one version, records from planned and unplanned arms line up in the same directory, and `compare`
-works unchanged across them. Two consequences, both deliberate: an **older reader** that has never
-heard of the field still reads a planned record (optional fields are ignorable), while an **older
-strict reader** — one that validated v1 records against a settings object that knew no such key —
-refuses a planned record. The version did not move; the strictness did the distinguishing.
+works unchanged across them. An older reader validates v1 settings strictly, so it refuses a
+planned record's unknown key rather than silently treating two different layouts as the same
+run; unplanned records read as before.
 
 ## Row citations: the direct-first owner rule
 

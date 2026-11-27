@@ -143,10 +143,10 @@ lands on stdout only once every arm's record is on disk.
   — the HTTP transport has no per-call timeout to set.
 - **Records and identity.** A planned arm's record carries the plan's fingerprint in an **optional
   `settings.planFingerprint`** — additive at record version 1, derived by the runner from core's
-  plan, never typed by hand. old v1 records and planned v1 records share one version and one
-  directory; an older reader that has never heard of the field still reads a planned record, while
-  older strict readers refuse one — the settings key is what they have never seen, so strictness,
-  not the version, does the distinguishing.
+  plan, never typed by hand. Planned records and old v1 records share one version and one
+  directory. Older readers validate v1 settings strictly, so older strict readers refuse a planned
+  record's unknown key rather than treat two layouts as the same run; unplanned records read as
+  before.
 - **0** — the run finished; a case that failed is a measurement, not a fault.
 - **2** — could not run: a usage error, an unreadable corpus, an invalid setting, a missing
   credential, a missing or non-answering CLI binary, or a refused spend.
@@ -196,9 +196,9 @@ command below runs against it verbatim; substitute your own directory once the s
    — named semantic pieces, each the set of leaves one call should read together. Review the
    pieces: their names, descriptions and membership are the authoring decision the planned
    strategy executes. When the schema later changes and the plan goes **stale**,
-   `ribo schema plan ./schema.json --update ./plan.json --out ./plan.next.json` re-plans the
-   membership and reports what moved — complete artifact on stdout or to the distinct new
-   `--out` file, never modifying the stored input plan.
+   `ribo schema plan ./schema.json --update ./plan.json --backend openai-compatible --model gpt-4o --out ./plan.next.json`
+   keeps your reviewed assignments and places only the added leaves — complete artifact on stdout
+   or to the distinct new `--out` file, never modifying the stored input plan.
 7. **Read the committed plan.** The example ships one finished artifact,
    [`examples/basic-corpus/plan.json`](examples/basic-corpus/plan.json). Authoring and review, in
    full:
@@ -228,8 +228,8 @@ command below runs against it verbatim; substitute your own directory once the s
     `ribo eval --corpus node_modules/@azx/ribo-cli/examples/basic-corpus --backend claude-cli --model claude-haiku-5-5 --strategy per-group --max-spend 1.00 --out ./runs`.
     Read the estimate on stderr before you confirm anything — it is an upper bound, priced per
     model.
-12. **Run the planned arm against it.** Add the plan as a second arm in one run:
-    `ribo eval --corpus node_modules/@azx/ribo-cli/examples/basic-corpus --backend claude-cli --model claude-haiku-5-5 --strategy planned --plan ./plan.json --out ./runs`
+12. **Run the planned arm against it.** Same corpus, same cap, the plan as the call layout:
+    `ribo eval --corpus node_modules/@azx/ribo-cli/examples/basic-corpus --backend claude-cli --model claude-haiku-5-5 --strategy planned --plan ./plan.json --max-spend 1.00 --out ./runs`
     — the plan is checked against the corpus schema before preflight, transcription or spend, so a
     stale or unbuildable plan costs nothing.
 13. **Read the report.** stdout carries one arm entry per `--strategy`: its settings, one result
