@@ -36,7 +36,9 @@ leaves stdout empty. `--json` on the commands that take it emits a versioned JSO
 
 Drafts an evidence-linked OpenAPI schema from real samples — each sample a direct text file, a
 bare PDF (its page count measured from the file, its `capturedAt` stamped with the run instant or
-the explicit `--captured-at`), or an existing corpus case folder with any number of declared inputs
+the explicit `--captured-at`), a plain folder of inputs (loaded as one sample named after the
+directory, its `.pdf`, `.txt` and `.md` files in byte-wise file-name order), or an existing corpus
+case folder with any number of declared inputs
 — and optionally scaffolds a corpus
 beside it. The draft's expectations and instructions stay empty: a draft never invents what your
 documents should answer. Without `--out`, stdout is the complete schema alone; `--out` names a

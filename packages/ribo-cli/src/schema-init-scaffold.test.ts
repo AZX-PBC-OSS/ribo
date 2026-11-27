@@ -2,7 +2,7 @@
  * @file Schema-init corpus scaffolds: exact source bytes and metadata, with
  * all-or-nothing publication through the shared operator output port.
  */
-import { mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path, { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -292,6 +292,43 @@ test("a bare-PDF scaffold round-trips through loadCorpus with measured and stamp
     kind: "document",
     capture: { capturedAt: "2026-06-01T09:30:00.000Z", pageCount: 3 },
   });
+});
+
+test("a plain-folder scaffold declares the inferred order and caseTextOf equals the sample text", async () => {
+  const folder = join(directory, "plain-job");
+  await mkdir(folder);
+  // Written in an order that differs from byte-wise file-name order.
+  await writeFile(join(folder, "b-notes.md"), "markdown notes\n");
+  await writeFile(join(folder, "a-sheet.txt"), "Address: 1 Main Street\n");
+  const loadedSamples = await loadSchemaInitSamples([folder], {
+    clock: () => new Date("2026-06-01T09:30:00.000Z"),
+  });
+  const destination = join(directory, "plain-folder-corpus");
+
+  const result = await writeSchemaInitCorpus(
+    destination,
+    serializeSchemaInitDocument(document),
+    loadedSamples,
+    { name: "Plain folder corpus", provenance: "real" },
+  );
+
+  expect(result).toEqual({ destination: "directory", path: destination });
+  // The scaffolded case.json declares the same byte-wise order the loader
+  // inferred and stderr printed.
+  expect(JSON.parse(await readFile(join(destination, "plain-job", "case.json"), "utf8"))).toEqual({
+    id: "plain-job",
+    inputs: [
+      { file: "a-sheet.txt", kind: "text" },
+      { file: "b-notes.md", kind: "text" },
+    ],
+    expected: {},
+  });
+  const loaded = loadCorpus(destination);
+  const entry = loaded.cases.find((candidate) => candidate.id === "plain-job");
+  expect(entry).toBeDefined();
+  if (entry === undefined) return;
+  // The case's eval text is byte-identical to the sample text the draft read.
+  expect(caseTextOf(loaded, entry, new Map())).toBe(loadedSamples[0]?.text);
 });
 
 test("a multi-input scaffold round-trips through loadCorpus with caseTextOf equal to the sample text", async () => {

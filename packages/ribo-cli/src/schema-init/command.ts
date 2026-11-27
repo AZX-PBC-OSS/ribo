@@ -307,6 +307,18 @@ export async function runSchemaInitCommand(
   const capturedAt = flags.capturedAt ?? (dependencies.clock ?? (() => new Date()))().toISOString();
   const samples = await loadSamples(sources, { capturedAt });
   indexSchemaInitSamples(samples);
+  // One stderr line per plain-folder sample: the order it loaded in is the
+  // draft's evidence order, and the scaffolded case.json is where to change it.
+  for (const sample of samples) {
+    if (sample.orderInferred === true) {
+      writeDiagnostic(
+        stderr,
+        `plain folder "${sample.name}" loads its inputs in byte-wise file-name order: ` +
+          `${sample.inputs.map((input) => input.file).join(", ")} — to change the order, edit ` +
+          '"inputs" in the scaffolded case.json',
+      );
+    }
+  }
   // Build the scaffold's entries once with placeholder schema bytes, so every
   // name, capture and manifest refusal happens before any spend.
   if (corpusMetadata !== undefined) schemaInitCorpusEntries("", samples, corpusMetadata);
@@ -433,11 +445,14 @@ const help = [
   "  2  the command could not run: usage, input, transcription, backend, model, spend or output refused the run",
   "",
   "Inputs and output:",
-  "  Each sample is a direct text file, a bare PDF, or an existing case folder with any number",
-  "  of declared inputs. A bare PDF is measured for its page count and stamped capturedAt —",
-  "  the run instant, or --captured-at; no file date or PDF metadata date is ever read. A case",
-  "  folder's declared capture block is kept untouched. Without --out, stdout is the complete",
-  "  OpenAPI schema alone. Spend and handoffs use stderr.",
+  "  Each sample is a direct text file or bare PDF, a plain folder of input files, or an existing",
+  "  case folder with any number of declared inputs. A bare PDF is measured for its page count and",
+  "  stamped capturedAt — the run instant, or --captured-at; no file date or PDF metadata date is",
+  "  ever read. A plain folder without case.json loads as one sample named after the directory:",
+  "  its .pdf, .txt and .md files in byte-wise file-name order, dotfiles skipped, any other",
+  "  extension refused by name; one stderr line states the order, and 'inputs' in the scaffolded",
+  "  case.json is where to change it. A case folder's declared capture block is kept untouched.",
+  "  Without --out, stdout is the complete OpenAPI schema alone. Spend and handoffs use stderr.",
   "  --out and --corpus name distinct new destinations; neither ever overwrites an existing path.",
   "  --corpus requires explicit --corpus-name and --corpus-provenance. Cases keep every declared",
   "  input in order; expectations and instructions stay empty, and no defaults or provenance are invented.",
@@ -457,7 +472,7 @@ export function registerSchemaInitCommand(schema: Command): Command {
   const command = schema
     .command("init")
     .description("Draft an evidence-linked OpenAPI schema and optionally scaffold a corpus")
-    .argument("<samples...>", "direct text files or existing case folders")
+    .argument("<samples...>", "direct text files, plain folders or existing case folders")
     .addOption(
       new Option("--backend <name>", "the drafting transport")
         .choices([...OPERATOR_BACKENDS])

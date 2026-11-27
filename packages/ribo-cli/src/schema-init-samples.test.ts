@@ -5,7 +5,16 @@
 import type { DocumentCapture, Transcriber, Transcript } from "@azx/ribo-core";
 import { afterEach, expect, test, vi } from "vitest";
 
-import { cpSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -471,6 +480,124 @@ test("a later document failure returns no partial samples and stops before later
   expect(calls).toEqual(["first-sheet", "second-sheet"]);
   expect(estimate).not.toHaveBeenCalled();
   expect(model).not.toHaveBeenCalled();
+});
+
+test("a plain folder loads PDF, txt and md inputs as one sample in byte-wise name order, skips dotfiles and stamps its PDFs", async () => {
+  const folder = path.join(temporaryDirectory(), "three-pdf-job");
+  mkdirSync(folder);
+  // Written in an order that differs from byte-wise file-name order, so a
+  // locale- or listing-order pass would fail: "B" < "Z" < "a" < "z".
+  for (const [name, contents] of [
+    ["zulu.md", "markdown notes\n"],
+    ["Brief.pdf", readFileSync(path.join(FIXTURE_CORPUS, "service-sheet", "input.pdf"))],
+    ["alpha.txt", "alpha text\n"],
+    ["Zulu.txt", "zulu text\n"],
+    [".hidden.txt", "skipped dotfile\n"],
+  ] as const) {
+    writeFileSync(path.join(folder, name), contents);
+  }
+  const { transcriber } = barePdfTranscriber();
+  const clock = vi.fn(() => new Date("2026-09-01T12:00:00.000Z"));
+
+  const samples = await loadSchemaInitSamples([folder], { clock, transcriber });
+
+  expect(samples).toHaveLength(1);
+  const sample = samples[0]!;
+  expect(sample.name).toBe("three-pdf-job");
+  expect(sample.inputs.map((input) => input.file)).toEqual([
+    "Brief.pdf",
+    "Zulu.txt",
+    "alpha.txt",
+    "zulu.md",
+  ]);
+  expect(sample.inputs.map((input) => input.kind)).toEqual(["document", "text", "text", "text"]);
+  expect(sample.inputs.map((input) => input.text)).toEqual([
+    "bare transcript for three-pdf-job",
+    "zulu text\n",
+    "alpha text\n",
+    "markdown notes\n",
+  ]);
+  // Every input's exact bytes survive, and paths point into the named folder only.
+  for (const input of sample.inputs) {
+    expect(input.path).toBe(path.join(folder, input.file));
+    expect(Buffer.from(input.bytes).equals(readFileSync(path.join(folder, input.file)))).toBe(true);
+  }
+  // The folder's PDF is a bare PDF: T2's capture rule, measured and stamped.
+  expect(sample.inputs[0]?.capture).toEqual({
+    id: "three-pdf-job",
+    kind: "document",
+    mimeType: "application/pdf",
+    ctx: {},
+    capturedAt: "2026-09-01T12:00:00.000Z",
+    pageCount: 1,
+  });
+  expect(sample.inputs.slice(1).every((input) => input.capture === undefined)).toBe(true);
+  expect(clock).toHaveBeenCalledTimes(1);
+  expect(sample.text).toBe(joinCaseInputTexts(sample.inputs));
+});
+
+test("a plain folder refuses an unknown extension by name before transcription", async () => {
+  const folder = path.join(temporaryDirectory(), "csv-job");
+  mkdirSync(folder);
+  writeFileSync(path.join(folder, "notes.txt"), "fine text\n");
+  writeFileSync(path.join(folder, "table.csv"), "a,b\n1,2\n");
+
+  await expectRefusal([folder], "table.csv");
+});
+
+test("a plain folder refuses a subdirectory by name before transcription", async () => {
+  const folder = path.join(temporaryDirectory(), "nested-job");
+  mkdirSync(folder);
+  mkdirSync(path.join(folder, "scans"));
+  writeFileSync(path.join(folder, "scans", "inner.pdf"), "ignored");
+
+  await expectRefusal([folder], "scans");
+});
+
+test("a plain folder refuses a symlinked input by name rather than reading outside it", async () => {
+  const outside = path.join(temporaryDirectory(), "outside.txt");
+  writeFileSync(outside, "outside text\n");
+  const folder = path.join(temporaryDirectory(), "linked-job");
+  mkdirSync(folder);
+  symlinkSync(outside, path.join(folder, "linked.txt"));
+
+  await expectRefusal([folder], "linked.txt");
+});
+
+test("an empty or dotfile-only plain folder refuses by name before transcription", async () => {
+  const empty = path.join(temporaryDirectory(), "empty-job");
+  mkdirSync(empty);
+  await expectRefusal([empty], "empty-job");
+
+  const dotfiles = path.join(temporaryDirectory(), "dotfile-job");
+  mkdirSync(dotfiles);
+  writeFileSync(path.join(dotfiles, ".hidden.txt"), "dotfile text\n");
+  await expectRefusal([dotfiles], "dotfile-job");
+});
+
+test("a corpus root refuses by name with the pass its case folders fix", async () => {
+  const corpus = path.join(temporaryDirectory(), "corpus-root");
+  mkdirSync(path.join(corpus, "some-case"), { recursive: true });
+  writeFileSync(path.join(corpus, "manifest.json"), JSON.stringify({ name: "corpus-root" }));
+  writeFileSync(path.join(corpus, "note.txt"), "not one sample\n");
+
+  await expectRefusal([corpus], "manifest.json");
+  await expectRefusal([corpus], "pass its case folders");
+});
+
+test("a directory with case.json keeps the declared-order behavior, not the plain-folder rules", async () => {
+  const dir = copiedCase("service-sheet");
+  // A declared case's capture block is never restamped, and its inputs stay
+  // in declared order.
+  const { transcriber } = barePdfTranscriber();
+
+  const samples = await loadSchemaInitSamples([dir], { transcriber });
+
+  expect(samples[0]?.inputs[0]?.capture).toMatchObject({
+    capturedAt: "2026-02-11T08:15:00Z",
+    pageCount: 1,
+  });
+  expect(samples[0]?.orderInferred).toBeUndefined();
 });
 
 test("the standalone default path transcribes a real local PDF through pdf.js", async () => {

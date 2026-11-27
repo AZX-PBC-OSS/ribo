@@ -233,6 +233,10 @@ const corpusFlags = [
   "synthetic",
 ] as const;
 
+const THREE_PAGE_PDF = fileURLToPath(
+  new URL("../../ribo-transcriber-pdfjs/src/fixtures/three-page.pdf", import.meta.url),
+);
+
 test("stdout carries only the drafted schema and the HTTP response cap reaches the request", async () => {
   const result = await runInit([
     direct,
@@ -606,6 +610,58 @@ test("spend refusal and exhausted invalid model output leave neither schema nor 
   expect(existsSync(invalidCorpus)).toBe(false);
 });
 
+test("two plain folders with --corpus produce a two-case loadable corpus and print each inferred order", async () => {
+  // The first folder is named after the stub draft's evidence source, so the
+  // drafted schema stays evidence-linked over exactly the two folders.
+  const plainOne = join(directory, "field-notes");
+  mkdirSync(plainOne);
+  // Written in an order that differs from byte-wise file-name order.
+  writeFileSync(join(plainOne, "zulu.md"), "markdown notes\n");
+  writeFileSync(join(plainOne, "alpha.txt"), "Address: 1 Main Street\n");
+  const plainTwo = join(directory, "job-two");
+  mkdirSync(plainTwo);
+  writeFileSync(join(plainTwo, "scan.pdf"), readFileSync(THREE_PAGE_PDF));
+  writeFileSync(join(plainTwo, "note.txt"), "No additional observations.\n");
+  const out = join(directory, "plain.json");
+  const corpus = join(directory, "plain-corpus");
+  const result = await runInit([
+    plainOne,
+    plainTwo,
+    ...requiredFlags,
+    "--out",
+    out,
+    "--corpus",
+    corpus,
+    ...corpusFlags,
+  ]);
+
+  expect(result.status).toBe(0);
+  expect(JSON.parse(readFileSync(out, "utf8"))).toMatchObject({ type: "object" });
+  // One stderr line per plain folder, naming the sample, the order and where
+  // to change it.
+  const orderLines = result.stderr.split("\n").filter((line) => line.includes("byte-wise"));
+  expect(orderLines).toHaveLength(2);
+  const oneLine = orderLines.find((line) => line.includes('"field-notes"'));
+  const twoLine = orderLines.find((line) => line.includes("job-two"));
+  expect(oneLine).toBeDefined();
+  expect(twoLine).toBeDefined();
+  expect(oneLine).toContain("alpha.txt, zulu.md");
+  expect(twoLine).toContain("note.txt, scan.pdf");
+  expect(oneLine).toContain("case.json");
+  expect(oneLine).toContain('"inputs"');
+  // The scaffold keeps each folder's inferred order, and the corpus loads.
+  const loaded = loadCorpus(corpus);
+  expect(loaded.cases.map((entry) => entry.id)).toEqual(["field-notes", "job-two"]);
+  expect(loaded.cases[0]?.inputs.map((input) => ({ file: input.file, kind: input.kind }))).toEqual([
+    { file: "alpha.txt", kind: "text" },
+    { file: "zulu.md", kind: "text" },
+  ]);
+  expect(loaded.cases[1]?.inputs.map((input) => ({ file: input.file, kind: input.kind }))).toEqual([
+    { file: "note.txt", kind: "text" },
+    { file: "scan.pdf", kind: "document" },
+  ]);
+});
+
 test("help names the inputs, output and spend flags and only exit codes 0 and 2", async () => {
   const result = await runInit(["--help"]);
 
@@ -620,6 +676,10 @@ test("help names the inputs, output and spend flags and only exit codes 0 and 2"
   expect(result.stdout).toContain("--max-spend <usd>");
   expect(result.stdout).toContain("--captured-at <iso>");
   expect(result.stdout).toContain("intake-form.pdf");
+  // The three sample forms: direct files, plain folders and case folders.
+  expect(result.stdout).toContain("plain folder");
+  expect(result.stdout).toContain("bare PDF");
+  expect(result.stdout).toContain("case folder");
   expect(result.stdout).toMatch(/0\s+the schema was drafted/u);
   expect(result.stdout).toMatch(/2\s+the command could not run/u);
   expect(result.stdout).not.toMatch(/^\s*1\s+/mu);

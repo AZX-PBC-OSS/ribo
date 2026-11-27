@@ -161,9 +161,13 @@ The second input's note:
 
 ## What `ribo schema init` scaffolds
 
-`ribo schema init --corpus <dir>` accepts two kinds of sample: a direct text file (the transcript
-or text the draft will be evidence for) or an existing corpus case folder with any number of
-declared inputs. The scaffold it publishes is an ordinary corpus of the shape this page walks — a
+`ribo schema init --corpus <dir>` accepts three kinds of sample: a direct text file (the transcript
+or text the draft will be evidence for), a plain folder of input files, or an existing corpus case
+folder with any number of
+declared inputs. A plain folder without `case.json` loads as one case named after the directory —
+its `.pdf`, `.txt` and `.md` files in byte-wise file-name order, the order init prints to stderr
+and writes into the scaffolded `case.json`'s `inputs` list, where you can change it. The scaffold it
+publishes is an ordinary corpus of the shape this page walks — a
 `manifest.json` carrying the `--corpus-name` and `--corpus-provenance` you passed, the drafted
 `schema.json` byte-identical to what stdout carried, and one case directory per sample with every
 declared input's exact bytes, in the case's declared order (a document input keeps its declared
