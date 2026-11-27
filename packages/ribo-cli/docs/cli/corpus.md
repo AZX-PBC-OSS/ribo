@@ -9,6 +9,10 @@ This page walks the worked example the package ships at
 `packages/ribo-cli/examples/basic-corpus`). Every file shown below is that committed file, included
 verbatim.
 
+A corpus can also be drafted for you: `ribo schema init --corpus` scaffolds one around your own
+samples, with the same shape this page documents (see
+[Planning and authoring](/cli/planning)).
+
 ## The manifest
 
 `manifest.json` declares what the corpus is:
@@ -150,7 +154,24 @@ The second input's note:
 
 <<< @/../packages/ribo-cli/examples/basic-corpus/service-sheet/site-note.txt
 
+## What `ribo schema init` scaffolds
+
+`ribo schema init --corpus <dir>` accepts two kinds of sample: a direct text file (the transcript
+or text the draft will be evidence for) or an existing corpus case folder with exactly one declared
+input. The scaffold it publishes is an ordinary corpus of the shape this page walks — a
+`manifest.json` carrying the `--corpus-name` and `--corpus-provenance` you passed, the drafted
+`schema.json` byte-identical to what stdout carried, and one case directory per sample with the
+input's exact bytes (a document input keeps its declared `capture` block).
+
+Two things the scaffold deliberately does not contain: `expected` maps and instructions. Both stay
+**empty** — a draft never invents expected answers or prompt wording, because expectations are the
+author's judgement, not the model's. Publication is all-or-nothing and the output is never
+overwritten: the scaffold is staged and renamed into a path that did not exist, a fault midway
+removes every partial survivor, and an existing destination is refused with nothing touched.
+
 Read any case's text the way the model will receive it — `ribo corpus text <corpus-dir>
 [case-id]` — before writing its expectations. Every case prints its combined text — inputs in
 list order, capture markers included when they are on; document inputs transcribed, through the
-same path `ribo eval` uses, with no model call and no credential.
+same path `ribo eval` uses, with no model call and no credential. That is the handoff in order:
+scaffold, then corpus text, then expectations — the text is what an expectation is checked against,
+so it is read before anything is asserted.

@@ -93,8 +93,12 @@ records. Fingerprint-only drift prints one note and the run continues.
 ### Spend, records and compare
 
 A planned arm is estimated, capped and persisted like any other arm: the estimate prices the same
-`--model`, the ceiling is the same `--max-spend`, and the record lands beside the others. What is
-different is identity: the record's optional `settings.planFingerprint` names the exact plan the
+`--model`, the ceiling is the same `--max-spend`, and the record lands beside the others. The
+run-side bound — how core's dry run over the plan, the ladder rungs and the retry and consensus
+multipliers become one number — is [Spend](/cli/spend); what the record carries and how `compare`
+reads the settings axis is
+[Scoring and comparing runs](/cli/scoring#planned-arms-and-record-identity).
+What is different is identity: the record's optional `settings.planFingerprint` names the exact plan the
 arm executed. The field is **additive at record version 1** — old records and new records share
 one version, records from planned and unplanned arms line up in the same directory, and `compare`
 works unchanged across them. An older reader validates v1 settings strictly, so it refuses a

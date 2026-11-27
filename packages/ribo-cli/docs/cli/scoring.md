@@ -86,6 +86,31 @@ The stdout report is the arms' summary — settings, per-case results, totals, f
 path — written only once every arm's record is on disk. A multi-arm run also prints a cross-arm
 comparison summary to stderr, rendered by the same code `ribo compare` uses.
 
+## Planned arms and record identity
+
+A `planned` arm executes a reviewed semantic plan ([Planning and authoring](/cli/planning)) and is
+estimated, scored and persisted like any other arm. Two usage refusals fence the strategy, both
+before any work starts: **planned without `--plan`** is refused — the strategy has nothing to
+execute — and **`--plan` without a planned rung** is refused — an ordinary arm must not inherit a
+plan's identity silently.
+
+After the usage check, the plan is judged against the corpus schema in a fixed order, each refusal
+leaving no report and no records: a **stale** plan (field membership drifted) is refused first,
+naming the added and removed leaves and the `--update` fix; then a plan that cannot be built into
+calls at all under the run's split caps is refused with the construction error. Both are exit 2
+before preflight, transcription, spend or chat. Fingerprint-only drift — the schema's bytes
+changed, its field membership did not — prints one note and the run continues.
+
+What is different about a planned record is identity: the record's optional
+`settings.planFingerprint` names the exact plan the arm executed, derived by the runner from the
+parsed plan — it is computed from the plan's own content alone (its version, its field paths, its
+pieces), so it is stable under schema key reorder and byte churn that leaves membership alone. The
+field is **additive at record version 1**: old records and new records share one version, records
+from planned and unplanned arms line up in the same directory, and both read back under the same
+schema. An older reader validates v1 settings strictly, so it refuses a planned record's unknown
+key rather than silently treating two different layouts as the same run; unplanned records read as
+before.
+
 ## `compare`
 
 `ribo compare <a> <b>` reads exactly the two record files it is named — no corpus, no schema, no
@@ -93,7 +118,10 @@ re-scoring — and lines them up:
 
 - **Axes** — the identity fields that differ: `backend`, `model`, `settings`, `fingerprint`. A
   difference is reported, never refused and never silently equated; the axes are the reader's
-  first question ("did I actually change only one thing?").
+  first question ("did I actually change only one thing?"). A planned and an unplanned arm of the
+  same corpus therefore differ on the `settings` axis — one carries `planFingerprint`, the other
+  does not — and `compare` reports that difference as a finding, exactly like any other settings
+  difference.
 - **The leaf intersection** — leaves align on the intersection of the two records' leaf sets, with
   each side's exclusion counts printed, so a reader sees how much of each side the comparison did
   not cover. No shared leaf, or — under the corpus override — no shared case, is a could-not-run

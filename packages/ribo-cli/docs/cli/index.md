@@ -1,10 +1,12 @@
 # The ribo CLI
 
-`@azx/ribo-cli` is Ribo's command-line package: four commands for measuring extraction quality
-before you trust a schema to a model. It sizes a JSON Schema document before the first paid call
-(`ribo schema inspect`), shows you exactly what a run would send (`ribo corpus text`), runs a
-hand-written corpus of documents through a model backend and scores the answers (`ribo eval`), and
-lines two scored runs up (`ribo compare`).
+`@azx/ribo-cli` is Ribo's command-line package: six commands for authoring and measuring an
+extraction schema before you trust it to a model. `ribo schema init` drafts an evidence-linked
+schema from real samples and can scaffold a corpus around them; `ribo schema plan` authors and
+updates a reviewed semantic plan over a schema; `ribo schema inspect` sizes a schema — or a plan's
+actual packed calls — before the first paid call; `ribo corpus text` shows you exactly what a run
+would send; `ribo eval` runs a hand-written corpus of documents through a model backend and scores
+the answers; and `ribo compare` lines two scored runs up.
 
 The questions it answers, in order: is my schema well-formed for extraction, what does the model
 actually read, how often does it read the right thing, and did my change make that better or worse.
@@ -31,12 +33,14 @@ text.
 
 ## The commands at a glance
 
-| Command               | What it does                                                         | Exit codes |
-| --------------------- | -------------------------------------------------------------------- | ---------- |
-| `ribo schema inspect` | Size a schema in OpenAPI 3.0 form before the first call              | 0, 1, 2    |
-| `ribo corpus text`    | Print the text each case's prompt carries — no model call, no key    | 0, 2       |
-| `ribo eval`           | Run a corpus through a backend, score it, persist one record per arm | 0, 2       |
-| `ribo compare`        | Compare two persisted run records — a difference is a finding        | 0, 2       |
+| Command               | What it does                                                                         | Exit codes |
+| --------------------- | ------------------------------------------------------------------------------------ | ---------- |
+| `ribo schema init`    | Draft an evidence-linked schema from samples; optionally scaffold a corpus           | 0, 2       |
+| `ribo schema plan`    | Author or update a reviewed semantic plan over a schema                              | 0, 2       |
+| `ribo schema inspect` | Size a schema in OpenAPI 3.0 form — or a plan's packed calls — before the first call | 0, 1, 2    |
+| `ribo corpus text`    | Print the text each case's prompt carries — no model call, no key                    | 0, 2       |
+| `ribo eval`           | Run a corpus through a backend, score it, persist one record per arm                 | 0, 2       |
+| `ribo compare`        | Compare two persisted run records — a difference is a finding                        | 0, 2       |
 
 Every command writes results to stdout and diagnostics to stderr; a refusal (exit 2, or a usage
 error) leaves stdout empty. `ribo schema inspect` adds exit 1 for a breached threshold, with the
@@ -70,10 +74,37 @@ files.
 9. **Change one thing and [compare](/cli/scoring#compare):** re-run with a different strategy or
    model, then `ribo compare ./runs/<first>.json ./runs/<second>.json`.
 
+## The authoring path, end to end
+
+The commands compose into one reviewable workflow, from your own samples to a measured verdict —
+the same path the worked example's finished plan
+(`node_modules/@azx/ribo-cli/examples/basic-corpus/plan.json`) is the end product of:
+
+1. **Draft:** `ribo schema init ./notes.txt --backend claude-cli --model claude-haiku-5-5 --corpus
+./corpus --corpus-name "Field notes" --corpus-provenance real` — the schema alone on stdout (or
+   a new file with `--out`), plus a scaffolded corpus whose expectations are empty, because
+   expectations are the author's judgement, never the model's.
+2. **Review the draft, then size it:** `ribo schema inspect ./corpus/schema.json`.
+3. **Plan the calls:** `ribo schema plan ./corpus/schema.json --backend openai-compatible --model
+gpt-4o` — the complete plan is on stdout; save it as a file and review the pieces. When the
+   schema later drifts, `--update` re-authors it, never in place.
+4. **Read what each call will carry:** `ribo corpus text ./corpus` — before writing expectations.
+5. **Measure planned and unplanned under one cap:** `ribo eval --corpus ./corpus --strategy
+single-shot --strategy planned --plan ./plan.json --backend claude-cli --model claude-haiku-5-5
+--max-spend 1.00 --out ./runs`.
+6. **[Compare](/cli/scoring#compare)** the two records. A plan changes how calls are cut and what
+   each is asked; whether that helps your corpus is what `eval` and `compare` measure — no accuracy
+   improvement is claimed anywhere.
+
+[Planning and authoring](/cli/planning) is the detailed reference for all three authoring
+commands: their samples, refusals, update forms and the record identity a planned arm carries.
+
 ## Where each format is specified
 
 - [Writing a schema for ribo](/cli/schema) — the OpenAPI 3.0 dialect, groups and leaves, what
   `description` does, and what `schema inspect`'s report lines mean.
+- [Planning and authoring](/cli/planning) — `schema init`'s samples and scaffolds, `schema plan`'s
+  artifact and update forms, and the `planned` strategy's refusals and record identity.
 - [The corpus format](/cli/corpus) — the manifest, the case file, the expectation statuses, and
   the one-input-file rule.
 - [Scoring and comparing runs](/cli/scoring) — the verdicts, the three rates, the run record, and
