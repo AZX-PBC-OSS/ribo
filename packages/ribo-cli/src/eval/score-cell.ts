@@ -26,7 +26,7 @@ import type { LeafInventoryEntry } from "@azx/ribo-core";
 
 import type { ResolvedExpectation } from "../corpus.js";
 import { sameAnswer } from "./score-bridge.js";
-import type { EvalCell } from "./score-types.js";
+import type { EvalCell, EvalCellReview } from "./score-types.js";
 import type { EvalJsonValue } from "./types.js";
 
 /**
@@ -149,6 +149,39 @@ const isComparable = (
 };
 
 /**
+ * A review provenance as the cell's optional member: absent when there is
+ * none, so a default-resolved cell carries no empty shell.
+ * @param review - The review provenance, if any.
+ * @returns The member's spread, empty when there is none.
+ */
+const reviewMember = (review: EvalCellReview | undefined): { readonly review?: EvalCellReview } =>
+  review === undefined ? {} : { review };
+
+/**
+ * The cell's review provenance, when it carries one: an explicit entry's
+ * class and, for a proposal-bearing entry, the proposer. A covering default
+ * carries no class — a judged default cell counts as hand-written wherever
+ * a summary needs one.
+ * @param expectation - The resolved expectation.
+ * @returns The review provenance, or undefined when the cell carries none.
+ */
+const reviewOf = (expectation: ResolvedExpectation): EvalCellReview | undefined => {
+  // The `in` narrow, not an `origin` comparison: the unmentioned variant's
+  // `origin` includes "explicit", so only the presence of the class itself
+  // picks the variants that carry one.
+  if (!("reviewClass" in expectation)) return undefined;
+  return {
+    class: expectation.reviewClass,
+    ...(expectation.proposerBackend === undefined
+      ? {}
+      : { proposerBackend: expectation.proposerBackend }),
+    ...(expectation.proposerModel === undefined
+      ? {}
+      : { proposerModel: expectation.proposerModel }),
+  };
+};
+
+/**
  * Judge one cell.
  * @param params - The leaf, the resolved expectation, what the run produced,
  * and whether the case failed.
@@ -165,6 +198,13 @@ export function judgeLeaf(params: {
    * not `correct`. An extracted case is unaffected.
    */
   readonly caseFailed?: boolean;
+  /**
+   * Whether the corpus is proposal-bearing. Only a proposal-bearing corpus's
+   * cells carry the `review` member, so a proposal-free corpus's cells — and
+   * the records that persist them — stay byte-identical to the format's
+   * earlier output (D10).
+   */
+  readonly withReview?: boolean;
 }): EvalCell {
   const { leaf, expectation } = params;
   const values = leaf.inArray ? params.produced : params.produced.slice(0, 1);
@@ -180,6 +220,7 @@ export function judgeLeaf(params: {
     ...(expectation.status === "unmentioned" || expectation.sourceSpan === undefined
       ? {}
       : { sourceSpan: expectation.sourceSpan }),
+    ...(params.withReview === true ? reviewMember(reviewOf(expectation)) : {}),
   };
 
   if (expectation.status === "unmentioned") {

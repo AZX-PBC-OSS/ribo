@@ -21,3 +21,8 @@ docs/spikes/0008-typesafe-jev/results/**
 
 # kev on-device spike: same reasoning — per-cell model output, regenerable.
 docs/spikes/0010-kev-ondevice/results/**
+
+# The eval record suite's fixed record: the test compares a run's written bytes
+# against this file, so it must keep the store's own JSON.stringify layout,
+# which Prettier's array collapsing would change.
+packages/ribo-cli/src/fixtures/records/review-free-record.json

@@ -23,10 +23,12 @@ import type { EvalRunRecordCell } from "./record-schema.js";
 /** One cell, as a difference renders it: the verdict and the values behind it. */
 const cellText = (cell: EvalRunRecordCell): string => {
   const reason = cell.reason === undefined ? "" : ` (${cell.reason})`;
-  return (
-    `${cell.verdict} — expected ${JSON.stringify(cell.expected)}, ` +
-    `got ${JSON.stringify(cell.got)}${reason}`
-  );
+  // A pending proposal is not an answer: never print its value as plain.
+  const expected =
+    cell.reason === "unreviewed-proposal"
+      ? "(proposed, unreviewed)"
+      : JSON.stringify(cell.expected);
+  return `${cell.verdict} — expected ${expected}, ` + `got ${JSON.stringify(cell.got)}${reason}`;
 };
 
 /**

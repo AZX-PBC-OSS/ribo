@@ -144,6 +144,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "EVAL_COMPARE_CONTRACT_VERSION",
     "EVAL_RUN_RECORDS_DEFAULT_DIR",
     "EVAL_VERDICTS",
+    "EXPECTATION_REVIEW_CLASSES",
     "EvalCompareDifferenceSchema",
     "EvalCompareReportSchema",
     "EvalCompareSideSchema",

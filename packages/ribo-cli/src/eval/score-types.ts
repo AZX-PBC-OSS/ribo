@@ -11,6 +11,7 @@
  * plain objects and arrays. A record persists the score verbatim, so nothing
  * in it may be a class, a date or a function.
  */
+import type { ExpectationReviewClass } from "../corpus.js";
 import type { EvalJsonValue } from "./types.js";
 
 /**
@@ -61,6 +62,23 @@ export type EvalUnscorableReason = (typeof EVAL_UNSCORABLE_REASONS)[number];
 export type EvalCellOrigin = "explicit" | "default" | "none";
 
 /**
+ * A cell's review provenance: how its explicit entry's answer came to be
+ * what it is, and — when the entry carries a proposal — who proposed it
+ * (R8). A cell judged from a covering default carries no `review` member:
+ * a default is the corpus's own blanket claim, and a judged default cell
+ * counts as hand-written wherever a summary needs a class for it.
+ * @category Eval
+ */
+export interface EvalCellReview {
+  /** How the entry's answer came to be what it is. */
+  readonly class: ExpectationReviewClass;
+  /** The proposal's backend, when the entry carries a proposal. */
+  readonly proposerBackend?: string;
+  /** The proposal's model, when the entry carries a proposal. */
+  readonly proposerModel?: string;
+}
+
+/**
  * One scored cell: one leaf of one case.
  *
  * The cell carries what it judged — the verdict — beside what it judged it
@@ -79,6 +97,13 @@ export interface EvalCell {
   readonly sourceSpan?: string;
   /** Where the expectation came from. */
   readonly origin: EvalCellOrigin;
+  /**
+   * The review provenance, when the corpus is proposal-bearing and the
+   * expectation is an explicit entry. A corpus holding no proposal carries
+   * no `review` member at all, so its records stay byte-identical to the
+   * format's earlier output (D10).
+   */
+  readonly review?: EvalCellReview;
   /** Why the cell is unscorable. Present exactly when the verdict is `unscorable`. */
   readonly reason?: EvalUnscorableReason;
 }

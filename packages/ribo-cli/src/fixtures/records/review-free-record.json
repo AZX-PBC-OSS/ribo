@@ -1,0 +1,102 @@
+{
+  "contractVersion": 1,
+  "capturedAt": "2026-11-13T10:00:00.000Z",
+  "corpus": {
+    "name": "workshop-bicycles",
+    "fingerprint": "a52cfeaae805d4b22a97e408f5c7ea5c675bc5dfbc56f3e33ba63851d089013b",
+    "provenance": "synthetic"
+  },
+  "fingerprint": "7e09b82f56c2494f6473966b9bf07afacc9c86ee4254f35c18151a742a58a263",
+  "backend": "openai-compatible",
+  "model": "ribo-test",
+  "settings": {
+    "strategies": [
+      "single-shot"
+    ]
+  },
+  "totals": {
+    "cases": 2,
+    "correct": 0,
+    "wrong": 3,
+    "missed": 0,
+    "hallucinated": 2,
+    "unscorable": 3,
+    "judged": 5,
+    "answered": 5,
+    "answerRate": 1,
+    "accuracyOverAnswered": 0,
+    "accuracyOverAll": 0
+  },
+  "leafPaths": [
+    "frame.material",
+    "frame.serial",
+    "service.date",
+    "service.notes"
+  ],
+  "grid": {
+    "frame.material": {
+      "spoken-note": {
+        "verdict": "wrong",
+        "expected": "steel",
+        "got": "sample",
+        "sourceSpan": "steel frame",
+        "origin": "explicit"
+      },
+      "written-ticket": {
+        "verdict": "unscorable",
+        "expected": null,
+        "got": "sample",
+        "origin": "none",
+        "reason": "unmentioned"
+      }
+    },
+    "frame.serial": {
+      "spoken-note": {
+        "verdict": "wrong",
+        "expected": "BW-4471",
+        "got": "sample",
+        "origin": "explicit"
+      },
+      "written-ticket": {
+        "verdict": "unscorable",
+        "expected": null,
+        "got": "sample",
+        "origin": "none",
+        "reason": "unmentioned"
+      }
+    },
+    "service.date": {
+      "spoken-note": {
+        "verdict": "hallucinated",
+        "expected": null,
+        "got": "sample",
+        "sourceSpan": "just a brake pad replacement",
+        "origin": "default"
+      },
+      "written-ticket": {
+        "verdict": "wrong",
+        "expected": "2026-02-04",
+        "got": "sample",
+        "sourceSpan": "2026-02-04",
+        "origin": "explicit"
+      }
+    },
+    "service.notes": {
+      "spoken-note": {
+        "verdict": "hallucinated",
+        "expected": null,
+        "got": "sample",
+        "sourceSpan": "just a brake pad replacement",
+        "origin": "default"
+      },
+      "written-ticket": {
+        "verdict": "unscorable",
+        "expected": null,
+        "got": "sample",
+        "origin": "none",
+        "reason": "unmentioned"
+      }
+    }
+  },
+  "history": []
+}

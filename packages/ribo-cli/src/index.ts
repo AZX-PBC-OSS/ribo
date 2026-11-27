@@ -98,6 +98,7 @@ export {
   ExpectationProposalSchema,
   ExpectationReviewSchema,
   ExpectationValueSchema,
+  EXPECTATION_REVIEW_CLASSES,
   ProposalEvidenceMapSchema,
   ProposalEvidenceSchema,
   ProposalEvidenceSetSchema,
@@ -138,6 +139,7 @@ export { scoreEvalRun } from "./eval/score.js";
 export { EVAL_VERDICTS } from "./eval/score-types.js";
 export type {
   EvalCell,
+  EvalCellReview,
   EvalScore,
   EvalScoreTotals,
   EvalVerdict,
@@ -149,7 +151,9 @@ export { EvalError } from "./eval/error.js";
 export { EvalRunRecordSchema } from "./eval/record-schema.js";
 export type {
   EvalRunRecord,
+  EvalRunRecordCellReview,
   EvalRunRecordDraft,
+  EvalRunRecordExpectations,
   EvalRunRecordHazards,
   EvalRunRecordIdentity,
   EvalRunRecordSettings,
