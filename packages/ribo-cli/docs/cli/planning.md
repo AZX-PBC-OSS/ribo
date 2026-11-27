@@ -10,6 +10,24 @@ reference guide for all three — the schema dialect itself lives in
 The worked example ships a finished plan at
 `node_modules/@azx/ribo-cli/examples/basic-corpus/plan.json` — authored by hand so an installed user can read a complete artifact before running anything.
 
+## When a plan is worth trying
+
+A plan is worth measuring when the schema's shape or the run's errors give a reason to cut the
+calls differently. Three such reasons, each observable before or without spending:
+
+- `ribo schema inspect` reports a **per-group shape with a group cut into parts** — a group too
+  wide for one call, split across several by the split caps;
+- **leaves answered from the same passage sit in different groups** — no single call reads the
+  context that decides both, so each is answered half-blind;
+- **errors cluster in a split group** — the calls a group was cut into are where the wrong and
+  missed verdicts pile up.
+
+For a schema that inspects as a plain single-shot shape with nothing split and no cross-group
+context, a plan is unlikely to matter: there is nothing to re-cut. The cost of finding out is one
+authoring call under its own spend estimate and `--max-spend` ceiling — and
+[`schema inspect --plan`](/cli/schema#threshold-rows) sizes the result before any `eval` run
+spends on it.
+
 ## `schema init`: draft the schema from samples
 
 ```sh

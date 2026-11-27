@@ -130,6 +130,11 @@ const rootDocsPointer = docsPointer(
 /** The authoring page's pointer: init, plan review and update, and the planned strategy. */
 const planningDocsPointer = docsPointer("planning", "authoring a schema and reviewing its plan");
 
+/** The start-here line: `schema init` is the first command a corpus author runs. */
+const startHereLine =
+  "Start here: ribo schema init — draft a schema from your own samples (bare PDFs, plain folders, " +
+  "case folders) and scaffold a corpus around them.";
+
 /** Reports a could-not-run fault under a command's name and exits 2. Stdout stays empty. */
 function failWith(command: string, message: string): never {
   process.stderr.write(`${command}: ${colorsFor(process.stderr).red(message)}\n`);
@@ -851,6 +856,7 @@ const evalHelp = [
 const program = new Command()
   .name("ribo")
   .description("Ribo's command-line tools (ADR 0037)")
+  .addHelpText("before", startHereLine)
   .addHelpText("after", planningDocsPointer)
   .addHelpText("after", rootDocsPointer)
   .showHelpAfterError()

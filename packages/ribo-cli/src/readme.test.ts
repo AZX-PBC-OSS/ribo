@@ -26,6 +26,29 @@ const SPEND_DOC = readFileSync(
   fileURLToPath(new URL("../../../docs/cli/spend.md", import.meta.url)),
   "utf8",
 );
+const INDEX_DOC = readFileSync(
+  fileURLToPath(new URL("../../../docs/cli/index.md", import.meta.url)),
+  "utf8",
+);
+const PLANNING_DOC = readFileSync(
+  fileURLToPath(new URL("../../../docs/cli/planning.md", import.meta.url)),
+  "utf8",
+);
+const CORPUS_DOC = readFileSync(
+  fileURLToPath(new URL("../../../docs/cli/corpus.md", import.meta.url)),
+  "utf8",
+);
+const SCORING_DOC = readFileSync(
+  fileURLToPath(new URL("../../../docs/cli/scoring.md", import.meta.url)),
+  "utf8",
+);
+
+/** The three decision-guide sections' anchors, as the docs site links them. */
+const NEW_SECTIONS = [
+  "/cli/planning#when-a-plan-is-worth-trying",
+  "/cli/corpus#when-a-case-s-inputs-disagree",
+  "/cli/scoring#comparing-across-a-corpus-edit",
+] as const;
 
 test("the README warns that `npx ribo` resolves an unrelated package, and names @azx/ribo-cli", () => {
   expect(README).toContain("npx ribo");
@@ -138,6 +161,91 @@ test("the schema doc distinguishes unbuildable-plan exit 2 with no report from a
   expect(SCHEMA_DOC).toMatch(
     /exit 1[^\n]*report is still on stdout|report is still on stdout[^\n]*exit 1/u,
   );
+});
+
+test("the CLI overview and package README lead with authoring and link all new decision sections", () => {
+  // The stale link text is gone: multi-input cases retired the one-input-file rule.
+  expect(INDEX_DOC).not.toContain("one-input-file rule");
+  // The authoring path comes first; the hand-written walkthrough is second.
+  const authoring = INDEX_DOC.indexOf("The authoring path");
+  const handWritten = INDEX_DOC.indexOf("## From documents to scores");
+  expect(authoring).toBeGreaterThan(-1);
+  expect(handWritten).toBeGreaterThan(-1);
+  expect(authoring).toBeLessThan(handWritten);
+  // The start-here list opens the authoring path, in both the overview and the README.
+  expect(INDEX_DOC).toContain("bare PDF");
+  expect(INDEX_DOC).toContain("--draft-from");
+  expect(README).toContain("ribo schema init");
+  expect(README).toContain("--draft-from");
+  // Both link every new decision-guide section — the site page by its URL
+  // path, the README by its relative docs/cli/<page>.md#anchor link.
+  for (const anchor of NEW_SECTIONS) {
+    expect(INDEX_DOC).toContain(anchor);
+    expect(README).toContain(anchor.replace(/^\/cli\//u, "docs/cli/").replace("#", ".md#"));
+  }
+});
+
+test("the plan-worth-trying body states its triggers, single-shot caveat, cost and no accuracy claim", () => {
+  // The three conditions under which a plan is worth measuring. Prettier
+  // wraps prose at its own width, so every phrase matches across line breaks.
+  expect(PLANNING_DOC).toMatch(
+    /per-group\s+shape[^.]*group cut into parts|group\s+cut\s+into\s+parts/u,
+  );
+  expect(PLANNING_DOC).toMatch(/leaves\s+answered\s+from\s+the\s+same\s+passage/u);
+  expect(PLANNING_DOC).toMatch(/same\s+passage[^.]*different\s+groups|different\s+groups/u);
+  expect(PLANNING_DOC).toMatch(/errors\s+cluster\s+in\s+a\s+split\s+group/u);
+  // Unlikely to matter for a single-shot schema.
+  expect(PLANNING_DOC).toMatch(
+    /single-shot[^.]*unlikely to matter|unlikely\s+to\s+matter[^.]*single-shot/u,
+  );
+  // The cost of finding out: one authoring call under its own estimate.
+  expect(PLANNING_DOC).toMatch(/one\s+authoring\s+call\s+under\s+its\s+own/u);
+});
+
+test("the input-disagreement body states alternatives, authoritative marker guidance, two leaves and no silent omission", () => {
+  // Option one: alternatives on the asserted entry.
+  expect(CORPUS_DOC).toMatch(/alternatives/u);
+  // Option two: name the authoritative input by marker id, with value and span.
+  expect(CORPUS_DOC).toMatch(/authoritative\s+input/u);
+  expect(CORPUS_DOC).toMatch(/marker\s+id/u);
+  expect(CORPUS_DOC).toMatch(/asserted\s+value|asserting\s+the\s+value|the\s+asserted\s+value/u);
+  expect(CORPUS_DOC).toMatch(/sourceSpan/u);
+  // Option three: two leaves.
+  expect(CORPUS_DOC).toMatch(/two\s+leaves/u);
+  // And the warning: silence is not an option.
+  expect(CORPUS_DOC).toMatch(/not\s+leave\s+the\s+leaf\s+silently\s+unmentioned/u);
+});
+
+test("the corpus-edit body states exact fingerprint coverage, exclusions and compare recovery", () => {
+  // What the corpus fingerprint covers, exactly.
+  expect(SCORING_DOC).toMatch(/each\s+case's\s+id/u);
+  expect(SCORING_DOC).toMatch(/inputs\s+in\s+order/u);
+  expect(SCORING_DOC).toMatch(/file\s+name,[\s\S]*?kind,[\s\S]*?bytes/u);
+  expect(SCORING_DOC).toMatch(/expected\s+entries/u);
+  expect(SCORING_DOC).toMatch(/defaults/u);
+  expect(SCORING_DOC).toMatch(/markCaptures/u);
+  // Changing any covered item refuses the pair without the override.
+  expect(SCORING_DOC).toMatch(/refused\s+without\s+`--allow-corpus-mismatch`/u);
+  // What it does not cover.
+  expect(SCORING_DOC).toMatch(/capturedAt/u);
+  expect(SCORING_DOC).toMatch(/pageCount/u);
+  expect(SCORING_DOC).toMatch(/schema\s+document|the\s+schema/u);
+  expect(SCORING_DOC).toMatch(/instructions/u);
+  expect(SCORING_DOC).toMatch(/reformatting/u);
+  // Recovery: the clean fix, the override's meaning, and the mixing warning.
+  expect(SCORING_DOC).toMatch(/re-run\s+the\s+baseline/u);
+  expect(SCORING_DOC).toMatch(/compares\s+what/u);
+  expect(SCORING_DOC).toMatch(/records\s+the\s+override/u);
+  expect(SCORING_DOC).toMatch(/mixes\s+the\s+edit\s+with\s+the\s+run/u);
+});
+
+test("no new section claims that a plan improves accuracy", () => {
+  expect(INDEX_DOC).not.toMatch(/improves accuracy/u);
+  expect(CORPUS_DOC).not.toMatch(/improves accuracy/u);
+  expect(SCORING_DOC).not.toMatch(/improves accuracy/u);
+  // Planning's one mention is the disclaimer itself, kept verbatim.
+  expect(PLANNING_DOC.match(/improves accuracy/g)).toHaveLength(1);
+  expect(PLANNING_DOC).toMatch(/No claim is made here[^.]*plan improves accuracy/u);
 });
 
 test("schema docs explain call-count reasons and explicit single-shot eval behavior", () => {

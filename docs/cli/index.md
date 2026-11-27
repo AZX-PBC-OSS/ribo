@@ -49,32 +49,21 @@ backend reads `OPENAI_API_KEY` from the environment or a gitignored `.env.local`
 `claude-cli` / `codex-cli` backends spawn the binary you already have installed, on your own
 subscription.
 
-## From documents to scores
-
-The package ships a small worked example corpus at
-`node_modules/@azx/ribo-cli/examples/basic-corpus` — synthetic energy-visit notes over one small
-schema — and every step below runs against it verbatim. The corpus page embeds the same committed
-files.
-
-1. **Pick the fields** the model should read out of your documents.
-2. **[Write the schema](/cli/schema)** — one JSON Schema document in OpenAPI 3.0 form, each leaf
-   described.
-3. **Check it:** `ribo schema inspect node_modules/@azx/ribo-cli/examples/basic-corpus/schema.json`.
-4. **[Lay out the corpus](/cli/corpus)**: a `manifest.json`, the schema, one directory per case —
-   the example's `service-sheet` case is a document case, a PDF with a text layer and the
-   `capture` block every document case declares.
-5. **Read what the model will read:**
-   `ribo corpus text node_modules/@azx/ribo-cli/examples/basic-corpus`.
-6. **Write the expected answers** in each case's `case.json` — asserted values, declared-absent
-   scopes, and silence where you do not know.
-7. **[Run `eval` under a spend cap](/cli/spend):**
-   `ribo eval --corpus node_modules/@azx/ribo-cli/examples/basic-corpus --backend claude-cli --model claude-haiku-5-5 --strategy single-shot --max-spend 1.00 --out ./runs`.
-8. **Read [the report](/cli/scoring)** — the verdict counts beside the three rates, always
-   together.
-9. **Change one thing and [compare](/cli/scoring#compare):** re-run with a different strategy or
-   model, then `ribo compare ./runs/<first>.json ./runs/<second>.json`.
-
 ## The authoring path, end to end
+
+Start from what you have — any of these is a valid starting point, and `ribo schema init` reads
+all of them:
+
+- a **bare PDF** — loaded as a one-input document sample, its page count measured from the file and
+  its `capturedAt` stamped with the run instant (or the `--captured-at` you pass);
+- **a folder per job** — a plain directory of `.pdf`, `.txt` and `.md` files, loaded as one sample
+  named after the directory;
+- **an existing case folder** — a corpus case with any number of declared inputs, passed through
+  untouched;
+- **a hand-written schema** — skip the draft and start from the walkthrough below.
+
+For a large set, draft from a few representative samples with `--draft-from` while `--corpus`
+scaffolds every sample into a case.
 
 The commands compose into one reviewable workflow, from your own samples to a measured verdict —
 the same path the worked example's finished plan
@@ -98,15 +87,44 @@ single-shot --strategy planned --plan ./plan.json --backend claude-cli --model c
 
 [Planning and authoring](/cli/planning) is the detailed reference for all three authoring
 commands: their samples, refusals, update forms and the record identity a planned arm carries.
+When a plan is worth measuring — and when it is not — is its own question:
+[when a plan is worth trying](/cli/planning#when-a-plan-is-worth-trying).
+
+## From documents to scores
+
+If you already have the schema and only need the measuring path, the package ships a small worked
+corpus at `node_modules/@azx/ribo-cli/examples/basic-corpus` — synthetic energy-visit notes over
+one small schema — and every step below runs against it verbatim. The corpus page embeds the same
+committed files.
+
+1. **Pick the fields** the model should read out of your documents.
+2. **[Write the schema](/cli/schema)** — one JSON Schema document in OpenAPI 3.0 form, each leaf
+   described.
+3. **Check it:** `ribo schema inspect node_modules/@azx/ribo-cli/examples/basic-corpus/schema.json`.
+4. **[Lay out the corpus](/cli/corpus)**: a `manifest.json`, the schema, one directory per case —
+   the example's `service-sheet` case is a document case, a PDF with a text layer and the
+   `capture` block every document case declares.
+5. **Read what the model will read:**
+   `ribo corpus text node_modules/@azx/ribo-cli/examples/basic-corpus`.
+6. **Write the expected answers** in each case's `case.json` — asserted values, declared-absent
+   scopes, and silence where you do not know.
+7. **[Run `eval` under a spend cap](/cli/spend):**
+   `ribo eval --corpus node_modules/@azx/ribo-cli/examples/basic-corpus --backend claude-cli --model claude-haiku-5-5 --strategy single-shot --max-spend 1.00 --out ./runs`.
+8. **Read [the report](/cli/scoring)** — the verdict counts beside the three rates, always
+   together.
+9. **Change one thing and [compare](/cli/scoring#compare):** re-run with a different strategy or
+   model, then `ribo compare ./runs/<first>.json ./runs/<second>.json`.
 
 ## Where each format is specified
 
 - [Writing a schema for ribo](/cli/schema) — the OpenAPI 3.0 dialect, groups and leaves, what
   `description` does, and what `schema inspect`'s report lines mean.
 - [Planning and authoring](/cli/planning) — `schema init`'s samples and scaffolds, `schema plan`'s
-  artifact and update forms, and the `planned` strategy's refusals and record identity.
+  artifact and update forms, the `planned` strategy's refusals and record identity, and
+  [when a plan is worth trying](/cli/planning#when-a-plan-is-worth-trying).
 - [The corpus format](/cli/corpus) — the manifest, the case file, the expectation statuses, and
-  the one-input-file rule.
-- [Scoring and comparing runs](/cli/scoring) — the verdicts, the three rates, the run record, and
-  `compare`'s axes and intersection.
+  [when a case's inputs disagree](/cli/corpus#when-a-case-s-inputs-disagree).
+- [Scoring and comparing runs](/cli/scoring) — the verdicts, the three rates, the run record,
+  `compare`'s axes and intersection, and
+  [comparing across a corpus edit](/cli/scoring#comparing-across-a-corpus-edit).
 - [Spend](/cli/spend) — the estimate, the per-model price rows and fallback, and `--max-spend`.
