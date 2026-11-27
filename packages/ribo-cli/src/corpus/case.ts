@@ -46,16 +46,114 @@ export const ExpectationValueSchema = z.union([
  */
 export type ExpectationValue = z.infer<typeof ExpectationValueSchema>;
 
+/**
+ * An expectation entry's review state: a proposal is `pending` until a
+ * reviewer confirms it, and only a confirmed entry is scored (ADR 0049).
+ * @category Eval
+ */
+export type ExpectationReview = "pending" | "confirmed";
+
+/**
+ * The review states an expectation entry's `review` member carries.
+ * @category Eval
+ */
+export const ExpectationReviewSchema = z.enum(["pending", "confirmed"]);
+
+/**
+ * One evidence link: the exact quote a proposal rests on, and the declared
+ * input file it occurs in. A collection leaf's evidence is one link per
+ * instance, keyed by the instance's ordinal (ADR 0049).
+ * @category Eval
+ */
+export const ProposalEvidenceSchema = z.strictObject({
+  /** The verbatim quote, matched exactly against the input's text. */
+  quote: z.string().min(1),
+  /** The input file's name, as the case's `inputs` list declares it. */
+  input: z.string().min(1),
+});
+
+/**
+ * One evidence link, as a proposal records it.
+ * @category Eval
+ */
+export type ProposalEvidence = z.infer<typeof ProposalEvidenceSchema>;
+
+/**
+ * A collection leaf's evidence: one link per instance, keyed by the
+ * instance's ordinal. An instance the proposal says nothing about omits its
+ * ordinal — a sparse map, like the expected map itself.
+ * @category Eval
+ */
+export const ProposalEvidenceMapSchema = z.record(z.string(), ProposalEvidenceSchema);
+
+/**
+ * The evidence a proposal carries: one quote-plus-input for a scalar leaf,
+ * an ordinal-keyed map of them for a collection leaf. The loader refuses the
+ * wrong shape for the leaf (ADR 0049).
+ * @category Eval
+ */
+export const ProposalEvidenceSetSchema = z.union([
+  ProposalEvidenceSchema,
+  ProposalEvidenceMapSchema,
+]);
+
+/**
+ * What the model proposed, stamped immutably beside the entry it produced
+ * (ADR 0049). The reviewer edits the entry's own `status`, `value` and
+ * `alternatives`; this block is what lets code later classify a confirmed
+ * entry as accepted-unchanged or corrected.
+ *
+ * A proposed absence carries no value and no evidence — a claim of silence
+ * has none to show.
+ * @category Eval
+ */
+export const ExpectationProposalSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    /** What the model proposed for the leaf: a value, with its evidence. */
+    status: z.literal("asserted"),
+    /** The proposed value, in the same four kinds an expectation holds. */
+    value: ExpectationValueSchema,
+    /** Where the proposal came from: one quote-plus-input per instance. */
+    evidence: ProposalEvidenceSetSchema,
+    /** The backend that produced the proposal. */
+    backend: z.string().min(1),
+    /** The model that produced the proposal. */
+    model: z.string().min(1),
+    /** When the proposal was made, as an ISO 8601 datetime string. */
+    proposedAt: z.iso.datetime(),
+  }),
+  z.strictObject({
+    /** What the model proposed for the leaf: that it is absent. */
+    status: z.literal("declared-absent"),
+    /** The backend that produced the proposal. */
+    backend: z.string().min(1),
+    /** The model that produced the proposal. */
+    model: z.string().min(1),
+    /** When the proposal was made, as an ISO 8601 datetime string. */
+    proposedAt: z.iso.datetime(),
+  }),
+]);
+
+/**
+ * What the model proposed, as a proposal-bearing entry records it.
+ * @category Eval
+ */
+export type ExpectationProposal = z.infer<typeof ExpectationProposalSchema>;
+
 const assertedExpectationSchema = z.strictObject({
   status: z.literal("asserted"),
   value: ExpectationValueSchema,
   alternatives: z.array(ExpectationValueSchema).optional(),
   sourceSpan: z.string().optional(),
+  proposal: ExpectationProposalSchema.optional(),
+  review: ExpectationReviewSchema.optional(),
 });
 
 const declaredAbsentExpectationSchema = z.strictObject({
   status: z.literal("declared-absent"),
   sourceSpan: z.string().optional(),
+  proposal: ExpectationProposalSchema.optional(),
+  review: ExpectationReviewSchema.optional(),
 });
 
 /**
@@ -64,12 +162,25 @@ const declaredAbsentExpectationSchema = z.strictObject({
  * The entry is discriminated on its status: an asserted entry carries a
  * value, a declared-absent entry must not (its presence is an unknown-key
  * error naming the leaf).
+ *
+ * The `proposal` and `review` members are provenance and review state (ADR
+ * 0049): a proposal-bearing entry carries both or neither, and the loader
+ * refuses the half-dressed entry naming the leaf.
  * @category Eval
  */
-export const ExpectationEntrySchema = z.discriminatedUnion("status", [
-  assertedExpectationSchema,
-  declaredAbsentExpectationSchema,
-]);
+export const ExpectationEntrySchema = z
+  .discriminatedUnion("status", [assertedExpectationSchema, declaredAbsentExpectationSchema])
+  .superRefine((entry, ctx) => {
+    if ((entry.proposal === undefined) !== (entry.review === undefined)) {
+      ctx.addIssue({
+        code: "custom",
+        path: entry.proposal === undefined ? ["review"] : ["proposal"],
+        message:
+          'a proposal-bearing entry carries "proposal" and "review" together — one without the ' +
+          "other cannot say whether the entry is a model's pending guess or a reviewer's judgement",
+      });
+    }
+  });
 
 /**
  * One scoped default: a blanket statement about every leaf a scope covers.

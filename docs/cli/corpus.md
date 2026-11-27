@@ -121,6 +121,30 @@ silent about the rest.
 A **collection** leaf's value is an ordinal-keyed object: `{ "0": ..., "1": ... }` — one key per
 expected instance, in order. A run that produces extra instances is wrong, not almost right.
 
+### Proposals and review state
+
+An entry may also record **who proposed it and whether anyone has reviewed it** (ADR
+[0049](/adr/0049-expectations-may-be-proposed-and-are-scored-only-once-reviewed)). A
+proposal-bearing entry carries two members **together** — `proposal` and `review`; either
+without the other is refused, naming the leaf. An entry with neither is hand-written.
+
+- `proposal` — what the model proposed, never edited after the fact: the proposing `backend`
+  and `model`, the `proposedAt` instant, the proposed `status`, and — for an asserted proposal —
+  the proposed `value` and its `evidence`. Evidence is one quote-plus-input for a scalar leaf,
+  and an ordinal-keyed map of them for a collection leaf; the loader refuses evidence naming an
+  input the case does not declare, and the wrong shape for the leaf. A proposed absence carries
+  no value and no evidence — a claim of silence has none to show. A proposal never carries
+  `alternatives`: an alternative on a proposal-bearing entry is an addition, and the reviewer's.
+- `review` — `"pending"` or `"confirmed"`. A pending proposal is not an expectation: eval will
+  not judge it, and it enters an expectation only by a reviewer's act. Reviewing means editing
+  the entry's own `status`, `value` and `alternatives` and then confirming — a correction is an
+  edit plus `"review": "confirmed"`. Code classifies a confirmed entry as **accepted-unchanged**
+  (the entry equals the proposal: same status, same value under the scorer's own fold, no
+  alternatives) or **corrected** (any added alternative, value change or status change).
+
+Both members are part of the **corpus fingerprint** — see [scoring](/cli/scoring) — because
+review state decides which cells are judged and provenance decides how the totals may be read.
+
 **Scoped defaults** are the blanket statement — "everything under this scope was absent":
 
 <<< @/../packages/ribo-cli/examples/basic-corpus/follow-up-letter/case.json

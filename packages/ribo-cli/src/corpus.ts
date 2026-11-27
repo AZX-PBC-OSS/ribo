@@ -30,7 +30,12 @@ export {
   CorpusCaseInputSchema,
   CorpusCaptureBlockSchema,
   ExpectationEntrySchema,
+  ExpectationProposalSchema,
+  ExpectationReviewSchema,
   ExpectationValueSchema,
+  ProposalEvidenceMapSchema,
+  ProposalEvidenceSchema,
+  ProposalEvidenceSetSchema,
   ScopedDefaultSchema,
 } from "./corpus/case.js";
 export type {
@@ -39,12 +44,19 @@ export type {
   CorpusInputKind,
   CorpusCaptureBlock,
   ExpectationEntry,
+  ExpectationProposal,
+  ExpectationReview,
   ExpectationStatus,
   ExpectationValue,
+  ProposalEvidence,
   ScopedDefault,
   ScopedDefaultStatus,
 } from "./corpus/case.js";
 export { resolveExpectation } from "./corpus/expectations.js";
-export type { ResolvedExpectation, ResolvedExpectationOrigin } from "./corpus/expectations.js";
+export type {
+  ExpectationReviewClass,
+  ResolvedExpectation,
+  ResolvedExpectationOrigin,
+} from "./corpus/expectations.js";
 export { loadCorpus } from "./corpus/loader.js";
 export type { LoadedCorpus, LoadedCase, LoadedCaseInput } from "./corpus/loader.js";
