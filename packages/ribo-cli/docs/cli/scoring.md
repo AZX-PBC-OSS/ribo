@@ -31,17 +31,36 @@ that leaves the leaf empty is `correct`, and a run that produces any value at al
 included, is `hallucinated`. Assert `false` when the document denies; declare absent when it is
 silent.
 
-`unscorable` always carries its reason: `unmentioned` (the corpus says nothing about the leaf) or
+`unscorable` always carries its reason: `unmentioned` (the corpus says nothing about the leaf),
 `incomparable-expectation` (an enum or literal expectation naming no member the schema declares —
-a corpus authoring fault, reported rather than scored as wrong). An unscorable cell counts in no
-denominator.
+a corpus authoring fault, reported rather than scored as wrong), or `unreviewed-proposal` (the
+entry is a proposal still awaiting review). A pending proposal's cell is in no denominator,
+whatever the run produced — an unreviewed model answer is never a measurement — but the cell is
+still written: it carries the proposed value and what the run produced, labelled with the reason,
+so a reader sees what would have been judged. An unscorable cell counts in no denominator.
 
 A case whose extraction **failed** is judged over every leaf and earns no credit for silence:
 every asserted leaf is `missed`, and every declared-absent leaf is `missed` too — the failure
 said nothing, so its silence is not a chosen abstention. The cells stay judged: they count in
 accuracy-over-all's denominator and never in its numerator, so a run that produced nothing scores
 zero rather than reading as accurate, and its answer rate is visibly zero rather than quietly
-absent.
+absent. A failed case's pending proposals are in no denominator either — they stay `unscorable`.
+
+### Nothing unreviewed is a measurement
+
+A pending proposal contributes to no rate ([Proposals and review state](/cli/corpus)). Partial
+review stays useful: three reviewed cases give a real measurement over those three. When a corpus
+holds pending proposals, `ribo eval` prints one stderr line counting the pending cells and the
+fully pending cases and naming `ribo corpus review`. The run still pays extraction for every
+case — eval has no case selector; proposing and reviewing **per case** is the budget path.
+
+When the corpus holds no judgeable expectation at all — every entry a pending proposal, or no
+entries at all (a fresh scaffold) — `ribo eval` refuses before transcription, the spend estimate
+and any model call (exit 2, empty stdout): with pending proposals the refusal names
+`ribo corpus review`; with none, `ribo corpus propose`. This is a deliberate change of today's
+behaviour for an expectation-free corpus, which previously ran, spent and recorded nothing
+judged. Every other corpus — any corpus with at least one judgeable expectation — loads, scores,
+fingerprints and records exactly as before; the expectation-free corpus is the exception.
 
 Two rules decide whether the produced value _is_ the expected one:
 

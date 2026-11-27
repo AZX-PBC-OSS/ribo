@@ -73,6 +73,7 @@ import {
 } from "./eval/backend.js";
 import { transcribeDocumentCases } from "./eval/documents.js";
 import { prepareEvalPlan } from "./eval/plan.js";
+import { reviewCoverage } from "./eval/judgeable.js";
 import { runEvalWithSettings } from "./eval/run.js";
 import { scoreEvalRun } from "./eval/score.js";
 import { buildEvalRunRecord } from "./eval/record-build.js";
@@ -628,6 +629,32 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
         throw error;
       }
     }
+  }
+  // R5: nothing unreviewed is a measurement. A corpus with no judgeable
+  // expectation — every entry a pending proposal, or none at all — is
+  // refused BEFORE transcription, the estimate and any model call, so a
+  // small budget is never spent on a run that measures nothing. A partly
+  // reviewed corpus still runs: a refusal whenever any proposal is pending
+  // would block incremental review (D4).
+  const coverage = reviewCoverage(corpus);
+  if (coverage.judgeableCases === 0) {
+    failEval(
+      coverage.pendingCells > 0
+        ? `the corpus holds no judged expectation — every case's entries are pending proposals, ` +
+            `and a pending proposal is never a measurement (fix: confirm them with ` +
+            "`ribo corpus review`, then re-run)"
+        : `the corpus holds no expectation at all — there is nothing to judge, and a run over it ` +
+            `would measure nothing (fix: propose expectations with ` +
+            "`ribo corpus propose`, review them, then re-run)",
+    );
+  }
+  if (coverage.pendingCells > 0) {
+    writeEvalErr(
+      `${coverage.pendingCells} pending proposal cell${coverage.pendingCells === 1 ? "" : "s"} ` +
+        `across ${coverage.unjudgeableCases} of ${coverage.cases} case` +
+        `${coverage.cases === 1 ? "" : "s"} will not be judged — review them with ` +
+        "`ribo corpus review`; the run still pays extraction for every case",
+    );
   }
   // The document cases' transcription: once per run, before the estimate and
   // before any model call, shared by every arm. A document with no text

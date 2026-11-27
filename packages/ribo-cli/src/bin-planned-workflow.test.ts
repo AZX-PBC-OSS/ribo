@@ -468,6 +468,14 @@ test("init draft, corpus scaffold, plan, update, corpus text, planned and unplan
   expect(text.stdout).toContain("Address: 1 Main Street");
   expect(received).toHaveLength(0);
 
+  // 5b. One authored expectation: eval refuses an expectation-free corpus
+  // before spending (R5), so the author writes an answer before its runs.
+  editJson(join(corpus, "field-notes", "case.json"), (document) => {
+    document["expected"] = {
+      "home.address": { status: "asserted", value: "1 Main Street" },
+    };
+  });
+
   // 6. Planned and unplanned arms of one run: additive v1 records, runner-derived identity.
   const runs = join(workDir, "runs");
   const evalRun = await runBin([

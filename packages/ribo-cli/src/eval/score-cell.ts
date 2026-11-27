@@ -13,7 +13,9 @@
  *   abstention — `missed`, and no credit;
  * - declared-absent and a value — `hallucinated`;
  * - unmentioned, or an expectation the schema cannot hold — `unscorable`,
- *   with the reason.
+ *   with the reason;
+ * - a pending proposal — unscorable with the reason, whatever the run
+ *   produced: an unreviewed answer is never a measurement (R5, ADR 0049).
  *
  * A cell's expectation comes from the corpus's own precedence rule
  * (`resolveExpectation`), never from a second implementation of it, and an
@@ -182,6 +184,11 @@ export function judgeLeaf(params: {
 
   if (expectation.status === "unmentioned") {
     return { ...base, verdict: "unscorable", reason: "unmentioned" };
+  }
+  if (expectation.origin === "explicit" && expectation.reviewClass === "pending") {
+    // The cell still carries the proposed value and what the run produced,
+    // labelled with the reason — a reader sees what WOULD have been judged.
+    return { ...base, verdict: "unscorable", reason: "unreviewed-proposal" };
   }
   if (expectation.status === "declared-absent") {
     if (values.length > 0) return { ...base, verdict: "hallucinated" };
