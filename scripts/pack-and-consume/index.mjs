@@ -127,6 +127,12 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 
+// For the installed planned-inspect assertion: the report's planFingerprint must be the one core
+// itself derives from the shipped plan, not a value this script recomputes by its own recipe.
+// Resolved from the workspace after buildPackages() has produced dist/ (the default export
+// condition), never from the tarball under test.
+import { planFingerprint } from "@azx/ribo-core";
+
 import {
   discoverPublishablePackages,
   EXPECTED_PUBLISHED_COUNT,
@@ -407,7 +413,74 @@ function assertCliDocsInTarball(cliDir) {
   }
 }
 
-function runCliBinStep(tarballs) {
+/**
+ * T18: the shipped example ships a finished plan, so the installed bin must read it. Runs
+ * `schema inspect --json --plan` against the extracted tarball's committed example schema and
+ * plan via the scratch app's installed `node_modules/.bin/ribo`, and asserts the v4 report's
+ * semantic/packed layout, exact leaf coverage and the `planFingerprint` core derives from the
+ * shipped plan itself.
+ */
+async function assertInstalledPlannedInspect(installedBin, isolated, packageDir) {
+  const exampleDir = join(packageDir, "examples", "basic-corpus");
+  const schemaName = "example.schema.json";
+  const planName = "example.plan.json";
+  copyFileSync(join(exampleDir, "schema.json"), join(isolated, schemaName));
+  copyFileSync(join(exampleDir, "plan.json"), join(isolated, planName));
+
+  log("cli-bin-run: running the installed bin's planned inspect against the shipped example...");
+  const run = runCaptured(
+    installedBin,
+    ["schema", "inspect", "--json", "--plan", planName, schemaName, ...THRESHOLD_FLAGS],
+    isolated,
+  );
+  if (run.status !== 0) {
+    throw new Error(
+      `cli-bin-run: the installed planned inspect exited ${run.status} instead of 0.\nstdout: ${run.stdout}\nstderr: ${run.stderr}`,
+    );
+  }
+  let report;
+  try {
+    report = JSON.parse(run.stdout);
+  } catch {
+    throw new Error(`cli-bin-run: planned inspect stdout is not one JSON document:\n${run.stdout}`);
+  }
+  const plan = JSON.parse(readFileSync(join(isolated, planName), "utf8"));
+  const expectedFingerprint = await planFingerprint(plan);
+  const expectedPieces = ["Home identity", "Heating system", "Recommended upgrades"];
+  const packedPaths = (report.planned?.packedCalls ?? []).flatMap((call) => call.paths);
+  const checks = [
+    ["contractVersion === 4", report.contractVersion === 4],
+    [
+      "planFingerprint is core's over the shipped plan",
+      report.planFingerprint === expectedFingerprint,
+    ],
+    [
+      "schemaFingerprint matches the shipped plan's recorded one",
+      report.schemaFingerprint === plan.schemaFingerprint,
+    ],
+    [
+      `semantic pieces are ${JSON.stringify(expectedPieces)}`,
+      JSON.stringify((report.planned?.semanticPieces ?? []).map((piece) => piece.name)) ===
+        JSON.stringify(expectedPieces),
+    ],
+    [
+      "every semantic piece packs into exactly one call",
+      (report.planned?.semanticPieces ?? []).every((piece) => piece.packedCount === 1),
+    ],
+    [
+      "packed calls cover the plan's fieldPaths exactly once",
+      JSON.stringify([...packedPaths].sort()) === JSON.stringify([...plan.fieldPaths].sort()),
+    ],
+  ];
+  const failed = checks.filter(([, ok]) => !ok).map(([name]) => name);
+  if (failed.length > 0) {
+    throw new Error(
+      `cli-bin-run: the installed planned inspect failed check(s): ${failed.join(", ")}\nfull report: ${run.stdout}`,
+    );
+  }
+}
+
+async function runCliBinStep(tarballs) {
   log("cli-bin-run: extracting the @azx/ribo-cli tarball...");
   const CLI_DIR = join(SCRATCH_DIR, "cli");
   mkdirSync(CLI_DIR, { recursive: true });
@@ -458,6 +531,7 @@ function runCliBinStep(tarballs) {
     ),
     "the installed node_modules/.bin/ribo",
   );
+  await assertInstalledPlannedInspect(installedBin, isolated, join(CLI_DIR, "package"));
 
   // The could-not-run class, twice: missing file and malformed JSON each exit 2, stdout empty,
   // stderr non-empty (the ribo-cli design doc §4 exit-code table).
@@ -672,7 +746,7 @@ async function main() {
     assertSchemaArtifactInTarball(tarballs);
     writeScratchApp(tarballs);
     installScratchApp();
-    runCliBinStep(tarballs); // ADR 0037 — the packed bin is the artifact this tier must prove.
+    await runCliBinStep(tarballs); // ADR 0037 — the packed bin is the artifact this tier must prove.
     copyOrtRuntimeFiles();
     buildScratchApp();
     const outcome = await runInBrowser();
