@@ -15,7 +15,7 @@ import { CorpusCaseSchema } from "../corpus/case.js";
 import type { CorpusCase, CorpusCaseInput, CorpusInputKind } from "../corpus/case.js";
 import { describeIssues } from "../corpus/issues.js";
 import { joinCaseInputTexts } from "../eval/case-text.js";
-import { transcribeDocuments } from "../eval/documents.js";
+import { measureDocumentPages, transcribeDocuments } from "../eval/documents.js";
 import type { DocumentBatchOptions, DocumentDescriptor } from "../eval/documents.js";
 import { OperatorError } from "../operator/error.js";
 
@@ -42,6 +42,17 @@ export interface SchemaInitSample {
   readonly name: string;
   readonly inputs: readonly SchemaInitSampleInput[];
   readonly text: string;
+}
+
+/**
+ * Options for {@link loadSchemaInitSamples}: the transcription seams it shares
+ * with eval's document path, plus the capture-stamp sources for bare PDFs.
+ */
+export interface SchemaInitSampleOptions extends DocumentBatchOptions {
+  /** Overrides the instant stamped onto bare PDFs' `capturedAt`. */
+  readonly capturedAt?: string;
+  /** The run clock; read at most once, and only when a bare PDF needs a stamp. */
+  readonly clock?: () => Date;
 }
 
 interface LoadedInput {
@@ -80,15 +91,34 @@ const refuseEmptyText = (source: string, text: string): void => {
   );
 };
 
+const PDF_MAGIC = "%PDF-";
+
+const hasPdfMagicBytes = (bytes: Buffer): boolean =>
+  bytes.subarray(0, PDF_MAGIC.length).toString("latin1") === PDF_MAGIC;
+
 const loadDirectText = (source: string): LoadedSample => {
+  const bytes = readBytes(source);
   if (path.extname(source).toLowerCase() === ".pdf") {
+    // A bare PDF is accepted: the capture block is measured (pageCount) and
+    // stamped (capturedAt) by the loader, never read off the file.
+    return {
+      name: path.basename(source, path.extname(source)),
+      inputs: [
+        {
+          path: source,
+          file: path.basename(source),
+          kind: "document",
+          bytes: new Uint8Array(bytes),
+        },
+      ],
+    };
+  }
+  if (hasPdfMagicBytes(bytes)) {
     throw new OperatorError(
-      `the direct PDF "${source}" has no declared capture metadata (capturedAt, pageCount) — ` +
-        "schema init never guesses document metadata (fix: pass an existing document case " +
-        "folder whose case.json declares the capture block)",
+      `the schema-init sample "${source}" starts with PDF magic bytes but lacks the .pdf ` +
+        "extension — it would be read as text (fix: rename the file to *.pdf and pass it again)",
     );
   }
-  const bytes = readBytes(source);
   const text = bytes.toString("utf8");
   refuseEmptyText(source, text);
   return {
@@ -238,26 +268,83 @@ const loadSample = (source: string): LoadedSample => {
 };
 
 /**
+ * Measure a bare PDF's capture block — `pageCount` from the file through the
+ * shared pdf.js path, `capturedAt` from the run instant — and attach the
+ * document descriptor. A case folder's declared capture block is never
+ * touched: only document-kind inputs still missing one pass through here.
+ */
+const stampBarePdfs = async (
+  loaded: readonly LoadedSample[],
+  instant: () => string,
+): Promise<readonly LoadedSample[]> => {
+  const stamped: LoadedSample[] = [];
+  for (const sample of loaded) {
+    const inputs: LoadedInput[] = [];
+    for (const input of sample.inputs) {
+      if (input.kind !== "document" || input.document !== undefined) {
+        inputs.push(input);
+        continue;
+      }
+      // One clock reading per run, however many bare PDFs a run stamps.
+      const capturedAt = instant();
+      const pageCount = await measureDocumentPages(input.bytes, input.path, {
+        refuse: (file, detail) =>
+          new OperatorError(
+            `the schema-init bare PDF "${file}" could not be opened for its page count: ${detail} ` +
+              "(fix: replace it with a readable PDF)",
+          ),
+      });
+      const capture = baseDocumentCaptureSchema.parse({
+        id: sample.name,
+        kind: "document",
+        mimeType: "application/pdf",
+        ctx: {},
+        capturedAt,
+        pageCount,
+      });
+      inputs.push({
+        ...input,
+        capture,
+        document: { caseId: sample.name, file: input.file, capture, bytes: input.bytes },
+      });
+    }
+    stamped.push({ name: sample.name, inputs });
+  }
+  return stamped;
+};
+
+/**
  * Load and, where declared, transcribe all samples before returning any of
  * them — every sample's documents in sample order, then input order, each
- * transcribed once. Validation finishes before the lazy default transcriber
+ * transcribed once. Bare PDFs are measured and stamped first, so a page-count
+ * refusal lands before the estimate and before any transcription or model
+ * call. Validation finishes before the lazy default transcriber
  * is built.
  */
 export async function loadSchemaInitSamples(
   sources: readonly string[],
-  options?: DocumentBatchOptions,
+  options?: SchemaInitSampleOptions,
 ): Promise<readonly SchemaInitSample[]> {
   if (sources.length === 0) {
     throw new OperatorError(
       "schema init needs at least one sample (fix: pass a direct text file or a case folder)",
     );
   }
-  const loaded = sources.map(loadSample);
+  // One instant per run: an explicit capturedAt wins, else the injected clock,
+  // read at most once and only when a bare PDF actually needs a stamp.
+  let instant: string | undefined;
+  const stampInstant = (): string => {
+    if (instant === undefined) {
+      instant = options?.capturedAt ?? (options?.clock ?? (() => new Date()))().toISOString();
+    }
+    return instant;
+  };
+  const loaded = await stampBarePdfs(sources.map(loadSample), stampInstant);
   const documents = loaded.flatMap((sample) =>
     sample.inputs.flatMap((input) => (input.document === undefined ? [] : [input.document])),
   );
   const transcribed = await transcribeDocuments(documents, {
-    ...options,
+    ...(options === undefined ? {} : options),
     refuse: (document, detail) =>
       new OperatorError(
         `the schema-init case "${document.caseId}"'s document input "${document.file}" ${detail} ` +

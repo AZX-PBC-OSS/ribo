@@ -88,3 +88,4 @@ receives.
 | [0044](./0044-planned-eval-freshness-includes-the-semantic-plan.md)                     | Planned eval freshness includes the semantic plan                                              | Accepted |
 | [0045](./0045-schema-init-drafts-only-evidence-linked-declarations.md)                  | Schema init drafts only evidence-linked declarations                                           | Accepted |
 | [0046](./0046-schema-init-reads-a-cases-ordered-inputs.md)                              | Schema init reads a case's ordered inputs                                                      | Accepted |
+| [0047](./0047-a-bare-pdfs-capture-block-is-measured-and-ingestion-stamped.md)           | A bare PDF's capture block is measured and ingestion-stamped                                   | Accepted |

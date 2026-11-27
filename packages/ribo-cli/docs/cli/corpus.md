@@ -66,7 +66,12 @@ files**. The case file declares its inputs as a non-empty, ordered `inputs` list
   - `capturedAt` — when the document was captured, as an ISO 8601 datetime string. It is
     provenance metadata: the loader assembles it into the capture record the transcriber
     receives, and **no part of scoring reads it** — no verdict or rate ever turns on
-    `capturedAt`.
+    `capturedAt`. For a case scaffolded by `ribo schema init`, it means when the file entered
+    the corpus: the instant init ran, or the `--captured-at` value it was given — and neither
+    scoring nor the run record's freshness fingerprint reads it. For a case you add later, hand
+    write the block yourself: set `capturedAt` to the moment that meaning holds for your corpus
+    and `pageCount` to the PDF's real page count — init measures and stamps bare PDFs at load
+    time, but the loader never fabricates a block for an existing case folder.
   - `pageCount` — how many pages the document has, as the corpus declares it. It completes the
     capture record the transcriber is handed.
 
