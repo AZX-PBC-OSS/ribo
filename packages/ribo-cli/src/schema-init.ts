@@ -9,7 +9,7 @@ import type { SchemaInitOpenApiObject } from "./schema-init/render.js";
 import type { SchemaInitSample } from "./schema-init/samples.js";
 import { indexSchemaInitSamples, validateSchemaInitProposal } from "./schema-init/validate.js";
 
-export type { SchemaInitSample, SchemaInitSampleSource } from "./schema-init/samples.js";
+export type { SchemaInitSample, SchemaInitSampleInput } from "./schema-init/samples.js";
 export type {
   SchemaInitCollectionDeclaration,
   SchemaInitEnumMember,

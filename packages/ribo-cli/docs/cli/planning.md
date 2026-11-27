@@ -16,8 +16,9 @@ The worked example ships a finished plan at
 ribo schema init ./notes.txt ./spoken-case --backend claude-cli --model claude-haiku-5-5
 ```
 
-Each sample is a direct text file or an existing corpus case folder with exactly one declared
-input — the transcript or text the draft will be evidence for. The draft is **evidence-linked**:
+Each sample is a direct text file or an existing corpus case folder with any number of declared
+inputs — the transcripts, texts and documents the draft will be evidence for, loaded in the case's
+declared order. The draft is **evidence-linked**:
 every leaf it proposes carries guidance grounded in what a sample actually said, not invented
 structure. With `--corpus`, the command also scaffolds a corpus directory beside the schema; the
 scaffold's `expected` maps and instructions stay **empty** — a draft never invents expected answers

@@ -82,7 +82,7 @@ export type {
   SchemaInitProposal,
   SchemaInitProvenance,
   SchemaInitSample,
-  SchemaInitSampleSource,
+  SchemaInitSampleInput,
 } from "./schema-init.js";
 export { cliVersion, coreVersion } from "./versions.js";
 export { CorpusError } from "./corpus.js";

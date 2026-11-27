@@ -259,8 +259,12 @@ test("standalone samples and corpus documents have identical capture, byte, orde
   ]);
   expect(standalone.calls).toHaveLength(2);
   expect(evaluated.calls).toHaveLength(2);
-  expect(samples.map((sample) => sample.text)).toEqual([...documents.values()]);
-  expect(samples.map((sample) => sample.source.capture)).toEqual(
+  // Sample text is the marked join over the ordered inputs; the per-input
+  // text is what must stay identical to eval's transcription.
+  expect(samples.flatMap((sample) => sample.inputs.map((input) => input.text))).toEqual([
+    ...documents.values(),
+  ]);
+  expect(samples.map((sample) => sample.inputs[0]?.capture)).toEqual(
     standalone.calls.map((call) => call.capture),
   );
 });

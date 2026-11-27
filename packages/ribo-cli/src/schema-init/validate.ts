@@ -1,11 +1,17 @@
 /**
- * @file Proposal parsing and source-grounded semantic validation. Direct text
- * is exact; only transcribed documents receive the narrow layout fold.
+ * @file Proposal parsing and source-grounded semantic validation. Evidence is
+ * matched per input, never against the joined sample text: a text or
+ * transcript input is exact, only a transcribed document receives the narrow
+ * layout fold, and a quote is accepted when ONE input matches it under that
+ * input's own rule — so acceptance never depends on input order, and a
+ * non-matching input can never reject a quote another input matches. A
+ * capture marker line and any quote spanning two inputs exist only in the
+ * joined text, never inside one input, so neither can ever match.
  */
 import type { z } from "zod";
 
 import { OperatorError } from "../operator/error.js";
-import type { SchemaInitSample } from "./samples.js";
+import type { SchemaInitSample, SchemaInitSampleInput } from "./samples.js";
 import { dropOptionalNulls, schemaInitProposalSchema } from "./proposal.js";
 import type {
   SchemaInitEvidence,
@@ -63,28 +69,34 @@ export function normalizeSchemaInitDocumentText(text: string): string {
     .trim();
 }
 
-const evidenceMatches = (evidence: SchemaInitEvidence, sample: SchemaInitSample): boolean => {
-  if (sample.kind !== "document") return sample.text.includes(evidence.quote);
-  return normalizeSchemaInitDocumentText(sample.text).includes(
-    normalizeSchemaInitDocumentText(evidence.quote),
-  );
-};
+const inputMatches = (quote: string, input: SchemaInitSampleInput): boolean =>
+  input.kind === "document"
+    ? normalizeSchemaInitDocumentText(input.text).includes(normalizeSchemaInitDocumentText(quote))
+    : input.text.includes(quote);
+
+/** The inputs whose own rule accepts the quote — empty when none does. */
+const matchingInputs = (
+  evidence: SchemaInitEvidence,
+  sample: SchemaInitSample,
+): readonly SchemaInitSampleInput[] =>
+  sample.inputs.filter((input) => inputMatches(evidence.quote, input));
 
 /**
  * An enum member's quote must contain the member itself, ignoring letter case
- * (a vocabulary is often normalized) and, for documents, the layout fold.
+ * (a vocabulary is often normalized) and — when the input that matched the
+ * quote is a document — the layout fold. A text input's fold is never
+ * borrowed: each matched input answers under its own rule.
  */
 function quoteNamesValue(
   value: string,
-  evidence: SchemaInitEvidence,
-  samples: ReadonlyMap<string, SchemaInitSample>,
+  quote: string,
+  matched: readonly SchemaInitSampleInput[],
 ): boolean {
-  const fold = (text: string): string =>
-    (samples.get(evidence.source)?.kind === "document"
-      ? normalizeSchemaInitDocumentText(text)
-      : text
-    ).toLowerCase();
-  return fold(evidence.quote).includes(fold(value));
+  const fold = (input: SchemaInitSampleInput | undefined, text: string): string =>
+    (input?.kind === "document" ? normalizeSchemaInitDocumentText(text) : text).toLowerCase();
+  // An unmatched quote is already reported; judge the member by its quote alone.
+  if (matched.length === 0) return fold(undefined, quote).includes(fold(undefined, value));
+  return matched.some((input) => fold(input, quote).includes(fold(input, value)));
 }
 
 function validateEvidence(
@@ -100,11 +112,12 @@ function validateEvidence(
     );
     return;
   }
-  if (!evidenceMatches(evidence, sample)) {
-    const comparison = sample.kind === "document" ? "document-normalized" : "exact direct-text";
+  if (matchingInputs(evidence, sample).length === 0) {
     problems.push(
-      `${at}.quote: evidence quote ${JSON.stringify(evidence.quote)} was not found in source ` +
-        `"${evidence.source}" using ${comparison} matching; no other source is searched`,
+      `${at}.quote: evidence quote ${JSON.stringify(evidence.quote)} was not found in any ` +
+        `input of source "${evidence.source}" — text and transcript inputs match exactly, ` +
+        "document inputs under the layout fold, a quote never spans inputs, and no other " +
+        "source is searched",
     );
   }
 }
@@ -127,7 +140,15 @@ function validateLeaf(
     }
     values.add(member.value);
     validateEvidence(member.evidence, `${path}.enum.${index}.evidence`, samples, problems);
-    if (!quoteNamesValue(member.value, member.evidence, samples)) {
+    const memberSample = samples.get(member.evidence.source);
+    if (
+      memberSample !== undefined &&
+      !quoteNamesValue(
+        member.value,
+        member.evidence.quote,
+        matchingInputs(member.evidence, memberSample),
+      )
+    ) {
       problems.push(
         `${path}.enum.${index}.value: enum value ${JSON.stringify(member.value)} does not appear ` +
           `in its own evidence quote ${JSON.stringify(member.evidence.quote)}; a member must be ` +

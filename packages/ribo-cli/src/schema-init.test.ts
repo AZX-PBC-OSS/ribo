@@ -4,18 +4,25 @@ import { expect, test, vi } from "vitest";
 import { convertDocument } from "./inspect/convert.js";
 import { walkFieldInventory } from "./inspect/field-inventory.js";
 import { initSchema } from "./index.js";
-import type { SchemaInitSample } from "./index.js";
+import type { SchemaInitSample, SchemaInitSampleInput } from "./index.js";
 import { OperatorError } from "./operator/error.js";
 
-const sample = (name: string, kind: SchemaInitSample["kind"], text: string): SchemaInitSample => ({
+const sample = (
+  name: string,
+  kind: SchemaInitSampleInput["kind"],
+  text: string,
+): SchemaInitSample => ({
   name,
-  kind,
+  inputs: [
+    {
+      path: `/samples/${name}.txt`,
+      file: `${name}.txt`,
+      kind,
+      text,
+      bytes: new TextEncoder().encode(text),
+    },
+  ],
   text,
-  source: {
-    path: `/samples/${name}.txt`,
-    file: `${name}.txt`,
-    bytes: new TextEncoder().encode(text),
-  },
 });
 
 const evidence = (source: string, quote: string) => ({ source, quote });
@@ -268,6 +275,47 @@ test("initial prompts carry each named sample verbatim, the closed declaration c
     };
     expect(optionalSomewhere(format.schema)).toBe(false);
   }
+});
+
+test("initial prompts list ordered input files and kinds and forbid marker or cross-input evidence", async () => {
+  const mixed: SchemaInitSample = {
+    name: "spoken-case",
+    inputs: [
+      {
+        path: "/samples/spoken-case/input.pdf",
+        file: "input.pdf",
+        kind: "document",
+        text: "Chain replaced",
+        bytes: new Uint8Array([1]),
+      },
+      {
+        path: "/samples/spoken-case/note.txt",
+        file: "note.txt",
+        kind: "text",
+        text: "No additional observations.",
+        bytes: new TextEncoder().encode("No additional observations."),
+      },
+    ],
+    text: "joined",
+  };
+  const valid = {
+    root: object("A small draft.", [
+      property("first", leaf("string", "First line.", "spoken-case", "Chain replaced")),
+    ]),
+  };
+  const { chat, requests } = scriptedChat([JSON.stringify(valid)]);
+
+  await initSchema([mixed], options(chat));
+
+  const prompt = requests[0]!.messages.map((message) => message.content).join("\n");
+  // The prompt lists each input and kind, in declared order.
+  expect(prompt).toContain(
+    'name: "spoken-case"; inputs in order: input.pdf (document), note.txt (text)',
+  );
+  // And tells the model what a quote may and may not span.
+  expect(prompt).toContain("a quote must come from inside one capture");
+  expect(prompt).toContain("never quote a marker line");
+  expect(prompt).toContain("never quote across two inputs");
 });
 
 test("a valid first reply needs no repair and the two repair turns are bounded and named", async () => {

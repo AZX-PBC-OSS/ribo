@@ -65,29 +65,43 @@ function safePart(value: string, label: string): string {
 
 function caseEntries(sample: SchemaInitSample): readonly OperatorDirectoryEntry[] {
   const id = safePart(sample.name, "sample name");
-  const file = safePart(sample.source.file, `sample "${id}" input file`);
-  const capture = sample.source.capture;
-  if (sample.kind === "document" && capture === undefined) {
-    throw new OperatorError(
-      `the schema-init document sample "${id}" has no capture metadata; scaffolding never invents it`,
-    );
+  // The published corpus must load, and the loader refuses a duplicate input
+  // file — so the scaffold refuses it here, before staging anything.
+  const files = new Set<string>();
+  for (const input of sample.inputs) {
+    if (files.has(input.file)) {
+      throw new OperatorError(
+        `the schema-init sample "${id}" declares the input file "${input.file}" twice — ` +
+          "each file may appear once in a case's inputs (fix: drop the duplicate entry)",
+      );
+    }
+    files.add(input.file);
   }
-  const input = {
-    file,
-    kind: sample.kind,
-    ...(sample.kind === "document"
-      ? {
-          capture: {
-            capturedAt: capture!.capturedAt,
-            pageCount: capture!.pageCount,
-          },
-        }
-      : {}),
-  };
-  const caseFile = CorpusCaseSchema.parse({ id, inputs: [input], expected: {} });
+  const inputs = sample.inputs.map((input) => {
+    const file = safePart(input.file, `sample "${id}" input file`);
+    const capture = input.capture;
+    if (input.kind === "document" && capture === undefined) {
+      throw new OperatorError(
+        `the schema-init document sample "${id}" has no capture metadata; scaffolding never invents it`,
+      );
+    }
+    return {
+      file,
+      kind: input.kind,
+      ...(input.kind === "document"
+        ? {
+            capture: {
+              capturedAt: capture!.capturedAt,
+              pageCount: capture!.pageCount,
+            },
+          }
+        : {}),
+    };
+  });
+  const caseFile = CorpusCaseSchema.parse({ id, inputs, expected: {} });
   return [
     { path: `${id}/case.json`, contents: json(caseFile) },
-    { path: `${id}/${file}`, contents: sample.source.bytes },
+    ...sample.inputs.map((input) => ({ path: `${id}/${input.file}`, contents: input.bytes })),
   ];
 }
 

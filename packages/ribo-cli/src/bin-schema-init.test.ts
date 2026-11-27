@@ -205,6 +205,25 @@ function documentCase(): string {
   return caseDirectory;
 }
 
+function multiInputCase(): string {
+  const caseDirectory = join(directory, "spoken-case");
+  mkdirSync(caseDirectory);
+  writeFileSync(join(caseDirectory, "input.txt"), "The boiler chain was replaced.\n");
+  writeFileSync(join(caseDirectory, "note.txt"), "No additional observations.\n");
+  writeFileSync(
+    join(caseDirectory, "case.json"),
+    JSON.stringify({
+      id: "spoken-case",
+      inputs: [
+        { file: "input.txt", kind: "transcript" },
+        { file: "note.txt", kind: "text" },
+      ],
+      expected: {},
+    }),
+  );
+  return caseDirectory;
+}
+
 const corpusFlags = [
   "--corpus-name",
   "Operator named corpus",
@@ -290,6 +309,40 @@ test("samples whose case folders differ only by letter case are refused before a
   expect(result.stderr).toContain("differ only by letter case");
   expect(received).toHaveLength(0);
   expect(existsSync(corpus)).toBe(false);
+});
+
+test("a multi-input case folder with --corpus exits 0 and publishes a loadable corpus", async () => {
+  const multi = multiInputCase();
+  const out = join(directory, "multi-draft.json");
+  const corpus = join(directory, "multi-corpus");
+  const result = await runInit([
+    direct,
+    multi,
+    ...requiredFlags,
+    "--out",
+    out,
+    "--corpus",
+    corpus,
+    ...corpusFlags,
+  ]);
+
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe("");
+  // The scaffolded case keeps both declared inputs, in declared order.
+  const loaded = loadCorpus(corpus);
+  const entry = loaded.cases.find((candidate) => candidate.id === "spoken-case");
+  expect(
+    entry?.inputs.map((candidate) => ({ file: candidate.file, kind: candidate.kind })),
+  ).toEqual([
+    { file: "input.txt", kind: "transcript" },
+    { file: "note.txt", kind: "text" },
+  ]);
+  // The prompt saw both inputs' text, in order.
+  const prompt = received[0]?.messages.map((message) => message.content).join("\n") ?? "";
+  expect(prompt.indexOf("The boiler chain was replaced.")).toBeGreaterThan(-1);
+  expect(prompt.indexOf("No additional observations.")).toBeGreaterThan(
+    prompt.indexOf("The boiler chain was replaced."),
+  );
 });
 
 test("a schema file that fails to publish after the corpus removes the corpus too", async () => {
@@ -421,13 +474,12 @@ test("usage and invalid corpus metadata combinations exit 2 without a destinatio
   expect(existsSync(stubLog)).toBe(false);
 });
 
-test("schema init alone refuses a multi-input case folder before any request", async () => {
-  const multi = transcriptCase("multi-input");
-  writeFileSync(join(multi, "notes.txt"), "not merged");
+test("a duplicate declared input file in a case folder refuses before any request", async () => {
+  const multi = transcriptCase("duplicate-input");
   const caseFile = JSON.parse(readFileSync(join(multi, "case.json"), "utf8")) as {
     inputs: unknown[];
   };
-  caseFile.inputs.push({ file: "notes.txt", kind: "text" });
+  caseFile.inputs.push({ file: "input.txt", kind: "transcript" });
   writeFileSync(join(multi, "case.json"), JSON.stringify(caseFile));
   const out = join(directory, "multi.json");
 
@@ -435,7 +487,7 @@ test("schema init alone refuses a multi-input case folder before any request", a
 
   expect(result.status).toBe(2);
   expect(result.stdout).toBe("");
-  expect(result.stderr).toContain("one input");
+  expect(result.stderr).toContain("twice");
   expect(existsSync(out)).toBe(false);
   expect(received).toHaveLength(0);
 });
