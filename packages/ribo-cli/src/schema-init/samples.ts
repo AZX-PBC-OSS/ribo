@@ -1,6 +1,9 @@
 /**
- * @file Schema init's standalone inputs: direct text or one existing corpus
- * case folder, with documents transcribed through eval's shared adapter.
+ * @file Schema init's standalone inputs: direct text files or existing corpus
+ * case folders — any number of declared inputs per case, loaded in declared
+ * order — with documents transcribed through eval's shared adapter. A
+ * sample's text is the one marked join `eval/case-text.ts` owns, so init
+ * cannot draft from a text eval would not run.
  */
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -11,32 +14,49 @@ import type { DocumentCapture } from "@azx/ribo-core";
 import { CorpusCaseSchema } from "../corpus/case.js";
 import type { CorpusCase, CorpusCaseInput, CorpusInputKind } from "../corpus/case.js";
 import { describeIssues } from "../corpus/issues.js";
+import { joinCaseInputTexts } from "../eval/case-text.js";
 import { transcribeDocuments } from "../eval/documents.js";
 import type { DocumentBatchOptions, DocumentDescriptor } from "../eval/documents.js";
 import { OperatorError } from "../operator/error.js";
 
-/** The original input bytes and declared capture, retained for later scaffolding. */
-export interface SchemaInitSampleSource {
+/**
+ * One declared input of a loaded sample: its original bytes, its exact text
+ * (verbatim for text and transcript inputs, the transcription for a
+ * document) and the declared capture a document carries.
+ */
+export interface SchemaInitSampleInput {
   readonly path: string;
   readonly file: string;
+  readonly kind: CorpusInputKind;
+  readonly text: string;
   readonly bytes: Uint8Array;
   readonly capture?: DocumentCapture;
 }
 
-/** One named source and the exact text later prompts and estimates consume. */
+/**
+ * One named sample and the exact text later prompts, estimates and evidence
+ * validation consume: its declared inputs, in order, joined by the one
+ * marked join eval's `caseTextOf` also uses.
+ */
 export interface SchemaInitSample {
   readonly name: string;
-  readonly kind: CorpusInputKind;
+  readonly inputs: readonly SchemaInitSampleInput[];
   readonly text: string;
-  readonly source: SchemaInitSampleSource;
+}
+
+interface LoadedInput {
+  readonly path: string;
+  readonly file: string;
+  readonly kind: CorpusInputKind;
+  readonly bytes: Uint8Array;
+  readonly text?: string;
+  readonly document?: DocumentDescriptor;
+  readonly capture?: DocumentCapture;
 }
 
 interface LoadedSample {
   readonly name: string;
-  readonly kind: CorpusInputKind;
-  readonly source: SchemaInitSampleSource;
-  readonly text?: string;
-  readonly document?: DocumentDescriptor;
+  readonly inputs: readonly LoadedInput[];
 }
 
 const faultMessage = (error: unknown): string =>
@@ -71,12 +91,17 @@ const loadDirectText = (source: string): LoadedSample => {
   const bytes = readBytes(source);
   const text = bytes.toString("utf8");
   refuseEmptyText(source, text);
-  const file = path.basename(source);
   return {
     name: path.basename(source, path.extname(source)),
-    kind: "text",
-    text,
-    source: { path: source, file, bytes: new Uint8Array(bytes) },
+    inputs: [
+      {
+        path: source,
+        file: path.basename(source),
+        kind: "text",
+        text,
+        bytes: new Uint8Array(bytes),
+      },
+    ],
   };
 };
 
@@ -131,6 +156,39 @@ const inputFile = (caseDir: string, caseId: string, entry: CorpusCaseInput): str
   );
 };
 
+const loadCaseInput = (caseDir: string, caseId: string, entry: CorpusCaseInput): LoadedInput => {
+  const sourcePath = inputFile(caseDir, caseId, entry);
+  const buffer = readBytes(sourcePath);
+  const bytes = new Uint8Array(buffer);
+  if (entry.kind !== "document") {
+    const text = buffer.toString("utf8");
+    refuseEmptyText(sourcePath, text);
+    return { path: sourcePath, file: entry.file, kind: entry.kind, text, bytes };
+  }
+  if (entry.capture === undefined) {
+    throw new OperatorError(
+      `the schema-init case "${caseId}"'s document input "${entry.file}" has no capture ` +
+        "block (fix: declare capturedAt and pageCount)",
+    );
+  }
+  const capture = baseDocumentCaptureSchema.parse({
+    id: caseId,
+    kind: "document",
+    mimeType: "application/pdf",
+    ctx: {},
+    capturedAt: entry.capture.capturedAt,
+    pageCount: entry.capture.pageCount,
+  });
+  return {
+    path: sourcePath,
+    file: entry.file,
+    kind: entry.kind,
+    bytes,
+    capture,
+    document: { caseId, file: entry.file, capture, bytes },
+  };
+};
+
 const loadCaseSample = (caseDir: string): LoadedSample => {
   const caseFilePath = path.join(caseDir, "case.json");
   const caseFile = parseCase(caseFilePath);
@@ -141,42 +199,22 @@ const loadCaseSample = (caseDir: string): LoadedSample => {
         `directory is named "${directoryName}" (fix: rename one to match the other)`,
     );
   }
-  if (caseFile.inputs.length !== 1) {
-    throw new OperatorError(
-      `the schema-init case "${caseFile.id}" declares ${caseFile.inputs.length} inputs — schema ` +
-        "init accepts one input per case folder and never merges them (fix: pass separate " +
-        "single-input case folders)",
-    );
+  // Every declared input is loaded, in declared order; a duplicate file is
+  // refused exactly where the corpus loader refuses one — before any
+  // transcription, so a malformed case never spends.
+  const seen = new Set<string>();
+  for (const entry of caseFile.inputs) {
+    if (seen.has(entry.file)) {
+      throw new OperatorError(
+        `the schema-init case "${caseFile.id}" declares the input file "${entry.file}" twice — ` +
+          'each file may appear once in "inputs" (fix: drop the duplicate entry)',
+      );
+    }
+    seen.add(entry.file);
   }
-  const entry = caseFile.inputs[0]!;
-  const sourcePath = inputFile(caseDir, caseFile.id, entry);
-  const buffer = readBytes(sourcePath);
-  const bytes = new Uint8Array(buffer);
-  const source = { path: sourcePath, file: entry.file, bytes };
-  if (entry.kind !== "document") {
-    const text = buffer.toString("utf8");
-    refuseEmptyText(sourcePath, text);
-    return { name: caseFile.id, kind: entry.kind, text, source };
-  }
-  if (entry.capture === undefined) {
-    throw new OperatorError(
-      `the schema-init case "${caseFile.id}"'s document input "${entry.file}" has no capture ` +
-        "block (fix: declare capturedAt and pageCount)",
-    );
-  }
-  const capture = baseDocumentCaptureSchema.parse({
-    id: caseFile.id,
-    kind: "document",
-    mimeType: "application/pdf",
-    ctx: {},
-    capturedAt: entry.capture.capturedAt,
-    pageCount: entry.capture.pageCount,
-  });
   return {
     name: caseFile.id,
-    kind: "document",
-    source: { ...source, capture },
-    document: { caseId: caseFile.id, file: entry.file, capture, bytes },
+    inputs: caseFile.inputs.map((entry) => loadCaseInput(caseDir, caseFile.id, entry)),
   };
 };
 
@@ -201,7 +239,9 @@ const loadSample = (source: string): LoadedSample => {
 
 /**
  * Load and, where declared, transcribe all samples before returning any of
- * them. Validation finishes before the lazy default transcriber is built.
+ * them — every sample's documents in sample order, then input order, each
+ * transcribed once. Validation finishes before the lazy default transcriber
+ * is built.
  */
 export async function loadSchemaInitSamples(
   sources: readonly string[],
@@ -214,7 +254,7 @@ export async function loadSchemaInitSamples(
   }
   const loaded = sources.map(loadSample);
   const documents = loaded.flatMap((sample) =>
-    sample.document === undefined ? [] : [sample.document],
+    sample.inputs.flatMap((input) => (input.document === undefined ? [] : [input.document])),
   );
   const transcribed = await transcribeDocuments(documents, {
     ...options,
@@ -227,13 +267,23 @@ export async function loadSchemaInitSamples(
   });
   const documentTexts = new Map(transcribed.map(({ document, text }) => [document, text] as const));
   return loaded.map((sample) => {
-    const text = sample.document === undefined ? sample.text : documentTexts.get(sample.document);
-    if (text === undefined) {
-      throw new OperatorError(
-        `the schema-init sample "${sample.name}" has no text after transcription ` +
-          "(fix: retry the complete sample load)",
-      );
-    }
-    return { name: sample.name, kind: sample.kind, text, source: sample.source };
+    const inputs = sample.inputs.map((input): SchemaInitSampleInput => {
+      const text = input.document === undefined ? input.text : documentTexts.get(input.document);
+      if (text === undefined) {
+        throw new OperatorError(
+          `the schema-init sample "${sample.name}"'s input "${input.file}" has no text after ` +
+            "transcription (fix: retry the complete sample load)",
+        );
+      }
+      return {
+        path: input.path,
+        file: input.file,
+        kind: input.kind,
+        text,
+        bytes: input.bytes,
+        ...(input.capture === undefined ? {} : { capture: input.capture }),
+      };
+    });
+    return { name: sample.name, inputs, text: joinCaseInputTexts(inputs) };
   });
 }

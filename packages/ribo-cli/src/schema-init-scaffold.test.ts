@@ -9,11 +9,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { loadCorpus } from "./corpus.js";
+import { caseTextOf, joinCaseInputTexts } from "./eval/case-text.js";
+import { documentTextKey } from "./eval/documents.js";
 import { OperatorError } from "./operator/error.js";
 import type { OperatorDirectoryFileSystem } from "./operator/output.js";
 import { defaultOperatorDirectoryFileSystem } from "./operator/output.js";
 import { serializeSchemaInitDocument, writeSchemaInitCorpus } from "./schema-init/scaffold.js";
-import type { SchemaInitSample } from "./schema-init/samples.js";
+import type { SchemaInitSample, SchemaInitSampleInput } from "./schema-init/samples.js";
 
 const document = {
   type: "object" as const,
@@ -27,32 +29,49 @@ const document = {
 
 const textBytes = new TextEncoder().encode("Address: 1 Main Street\n");
 const pdfBytes = new Uint8Array([37, 80, 68, 70, 45, 1, 7, 10, 0, 255]);
+const capture = {
+  id: "service-sheet",
+  kind: "document" as const,
+  mimeType: "application/pdf",
+  ctx: {},
+  capturedAt: "2026-02-11T08:15:00Z",
+  pageCount: 7,
+};
+const input = (
+  name: string,
+  file: string,
+  kind: SchemaInitSampleInput["kind"],
+  text: string,
+  bytes: Uint8Array,
+  withCapture?: typeof capture,
+) => ({
+  path: `/inputs/${name}/${file}`,
+  file,
+  kind,
+  text,
+  bytes,
+  ...(withCapture === undefined ? {} : { capture: withCapture }),
+});
 const samples: readonly SchemaInitSample[] = [
   {
     name: "field-notes",
-    kind: "text",
-    text: new TextDecoder().decode(textBytes),
-    source: { path: "/inputs/field-notes.txt", file: "field-notes.txt", bytes: textBytes },
+    inputs: [
+      input(
+        "field-notes",
+        "field-notes.txt",
+        "text",
+        new TextDecoder().decode(textBytes),
+        textBytes,
+      ),
+    ],
+    text: "",
   },
   {
     name: "service-sheet",
-    kind: "document",
-    text: "Chain replaced",
-    source: {
-      path: "/inputs/service-sheet/input.pdf",
-      file: "input.pdf",
-      bytes: pdfBytes,
-      capture: {
-        id: "service-sheet",
-        kind: "document",
-        mimeType: "application/pdf",
-        ctx: {},
-        capturedAt: "2026-02-11T08:15:00Z",
-        pageCount: 7,
-      },
-    },
+    inputs: [input("service-sheet", "input.pdf", "document", "Chain replaced", pdfBytes, capture)],
+    text: "",
   },
-];
+].map((sample) => ({ ...sample, text: joinCaseInputTexts(sample.inputs) }));
 
 let directory: string;
 
@@ -115,7 +134,7 @@ test("a scaffold is loadCorpus-compatible and preserves the exact schema, inputs
   expect(loaded.cases.every((entry) => Object.keys(entry.expected).length === 0)).toBe(true);
   expect(loaded.cases.every((entry) => entry.defaults === undefined)).toBe(true);
   expect(loaded.cases[0]?.inputs).toEqual([
-    { kind: "text", file: "field-notes.txt", text: samples[0]?.text },
+    { kind: "text", file: "field-notes.txt", text: samples[0]?.inputs[0]?.text },
   ]);
   expect(loaded.cases[1]?.inputs[0]).toMatchObject({
     kind: "document",
@@ -224,4 +243,65 @@ test("a collision while staging is not reported as an existing destination", asy
   expect((failure as Error).message).not.toContain("already exists — refusing to overwrite");
   await expect(readFile(destination)).rejects.toMatchObject({ code: "ENOENT" });
   expect(await readdir(directory)).toEqual([]);
+});
+
+test("a multi-input scaffold round-trips through loadCorpus with caseTextOf equal to the sample text", async () => {
+  const transcriptBytes = new TextEncoder().encode("The boiler chain was replaced.\n");
+  const noteBytes = new TextEncoder().encode("No additional observations.\n");
+  const documentText = "Chain replaced";
+  const multiInputs = [
+    input("spoken-case", "input.pdf", "document", documentText, pdfBytes, capture),
+    input(
+      "spoken-case",
+      "spoken.txt",
+      "transcript",
+      new TextDecoder().decode(transcriptBytes),
+      transcriptBytes,
+    ),
+    input("spoken-case", "note.txt", "text", new TextDecoder().decode(noteBytes), noteBytes),
+  ];
+  const multi: SchemaInitSample = {
+    name: "spoken-case",
+    inputs: multiInputs,
+    text: joinCaseInputTexts(multiInputs),
+  };
+  const destination = join(directory, "multi-corpus");
+
+  const result = await writeSchemaInitCorpus(
+    destination,
+    serializeSchemaInitDocument(document),
+    [multi],
+    {
+      name: "Multi corpus",
+      provenance: "real",
+    },
+  );
+
+  expect(result).toEqual({ destination: "directory", path: destination });
+  const loaded = loadCorpus(destination);
+  const entry = loaded.cases.find((candidate) => candidate.id === "spoken-case");
+  expect(entry).toBeDefined();
+  // Every input is written in declared order, each document with its own
+  // capture block.
+  expect(
+    entry?.inputs.map((candidate) => ({ file: candidate.file, kind: candidate.kind })),
+  ).toEqual([
+    { file: "input.pdf", kind: "document" },
+    { file: "spoken.txt", kind: "transcript" },
+    { file: "note.txt", kind: "text" },
+  ]);
+  expect(
+    Buffer.from(await readFile(join(destination, "spoken-case", "spoken.txt"))).equals(
+      transcriptBytes,
+    ),
+  ).toBe(true);
+  if (entry === undefined) return;
+  // The case's eval text is byte-identical to the sample text the draft read:
+  // the one join implementation, markers on, declared order.
+  const documents = new Map(
+    multi.inputs
+      .filter((candidate) => candidate.kind === "document")
+      .map((candidate) => [documentTextKey(multi.name, candidate.file), candidate.text] as const),
+  );
+  expect(caseTextOf(loaded, entry, documents)).toBe(multi.text);
 });

@@ -382,11 +382,11 @@ const help = [
   "  2  the command could not run: usage, input, transcription, backend, model, spend or output refused the run",
   "",
   "Inputs and output:",
-  "  Each sample is a direct text file or an existing case folder with exactly one declared input.",
+  "  Each sample is a direct text file or an existing case folder with any number of declared inputs.",
   "  Without --out, stdout is the complete OpenAPI schema alone. Spend and handoffs use stderr.",
   "  --out and --corpus name distinct new destinations; neither ever overwrites an existing path.",
-  "  --corpus requires explicit --corpus-name and --corpus-provenance. Cases keep one original input",
-  "  each; expectations and instructions stay empty, and no defaults or provenance are invented.",
+  "  --corpus requires explicit --corpus-name and --corpus-provenance. Cases keep every declared",
+  "  input in order; expectations and instructions stay empty, and no defaults or provenance are invented.",
   "",
   "Examples:",
   "  ribo schema init ./notes.txt ./spoken-case --backend openai-compatible --model gpt-4o",
@@ -402,7 +402,7 @@ export function registerSchemaInitCommand(schema: Command): Command {
   const command = schema
     .command("init")
     .description("Draft an evidence-linked OpenAPI schema and optionally scaffold a corpus")
-    .argument("<samples...>", "direct text files or existing one-input case folders")
+    .argument("<samples...>", "direct text files or existing case folders")
     .addOption(
       new Option("--backend <name>", "the drafting transport")
         .choices([...OPERATOR_BACKENDS])

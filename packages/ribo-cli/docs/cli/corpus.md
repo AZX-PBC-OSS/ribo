@@ -157,11 +157,12 @@ The second input's note:
 ## What `ribo schema init` scaffolds
 
 `ribo schema init --corpus <dir>` accepts two kinds of sample: a direct text file (the transcript
-or text the draft will be evidence for) or an existing corpus case folder with exactly one declared
-input. The scaffold it publishes is an ordinary corpus of the shape this page walks — a
+or text the draft will be evidence for) or an existing corpus case folder with any number of
+declared inputs. The scaffold it publishes is an ordinary corpus of the shape this page walks — a
 `manifest.json` carrying the `--corpus-name` and `--corpus-provenance` you passed, the drafted
-`schema.json` byte-identical to what stdout carried, and one case directory per sample with the
-input's exact bytes (a document input keeps its declared `capture` block).
+`schema.json` byte-identical to what stdout carried, and one case directory per sample with every
+declared input's exact bytes, in the case's declared order (a document input keeps its declared
+`capture` block).
 
 Two things the scaffold deliberately does not contain: `expected` maps and instructions. Both stay
 **empty** — a draft never invents expected answers or prompt wording, because expectations are the

@@ -18,10 +18,46 @@
 import { createDefaultTranscriptCombiner } from "@azx/ribo-core";
 import type { AnnotatedTranscript } from "@azx/ribo-core";
 
+import type { CorpusInputKind } from "../corpus/case.js";
 import type { LoadedCase, LoadedCorpus } from "../corpus.js";
 import { documentTextKey } from "./documents.js";
 import type { DocumentTexts } from "./documents.js";
 import { EvalError } from "./error.js";
+
+/** One input's text and identity, as the shared join reads them. */
+export interface CaseInputText {
+  readonly kind: CorpusInputKind;
+  readonly file: string;
+  readonly text: string;
+}
+
+/** The open-bag annotations the marker reads, built once for every caller. */
+function annotatedParts(
+  inputs: readonly CaseInputText[],
+): readonly AnnotatedTranscript<Record<string, string | number>>[] {
+  return inputs.map((input, index) => ({
+    text: input.text,
+    annotations: {
+      "capture.seq": index + 1,
+      "capture.kind": input.kind,
+      "capture.id": input.file,
+    },
+  }));
+}
+
+/**
+ * The one marked join every sample's text is made of: the inputs in order,
+ * each under its capture marker, through core's combiner. Eval's
+ * `caseTextOf` and schema init's sample loader both call this — a second
+ * copy of the marked join could omit a marker or an input where the other
+ * includes it.
+ * @param inputs - The case's inputs, in declared order, with their text.
+ * @returns The combined text, exactly as core's combiner produces it.
+ * @category Eval
+ */
+export function joinCaseInputTexts(inputs: readonly CaseInputText[]): string {
+  return createDefaultTranscriptCombiner({ markCaptures: true })(annotatedParts(inputs)).text;
+}
 
 /**
  * The corpus's effective marker policy: the manifest's `combine.markCaptures`
@@ -56,30 +92,20 @@ export function caseTextOf(
   entry: LoadedCase,
   documents: DocumentTexts | undefined,
 ): string {
-  const parts = entry.inputs.map(
-    (input, index): AnnotatedTranscript<Record<string, string | number>> => {
-      const annotations: Record<string, string | number> = {
-        "capture.seq": index + 1,
-        "capture.kind": input.kind,
-        "capture.id": input.file,
-      };
-      if (input.kind === "document") {
-        const text = documents?.get(documentTextKey(entry.id, input.file));
-        if (text === undefined) {
-          throw new EvalError(
-            `eval: the corpus case "${entry.id}"'s document input "${input.file}" has no ` +
-              "transcribed text — document inputs are transcribed once per run and the run " +
-              "refuses rather than skipping one: a partially-run corpus measures nothing (fix: " +
-              "transcribe the corpus's document inputs with transcribeDocumentCases and pass " +
-              "the result to every arm and to the estimate)",
-          );
-        }
-        return { text, annotations };
-      }
-      return { text: input.text, annotations };
-    },
-  );
-  return createDefaultTranscriptCombiner({
-    markCaptures: effectiveMarkCaptures(corpus),
-  })(parts).text;
+  const inputs = entry.inputs.map((input): CaseInputText => {
+    if (input.kind !== "document") return { kind: input.kind, file: input.file, text: input.text };
+    const text = documents?.get(documentTextKey(entry.id, input.file));
+    if (text === undefined) {
+      throw new EvalError(
+        `eval: the corpus case "${entry.id}"'s document input "${input.file}" has no ` +
+          "transcribed text — document inputs are transcribed once per run and the run " +
+          "refuses rather than skipping one: a partially-run corpus measures nothing (fix: " +
+          "transcribe the corpus's document inputs with transcribeDocumentCases and pass " +
+          "the result to every arm and to the estimate)",
+      );
+    }
+    return { kind: input.kind, file: input.file, text };
+  });
+  if (effectiveMarkCaptures(corpus)) return joinCaseInputTexts(inputs);
+  return createDefaultTranscriptCombiner({ markCaptures: false })(annotatedParts(inputs)).text;
 }

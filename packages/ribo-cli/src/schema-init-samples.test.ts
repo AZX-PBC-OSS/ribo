@@ -11,6 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { OperatorError } from "./operator/error.js";
+import { joinCaseInputTexts } from "./eval/case-text.js";
 import { loadSchemaInitSamples } from "./schema-init/samples.js";
 
 const FIXTURE_CORPUS = fileURLToPath(new URL("./fixtures/corpus", import.meta.url));
@@ -87,21 +88,31 @@ test("direct text and single-input text/transcript cases stay verbatim, named an
     "field-notes",
     "spoken-note",
   ]);
-  expect(samples.map((sample) => sample.kind)).toEqual(["text", "text", "transcript"]);
-  expect(samples.map((sample) => sample.text)).toEqual([
+  expect(samples.map((sample) => sample.inputs.map((input) => input.kind))).toEqual([
+    ["text"],
+    ["text"],
+    ["transcript"],
+  ]);
+  expect(samples.map((sample) => sample.inputs[0]?.text)).toEqual([
     readFileSync(path.join(written, "input.txt"), "utf8"),
     "  direct text\r\n\tsecond line\n",
     readFileSync(path.join(spoken, "input.txt"), "utf8"),
   ]);
-  expect(samples.map((sample) => sample.source.file)).toEqual([
+  expect(samples.map((sample) => sample.inputs[0]?.file)).toEqual([
     "input.txt",
     "field-notes.txt",
     "input.txt",
   ]);
-  expect(samples[1]?.source.path).toBe(direct);
-  expect(Buffer.from(samples[1]?.source.bytes ?? []).equals(readFileSync(direct))).toBe(true);
+  expect(samples[1]?.inputs[0]?.path).toBe(direct);
+  expect(Buffer.from(samples[1]?.inputs[0]?.bytes ?? []).equals(readFileSync(direct))).toBe(true);
+  // The sample text is the one marked join, shared with eval's caseTextOf.
+  expect(samples.map((sample) => sample.text)).toEqual(
+    samples.map((sample) => joinCaseInputTexts(sample.inputs)),
+  );
   expect(samples.every((sample) => !("provenance" in sample))).toBe(true);
-  expect(samples.every((sample) => !("provenance" in sample.source))).toBe(true);
+  expect(samples.every((sample) => sample.inputs.every((input) => !("provenance" in input)))).toBe(
+    true,
+  );
   expect(createTranscriber).not.toHaveBeenCalled();
   expect(transcribe).not.toHaveBeenCalled();
 });
@@ -130,8 +141,11 @@ test("every document forwards its complete declared capture and exact bytes once
   const samples = await loadSchemaInitSamples([second, first], { transcriber });
 
   expect(samples.map((sample) => sample.name)).toEqual(["second-sheet", "service-sheet"]);
-  expect(samples.map((sample) => sample.kind)).toEqual(["document", "document"]);
-  expect(samples.map((sample) => sample.text)).toEqual([
+  expect(samples.map((sample) => sample.inputs.map((input) => input.kind))).toEqual([
+    ["document"],
+    ["document"],
+  ]);
+  expect(samples.map((sample) => sample.inputs[0]?.text)).toEqual([
     "actual transcript for second-sheet",
     "actual transcript for service-sheet",
   ]);
@@ -158,12 +172,14 @@ test("every document forwards its complete declared capture and exact bytes once
     const actual = calls[index]?.bytes;
     expect(actual).toBeInstanceOf(Blob);
     expect(Buffer.from(await actual!.arrayBuffer()).equals(expected)).toBe(true);
-    expect(samples[index]?.source.capture).toEqual(calls[index]?.capture);
-    expect(Buffer.from(samples[index]?.source.bytes ?? []).equals(expected)).toBe(true);
+    expect(samples[index]?.inputs[0]?.capture).toEqual(calls[index]?.capture);
+    expect(Buffer.from(samples[index]?.inputs[0]?.bytes ?? []).equals(expected)).toBe(true);
   }
   expect(calls).toHaveLength(2);
   expect(samples.every((sample) => !("provenance" in sample))).toBe(true);
-  expect(samples.every((sample) => !("provenance" in sample.source))).toBe(true);
+  expect(samples.every((sample) => sample.inputs.every((input) => !("provenance" in input)))).toBe(
+    true,
+  );
 });
 
 test("an empty sample list refuses before transcriber construction", async () => {
@@ -220,13 +236,81 @@ test("a direct PDF refuses instead of guessing capture metadata", async () => {
   await expectRefusal([path.join(dir, "input.pdf")], "capture");
 });
 
-test("a multi-input case folder refuses rather than merging inputs", async () => {
+test("a document, document, text case loads as one ordered sample through the shared join", async () => {
   const dir = copiedCase("service-sheet");
+  cpSync(path.join(dir, "input.pdf"), path.join(dir, "annex.pdf"));
   writeFileSync(path.join(dir, "note.txt"), "not merged\n");
   editJson(path.join(dir, "case.json"), (document) => {
-    (document["inputs"] as Record<string, unknown>[]).push({ file: "note.txt", kind: "text" });
+    document["inputs"] = [
+      {
+        file: "input.pdf",
+        kind: "document",
+        capture: { capturedAt: "2026-02-11T08:15:00Z", pageCount: 1 },
+      },
+      {
+        file: "annex.pdf",
+        kind: "document",
+        capture: { capturedAt: "2026-02-12T08:15:00Z", pageCount: 2 },
+      },
+      { file: "note.txt", kind: "text" },
+    ];
   });
-  await expectRefusal([dir], "one input");
+  const calls: { readonly capture: DocumentCapture; readonly bytes: Blob }[] = [];
+  const transcriber: Transcriber<DocumentCapture> = {
+    engine: "recording-stub",
+    capability: () => Promise.resolve({ status: "ready" }),
+    transcribe: (capture, bytes): Promise<Transcript> => {
+      calls.push({ capture, bytes });
+      return Promise.resolve({
+        recordingId: capture.id,
+        text: `transcription ${calls.length}`,
+        engine: "recording-stub",
+      });
+    },
+  };
+
+  const samples = await loadSchemaInitSamples([dir], { transcriber });
+
+  expect(samples).toHaveLength(1);
+  const loaded = samples[0]!;
+  expect(loaded.name).toBe("service-sheet");
+  expect(loaded.inputs.map((input) => input.file)).toEqual(["input.pdf", "annex.pdf", "note.txt"]);
+  expect(loaded.inputs.map((input) => input.kind)).toEqual(["document", "document", "text"]);
+  // Each document is transcribed exactly once, in sample-then-input order,
+  // and keeps its own declared capture.
+  expect(calls).toHaveLength(2);
+  expect(loaded.inputs[0]?.text).toBe("transcription 1");
+  expect(loaded.inputs[1]?.text).toBe("transcription 2");
+  expect(loaded.inputs[0]?.capture).toMatchObject({
+    capturedAt: "2026-02-11T08:15:00Z",
+    pageCount: 1,
+  });
+  expect(loaded.inputs[1]?.capture).toMatchObject({
+    capturedAt: "2026-02-12T08:15:00Z",
+    pageCount: 2,
+  });
+  expect(loaded.inputs[2]?.text).toBe("not merged\n");
+  // The sample text is the shared join's output, markers on, declared order.
+  expect(loaded.text).toBe(joinCaseInputTexts(loaded.inputs));
+  expect(loaded.text).toContain("===== CAPTURE seq:1 kind:document id:input.pdf =====");
+  expect(loaded.text).toContain("===== CAPTURE seq:2 kind:document id:annex.pdf =====");
+  expect(loaded.text).toContain("===== CAPTURE seq:3 kind:text id:note.txt =====");
+  expect(loaded.text.indexOf("transcription 1")).toBeLessThan(
+    loaded.text.indexOf("transcription 2"),
+  );
+  expect(loaded.text.indexOf("transcription 2")).toBeLessThan(loaded.text.indexOf("not merged"));
+});
+
+test("a duplicate declared input file refuses before transcription", async () => {
+  const dir = copiedCase("service-sheet");
+  editJson(path.join(dir, "case.json"), (document) => {
+    (document["inputs"] as Record<string, unknown>[]).push({
+      file: "input.pdf",
+      kind: "document",
+      capture: { capturedAt: "2026-02-12T08:15:00Z", pageCount: 1 },
+    });
+  });
+  await expectRefusal([dir], "twice");
 });
 
 test("a later document failure returns no partial samples and stops before later transcription, estimates or model calls", async () => {
@@ -275,7 +359,7 @@ test("the standalone default path transcribes a real local PDF through pdf.js", 
   expect(samples).toHaveLength(1);
   expect(samples[0]?.name).toBe("service-sheet");
   expect(samples[0]?.text).toContain("Chain replaced");
-  expect(samples[0]?.source.capture).toMatchObject({
+  expect(samples[0]?.inputs[0]?.capture).toMatchObject({
     capturedAt: "2026-02-11T08:15:00Z",
     pageCount: 1,
   });

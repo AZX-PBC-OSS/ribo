@@ -2,19 +2,42 @@ import type { ChatClient, ChatRequest } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 
 import { initSchema } from "./index.js";
-import type { SchemaInitSample } from "./index.js";
+import type { SchemaInitSample, SchemaInitSampleInput } from "./index.js";
+import { joinCaseInputTexts } from "./eval/case-text.js";
 import { OperatorError } from "./operator/error.js";
 import { validateSchemaInitProposal } from "./schema-init/validate.js";
 
-const sample = (name: string, kind: SchemaInitSample["kind"], text: string): SchemaInitSample => ({
+const sample = (
+  name: string,
+  kind: SchemaInitSampleInput["kind"],
+  text: string,
+): SchemaInitSample => ({
   name,
-  kind,
+  inputs: [
+    {
+      path: `/samples/${name}.txt`,
+      file: `${name}.txt`,
+      kind,
+      text,
+      bytes: new TextEncoder().encode(text),
+    },
+  ],
   text,
-  source: {
-    path: `/samples/${name}.txt`,
-    file: `${name}.txt`,
-    bytes: new TextEncoder().encode(text),
-  },
+});
+
+const multiInputSample = (
+  name: string,
+  ...inputs: readonly { file: string; kind: SchemaInitSampleInput["kind"]; text: string }[]
+): SchemaInitSample => ({
+  name,
+  inputs: inputs.map((input) => ({
+    path: `/samples/${name}/${input.file}`,
+    file: input.file,
+    kind: input.kind,
+    text: input.text,
+    bytes: new TextEncoder().encode(input.text),
+  })),
+  text: joinCaseInputTexts(inputs),
 });
 
 const evidence = (source: string, quote: string) => ({ source, quote });
@@ -341,4 +364,97 @@ test("document hyphen folding never removes a digit-surrounded line-end hyphen",
   await initSchema([document], options(chat));
 
   expect(requests).toHaveLength(2);
+});
+
+test("evidence cannot span inputs, quote a marker, or borrow the document layout fold through a text input", () => {
+  const joined = multiInputSample(
+    "mixed",
+    { file: "input.pdf", kind: "document", text: "An unrelated service sheet.\n" },
+    { file: "note.txt", kind: "text", text: "Chain re- \n  placed\n" },
+  );
+  const markerQuote = "\n===== CAPTURE seq:1 kind:document id:input.pdf =====\n";
+  const spanning = {
+    root: object([
+      property("span", leaf("mixed", `${joined.inputs[0]!.text} ${joined.inputs[1]!.text}`.trim())),
+      property("marker", leaf("mixed", markerQuote)),
+      property("borrowed", leaf("mixed", "Chain replaced")),
+    ]),
+  };
+
+  const result = validateSchemaInitProposal(JSON.stringify(spanning), [joined]);
+
+  expect(result.success).toBe(false);
+  if (result.success) return;
+  // A quote spanning two inputs exists only in the joined text, never inside
+  // one input, so no input's own rule accepts it.
+  expect(result.problems.some((problem) => problem.startsWith("span.evidence.quote:"))).toBe(true);
+  // A quote equal to a capture marker line is never evidence: markers are not
+  // part of any input's text.
+  expect(result.problems.some((problem) => problem.startsWith("marker.evidence.quote:"))).toBe(
+    true,
+  );
+  // A text input matches exactly: the document fold is never borrowed for it.
+  expect(result.problems.some((problem) => problem.startsWith("borrowed.evidence.quote:"))).toBe(
+    true,
+  );
+  expect(result.problems).toHaveLength(3);
+});
+
+test("a document-only folded quote and its enum fold follow the matching input in either declaration order", async () => {
+  const documentText = "Chain re- \n  placed, carefully.";
+  const foldedQuote = "Chain replaced";
+  const build = (documentFirst: boolean): SchemaInitSample =>
+    documentFirst
+      ? multiInputSample(
+          "mixed",
+          { file: "scan.pdf", kind: "document", text: documentText },
+          { file: "note.txt", kind: "text", text: "Nothing about chains here.\n" },
+        )
+      : multiInputSample(
+          "mixed",
+          { file: "note.txt", kind: "text", text: "Nothing about chains here.\n" },
+          { file: "scan.pdf", kind: "document", text: documentText },
+        );
+  const proposalFor = (source: string) =>
+    proposalWith(
+      leaf(source, foldedQuote, {
+        enum: [{ value: "replaced", evidence: evidence(source, "re- \n  placed, carefully.") }],
+      }),
+    );
+
+  for (const documentFirst of [true, false]) {
+    const mixed = build(documentFirst);
+    const reply = JSON.stringify(proposalFor("mixed"));
+    // Direct validation: the document input's own rule accepts the quote, so
+    // the non-matching text input cannot reject it.
+    expect(validateSchemaInitProposal(reply, [mixed]).success).toBe(true);
+    // Through the draft loop: accepted without repair, whichever order.
+    const { chat, requests } = scriptedChat([reply]);
+    await initSchema([mixed], options(chat));
+    expect(requests).toHaveLength(1);
+  }
+
+  // The same quote against a text-only sample is rejected: exact matching.
+  const textOnly = multiInputSample("texty", {
+    file: "note.txt",
+    kind: "text",
+    text: documentText,
+  });
+  const textOnlyResult = validateSchemaInitProposal(JSON.stringify(proposalFor("texty")), [
+    textOnly,
+  ]);
+  expect(textOnlyResult.success).toBe(false);
+});
+
+test("an enum member found in the input but absent from its own quote is refused", async () => {
+  const invented = proposalWith(
+    leaf("notes", "Chain replaced", {
+      enum: [{ value: "replaced", evidence: evidence("notes", "Chain") }],
+    }),
+  );
+  const { chat, requests } = scriptedChat([JSON.stringify(invented), validReply]);
+
+  await initSchema([notes], options(chat));
+
+  expect(repairFeedback(requests)).toContain('enum value "replaced" does not appear in its own');
 });
