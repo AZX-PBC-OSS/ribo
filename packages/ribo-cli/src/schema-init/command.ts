@@ -66,6 +66,8 @@ export interface SchemaInitFlags {
   readonly corpus?: string;
   readonly corpusName?: string;
   readonly corpusProvenance?: CorpusProvenance;
+  /** Repeatable: the loaded sample names the draft reads; every sample still scaffolds. */
+  readonly draftFrom?: readonly string[];
   readonly capturedAt?: string;
   readonly timeout?: number;
   readonly responseCap?: number;
@@ -133,6 +135,12 @@ const parseSpend = (value: string): number => {
 // instant is persisted into capture records, so its shape is part of the format.
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
 
+/** `--draft-from` is repeatable: each occurrence adds one sample name, in order. */
+const collectDraftFrom = (value: string, previous: readonly string[]): readonly string[] => [
+  ...previous,
+  value,
+];
+
 const parseCapturedAt = (value: string): string => {
   if (!ISO_DATETIME.test(value) || Number.isNaN(Date.parse(value))) {
     throw new InvalidArgumentError(
@@ -147,6 +155,32 @@ function writeDiagnostic(stream: CommandOutputStream, text: string): void {
   for (const line of text.split("\n")) {
     if (line.length > 0) stream.write(`${COMMAND}: ${line}\n`);
   }
+}
+
+/**
+ * The exact-name drafting subset: `--draft-from` values match loaded sample
+ * names exactly and in the order passed, with a repeat name drafting once.
+ * Without the flag every sample drafts — the byte-identical pre-flag run.
+ */
+function selectDraftSamples(
+  samples: readonly SchemaInitSample[],
+  draftFrom: readonly string[] | undefined,
+): readonly SchemaInitSample[] {
+  if (draftFrom === undefined || draftFrom.length === 0) return samples;
+  const byName = new Map(samples.map((sample) => [sample.name, sample]));
+  const selected: SchemaInitSample[] = [];
+  for (const name of draftFrom) {
+    const sample = byName.get(name);
+    if (sample === undefined) {
+      const names = samples.map((candidate) => `"${candidate.name}"`).join(", ");
+      throw new OperatorError(
+        `--draft-from "${name}" matches no passed sample — the loaded samples are ${names} ` +
+          "(fix: name a sample by its loaded name, or drop --draft-from to draft from every sample)",
+      );
+    }
+    if (!selected.includes(sample)) selected.push(sample);
+  }
+  return selected;
 }
 
 function requestChars(request: ChatRequest): number {
@@ -204,6 +238,15 @@ function validateFlags(flags: SchemaInitFlags, cwd: string): SchemaInitCorpusMet
       throw new OperatorError(
         "--corpus-name and --corpus-provenance require --corpus (fix: name a new corpus directory, " +
           "or drop its metadata flags)",
+      );
+    }
+    // Drafting from a subset only differs from drafting from everything when
+    // the non-drafting samples still scaffold into a corpus.
+    if (flags.draftFrom !== undefined && flags.draftFrom.length > 0) {
+      throw new OperatorError(
+        "--draft-from requires --corpus — without one there is nothing to scaffold, so drafting " +
+          "from fewer samples changes nothing (fix: pass --corpus with --corpus-name and " +
+          "--corpus-provenance, or drop --draft-from)",
       );
     }
     return undefined;
@@ -307,6 +350,9 @@ export async function runSchemaInitCommand(
   const capturedAt = flags.capturedAt ?? (dependencies.clock ?? (() => new Date()))().toISOString();
   const samples = await loadSamples(sources, { capturedAt });
   indexSchemaInitSamples(samples);
+  // Drafting is a subset decision, but every sample has already loaded and
+  // transcribed here: an unreadable non-drafting sample refuses before spend.
+  const draftSamples = selectDraftSamples(samples, flags.draftFrom);
   // One stderr line per plain-folder sample: the order it loaded in is the
   // draft's evidence order, and the scaffolded case.json is where to change it.
   for (const sample of samples) {
@@ -335,7 +381,7 @@ export async function runSchemaInitCommand(
       }`,
     );
   }
-  const base = initialSchemaInitPrompt(samples, flags.model);
+  const base = initialSchemaInitPrompt(draftSamples, flags.model);
   const completionTokens = flags.responseCap ?? DEFAULT_COMPLETION_TOKENS;
   const estimateSpend = dependencies.estimateSpend ?? estimateFixedCallSpend;
   const estimate = estimateSpend({
@@ -367,6 +413,15 @@ export async function runSchemaInitCommand(
     maxSpendUsd: flags.maxSpend ?? DEFAULT_MAX_SPEND_USD,
     yes: flags.yes === true,
     ...(confirmation === undefined ? {} : { confirmation }),
+    // Drafting from more than one sample can shrink; --draft-from needs --corpus.
+    ...(draftSamples.length > 1
+      ? {
+          cheaperFix:
+            corpusMetadata === undefined
+              ? "scaffold every sample with --corpus and draft from a few with --draft-from"
+              : "draft from fewer samples with --draft-from",
+        }
+      : {}),
   });
 
   const prepare = dependencies.prepareBackend ?? prepareOperatorBackend;
@@ -390,7 +445,7 @@ export async function runSchemaInitCommand(
     dependencies.retryDelay,
   );
   const draftSchema = dependencies.draftSchema ?? initSchema;
-  const draft = await draftSchema(samples, {
+  const draft = await draftSchema(draftSamples, {
     chat,
     model: flags.model,
     ...(dependencies.clock === undefined ? {} : { clock: dependencies.clock }),
@@ -456,12 +511,19 @@ const help = [
   "  --out and --corpus name distinct new destinations; neither ever overwrites an existing path.",
   "  --corpus requires explicit --corpus-name and --corpus-provenance. Cases keep every declared",
   "  input in order; expectations and instructions stay empty, and no defaults or provenance are invented.",
+  "  Draft the corpus, not every sample: repeatable --draft-from <sample> names the samples the",
+  "  draft reads, by loaded sample name (a bare file's basename without extension, a case folder's",
+  "  case id, a plain folder's directory name), matched exactly as passed. The prompt, spend",
+  "  estimate and evidence validation cover only those samples; every passed sample still loads,",
+  "  transcribes and scaffolds as a case. Requires --corpus; a name matching no sample is refused",
+  "  before any spend, as is --draft-from without --corpus.",
   "",
   "Examples:",
   "  ribo schema init ./notes.txt ./spoken-case --backend openai-compatible --model gpt-4o",
   "  ribo schema init ./notes.txt --backend claude-cli --model claude-haiku-5-5 --out ./schema.json",
   "  ribo schema init ./intake-form.pdf ./notes.txt --backend openai-compatible --model gpt-4o --captured-at 2026-06-01T09:00:00Z",
   "  ribo schema init ./notes.txt --backend openai-compatible --model gpt-4o --corpus ./draft-corpus --corpus-name workshop --corpus-provenance real",
+  "  ribo schema init ./case-a ./case-b ./case-c --backend claude-cli --model claude-haiku-5-5 --corpus ./corpus --corpus-name workshop --corpus-provenance real --draft-from case-a --draft-from case-b",
   "",
   "Docs: node_modules/@azx/ribo-cli/docs/cli/planning.md — authoring a schema and reviewing its plan " +
     "(online: https://ribo-docs.azx.helix.azxlabs.io/cli/planning.html).",
@@ -484,6 +546,13 @@ export function registerSchemaInitCommand(schema: Command): Command {
     .option("--out <file>", "write the schema to a distinct new file instead of stdout")
     .option("--corpus <dir>", "also create an all-or-nothing corpus scaffold at a new directory")
     .option("--corpus-name <name>", "the explicit corpus manifest name; required with --corpus")
+    .option(
+      "--draft-from <sample>",
+      "draft from only the named samples (repeatable; every passed sample still loads and " +
+        "scaffolds; requires --corpus)",
+      collectDraftFrom,
+      [],
+    )
     .option(
       "--captured-at <iso>",
       "the capture instant stamped onto bare PDFs (default: the run instant)",

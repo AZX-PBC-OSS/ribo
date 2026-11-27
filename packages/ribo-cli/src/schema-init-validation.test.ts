@@ -1,3 +1,8 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Writable } from "node:stream";
+
 import type { ChatClient, ChatRequest } from "@azx/ribo-core";
 import { expect, test, vi } from "vitest";
 
@@ -5,6 +10,7 @@ import { initSchema } from "./index.js";
 import type { SchemaInitSample, SchemaInitSampleInput } from "./index.js";
 import { joinCaseInputTexts } from "./eval/case-text.js";
 import { OperatorError } from "./operator/error.js";
+import { runSchemaInitCommand } from "./schema-init/command.js";
 import { validateSchemaInitProposal } from "./schema-init/validate.js";
 
 const sample = (
@@ -457,4 +463,63 @@ test("an enum member found in the input but absent from its own quote is refused
   await initSchema([notes], options(chat));
 
   expect(repairFeedback(requests)).toContain('enum value "replaced" does not appear in its own');
+});
+
+// --- --draft-from: evidence may name only a drafting sample ---
+
+test("schema init rejects and repairs evidence citing a non-drafting sample", async () => {
+  const drafting = sample("case-b", "text", "Beta text for the draft.\n");
+  const others: readonly SchemaInitSample[] = [
+    sample("case-a", "text", "Alpha text for the draft.\n"),
+    drafting,
+    sample("case-c", "text", "Gamma text for the draft.\n"),
+  ];
+  const citingNonDrafting = JSON.stringify({
+    root: object([property("value", leaf("case-a", "Alpha text for the draft."))]),
+  });
+  const valid = JSON.stringify({
+    root: object([property("value", leaf("case-b", "Beta text for the draft."))]),
+  });
+  const requests: ChatRequest[] = [];
+  const chat: ChatClient = {
+    async complete(request) {
+      requests.push(request);
+      return { content: requests.length === 1 ? citingNonDrafting : valid };
+    },
+  };
+  const directory = await mkdtemp(join(tmpdir(), "ribo-schema-init-validation-"));
+  try {
+    const result = await runSchemaInitCommand(
+      ["./case-a", "./case-b", "./case-c"],
+      {
+        backend: "openai-compatible",
+        model: "stub-schema-author",
+        corpus: "draft-corpus",
+        corpusName: "Subset corpus",
+        corpusProvenance: "real",
+        draftFrom: ["case-b"],
+      },
+      {
+        cwd: directory,
+        env: {},
+        stdout: new Writable({ write: (_c, _e, cb) => cb() }),
+        stderr: new Writable({ write: (_c, _e, cb) => cb() }),
+        confirmation: null,
+        loadSamples: async () => others,
+        prepareBackend: async () => chat,
+      },
+    );
+
+    // The first reply named a sample the model was never shown: it is
+    // rejected by name, then the valid drafting-sample reply is accepted.
+    expect(requests).toHaveLength(2);
+    const feedback = requests[1]!.messages.at(-1)!.content;
+    expect(feedback).toContain('unknown source "case-a"');
+    expect(result.draft.proposal.root.properties[0]!.node).toMatchObject({
+      kind: "string",
+      evidence: { source: "case-b" },
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

@@ -761,3 +761,114 @@ test("a bare PDF with --corpus drafts, scaffolds the measured and stamped captur
   expect(caseFile.inputs[0]?.capture).toMatchObject({ pageCount: 3 });
   expect(caseFile.inputs[0]?.capture.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/u);
 });
+
+// --- --draft-from: refusals land before any model call ---
+
+test("an unknown --draft-from name exits 2 before the stub is called", async () => {
+  const out = join(directory, "unknown-draft-from.json");
+  const corpus = join(directory, "unknown-draft-from-corpus");
+  const result = await runInit([
+    direct,
+    ...requiredFlags,
+    "--corpus",
+    corpus,
+    ...corpusFlags,
+    "--draft-from",
+    "no-such-sample",
+    "--out",
+    out,
+  ]);
+
+  expect(result.status).toBe(2);
+  expect(result.stdout).toBe("");
+  expect(result.stderr).toContain("matches no passed sample");
+  expect(result.stderr).toContain('"field-notes"');
+  expect(existsSync(out)).toBe(false);
+  expect(existsSync(corpus)).toBe(false);
+  expect(received).toHaveLength(0);
+});
+
+test("--draft-from without --corpus exits 2 before the stub is called", async () => {
+  const out = join(directory, "draft-from-no-corpus.json");
+  const result = await runInit([
+    direct,
+    ...requiredFlags,
+    "--draft-from",
+    "field-notes",
+    "--out",
+    out,
+  ]);
+
+  expect(result.status).toBe(2);
+  expect(result.stdout).toBe("");
+  expect(result.stderr).toContain("--draft-from requires --corpus");
+  expect(existsSync(out)).toBe(false);
+  expect(received).toHaveLength(0);
+  expect(existsSync(stubLog)).toBe(false);
+});
+
+test("an unreadable non-drafting PDF exits 2 before the stub is called", async () => {
+  // The non-drafting sample still loads and transcribes before the estimate,
+  // so its unreadable PDF refuses the whole run despite --draft-from.
+  const brokenPdf = join(directory, "broken.pdf");
+  writeFileSync(brokenPdf, "definitely not a pdf");
+  const out = join(directory, "unreadable.json");
+  const corpus = join(directory, "unreadable-corpus");
+  const result = await runInit([
+    direct,
+    brokenPdf,
+    ...requiredFlags,
+    "--corpus",
+    corpus,
+    ...corpusFlags,
+    "--draft-from",
+    "field-notes",
+    "--out",
+    out,
+  ]);
+
+  expect(result.status).toBe(2);
+  expect(result.stdout).toBe("");
+  expect(result.stderr).toContain("could not be opened for its page count");
+  expect(result.stderr).toContain("broken.pdf");
+  expect(existsSync(out)).toBe(false);
+  expect(existsSync(corpus)).toBe(false);
+  expect(received).toHaveLength(0);
+});
+
+test("an over-ceiling multi-sample estimate names --draft-from, with --corpus when it is absent", async () => {
+  const second = join(directory, "second-notes.txt");
+  writeFileSync(second, "Second visit: chain replaced again.\n");
+  const corpus = join(directory, "over-ceiling-corpus");
+  const withCorpus = await runInit([
+    direct,
+    second,
+    ...requiredFlags,
+    "--corpus",
+    corpus,
+    ...corpusFlags,
+    "--max-spend",
+    "0.000001",
+  ]);
+  expect(withCorpus.status).toBe(2);
+  expect(withCorpus.stdout).toBe("");
+  expect(withCorpus.stderr).toContain("above the ceiling");
+  expect(withCorpus.stderr).toContain("--max-spend");
+  expect(withCorpus.stderr).toContain("draft from fewer samples with --draft-from");
+  expect(existsSync(corpus)).toBe(false);
+
+  const withoutCorpus = await runInit([
+    direct,
+    second,
+    ...requiredFlags,
+    "--max-spend",
+    "0.000001",
+  ]);
+  expect(withoutCorpus.status).toBe(2);
+  expect(withoutCorpus.stderr).toContain("with --corpus and draft from a few with --draft-from");
+
+  const single = await runInit([direct, ...requiredFlags, "--max-spend", "0.000001"]);
+  expect(single.status).toBe(2);
+  expect(single.stderr).not.toContain("--draft-from");
+  expect(received).toHaveLength(0);
+});

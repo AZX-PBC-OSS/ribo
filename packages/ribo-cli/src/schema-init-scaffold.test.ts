@@ -6,8 +6,9 @@ import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:f
 import { tmpdir } from "node:os";
 import path, { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Writable } from "node:stream";
 
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { loadCorpus } from "./corpus.js";
 import { caseTextOf, joinCaseInputTexts } from "./eval/case-text.js";
@@ -17,6 +18,7 @@ import type { OperatorDirectoryFileSystem } from "./operator/output.js";
 import { defaultOperatorDirectoryFileSystem } from "./operator/output.js";
 import { serializeSchemaInitDocument, writeSchemaInitCorpus } from "./schema-init/scaffold.js";
 import { loadSchemaInitSamples } from "./schema-init/samples.js";
+import { runSchemaInitCommand } from "./schema-init/command.js";
 import type { SchemaInitSample, SchemaInitSampleInput } from "./schema-init/samples.js";
 
 const document = {
@@ -390,4 +392,123 @@ test("a multi-input scaffold round-trips through loadCorpus with caseTextOf equa
       .map((candidate) => [documentTextKey(multi.name, candidate.file), candidate.text] as const),
   );
   expect(caseTextOf(loaded, entry, documents)).toBe(multi.text);
+});
+
+// --- --draft-from: the scaffold still carries every sample, in declared order ---
+
+test("--draft-from limits the prompt but scaffolds every non-alphabetically passed sample with declared input order", async () => {
+  const zuluBytes = new TextEncoder().encode("Zulu observed value.\n");
+  const zuluInputs = [
+    input(
+      "zulu",
+      "b-second.txt",
+      "transcript",
+      "The boiler chain was replaced.\n",
+      new TextEncoder().encode("The boiler chain was replaced.\n"),
+    ),
+    input("zulu", "a-first.txt", "text", new TextDecoder().decode(zuluBytes), zuluBytes),
+  ];
+  const zulu: SchemaInitSample = {
+    name: "zulu",
+    inputs: zuluInputs,
+    text: joinCaseInputTexts(zuluInputs),
+  };
+  const alpha: SchemaInitSample = {
+    name: "alpha",
+    inputs: [
+      input(
+        "alpha",
+        "alpha.txt",
+        "text",
+        "Alpha text for the draft.\n",
+        new TextEncoder().encode("Alpha text for the draft.\n"),
+      ),
+    ],
+    text: "Alpha text for the draft.\n",
+  };
+  const mike: SchemaInitSample = {
+    name: "mike",
+    inputs: [
+      input(
+        "mike",
+        "mike.txt",
+        "text",
+        "Mike text for the draft.\n",
+        new TextEncoder().encode("Mike text for the draft.\n"),
+      ),
+    ],
+    text: "Mike text for the draft.\n",
+  };
+  // Deliberately non-alphabetic positional order, with alpha the only drafting sample.
+  const samples = [zulu, alpha, mike];
+  const reply = JSON.stringify({
+    root: {
+      kind: "object",
+      description: "A draft grounded only in alpha.",
+      properties: [
+        {
+          name: "value",
+          node: {
+            kind: "string",
+            description: "An observed value.",
+            evidence: { source: "alpha", quote: "Alpha text for the draft." },
+          },
+        },
+      ],
+    },
+  });
+  const chat = { complete: vi.fn(async () => ({ content: reply })) };
+  const ignore = new Writable({ write: (_c, _e, cb) => cb() });
+  const directory = await mkdtemp(join(tmpdir(), "ribo-schema-init-draft-from-scaffold-"));
+  try {
+    const corpus = join(directory, "corpus");
+    await runSchemaInitCommand(
+      ["./zulu", "./alpha", "./mike"],
+      {
+        backend: "openai-compatible",
+        model: "stub-schema-author",
+        corpus,
+        corpusName: "Subset corpus",
+        corpusProvenance: "real",
+        draftFrom: ["alpha"],
+      },
+      {
+        cwd: directory,
+        env: {},
+        stdout: ignore,
+        stderr: ignore,
+        confirmation: null,
+        loadSamples: async (sources) => {
+          expect(sources).toEqual(["./zulu", "./alpha", "./mike"]);
+          return samples;
+        },
+        prepareBackend: async () => chat,
+      },
+    );
+
+    // Only the drafting sample reached the model.
+    expect(chat.complete).toHaveBeenCalledTimes(1);
+    const calls = chat.complete.mock.calls as unknown as Array<
+      [{ messages: ReadonlyArray<{ content: string }> }]
+    >;
+    const prompt = calls[0]![0].messages.map((message) => message.content).join("\n");
+    expect(prompt).toContain("Alpha text for the draft.");
+    expect(prompt).not.toContain("Mike text for the draft.");
+    expect(prompt).not.toContain("boiler chain");
+
+    // All three samples scaffolded as cases, and the corpus loads. The loaded
+    // order is the loader's own case-id sort, not the command line's.
+    const loaded = loadCorpus(corpus);
+    expect(loaded.cases.map((entry) => entry.id)).toEqual(["alpha", "mike", "zulu"]);
+    // The multi-input case keeps exactly its declared input order.
+    const zuluCase = loaded.cases.find((entry) => entry.id === "zulu");
+    expect(
+      zuluCase?.inputs.map((candidate) => ({ file: candidate.file, kind: candidate.kind })),
+    ).toEqual([
+      { file: "b-second.txt", kind: "transcript" },
+      { file: "a-first.txt", kind: "text" },
+    ]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
