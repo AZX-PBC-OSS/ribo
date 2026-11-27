@@ -137,3 +137,23 @@ records what the caller asserted.
 
 Exit codes: **0** — the comparison was computed (a difference is a finding, never a failure);
 **2** — could not run.
+
+### Comparing across a corpus edit
+
+The refusal above turns on the **corpus fingerprint**, and the fingerprint covers exactly: each
+case's id; the case's declared inputs in order — each input contributing its file name, its kind,
+and a digest of the file's bytes; the case's expected entries and its defaults; and the
+corpus-wide effective `markCaptures` policy. Changing any of those — an edited expectation, a
+different input file, a re-ordered inputs list, a flipped marker policy — changes the corpus
+fingerprint, and the pair is refused without `--allow-corpus-mismatch`.
+
+Just as exactly, these leave the corpus fingerprint alone and never cause that refusal: the
+capture metadata beside a document's bytes (`capturedAt`, `pageCount`), the schema document, the
+prompt instructions and every other manifest field, and reformatting the corpus's JSON files —
+the fingerprint hashes parsed values, not bytes. A schema edit is still visible: it moves the
+record's own `fingerprint`, which `compare` reports as an axis rather than a refusal.
+
+The clean fix for a covered edit is to re-run the baseline on the edited corpus, so both records
+measure the same questions. `--allow-corpus-mismatch` compares what the two records share and
+records the override in the report; a score change read across a corpus edit mixes the edit with
+the run, and attributes both to whichever axis you thought you had changed.

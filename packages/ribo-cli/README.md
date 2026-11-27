@@ -26,6 +26,24 @@ If your registry does not carry the `@azx` scope yet, pack the package from the 
 
 The rest of this README says `ribo` and means one of those three.
 
+## Start here
+
+Start from what you have: `ribo schema init` drafts an evidence-linked schema from bare PDFs, a
+folder per job, existing corpus case folders, or plain text files — and with `--corpus` scaffolds
+a corpus around every sample. For a large set, `--draft-from` drafts from a few representative
+samples while scaffolding all of them; if you already have a hand-written schema, start at
+[Writing the schema](#from-documents-to-scores). Three decisions have their own guides:
+
+- [When a plan is worth trying](docs/cli/planning.md#when-a-plan-is-worth-trying) — the schema
+  shapes and error patterns that make a plan worth measuring (online:
+  <https://ribo-docs.azx.helix.azxlabs.io/cli/planning.html#when-a-plan-is-worth-trying>).
+- [When a case's inputs disagree](docs/cli/corpus.md#when-a-case-s-inputs-disagree) — three
+  authoring options, and why silence is not one of them (online:
+  <https://ribo-docs.azx.helix.azxlabs.io/cli/corpus.html#when-a-case-s-inputs-disagree>).
+- [Comparing across a corpus edit](docs/cli/scoring.md#comparing-across-a-corpus-edit) — what the
+  corpus fingerprint covers, when `compare` refuses, and the clean fix (online:
+  <https://ribo-docs.azx.helix.azxlabs.io/cli/scoring.html#comparing-across-a-corpus-edit>).
+
 ## The commands
 
 Output discipline is the same everywhere: results on stdout, diagnostics on stderr, and a refusal

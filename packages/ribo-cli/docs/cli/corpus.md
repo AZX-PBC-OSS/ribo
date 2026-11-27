@@ -132,6 +132,28 @@ strings is a set of prefixes — each scope string once per case. A default's st
 an explicit entry in `expected` always wins; among covering defaults the longest scope wins; a
 leaf covered by neither is unmentioned.
 
+## When a case's inputs disagree
+
+A multi-input case can hold inputs that disagree — two transcripts giving different floor areas, a
+note and a worksheet naming different dates. An `asserted` entry still names exactly one value, so
+a disagreement needs an authoring decision. Three, each using a feature this page already
+documents:
+
+- **`alternatives`.** List each input's answer on the one expectation: a run producing any one is
+  `correct`. Use this when the case genuinely accepts either answer.
+- **Name the authoritative input.** When one input should win, say so where the model reads it —
+  an instruction (the manifest's `prompt.instructions`, or a group's entry in
+  `prompt.groupInstructions`) or the leaf's schema `description` — naming the authoritative input
+  by its **marker id** (the `id:I` in its `===== CAPTURE … =====` marker, the file name the case
+  declares), stating the asserted value there, and quoting it in the expectation's `sourceSpan`
+  for the human reader.
+- **Two leaves.** When the disagreement is itself the answer, give each input's claim its own leaf
+  in the schema and assert both.
+
+Whichever you choose, do not leave the leaf silently unmentioned: an unmentioned leaf is judged in
+no denominator, so a disagreement papered over with silence never scores — and `compare` can
+never see it either.
+
 ## The example's cases, end to end
 
 `morning-visit` — a transcript case asserting every leaf of one group, declaring one leaf absent

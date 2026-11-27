@@ -365,3 +365,31 @@ test("a cosmetic rewrite of an input file's JSON case keys leaves the corpus fin
 
   expect(after).toBe(before);
 });
+
+test("case, input and default edits count while capture and unrelated manifest metadata do not", () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS);
+  const base = corpusFingerprint(loadCorpus(dir));
+
+  // The capture metadata beside a document's bytes describes the capture,
+  // not the question: neither field moves the fingerprint.
+  editJson(path.join(dir, "service-sheet", "case.json"), (document) => {
+    const inputs = document["inputs"] as { capture?: { capturedAt: string; pageCount: number } }[];
+    inputs[0]!.capture!.capturedAt = "2030-01-01T00:00:00Z";
+    inputs[0]!.capture!.pageCount = 9;
+  });
+  expect(corpusFingerprint(loadCorpus(dir))).toBe(base);
+
+  // Neither does any manifest field the fingerprint does not name — the
+  // schema, the prompt and the free-text description are all excluded.
+  editJson(path.join(dir, "manifest.json"), (document) => {
+    document["description"] = "A reader-facing note nothing reads.";
+  });
+  expect(corpusFingerprint(loadCorpus(dir))).toBe(base);
+
+  // A case's answers and its defaults are its questions: either edit moves
+  // the fingerprint.
+  editJson(path.join(dir, "spoken-note", "case.json"), (document) => {
+    document["defaults"] = [{ scope: "frame", status: "declared-absent" }];
+  });
+  expect(corpusFingerprint(loadCorpus(dir))).not.toBe(base);
+});

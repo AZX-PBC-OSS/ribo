@@ -3,9 +3,17 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 
 import { buildCliOnce } from "./test-support/build-once.js";
+import {
+  copiedCorpus,
+  corpusWithoutDocuments,
+  editJson,
+  FIXTURE_CORPUS,
+  removeTemporaries,
+} from "./eval/test-support/corpus.js";
+import { recordOverCorpus } from "./eval/test-support/record.js";
 
 import { EvalCompareReportSchema } from "./index.js";
 
@@ -37,6 +45,10 @@ beforeAll(() => {
 
 afterAll(() => {
   if (dir !== undefined) rmSync(dir, { recursive: true, force: true });
+});
+
+afterEach(() => {
+  removeTemporaries();
 });
 
 interface Run {
@@ -289,6 +301,66 @@ test("a partially overlapping leaf set compares on the intersection, with the ex
   for (const difference of report.differences) {
     expect(difference.leafPath).not.toBe("service.notes");
   }
+});
+
+// --- Comparing across a corpus edit ---------------------------------------------------
+
+/** The settings both records of an edit pair run under. */
+const editSettings = { strategies: ["single-shot"], model: "ribo-test" } as const;
+
+/** Write a record draft, with the empty lineage a first write gives it, as a file the bin reads. */
+const writeRecord = (name: string, draft: Record<string, unknown>): string => {
+  const file = join(dir, name);
+  writeFileSync(file, `${JSON.stringify({ ...draft, history: [] }, null, 2)}\n`);
+  return file;
+};
+
+test("an edited expectation refuses without the corpus override and records the override with it", async () => {
+  const before = await recordOverCorpus(corpusWithoutDocuments(), editSettings);
+  const edited = corpusWithoutDocuments();
+  editJson(join(edited, "spoken-note", "case.json"), (document) => {
+    const expected = document["expected"] as Record<string, { value: string }>;
+    expected["frame.material"] = { ...expected["frame.material"]!, value: "aluminium" };
+  });
+  const after = await recordOverCorpus(edited, editSettings);
+  expect(before.calls).toBeGreaterThan(0);
+  expect(after.calls).toBeGreaterThan(0);
+  expect(after.record.corpus.fingerprint).not.toBe(before.record.corpus.fingerprint);
+
+  const left = writeRecord("edited-expectation-left.json", before.record);
+  const right = writeRecord("edited-expectation-right.json", after.record);
+
+  const refused = run([left, right]);
+  expect(refused.status).toBe(2);
+  expect(refused.stdout).toBe("");
+  expect(refused.stderr).toContain("corpora");
+  expect(refused.stderr).toContain("--allow-corpus-mismatch");
+
+  const allowed = run(["--json", "--allow-corpus-mismatch", left, right]);
+  expect(allowed.status).toBe(0);
+  const report = EvalCompareReportSchema.parse(JSON.parse(allowed.stdout));
+  expect(report.corpusOverride).toBe(true);
+});
+
+test("a capturedAt-only corpus edit keeps the fingerprint and compares without the override", async () => {
+  const before = await recordOverCorpus(copiedCorpus(FIXTURE_CORPUS), editSettings);
+  const edited = copiedCorpus(FIXTURE_CORPUS);
+  editJson(join(edited, "service-sheet", "case.json"), (document) => {
+    const inputs = document["inputs"] as { capture: { capturedAt: string } }[];
+    inputs[0]!.capture.capturedAt = "2030-06-01T12:00:00Z";
+  });
+  const after = await recordOverCorpus(edited, editSettings);
+  expect(before.calls).toBeGreaterThan(0);
+  expect(after.calls).toBeGreaterThan(0);
+  expect(after.record.corpus.fingerprint).toBe(before.record.corpus.fingerprint);
+
+  const left = writeRecord("captured-at-left.json", before.record);
+  const right = writeRecord("captured-at-right.json", after.record);
+
+  const json = run(["--json", left, right]);
+  expect(json.status).toBe(0);
+  const report = EvalCompareReportSchema.parse(JSON.parse(json.stdout));
+  expect(report.corpusOverride).toBe(false);
 });
 
 // --- Comparing a record with itself (criterion 16's bin-level face) ---------------------------
