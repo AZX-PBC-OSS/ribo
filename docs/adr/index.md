@@ -89,3 +89,4 @@ receives.
 | [0045](./0045-schema-init-drafts-only-evidence-linked-declarations.md)                  | Schema init drafts only evidence-linked declarations                                           | Accepted |
 | [0046](./0046-schema-init-reads-a-cases-ordered-inputs.md)                              | Schema init reads a case's ordered inputs                                                      | Accepted |
 | [0047](./0047-a-bare-pdfs-capture-block-is-measured-and-ingestion-stamped.md)           | A bare PDF's capture block is measured and ingestion-stamped                                   | Accepted |
+| [0048](./0048-schema-init-reads-a-plain-folder-as-one-ordered-sample.md)                | Schema init reads a plain folder as one ordered sample                                         | Accepted |

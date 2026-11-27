@@ -5,7 +5,7 @@
  * sample's text is the one marked join `eval/case-text.ts` owns, so init
  * cannot draft from a text eval would not run.
  */
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { baseDocumentCaptureSchema } from "@azx/ribo-core";
@@ -42,6 +42,12 @@ export interface SchemaInitSample {
   readonly name: string;
   readonly inputs: readonly SchemaInitSampleInput[];
   readonly text: string;
+  /**
+   * True when the sample is a plain folder whose input order was inferred
+   * from byte-wise file-name order — the order the command prints and the
+   * scaffolded `case.json` records for the user to edit.
+   */
+  readonly orderInferred?: boolean;
 }
 
 /**
@@ -67,6 +73,7 @@ interface LoadedInput {
 
 interface LoadedSample {
   readonly name: string;
+  readonly orderInferred?: boolean;
   readonly inputs: readonly LoadedInput[];
 }
 
@@ -248,6 +255,95 @@ const loadCaseSample = (caseDir: string): LoadedSample => {
   };
 };
 
+/**
+ * The input kinds a plain folder accepts, keyed by lowercase extension. A
+ * PDF is a document input and gets the bare-PDF capture rule; a text or
+ * markdown file is a text input; anything else is refused by name.
+ */
+const PLAIN_FOLDER_KINDS: Readonly<Record<string, CorpusInputKind>> = {
+  ".pdf": "document",
+  ".txt": "text",
+  ".md": "text",
+};
+
+/** UTF-8 byte-wise name order: independent of locale and listing order. */
+const byteOrder = (left: string, right: string): number =>
+  Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+
+/**
+ * A directory without `case.json` is one sample named after the directory:
+ * its non-dotfile files, ordered byte-wise by name. The strict input rules
+ * below all refuse before any transcription, so a malformed folder never
+ * spends.
+ */
+const loadPlainFolder = (dir: string): LoadedSample => {
+  if (existsSync(path.join(dir, "manifest.json"))) {
+    throw new OperatorError(
+      `the schema-init sample directory "${dir}" holds a manifest.json — it is a corpus root, ` +
+        "not one sample (fix: pass its case folders, not the corpus directory)",
+    );
+  }
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch (error) {
+    throw new OperatorError(
+      `the schema-init plain folder "${dir}" could not be read: ${faultMessage(error)} ` +
+        "(fix: pass a readable plain folder or case folder)",
+    );
+  }
+  const files = entries.filter((entry) => !entry.name.startsWith("."));
+  for (const entry of files) {
+    if (entry.isDirectory()) {
+      throw new OperatorError(
+        `the schema-init plain folder "${dir}" holds the subdirectory "${entry.name}" — a plain ` +
+          "folder's inputs are files directly inside it (fix: pass the subdirectory as its own " +
+          "sample, or write a case.json declaring this folder's inputs)",
+      );
+    }
+    if (!entry.isFile()) {
+      // A symlink or special file could point outside the named folder.
+      throw new OperatorError(
+        `the schema-init plain folder "${dir}" holds "${entry.name}", which is not a regular ` +
+          "file — links are not followed (fix: copy the file into the folder in place of the " +
+          "link)",
+      );
+    }
+  }
+  const inputs = files
+    .map((entry) => entry.name)
+    .sort(byteOrder)
+    .map((file): LoadedInput => {
+      const kind = PLAIN_FOLDER_KINDS[path.extname(file).toLowerCase()];
+      if (kind === undefined) {
+        throw new OperatorError(
+          `the schema-init plain folder "${dir}" holds the unsupported input file "${file}" — ` +
+            "a plain folder's inputs are .pdf, .txt or .md files (fix: convert or remove the " +
+            "file, or write a case.json declaring the folder's inputs)",
+        );
+      }
+      const source = path.join(dir, file);
+      const buffer = readBytes(source);
+      const bytes = new Uint8Array(buffer);
+      if (kind === "document") {
+        // A plain folder's PDFs get the bare-PDF capture rule: measured and
+        // stamped by the same pass that stamps direct bare PDFs.
+        return { path: source, file, kind, bytes };
+      }
+      const text = buffer.toString("utf8");
+      refuseEmptyText(source, text);
+      return { path: source, file, kind, text, bytes };
+    });
+  if (inputs.length === 0) {
+    throw new OperatorError(
+      `the schema-init plain folder "${dir}" holds no input files — dotfiles are skipped and ` +
+        "the inputs are .pdf, .txt or .md files (fix: add input files, or write a case.json " +
+        "declaring the folder's inputs)",
+    );
+  }
+  return { name: path.basename(dir), orderInferred: true, inputs };
+};
+
 const loadSample = (source: string): LoadedSample => {
   const resolved = path.resolve(source);
   let stats;
@@ -259,7 +355,11 @@ const loadSample = (source: string): LoadedSample => {
         "(fix: pass a direct text file or an existing case folder)",
     );
   }
-  if (stats.isDirectory()) return loadCaseSample(resolved);
+  if (stats.isDirectory()) {
+    return existsSync(path.join(resolved, "case.json"))
+      ? loadCaseSample(resolved)
+      : loadPlainFolder(resolved);
+  }
   if (stats.isFile()) return loadDirectText(resolved);
   throw new OperatorError(
     `the schema-init sample "${resolved}" is neither a file nor a case folder ` +
@@ -308,7 +408,7 @@ const stampBarePdfs = async (
         document: { caseId: sample.name, file: input.file, capture, bytes: input.bytes },
       });
     }
-    stamped.push({ name: sample.name, inputs });
+    stamped.push({ name: sample.name, orderInferred: sample.orderInferred, inputs });
   }
   return stamped;
 };
@@ -371,6 +471,11 @@ export async function loadSchemaInitSamples(
         ...(input.capture === undefined ? {} : { capture: input.capture }),
       };
     });
-    return { name: sample.name, inputs, text: joinCaseInputTexts(inputs) };
+    return {
+      name: sample.name,
+      orderInferred: sample.orderInferred,
+      inputs,
+      text: joinCaseInputTexts(inputs),
+    };
   });
 }

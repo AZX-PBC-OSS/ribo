@@ -16,14 +16,21 @@ The worked example ships a finished plan at
 ribo schema init ./notes.txt ./spoken-case --backend claude-cli --model claude-haiku-5-5
 ```
 
-Each sample is a direct text file, a **bare PDF**, or an existing corpus case folder with any
+Each sample is a direct text file, a **bare PDF**, a **plain folder** of inputs, or an existing
+corpus case folder with any
 number of declared
 inputs — the transcripts, texts and documents the draft will be evidence for, loaded in the case's
 declared order. A bare PDF loads as a one-input document sample named after the file: its
 `pageCount` is measured from the file itself through the same pdf.js path eval transcribes with,
 and its `capturedAt` is the run instant, overridable with `--captured-at <iso 8601 datetime>`
 (refused when no sample is a bare PDF). No file timestamp and no PDF metadata date is ever read,
-and a case folder's declared capture block is passed through untouched. The draft is
+and a case folder's declared capture block is passed through untouched. A directory without
+`case.json` loads as one sample named after the directory: its `.pdf`, `.txt` and `.md` files are
+its inputs, in byte-wise file-name order (dotfiles are skipped; any other extension, a
+subdirectory, a link and an empty folder are refused by name, and a directory holding `manifest.json` is
+refused with the fix "pass its case folders"). One stderr line states each such sample's inferred
+order, and `inputs` in the scaffolded `case.json` is where to change it — the order is a stated
+default, never a silent one. The draft is
 **evidence-linked**:
 every leaf it proposes carries guidance grounded in what a sample actually said, not invented
 structure. With `--corpus`, the command also scaffolds a corpus directory beside the schema; the
