@@ -166,6 +166,9 @@ export async function prepareEvalPlan(
         corpus.manifest.prompt,
         corpus.manifest.name,
         arm.splitCaps ?? {},
+        // Only the presence-narrowed strategy consumes the walked groups; the
+        // walk (and its refusal) stays scoped to arms that select it.
+        arm.strategies,
       );
       const settings: EvalSettings = {
         ...arm,

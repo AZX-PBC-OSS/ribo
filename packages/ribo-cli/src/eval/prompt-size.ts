@@ -27,11 +27,17 @@
  * the mirror proves fragile, exporting the builder from core is a separate
  * decision, not this file's.
  */
-import { buildGroupMessages, buildMessages, toJsonSchemaForWire } from "@azx/ribo-core";
+import {
+  buildGroupMessages,
+  buildMessages,
+  MAX_NULLABLE_UNIONS_PER_CALL,
+  splitExtractionSchema,
+  toJsonSchemaForWire,
+} from "@azx/ribo-core";
 import type { ChatMessage, ExtractionTarget, FieldDescriptionsMode, Group } from "@azx/ribo-core";
 
 import { EvalError } from "./error.js";
-import type { EvalStrategyId } from "./types.js";
+import type { EvalSplitCaps, EvalStrategyId } from "./types.js";
 
 /**
  * What the measurement needs: the target the run drives, the groups the
@@ -41,7 +47,11 @@ import type { EvalStrategyId } from "./types.js";
 export interface PromptSizeInput {
   /** The extraction target every call is built from. */
   readonly target: ExtractionTarget<Record<string, unknown>>;
-  /** The walked groups, for the group-shaped calls. */
+  /**
+   * The walked groups, for the presence-narrowed arm's two call shapes — the
+   * walk is skipped for every other strategy, so this is empty when only
+   * single-shot, per-group or planned rungs are measured.
+   */
   readonly groups: readonly Group[];
   /** Where the field descriptions travel, as the manifest declares. */
   readonly fieldDescriptions?: FieldDescriptionsMode;
@@ -51,6 +61,8 @@ export interface PromptSizeInput {
   readonly transcript: string;
   /** Core's actual packed planned targets, when a rung is planned. */
   readonly plannedTargets?: readonly ExtractionTarget<Record<string, unknown>>[];
+  /** The run's split caps — the ones the per-group calls pack under. */
+  readonly splitCaps?: EvalSplitCaps;
 }
 
 /**
@@ -130,6 +142,56 @@ const groupMessageChars = (input: PromptSizeInput): number => {
 };
 
 /**
+ * The group keys the per-group strategy's own split produces — read off core's
+ * `splitExtractionSchema` under the run's caps, never off the presence walk.
+ * The two differ wherever a top-level scalar sits beside groups: the split
+ * carries it as the unwrapped `""` piece the per-group strategy really sends,
+ * while the walk refuses the schema outright.
+ *
+ * A split that cannot be derived is not measured as failure here — the call
+ * bound refuses the run before measurement — so the whole-schema measurement
+ * stands in, which is the larger prompt and keeps the bound an upper bound.
+ */
+const perGroupSplitKeys = (input: PromptSizeInput): readonly string[] => {
+  try {
+    const pieces = splitExtractionSchema(input.target.extractionSchema, {
+      maxNullableUnionsPerGroup:
+        input.splitCaps?.maxNullableUnionsPerGroup ?? MAX_NULLABLE_UNIONS_PER_CALL,
+      ...(input.splitCaps?.maxSerializedCharsPerGroup === undefined
+        ? {}
+        : { maxSerializedCharsPerGroup: input.splitCaps.maxSerializedCharsPerGroup }),
+    });
+    return [...new Set(pieces.map((piece) => piece.key))];
+  } catch {
+    return [""];
+  }
+};
+
+/**
+ * The characters of the per-group calls' messages, over the split's own group
+ * keys, keeping the largest. The whole-group measurement is the upper bound
+ * for any partitioned piece of that group — a piece is a narrowing.
+ */
+const perGroupMessageChars = (input: PromptSizeInput): number => {
+  let largest = 0;
+  for (const key of perGroupSplitKeys(input)) {
+    const messages = buildGroupMessages(
+      input.target,
+      key,
+      input.transcript,
+      input.groupInstructions,
+      undefined,
+      undefined,
+      input.fieldDescriptions === undefined
+        ? undefined
+        : { fieldDescriptions: input.fieldDescriptions },
+    );
+    largest = Math.max(largest, charsOf(messages));
+  }
+  return largest;
+};
+
+/**
  * The characters of the presence phase's messages: the mirrored two-message
  * shape, over every group, keeping the largest.
  */
@@ -194,7 +256,7 @@ export function measurePromptChars(
       continue;
     }
     if (strategy === "per-group") {
-      largest = Math.max(largest, groupMessageChars(input) + wireChars(input));
+      largest = Math.max(largest, perGroupMessageChars(input) + wireChars(input));
       continue;
     }
     if (strategy === "planned") {
