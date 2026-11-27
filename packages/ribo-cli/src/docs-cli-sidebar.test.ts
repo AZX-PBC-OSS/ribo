@@ -18,6 +18,7 @@ const CONFIG = readFileSync(`${REPO_ROOT}/docs/.vitepress/config.ts`, "utf8");
 const PAGES: readonly { readonly link: string; readonly file: string }[] = [
   { link: "/cli/", file: "docs/cli/index.md" },
   { link: "/cli/schema", file: "docs/cli/schema.md" },
+  { link: "/cli/planning", file: "docs/cli/planning.md" },
   { link: "/cli/corpus", file: "docs/cli/corpus.md" },
   { link: "/cli/scoring", file: "docs/cli/scoring.md" },
   { link: "/cli/spend", file: "docs/cli/spend.md" },

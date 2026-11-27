@@ -207,6 +207,28 @@ the generated file and the live zod schema produce one identical `inspectSchema`
 goes red after a bump, the rendering changed — re-pin deliberately, with the wire form and the
 depth tests that pin the new shape.
 
+## Executing a reviewed plan in production: core, not the CLI
+
+The `ribo` CLI's `--plan` flags are the measuring bench; production code imports nothing from it.
+The same reviewed plan artifact is executed through two core exports:
+
+```ts
+import { parseSchemaPlan, plannedExtractor } from "@azx/ribo-core";
+
+const plan = parseSchemaPlan(planArtifact, target.extractionSchema); // exact inventory coverage
+const extract = plannedExtractor({ target, plan, chat, model });
+```
+
+`parseSchemaPlan` validates the plan against the schema — every leaf covered exactly once, no
+unknown paths — and `plannedExtractor` executes the reviewed pieces through the grouped engine,
+scheduling, retrying and closing over the same envelopes as every other strategy. To know what the
+plan becomes before the first call, `plannedPerGroupPlan` compiles the same plan to its packed call
+targets in a model-free dry run — the same computation `ribo schema inspect --plan` reports.
+
+What this path does **not** claim: a planned layout is a semantic choice about how calls are cut,
+not an accuracy improvement. Measure it — the CLI's planned arm and `compare` exist for exactly
+that. The full authoring walkthrough lives in [Planning and authoring](/cli/planning).
+
 ## The name is on the wire
 
 A structured-output schema name is constrained to `[A-Za-z0-9_-]` by at least one platform route —

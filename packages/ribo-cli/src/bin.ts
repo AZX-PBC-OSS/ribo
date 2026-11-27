@@ -126,6 +126,9 @@ const rootDocsPointer = docsPointer(
   "the CLI's overview, install and the documents-to-scores walkthrough",
 );
 
+/** The authoring page's pointer: init, plan review and update, and the planned strategy. */
+const planningDocsPointer = docsPointer("planning", "authoring a schema and reviewing its plan");
+
 /** Reports a could-not-run fault under a command's name and exits 2. Stdout stays empty. */
 function failWith(command: string, message: string): never {
   process.stderr.write(`${command}: ${colorsFor(process.stderr).red(message)}\n`);
@@ -847,6 +850,7 @@ const evalHelp = [
 const program = new Command()
   .name("ribo")
   .description("Ribo's command-line tools (ADR 0037)")
+  .addHelpText("after", planningDocsPointer)
   .addHelpText("after", rootDocsPointer)
   .showHelpAfterError()
   // Commander's default usage-error exit is 1, which is the
@@ -862,6 +866,7 @@ const program = new Command()
 const schema = program
   .command("schema")
   .description("Sizing checks over a JSON Schema document")
+  .addHelpText("after", planningDocsPointer)
   .addHelpText(
     "after",
     docsPointer(
@@ -903,6 +908,7 @@ schema
     parseCap,
   )
   .addHelpText("after", inspectHelp)
+  .addHelpText("after", planningDocsPointer)
   .addHelpText(
     "after",
     docsPointer("schema", "the schema dialect this command reads, and what each report line means"),
@@ -975,6 +981,7 @@ const evalCommand = program
   .addHelpText(
     "after",
     [
+      `Docs: ${INSTALLED_DOCS}/planning.md — authoring a schema and reviewing its plan (online: ${DOCS_URL}/planning.html)`,
       `Docs: the corpus format — ${INSTALLED_DOCS}/corpus.md (online: ${DOCS_URL}/corpus.html)`,
       `      the verdicts and the run record — ${INSTALLED_DOCS}/scoring.md (online: ${DOCS_URL}/scoring.html)`,
       `      the estimate and --max-spend — ${INSTALLED_DOCS}/spend.md (online: ${DOCS_URL}/spend.html)`,
