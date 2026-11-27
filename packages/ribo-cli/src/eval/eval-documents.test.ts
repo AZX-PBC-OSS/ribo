@@ -11,6 +11,7 @@
  */
 import { UnsupportedItemError } from "@azx/ribo-core";
 import type { DocumentCapture, Transcriber, Transcript } from "@azx/ribo-core";
+import type { PdfjsModule } from "@azx/ribo-transcriber-pdfjs";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -19,7 +20,7 @@ import { fileURLToPath } from "node:url";
 
 import { loadCorpus } from "../corpus/loader.js";
 import { loadSchemaInitSamples } from "../schema-init/samples.js";
-import { documentTextKey, transcribeDocumentCases } from "./documents.js";
+import { documentTextKey, measureDocumentPages, transcribeDocumentCases } from "./documents.js";
 import { OperatorError } from "../operator/error.js";
 import { EvalError } from "./error.js";
 import { runEval } from "./run.js";
@@ -238,6 +239,61 @@ test("the CLI's default document path prints no pdf.js Warning line, and a genui
   );
   expect(failure).toBeInstanceOf(EvalError);
   expect(failure instanceof Error ? failure.message : String(failure)).toContain("service-sheet");
+});
+
+test("page-count measurement refuses an unreadable PDF by file name before transcription or model work", async () => {
+  const failure = await measureDocumentPages(
+    new TextEncoder().encode("this is not a PDF\n"),
+    "broken.pdf",
+  ).catch((error: unknown) => error);
+
+  expect(failure).toBeInstanceOf(EvalError);
+  const message = failure instanceof Error ? failure.message : String(failure);
+  expect(message).toContain("broken.pdf");
+  expect(message).not.toContain("undefined");
+});
+
+test("the injected measurement seam pins the shared legacy worker path and errors-only verbosity", async () => {
+  const bytes = new TextEncoder().encode("%PDF-stub\n");
+  const calls: Record<string, unknown>[] = [];
+  const pdfjs: PdfjsModule = {
+    getDocument: (params) => {
+      calls.push(params);
+      return {
+        promise: Promise.reject(new Error("stub open refused")),
+        destroy: () => Promise.resolve(),
+      };
+    },
+    GlobalWorkerOptions: { workerSrc: "" },
+  };
+
+  const failure = await measureDocumentPages(bytes, "pinned.pdf", {
+    loadPdfjs: () => Promise.resolve(pdfjs),
+  }).catch((error: unknown) => error);
+
+  // The seam received a copy of the exact bytes, at pdf.js's ERRORS verbosity.
+  expect(failure).toBeInstanceOf(EvalError);
+  expect(failure instanceof Error ? failure.message : String(failure)).toContain("pinned.pdf");
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).toMatchObject({ verbosity: 0 });
+  expect(Buffer.from(calls[0]?.["data"] as Uint8Array).equals(bytes)).toBe(true);
+  // The same legacy worker path the default transcriber is constructed with.
+  expect(pdfjs.GlobalWorkerOptions.workerSrc).toContain("legacy/build/pdf.worker.min.mjs");
+});
+
+test("the measurement's real pdf.js path counts the three-page fixture, and a refusal carries the caller's wording", async () => {
+  const threePage = readFileSync(
+    fileURLToPath(
+      new URL("../../../ribo-transcriber-pdfjs/src/fixtures/three-page.pdf", import.meta.url),
+    ),
+  );
+  expect(await measureDocumentPages(new Uint8Array(threePage), "three-page.pdf")).toBe(3);
+
+  const refused = await measureDocumentPages(new TextEncoder().encode("not a PDF\n"), "scan.pdf", {
+    refuse: (file, detail) => new OperatorError(`bare PDF "${file}" ${detail}`),
+  }).catch((error: unknown) => error);
+  expect(refused).toBeInstanceOf(OperatorError);
+  expect(refused instanceof Error ? refused.message : String(refused)).toContain('"scan.pdf"');
 });
 
 test("standalone samples and corpus documents have identical capture, byte, order and text behavior", async () => {

@@ -5,7 +5,7 @@
 import type { DocumentCapture, Transcriber, Transcript } from "@azx/ribo-core";
 import { afterEach, expect, test, vi } from "vitest";
 
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,6 +45,31 @@ const directText = (file: string, text: string): string => {
   writeFileSync(source, text);
   return source;
 };
+
+const THREE_PAGE_PDF = fileURLToPath(
+  new URL("../../ribo-transcriber-pdfjs/src/fixtures/three-page.pdf", import.meta.url),
+);
+
+/** A bare PDF source copied from a fixture, with the given file name. */
+const barePdf = (file: string, from = path.join(FIXTURE_CORPUS, "service-sheet", "input.pdf")) => {
+  const source = path.join(temporaryDirectory(), file);
+  writeFileSync(source, readFileSync(from));
+  return source;
+};
+
+/** A transcriber stub that never touches pdf.js and returns identifiable text. */
+const barePdfTranscriber = () => ({
+  transcriber: {
+    engine: "bare-pdf-stub",
+    capability: () => Promise.resolve({ status: "ready" as const }),
+    transcribe: (capture: DocumentCapture): Promise<Transcript> =>
+      Promise.resolve({
+        recordingId: capture.id,
+        text: `bare transcript for ${capture.id}`,
+        engine: "bare-pdf-stub",
+      }),
+  } satisfies Transcriber<DocumentCapture>,
+});
 
 const unusedTranscriber = () => {
   const transcribe = vi.fn<Transcriber<DocumentCapture>["transcribe"]>();
@@ -231,9 +256,104 @@ test("a missing declared case input refuses before transcription", async () => {
   await expectRefusal([dir], "input.pdf");
 });
 
-test("a direct PDF refuses instead of guessing capture metadata", async () => {
-  const dir = copiedCase("service-sheet");
-  await expectRefusal([path.join(dir, "input.pdf")], "capture");
+test("a bare PDF loads as one named document input with exact bytes, measured pages and the injected run instant", async () => {
+  const source = barePdf("intake-form.pdf");
+  const { transcriber } = barePdfTranscriber();
+  const clock = vi.fn(() => new Date("2026-06-01T09:30:00.000Z"));
+
+  const samples = await loadSchemaInitSamples([source], { clock, transcriber });
+
+  expect(samples).toHaveLength(1);
+  const sample = samples[0]!;
+  expect(sample.name).toBe("intake-form");
+  expect(sample.inputs).toHaveLength(1);
+  const input = sample.inputs[0]!;
+  expect(input.kind).toBe("document");
+  expect(input.file).toBe("intake-form.pdf");
+  expect(input.path).toBe(source);
+  // The capture block is measured and stamped, not read off the file.
+  expect(input.capture).toEqual({
+    id: "intake-form",
+    kind: "document",
+    mimeType: "application/pdf",
+    ctx: {},
+    capturedAt: "2026-06-01T09:30:00.000Z",
+    pageCount: 1,
+  });
+  expect(Buffer.from(input.bytes).equals(readFileSync(source))).toBe(true);
+  expect(input.text).toBe("bare transcript for intake-form");
+  expect(sample.text).toBe(joinCaseInputTexts(sample.inputs));
+  expect(clock).toHaveBeenCalledTimes(1);
+});
+
+test("several bare PDFs share one command-clock reading", async () => {
+  const first = barePdf("one.pdf");
+  const second = barePdf("two.pdf");
+  const { transcriber } = barePdfTranscriber();
+  const clock = vi.fn(() => new Date("2026-07-01T10:00:00.000Z"));
+
+  const samples = await loadSchemaInitSamples([first, second], { clock, transcriber });
+
+  expect(clock).toHaveBeenCalledTimes(1);
+  expect(
+    samples.flatMap((sample) => sample.inputs.map((input) => input.capture?.capturedAt)),
+  ).toEqual(["2026-07-01T10:00:00.000Z", "2026-07-01T10:00:00.000Z"]);
+});
+
+test("the real pdf.js path measures the three-page fixture as three pages", async () => {
+  const source = barePdf("three-page.pdf", THREE_PAGE_PDF);
+  const clock = vi.fn(() => new Date("2026-08-01T00:00:00.000Z"));
+
+  // No transcriber injected: the real pdf.js path measures and transcribes.
+  const samples = await loadSchemaInitSamples([source], { clock });
+
+  expect(samples[0]?.inputs[0]?.capture).toMatchObject({
+    id: "three-page",
+    capturedAt: "2026-08-01T00:00:00.000Z",
+    pageCount: 3,
+  });
+  expect(samples[0]?.text).toContain("The first page of the progress fixture has a text layer");
+});
+
+test("an explicit captured-at overrides the clock for bare PDFs", async () => {
+  const source = barePdf("override.pdf");
+  const { transcriber } = barePdfTranscriber();
+  const clock = vi.fn(() => new Date("2026-06-01T09:30:00.000Z"));
+
+  const samples = await loadSchemaInitSamples([source], {
+    capturedAt: "2026-05-01T08:00:00Z",
+    clock,
+    transcriber,
+  });
+
+  expect(samples[0]?.inputs[0]?.capture).toMatchObject({ capturedAt: "2026-05-01T08:00:00Z" });
+  expect(clock).not.toHaveBeenCalled();
+});
+
+test("changing a bare PDF's mtime changes neither its measured count nor capturedAt", async () => {
+  const source = barePdf("stable.pdf");
+  const { transcriber } = barePdfTranscriber();
+  const clock = vi.fn(() => new Date("2026-06-01T09:30:00.000Z"));
+  utimesSync(source, new Date("2020-01-01T00:00:00Z"), new Date("2020-01-01T00:00:00Z"));
+  const before = await loadSchemaInitSamples([source], { clock, transcriber });
+  utimesSync(source, new Date("2026-01-01T00:00:00Z"), new Date("2026-01-01T00:00:00Z"));
+  const after = await loadSchemaInitSamples([source], { clock, transcriber });
+
+  expect(after[0]?.inputs[0]?.capture).toEqual(before[0]?.inputs[0]?.capture);
+  expect(after[0]?.inputs[0]?.capture).toMatchObject({
+    pageCount: 1,
+    capturedAt: "2026-06-01T09:30:00.000Z",
+  });
+});
+
+test("a bare PDF whose bytes pdf.js cannot open refuses naming the file, before transcription", async () => {
+  const source = directText("broken.pdf", "this is not a PDF\n");
+  await expectRefusal([source], "broken.pdf");
+});
+
+test("PDF magic bytes without a .pdf extension refuse with a rename fix", async () => {
+  const source = directText("scan.txt", "%PDF-1.7\n%\u00e2\u00e3\u00cf\u00d3\n");
+  await expectRefusal([source], "rename");
 });
 
 test("a document, document, text case loads as one ordered sample through the shared join", async () => {

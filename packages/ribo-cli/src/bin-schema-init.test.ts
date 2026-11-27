@@ -13,10 +13,12 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 
@@ -616,7 +618,86 @@ test("help names the inputs, output and spend flags and only exit codes 0 and 2"
   expect(result.stdout).toContain("--response-cap <n>");
   expect(result.stdout).toContain("--timeout <seconds>");
   expect(result.stdout).toContain("--max-spend <usd>");
+  expect(result.stdout).toContain("--captured-at <iso>");
+  expect(result.stdout).toContain("intake-form.pdf");
   expect(result.stdout).toMatch(/0\s+the schema was drafted/u);
   expect(result.stdout).toMatch(/2\s+the command could not run/u);
   expect(result.stdout).not.toMatch(/^\s*1\s+/mu);
+});
+
+test("an invalid --captured-at exits 2 with ISO guidance before the stub backend is called", async () => {
+  const out = join(directory, "captured-at.json");
+  const result = await runInit([
+    direct,
+    ...requiredFlags,
+    "--captured-at",
+    "not-a-datetime",
+    "--out",
+    out,
+  ]);
+
+  expect(result.status).toBe(2);
+  expect(result.stdout).toBe("");
+  expect(result.stderr).toContain("ISO 8601");
+  expect(existsSync(out)).toBe(false);
+  expect(received).toHaveLength(0);
+  expect(existsSync(stubLog)).toBe(false);
+});
+
+test("--captured-at with only text samples exits 2 before the stub backend is called", async () => {
+  const out = join(directory, "text-only.json");
+  const result = await runInit([
+    direct,
+    ...requiredFlags,
+    "--captured-at",
+    "2026-06-01T09:00:00Z",
+    "--out",
+    out,
+  ]);
+
+  expect(result.status).toBe(2);
+  expect(result.stdout).toBe("");
+  expect(result.stderr).toContain("--captured-at");
+  expect(existsSync(out)).toBe(false);
+  expect(received).toHaveLength(0);
+  expect(existsSync(stubLog)).toBe(false);
+});
+
+test("a bare PDF with --corpus drafts, scaffolds the measured and stamped capture, and prints one stamp line", async () => {
+  const barePdf = join(directory, "intake-form.pdf");
+  writeFileSync(
+    barePdf,
+    readFileSync(
+      fileURLToPath(
+        new URL("../../ribo-transcriber-pdfjs/src/fixtures/three-page.pdf", import.meta.url),
+      ),
+    ),
+  );
+  const out = join(directory, "bare-pdf.json");
+  const corpus = join(directory, "bare-pdf-corpus");
+  const result = await runInit([
+    barePdf,
+    direct,
+    ...requiredFlags,
+    "--out",
+    out,
+    "--corpus",
+    corpus,
+    ...corpusFlags,
+  ]);
+
+  expect(result.status).toBe(0);
+  expect(JSON.parse(readFileSync(out, "utf8"))).toMatchObject({ type: "object" });
+  // One stderr line names the stamped file, the instant and the flag.
+  const stampLine = result.stderr.split("\n").filter((line) => line.includes("capturedAt"));
+  expect(stampLine).toHaveLength(1);
+  expect(stampLine[0]).toContain("intake-form.pdf");
+  expect(stampLine[0]).toMatch(/capturedAt \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/u);
+  expect(stampLine[0]).toContain("--captured-at");
+  // The scaffold carries the measured page count and the stamped instant.
+  const caseFile = JSON.parse(await readFile(join(corpus, "intake-form", "case.json"), "utf8")) as {
+    inputs: { capture: { capturedAt: string; pageCount: number } }[];
+  };
+  expect(caseFile.inputs[0]?.capture).toMatchObject({ pageCount: 3 });
+  expect(caseFile.inputs[0]?.capture.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/u);
 });

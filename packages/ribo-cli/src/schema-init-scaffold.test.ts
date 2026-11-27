@@ -4,7 +4,8 @@
  */
 import { mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import path, { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, expect, test } from "vitest";
 
@@ -15,6 +16,7 @@ import { OperatorError } from "./operator/error.js";
 import type { OperatorDirectoryFileSystem } from "./operator/output.js";
 import { defaultOperatorDirectoryFileSystem } from "./operator/output.js";
 import { serializeSchemaInitDocument, writeSchemaInitCorpus } from "./schema-init/scaffold.js";
+import { loadSchemaInitSamples } from "./schema-init/samples.js";
 import type { SchemaInitSample, SchemaInitSampleInput } from "./schema-init/samples.js";
 
 const document = {
@@ -243,6 +245,53 @@ test("a collision while staging is not reported as an existing destination", asy
   expect((failure as Error).message).not.toContain("already exists — refusing to overwrite");
   await expect(readFile(destination)).rejects.toMatchObject({ code: "ENOENT" });
   expect(await readdir(directory)).toEqual([]);
+});
+
+test("a bare-PDF scaffold round-trips through loadCorpus with measured and stamped capture metadata", async () => {
+  const source = path.join(directory, "intake-form.pdf");
+  await writeFile(
+    source,
+    await readFile(
+      fileURLToPath(
+        new URL("../../ribo-transcriber-pdfjs/src/fixtures/three-page.pdf", import.meta.url),
+      ),
+    ),
+  );
+  const loadedSamples = await loadSchemaInitSamples([source], {
+    clock: () => new Date("2026-06-01T09:30:00.000Z"),
+  });
+  const destination = join(directory, "bare-pdf-corpus");
+
+  const result = await writeSchemaInitCorpus(
+    destination,
+    serializeSchemaInitDocument(document),
+    loadedSamples,
+    { name: "Bare PDF corpus", provenance: "real" },
+  );
+
+  expect(result).toEqual({ destination: "directory", path: destination });
+  const corpus = loadCorpus(destination);
+  expect(corpus.cases.map((entry) => entry.id)).toEqual(["intake-form"]);
+  expect(Buffer.from(await readFile(join(destination, "intake-form", "intake-form.pdf")))).toEqual(
+    await readFile(source),
+  );
+  expect(JSON.parse(await readFile(join(destination, "intake-form", "case.json"), "utf8"))).toEqual(
+    {
+      id: "intake-form",
+      inputs: [
+        {
+          file: "intake-form.pdf",
+          kind: "document",
+          capture: { capturedAt: "2026-06-01T09:30:00.000Z", pageCount: 3 },
+        },
+      ],
+      expected: {},
+    },
+  );
+  expect(corpus.cases[0]?.inputs[0]).toMatchObject({
+    kind: "document",
+    capture: { capturedAt: "2026-06-01T09:30:00.000Z", pageCount: 3 },
+  });
 });
 
 test("a multi-input scaffold round-trips through loadCorpus with caseTextOf equal to the sample text", async () => {

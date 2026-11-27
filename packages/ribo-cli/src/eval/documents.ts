@@ -101,6 +101,13 @@ const require = nodeModule.createRequire(import.meta.url);
 const pdfjsFileUrl = (subpath: string): string =>
   pathToFileURL(require.resolve(`pdfjs-dist/${subpath}`)).href;
 
+/** The installed pdf.js legacy worker script, as a local `file:` URL. */
+const legacyPdfjsWorkerUrl = (): string => pdfjsFileUrl("legacy/build/pdf.worker.min.mjs");
+
+/** The installed pdf.js legacy build, wrapped at errors-only verbosity. */
+const loadLegacyPdfjs = async (): Promise<PdfjsModule> =>
+  errorsOnly((await import(pdfjsFileUrl("legacy/build/pdf.mjs"))) as PdfjsModule);
+
 /**
  * pdf.js wrapped at errors-only verbosity. Its per-document `Warning: …`
  * lines (the `TT: undefined function` / `standardFontDataUrl` reminders) are
@@ -123,10 +130,73 @@ const errorsOnly = (pdfjs: PdfjsModule): PdfjsModule => ({
  */
 const defaultDocumentTranscriber = (): Transcriber<DocumentCapture> =>
   new PdfjsTranscriber({
-    workerSrc: pdfjsFileUrl("legacy/build/pdf.worker.min.mjs"),
-    loadPdfjs: async () =>
-      errorsOnly((await import(pdfjsFileUrl("legacy/build/pdf.mjs"))) as PdfjsModule),
+    workerSrc: legacyPdfjsWorkerUrl(),
+    loadPdfjs: loadLegacyPdfjs,
   });
+
+/**
+ * Options for {@link measureDocumentPages}.
+ * @category Eval
+ */
+export interface PageCountMeasurementOptions {
+  /**
+   * The pdf.js loader — the injectable seam. Absent, the same resolved legacy
+   * build and worker path the default transcriber uses.
+   */
+  readonly loadPdfjs?: () => Promise<PdfjsModule>;
+  /** Words the refusal for bytes pdf.js cannot open; eval's wording by default. */
+  readonly refuse?: (file: string, detail: string) => Error;
+}
+
+/**
+ * Measure a PDF's page count by opening it through the same resolved pdf.js
+ * legacy build and worker path the default transcriber uses, at errors-only
+ * verbosity. This is what fills a bare PDF's capture block at schema init: a
+ * `DocumentCapture` requires `pageCount`, and counting pages needs a PDF
+ * parser, so init measures the file rather than guessing. The measurement
+ * runs before the spend estimate and before any model call, and reads no
+ * file timestamp and no PDF metadata date.
+ *
+ * @param bytes - The PDF's exact bytes.
+ * @param file - The file's name, for the refusal message.
+ * @param options - The loader and refusal seams.
+ * @returns The document's page count, from pdf.js's `numPages`.
+ * @throws An {@link EvalError} — or the injected `refuse` error — naming the
+ *   file when pdf.js cannot open the bytes (encrypted, unreadable, or not a
+ *   PDF at all).
+ * @category Eval
+ */
+export async function measureDocumentPages(
+  bytes: Uint8Array,
+  file: string,
+  options?: PageCountMeasurementOptions,
+): Promise<number> {
+  const fail = (detail: string): Error => {
+    if (options?.refuse !== undefined) return options.refuse(file, detail);
+    return new EvalError(
+      `eval: the document "${file}" could not be measured for its page count: ${detail} — ` +
+        "the page count is measured before the estimate and before any model call (fix: replace " +
+        "the file with a readable PDF)",
+    );
+  };
+  let loadingTask: ReturnType<PdfjsModule["getDocument"]> | undefined;
+  try {
+    const pdfjs = await (options?.loadPdfjs ?? loadLegacyPdfjs)();
+    // The same legacy worker path the default transcriber is constructed with.
+    pdfjs.GlobalWorkerOptions.workerSrc = legacyPdfjsWorkerUrl();
+    // pdf.js may detach the buffer it is handed; a copy keeps the caller's
+    // exact bytes intact for the transcription that follows.
+    loadingTask = pdfjs.getDocument({ data: bytes.slice(), verbosity: 0 });
+    const document = await loadingTask.promise;
+    return document.numPages;
+  } catch (error) {
+    throw fail(faultMessage(error));
+  } finally {
+    // Destroy on every path: an opened document's worker must not outlive the
+    // measurement, and a failed open's loading task must not dangle.
+    void loadingTask?.destroy().catch(() => undefined);
+  }
+}
 
 /** The message of a thrown fault — a non-Error sentinel must not read "undefined". */
 const faultMessage = (error: unknown): string =>
