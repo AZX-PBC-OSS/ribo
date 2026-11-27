@@ -1,0 +1,21 @@
+{
+  "id": "quote-note",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "transcript"
+    }
+  ],
+  "expected": {
+    "contractValue": {
+      "status": "asserted",
+      "value": "4200",
+      "sourceSpan": "4200"
+    },
+    "upgrades.measure": {
+      "status": "asserted",
+      "value": { "measure": "attic insulation" },
+      "sourceSpan": "attic insulation"
+    }
+  }
+}

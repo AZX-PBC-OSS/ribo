@@ -120,7 +120,9 @@ out.
   the schema carrying forced partitions. That is a shape fact, not a missing bound —
   `ribo eval --strategy single-shot` still sends one call per attempt on a per-group schema; it is
   the schema's single-shot classification that is unavailable. A count of "unavailable" is the
-  model's own answer, never a zero.
+  model's own answer, never a zero. Only `presence-narrowed` needs every leaf inside a group at `"leaf"` provenance granularity — see
+  [Which strategies need leaf granularity](#which-strategies-need-leaf-granularity); the others
+  run a schema with top-level scalars or looser granularity as-is.
 - **guidance coverage** — described fields over walked fields. Anything short of full coverage is
   fields the model reads unguided.
 - **reformat findings** — one per field whose description asks for reformatting (see above).
@@ -183,6 +185,18 @@ leaves every group at the default `"leaf"` granularity, which is what clears the
 entry is different: a row derivation is a deliberate choice (a wide table, where per-cell
 citations are a fabrication risk), and it means that group cannot take part in leaf-granularity
 judging — the trade the choice was made for.
+
+### Which strategies need leaf granularity
+
+Only one eval strategy needs every leaf inside a group derived at `"leaf"` provenance
+granularity: **`presence-narrowed`**. It asks for one verbatim span per leaf, so every leaf it
+extracts must sit inside a group (a top-level object or collection) and carry its own envelope —
+and a schema with a top-level scalar leaf, or a group at `"row"` or `"none"` granularity, is
+refused before any call, with the offending group named. The fix is in the schema: wrap the
+scalar in an object group, or derive the group at `"leaf"` granularity. The other strategies —
+`single-shot`, `per-group` and `planned` — speak the derivation's own shape and can run such a
+schema as-is: a top-level scalar rides the flat or unwrapped portion of the split, so `ribo
+eval --strategy single-shot` never refuses a schema `schema init` drafted.
 
 ## What cannot be converted
 

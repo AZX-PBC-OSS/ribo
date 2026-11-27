@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "description": "A retrofit quote noted in the field.",
+  "properties": {
+    "contractValue": {
+      "type": "string",
+      "description": "The quoted contract value, as the note states it.",
+      "nullable": true
+    },
+    "quoteDate": {
+      "type": "string",
+      "description": "The date the quote was given, as the note states it.",
+      "nullable": true
+    },
+    "upgrades": {
+      "type": "array",
+      "description": "The upgrade measures the quote covers.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "measure": {
+            "type": "string",
+            "description": "The upgrade measure named in the note."
+          },
+          "cost": {
+            "type": "number",
+            "description": "The measure's cost, as the note states it.",
+            "nullable": true
+          }
+        },
+        "required": ["measure"]
+      }
+    }
+  },
+  "required": ["upgrades"]
+}

@@ -266,11 +266,20 @@ export function estimateSpend(input: SpendEstimateInput): SpendEstimate {
 
   // A planned bound needs core's projected targets. Ordinary rungs keep the
   // guard's original bound-first ordering, including its named no-group refusal.
+  // The strategies are the union over the arms: any arm that selects the
+  // presence-narrowed strategy makes the walk (and its refusal) due.
+  const selectedStrategies = [...new Set(arms.flatMap((arm) => arm.strategies))];
   const plannedArm = arms.find((arm) => arm.strategies.includes("planned"));
   const targetBundle =
     plannedArm === undefined
       ? undefined
-      : buildEvalTarget(corpus.schema, corpus.manifest.prompt, corpus.manifest.name, splitCaps);
+      : buildEvalTarget(
+          corpus.schema,
+          corpus.manifest.prompt,
+          corpus.manifest.name,
+          splitCaps,
+          selectedStrategies,
+        );
   const plannedTargets =
     input.plan === undefined || plannedArm === undefined || targetBundle === undefined
       ? undefined
@@ -296,7 +305,13 @@ export function estimateSpend(input: SpendEstimateInput): SpendEstimate {
   // the measured prompts are the prompts the run will send.
   const { target, groups } =
     targetBundle ??
-    buildEvalTarget(corpus.schema, corpus.manifest.prompt, corpus.manifest.name, splitCaps);
+    buildEvalTarget(
+      corpus.schema,
+      corpus.manifest.prompt,
+      corpus.manifest.name,
+      splitCaps,
+      selectedStrategies,
+    );
   const transcript = longestTranscript(corpus, documents);
   const groupInstructions = (groupKey: string): string =>
     corpus.manifest.prompt.groupInstructions?.[groupKey] ?? corpus.manifest.prompt.instructions;
@@ -321,6 +336,9 @@ export function estimateSpend(input: SpendEstimateInput): SpendEstimate {
         groupInstructions,
         transcript,
         ...(plannedTargets === undefined ? {} : { plannedTargets }),
+        // The per-group measurement reads the split the run packs under — the
+        // same caps the run's calls are bounded with.
+        splitCaps,
       },
       arm.strategies,
     );

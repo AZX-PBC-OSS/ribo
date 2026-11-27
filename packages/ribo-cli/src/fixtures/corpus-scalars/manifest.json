@@ -1,0 +1,19 @@
+{
+  "name": "quote-note",
+  "schema": "schema.json",
+  "provenance": "synthetic",
+  "prompt": {
+    "instructions": "Read the auditor's note and extract the quote's value and date, and the upgrade measures it covers.",
+    "examples": [
+      {
+        "transcript": "Quote came to twelve hundred on the fourth, attic hatch only.",
+        "fields": {
+          "contractValue": "twelve hundred",
+          "upgrades.measure": "attic hatch"
+        }
+      }
+    ],
+    "fieldDescriptions": "schema"
+  },
+  "description": "A synthetic corpus shaped like a schema-init draft: top-level scalar leaves beside a collection of plain-leaf objects."
+}

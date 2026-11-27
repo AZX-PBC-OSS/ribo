@@ -31,6 +31,11 @@ export const FIXTURE_FLAT_CORPUS = fileURLToPath(
   new URL("../../fixtures/corpus-flat", import.meta.url),
 );
 
+/** The committed schema-init-shaped fixture corpus — top-level scalars beside a plain-leaf collection. */
+export const FIXTURE_SCALARS_CORPUS = fileURLToPath(
+  new URL("../../fixtures/corpus-scalars", import.meta.url),
+);
+
 /** The temp directories this suite created, so each test cleans up after itself. */
 const temporaries: string[] = [];
 

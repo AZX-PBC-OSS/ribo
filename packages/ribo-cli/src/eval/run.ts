@@ -159,6 +159,10 @@ async function prepareEvalRun(run: Omit<EvalSchemaRun, "cases">): Promise<Prepar
     run.prompt,
     run.manifestName,
     run.settings.splitCaps ?? {},
+    // The group walk (and its refusal) runs only for an arm that asks about
+    // groups — the presence-narrowed strategy. Every other strategy runs the
+    // schema as the derivation produced it, top-level scalars included.
+    run.settings.strategies,
   );
   const settings: EvalSettings = {
     ...run.settings,
