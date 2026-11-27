@@ -32,27 +32,38 @@ const flatReasonText = (reason: FlatReasonReport): string => {
   return reason.kind === "not-an-object" ? "the document root is not an object" : "no properties";
 };
 
+/**
+ * An unavailable count is never the bare word: the reason beside it — the
+ * v5 contract pairs them — is what tells the operator which knob to turn.
+ * The single-shot line reads "not selected" instead: the strategy did not
+ * fail, the schema's shape excluded it.
+ */
+const unavailable = (reason: string | undefined): string =>
+  `unavailable — ${reason ?? "no reason was reported"}`;
+
 const callsText = (calls: NonNullable<SchemaInspectReport["calls"]>): [string, string][] => [
   [
     "single-shot",
-    calls.singleShot === null ? "unavailable" : `${calls.singleShot} call(s) per attempt`,
+    calls.singleShot === null
+      ? `not selected — ${calls.singleShotReason ?? "no reason was reported"}`
+      : `${calls.singleShot} call(s) per attempt`,
   ],
   [
     "per-group",
     calls.perGroup === null
-      ? (calls.perGroupReason ?? "unavailable")
+      ? unavailable(calls.perGroupReason)
       : `${calls.perGroup} call(s) per attempt`,
   ],
   [
     "presence-narrowed",
     calls.presenceNarrowedAtMost === null
-      ? "unavailable"
+      ? unavailable(calls.presenceNarrowedReason)
       : `at most ${calls.presenceNarrowedAtMost} call(s) per attempt`,
   ],
   [
     "consensus",
     calls.consensusPerCandidate === null
-      ? "unavailable"
+      ? unavailable(calls.consensusReason)
       : `${calls.consensusPerCandidate} call(s) per candidate`,
   ],
   ["retry budget", `worst case 1 + ${calls.maxRetriesDefault} retries per call`],

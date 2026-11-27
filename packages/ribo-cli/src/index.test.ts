@@ -56,7 +56,7 @@ const document = {
 
 test("inspectSchema returns the versioned report for an OpenAPI-3.0-form document", () => {
   const report = inspectSchema(document);
-  expect(report.contractVersion).toBe(4);
+  expect(report.contractVersion).toBe(5);
   expect(report.cliVersion).toBe(manifest.version);
   // The contract names the version of the core that produced the numbers.
   expect(report.coreVersion).toBe(coreManifest.version);

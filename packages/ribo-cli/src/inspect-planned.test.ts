@@ -417,5 +417,5 @@ test("an over-cap projected property refuses construction with or without a piec
     expect(outcome).not.toHaveProperty("threshold");
   }
 
-  expect(inspectSchema(nestedDocument).contractVersion).toBe(4);
+  expect(inspectSchema(nestedDocument).contractVersion).toBe(5);
 });

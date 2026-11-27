@@ -175,7 +175,7 @@ test("--json parses against the exported contract, names both versions and the f
   const jsonRun = run(["schema", "inspect", "--json", "grouped.json"]);
   expect(jsonRun.status).toBe(0);
   const report = SchemaInspectReportSchema.parse(JSON.parse(jsonRun.stdout));
-  expect(report.contractVersion).toBe(4);
+  expect(report.contractVersion).toBe(5);
   expect(report.cliVersion).toBe(CLI_VERSION);
   expect(report.coreVersion).toBe(CORE_VERSION);
   expect(report.schemaFingerprint).toMatch(/^[0-9a-f]{64}$/);

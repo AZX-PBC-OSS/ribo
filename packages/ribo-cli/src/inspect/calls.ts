@@ -4,6 +4,7 @@ import type {
   ChatRequest,
   ExtractionDescription,
   ExtractionTarget,
+  SingleShotExclusion,
 } from "@azx/ribo-core";
 
 /**
@@ -11,6 +12,13 @@ import type {
  * from the symbol the real extraction path itself reads — never from a
  * CLI-side re-derivation — and retries are reported separately
  * (`maxRetriesDefault`), never multiplied into an attempt count.
+ *
+ * Every nullable count carries a reason beside it, present exactly when the
+ * count is `null`: a null count without its reason is an unreadable dead end
+ * (the trial agent's "unavailable" with twenty unions against a cap of
+ * sixteen), and a non-null count has nothing to explain. The reasons are
+ * rendered from the report core's own description carries — the CLI states
+ * no rule core did not report.
  */
 export interface CallsReport {
   /**
@@ -19,13 +27,25 @@ export interface CallsReport {
    */
   singleShot: number | null;
   /**
+   * Why single-shot is not selected, present exactly when {@link singleShot}
+   * is `null`: core's own exclusions (union cap, byte cap, forced partitions),
+   * rendered with their measured values and limits — or, when the derivation
+   * refused before any shape was selected, that fact.
+   */
+  singleShotReason?: string;
+  /**
    * The number of entries in the real `perGroupPlan`: one per group's piece
    * (a partitioned group contributes its part count) plus the unwrapped `""`
    * entry when present. `null` when the plan could not be built — with the
    * construction's thrown reason carried in {@link perGroupReason}.
    */
   perGroup: number | null;
-  /** The reason `perGroupPlan` construction threw, verbatim, when it did. */
+  /**
+   * Why the per-group count is unavailable, present exactly when
+   * {@link perGroup} is `null`: the plan's construction throw verbatim, or —
+   * when nothing threw but no schema survived to build a plan from — the
+   * derivation refusal that stood in its way.
+   */
   perGroupReason?: string;
   /**
    * Upper bound, worded as one everywhere: the presence phase plans one item
@@ -43,12 +63,25 @@ export interface CallsReport {
    */
   presenceNarrowedAtMost: number | null;
   /**
+   * Why the presence-narrowed bound is unavailable, present exactly when
+   * {@link presenceNarrowedAtMost} is `null`: the derivation's refusal, the
+   * zero-group walk, or the split failure the fill would hit.
+   */
+  presenceNarrowedReason?: string;
+  /**
    * One attempt's count per consensus candidate — the call-shape-selected
    * count: 1 single-shot, else the per-group count. The run's total is that
    * count SUMMED over the caller's candidates: choosing candidates IS
    * choosing a multiplier (`consensusExtractor` sums its candidates' usage).
    */
   consensusPerCandidate: number | null;
+  /**
+   * Why the consensus count is unavailable, present exactly when
+   * {@link consensusPerCandidate} is `null`: the consensus count IS the
+   * call-shape-selected per-group count, so it is unavailable exactly when
+   * the per-group count is, for the same reason.
+   */
+  consensusReason?: string;
   /**
    * The phase engine's default retry budget (`2`) beside the stated worst-case
    * rule: a run's attempts multiply by `1 + maxRetries`. Never folded into any
@@ -118,6 +151,31 @@ export interface SplitCapOptions {
 }
 
 /**
+ * Core's exclusions rendered as one operator-readable sentence. Each cap
+ * reason names the flag that sets that cap, so the reader knows which knob
+ * to turn; the measured value and the limit are core's own numbers, never a
+ * CLI-side re-derivation.
+ */
+const singleShotReasonOf = (exclusions: readonly SingleShotExclusion[]): string => {
+  const parts = exclusions.map((exclusion) => {
+    if (exclusion.kind === "union-cap") {
+      return (
+        `the whole schema carries ${exclusion.measured} nullable unions, over the cap of ` +
+        `${exclusion.cap} (--max-nullable-unions-per-group)`
+      );
+    }
+    if (exclusion.kind === "byte-cap") {
+      return (
+        `the whole schema serializes to ${exclusion.measured} characters, over the cap of ` +
+        `${exclusion.cap} (--max-serialized-chars-per-group)`
+      );
+    }
+    return "the schema's partitions force the per-group split";
+  });
+  return `single-shot was excluded: ${parts.join("; ")}`;
+};
+
+/**
  * Compute the report's per-strategy call counts off the real symbols (design
  * §9): the single-shot count from `describeExtraction`'s own `callShape`
  * classification, the per-group count from a real `perGroupPlan` entry map
@@ -133,6 +191,13 @@ export function describeCalls(
 ): CallsReport {
   const groupCount = (description.keys ?? []).filter((key) => key.kind === "group").length;
   const singleShot = description.callShape === "single-shot" ? 1 : null;
+  const singleShotReason =
+    singleShot === null
+      ? description.singleShotExclusions === undefined
+        ? // No shape survived to select: the derivation refused the schema.
+          "the derivation refused the schema, so no call shape was selected"
+        : singleShotReasonOf(description.singleShotExclusions)
+      : undefined;
 
   let perGroup: number | null = null;
   let perGroupReason: string | undefined;
@@ -169,6 +234,10 @@ export function describeCalls(
       perGroup = null;
       perGroupReason = error instanceof Error ? error.message : String(error);
     }
+  } else {
+    // No schema survived to build a plan from: the derivation refused before
+    // any construction could throw. A stated reason, never a bare null.
+    perGroupReason = "the derivation refused the schema, so the per-group plan could not be built";
   }
 
   // The presence-narrowed bound: groupCount presence calls plus the fill's
@@ -185,13 +254,33 @@ export function describeCalls(
         ? groupCount
         : (description.pieces ?? []).filter((piece) => piece.key !== "").length;
 
+  const presenceNarrowedAtMost =
+    groupCount > 0 && fillPieceCount !== null ? groupCount + fillPieceCount : null;
+  // The reason pairs: present exactly when their count is null — the report
+  // schema refines this, so the writer cannot ship a bare null.
+  const presenceNarrowedReason =
+    presenceNarrowedAtMost === null
+      ? description.refusal !== undefined
+        ? `core's derivation refused the schema: ${description.refusal.message}`
+        : groupCount === 0
+          ? "the schema declares no groups, so the presence phase has nothing to ask about"
+          : (perGroupReason ?? "the fill's split could not be derived over this schema")
+      : undefined;
+  const consensusPerCandidate = description.callShape === "single-shot" ? 1 : perGroup;
+  const consensusReason =
+    consensusPerCandidate === null
+      ? (perGroupReason ?? "the per-group plan could not be built over this schema")
+      : undefined;
+
   return {
     singleShot,
+    ...(singleShotReason === undefined ? {} : { singleShotReason }),
     perGroup,
     ...(perGroupReason === undefined ? {} : { perGroupReason }),
-    presenceNarrowedAtMost:
-      groupCount > 0 && fillPieceCount !== null ? groupCount + fillPieceCount : null,
-    consensusPerCandidate: description.callShape === "single-shot" ? 1 : perGroup,
+    presenceNarrowedAtMost,
+    ...(presenceNarrowedReason === undefined ? {} : { presenceNarrowedReason }),
+    consensusPerCandidate,
+    ...(consensusReason === undefined ? {} : { consensusReason }),
     maxRetriesDefault: MAX_RETRIES_DEFAULT,
   };
 }

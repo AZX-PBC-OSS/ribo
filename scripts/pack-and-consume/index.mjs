@@ -339,7 +339,7 @@ function assertInspectReport(run, label) {
     readFileSync(join(REPO_ROOT, "packages", "ribo-core", "package.json"), "utf8"),
   ).version;
   const checks = [
-    ["contractVersion === 4", report.contractVersion === 4],
+    ["contractVersion === 5", report.contractVersion === 5],
     [`cliVersion === ${expectedCliVersion}`, report.cliVersion === expectedCliVersion],
     [`coreVersion === ${expectedCoreVersion}`, report.coreVersion === expectedCoreVersion],
     [
@@ -449,7 +449,7 @@ async function assertInstalledPlannedInspect(installedBin, isolated, packageDir)
   const expectedPieces = ["Home identity", "Heating system", "Recommended upgrades"];
   const packedPaths = (report.planned?.packedCalls ?? []).flatMap((call) => call.paths);
   const checks = [
-    ["contractVersion === 4", report.contractVersion === 4],
+    ["contractVersion === 5", report.contractVersion === 5],
     [
       "planFingerprint is core's over the shipped plan",
       report.planFingerprint === expectedFingerprint,

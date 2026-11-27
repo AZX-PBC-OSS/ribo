@@ -12,7 +12,8 @@ import { z } from "zod";
 import { expect, test } from "vitest";
 
 import { SchemaInspectReportSchema, SchemaInspectError, inspectSchema } from "./index.js";
-import type { SchemaInspectOptions } from "./index.js";
+import type { SchemaInspectOptions, SchemaInspectReport } from "./index.js";
+import { describeCalls } from "./inspect/calls.js";
 import { inspectSchemaWithPlan } from "./inspect-schema.js";
 import { convertDocument } from "./inspect/convert.js";
 import { schemaFingerprint } from "./inspect/fingerprint.js";
@@ -277,7 +278,7 @@ test("a threshold over a refused split measures null and does not breach", () =>
 
 test("the serialized report parses against its own zod shape and names the core version", () => {
   const report = inspectSchema(grouped, { maxDepth: 12, maxPieceChars: 4096 });
-  expect(report.contractVersion).toBe(4);
+  expect(report.contractVersion).toBe(5);
   expect(report.planFingerprint).toBeUndefined();
   expect(report.planned).toBeUndefined();
   const round = SchemaInspectReportSchema.parse(JSON.parse(JSON.stringify(report)));
@@ -498,7 +499,7 @@ test("real reports judge rule-based-only, planned-only, both and neither piece b
 test("the existing no-plan inspectSchema call remains synchronous", () => {
   const report = inspectSchema(grouped, { maxDepth: 50 });
   expect(report).not.toBeInstanceOf(Promise);
-  expect(report.contractVersion).toBe(4);
+  expect(report.contractVersion).toBe(5);
   expect(report.thresholds).toEqual([
     {
       measure: "depth",
@@ -521,7 +522,7 @@ test("activated v4 round-trips its exact planned document shape and core plan id
   const asReport: typeof round = report;
   const fromRound: typeof report = round;
   expect(asReport).toEqual(fromRound);
-  expect(report.contractVersion).toBe(4);
+  expect(report.contractVersion).toBe(5);
   expect(report.planFingerprint).toBe(await planFingerprint(planned));
   expect(Object.keys(report).sort()).toEqual(
     [
@@ -714,4 +715,74 @@ test("the default union cap is core's own, and the split used it", () => {
   const underDefault = inspectSchema(mixed);
   expect(underDefault.callShape).toBe("single-shot");
   expect(MAX_NULLABLE_UNIONS_PER_CALL).toBeGreaterThan(underDefault.whole!.nullableUnions - 1);
+});
+
+// --- Call-count reasons (contract v5) -------------------------------------------
+
+test("the report schema rejects a null call count without its reason", () => {
+  const report = JSON.parse(JSON.stringify(inspectSchema(grouped))) as SchemaInspectReport;
+  report.calls!.singleShot = null;
+  delete report.calls!.singleShotReason;
+
+  const parsed = SchemaInspectReportSchema.safeParse(report);
+  expect(parsed.success).toBe(false);
+  if (!parsed.success) {
+    expect(parsed.error.message).toContain("single-shot call count is null without its reason");
+  }
+});
+
+test("the report schema rejects a non-null call count carrying a reason", () => {
+  const report = JSON.parse(JSON.stringify(inspectSchema(grouped))) as SchemaInspectReport;
+  report.calls!.singleShotReason = "single-shot was excluded: nothing was excluded";
+
+  const parsed = SchemaInspectReportSchema.safeParse(report);
+  expect(parsed.success).toBe(false);
+  if (!parsed.success) {
+    expect(parsed.error.message).toContain(
+      "single-shot call count is not null and carries a reason",
+    );
+  }
+});
+
+test("an over-union report's single-shot reason names the measured count and cap", () => {
+  // The mixed schema is 5 nullable unions whole: under the default cap it is
+  // single-shot, over a supplied cap of 3 the per-group shape is selected and
+  // the reason names the measured value and the limit — both numbers, both
+  // read off the report's own rows.
+  const report = inspectSchema(mixed, { maxNullableUnionsPerGroup: 3 });
+  expect(report.callShape).toBe("per-group");
+  const reason = report.calls?.singleShotReason;
+  expect(reason).toBeDefined();
+  expect(reason).toContain(`carries ${report.whole?.nullableUnions} nullable unions`);
+  expect(reason).toContain(`over the cap of ${report.splitCaps.maxNullableUnionsPerGroup}`);
+  expect(reason).toContain("--max-nullable-unions-per-group");
+});
+
+test("a no-group schema carries the presence-narrowed reason", () => {
+  const report = inspectSchema(flat);
+  expect(report.calls?.presenceNarrowedAtMost).toBeNull();
+  expect(report.calls?.presenceNarrowedReason).toBe(
+    "the schema declares no groups, so the presence phase has nothing to ask about",
+  );
+});
+
+test("a null per-group count without a thrown message still carries a reason", () => {
+  // A description whose derivation refused carries no shape, so no plan was
+  // ever attempted and nothing threw — the reason is still stated, because
+  // a bare null is a dead end the v5 contract refuses.
+  const calls = describeCalls(
+    { refusal: { stage: "derive", message: "the derivation refused" } },
+    {},
+  );
+  expect(calls.perGroup).toBeNull();
+  expect(calls.perGroupReason).toBe(
+    "the derivation refused the schema, so the per-group plan could not be built",
+  );
+  // The other null rows carry their reasons beside them, never a bare null.
+  expect(calls.singleShot).toBeNull();
+  expect(calls.singleShotReason).toBeDefined();
+  expect(calls.presenceNarrowedAtMost).toBeNull();
+  expect(calls.presenceNarrowedReason).toContain("the derivation refused");
+  expect(calls.consensusPerCandidate).toBeNull();
+  expect(calls.consensusReason).toBeDefined();
 });

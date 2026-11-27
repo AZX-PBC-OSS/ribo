@@ -110,8 +110,17 @@ out.
 - **split caps** — the caps the partition was computed under: the nullable-union cap and the byte
   cap (off unless `--max-serialized-chars-per-group` sets one).
 - **single-shot / per-group / presence-narrowed / consensus / retry budget** — the call counts per
-  attempt each strategy costs, read off the same call model the spend estimate reads. A count of
-  "unavailable" is the model's own answer (a flat schema has no per-group bound), never a zero.
+  attempt each strategy costs, read off the same call model the spend estimate reads. Since report
+  contract version 5, a count that is not a number is never a bare "unavailable": every unavailable
+  count states the reason beside it, in the JSON report as a paired `*Reason` field and in the
+  human rendering after an em dash. Single-shot is unavailable when the schema takes the per-group
+  shape instead, and the reason names which condition excluded it, with the measured value and the
+  limit: the whole schema's nullable unions over the cap (`--max-nullable-unions-per-group`, default
+  16), its serialized characters over a supplied byte cap (`--max-serialized-chars-per-group`), or
+  the schema carrying forced partitions. That is a shape fact, not a missing bound —
+  `ribo eval --strategy single-shot` still sends one call per attempt on a per-group schema; it is
+  the schema's single-shot classification that is unavailable. A count of "unavailable" is the
+  model's own answer, never a zero.
 - **guidance coverage** — described fields over walked fields. Anything short of full coverage is
   fields the model reads unguided.
 - **reformat findings** — one per field whose description asks for reformatting (see above).
@@ -131,7 +140,9 @@ out.
 
 Since report contract version 4 (`contractVersion: 4`), every threshold row names the **layout** it
 judged, and a report computed without `--plan` is unchanged by that contract: it keeps the
-rule-based measurements and the rows read exactly as they did before planning existed.
+rule-based measurements and the rows read exactly as they did before planning existed. Version 5
+(`contractVersion: 5`), which pairs the call-count reasons with their null counts, left these rows
+unchanged too.
 
 Three layouts exist, and the measure selects between them:
 

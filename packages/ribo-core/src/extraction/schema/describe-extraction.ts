@@ -114,6 +114,33 @@ export interface ExtractionRefusal {
 }
 
 /**
+ * One condition that excluded the single-shot call shape — measured where a
+ * measurement exists, so the caller can see how far the schema is over and
+ * what would bring it back. Each member is the exact comparison
+ * `schemaExtractor`'s selection makes (the same two measures and the same
+ * forcing rule this description recomputes), never a paraphrase of it.
+ * @category Extraction
+ */
+export type SingleShotExclusion =
+  /**
+   * The whole schema's nullable-union count is over the union cap — the
+   * supplied `maxNullableUnionsPerGroup`, or
+   * {@link MAX_NULLABLE_UNIONS_PER_CALL} when absent.
+   */
+  | { readonly kind: "union-cap"; readonly measured: number; readonly cap: number }
+  /**
+   * The whole schema's serialized size is over the caller-supplied
+   * `maxSerializedCharsPerGroup` byte cap. Never reported when the byte cap
+   * is off — an absent cap excludes nothing.
+   */
+  | { readonly kind: "byte-cap"; readonly measured: number; readonly cap: number }
+  /**
+   * A non-empty partitions record forces the per-group split regardless of
+   * size — the forcing rule the extractor itself applies.
+   */
+  | { readonly kind: "forced-partitions" };
+
+/**
  * What a schema will become before an extractor is constructed.
  *
  * Presence rules, so a caller can program on them:
@@ -136,6 +163,15 @@ export interface ExtractionDescription {
   readonly path?: "grouped" | "flat";
   readonly flatReason?: ExtractionFlatReason;
   readonly callShape?: "single-shot" | "per-group";
+  /**
+   * The conditions that excluded single-shot, one per failed comparison —
+   * present exactly when `callShape` is `"per-group"`, empty never (a
+   * per-group shape always has at least one exclusion to name). Absent on the
+   * single-shot shape: there is nothing excluded to report. The conditions
+   * are the selection's own comparisons, so a caller rendering them states
+   * no rule core did not apply.
+   */
+  readonly singleShotExclusions?: readonly SingleShotExclusion[];
   readonly whole?: SchemaMeasures;
   readonly pieces?: readonly ExtractionPieceDescription[];
   readonly refusal?: ExtractionRefusal;
@@ -351,6 +387,28 @@ export function describeExtraction(options: DescribeExtractionOptions): Extracti
     (options.maxSerializedCharsPerGroup === undefined ||
       whole.serializedChars <= options.maxSerializedCharsPerGroup);
   const callShape: "single-shot" | "per-group" = wholeFits ? "single-shot" : "per-group";
+  // The exclusions beside a per-group shape: the same three comparisons the
+  // selection just ran, kept instead of discarded. Each failure is a
+  // condition a caller can name with its measured value and limit.
+  const singleShotExclusions: SingleShotExclusion[] = [];
+  if (hasPartitions) singleShotExclusions.push({ kind: "forced-partitions" });
+  if (whole.nullableUnions > unionCap) {
+    singleShotExclusions.push({
+      kind: "union-cap",
+      measured: whole.nullableUnions,
+      cap: unionCap,
+    });
+  }
+  if (
+    options.maxSerializedCharsPerGroup !== undefined &&
+    whole.serializedChars > options.maxSerializedCharsPerGroup
+  ) {
+    singleShotExclusions.push({
+      kind: "byte-cap",
+      measured: whole.serializedChars,
+      cap: options.maxSerializedCharsPerGroup,
+    });
+  }
 
   // 5 — The split itself, under the presets' defaulting — but only where
   // construction would reach it. A refusal anywhere above stops the report
@@ -386,6 +444,7 @@ export function describeExtraction(options: DescribeExtractionOptions): Extracti
     path,
     ...(flatReason === undefined ? {} : { flatReason }),
     callShape,
+    ...(callShape === "per-group" ? { singleShotExclusions } : {}),
     whole,
     ...(pieces === undefined ? {} : { pieces }),
     ...(refusal === undefined ? {} : { refusal }),
