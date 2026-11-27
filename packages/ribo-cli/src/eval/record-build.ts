@@ -11,12 +11,14 @@
  * gate wrapper that builds records of its own goes through this one.
  */
 import type { LoadedCorpus } from "../corpus.js";
+import { EXPECTATION_REVIEW_CLASSES } from "../corpus/expectations.js";
 import { EvalError } from "./error.js";
 import { corpusFingerprint, runFingerprint } from "./record-fingerprint.js";
 import {
   EVAL_RUN_RECORD_CONTRACT_VERSION,
   type EvalRunRecord,
   type EvalRunRecordDraft,
+  type EvalRunRecordExpectations,
   type EvalRunRecordHazards,
   type EvalRunRecordSettings,
 } from "./record-schema.js";
@@ -113,6 +115,73 @@ const checkScoreMatchesResults = (results: readonly EvalCaseResult[], score: Eva
 };
 
 /**
+ * The judged cells' expectation origins, from the scored cells and nothing
+ * else (R8): every count reads the cells the scorer already wrote — never a
+ * re-read case file. The summary exists only when the corpus is
+ * proposal-bearing, which the cells themselves declare: a cell carries a
+ * proposer exactly when its entry carried a proposal.
+ *
+ * A judged cell without a `review` member — one resolved from a covering
+ * default, whose blanket claim carries no review class — counts as
+ * hand-written. No rate is split by origin: corrected cells are selected for
+ * difficulty, so a rate over them would mislead (D5).
+ * @param score - The arm's score.
+ * @param backend - The backend the run scored, which a same-model count is
+ * judged against.
+ * @param model - The model the run scored.
+ * @returns The summary, or undefined over a proposal-free corpus.
+ */
+const expectationsSummary = (
+  score: EvalScore,
+  backend: EvalBackendName,
+  model: string,
+): EvalRunRecordExpectations | undefined => {
+  let sawProposer = false;
+  let sameModelAcceptedUnchanged = 0;
+  const classes = new Map<string, number>();
+  const proposers = new Map<string, { backend: string; model: string; cells: number }>();
+  for (const scored of score.cases) {
+    for (const cell of Object.values(scored.cells)) {
+      const review = cell.review;
+      sawProposer ||= review?.proposerBackend !== undefined;
+      if (cell.verdict === "unscorable") continue;
+      const reviewClass = review?.class ?? "hand-written";
+      classes.set(reviewClass, (classes.get(reviewClass) ?? 0) + 1);
+      const { proposerBackend, proposerModel } = review ?? {};
+      if (proposerBackend === undefined || proposerModel === undefined) continue;
+      const key = `${proposerBackend}\u0000${proposerModel}`;
+      const known = proposers.get(key);
+      proposers.set(key, {
+        backend: proposerBackend,
+        model: proposerModel,
+        cells: (known?.cells ?? 0) + 1,
+      });
+      if (
+        reviewClass === "accepted-unchanged" &&
+        proposerBackend === backend &&
+        proposerModel === model
+      ) {
+        sameModelAcceptedUnchanged += 1;
+      }
+    }
+  }
+  if (!sawProposer) return undefined;
+  const reviewClasses: EvalRunRecordExpectations["reviewClasses"] = {};
+  for (const name of EXPECTATION_REVIEW_CLASSES) {
+    const count = classes.get(name);
+    if (count !== undefined) reviewClasses[name] = count;
+  }
+  return {
+    reviewClasses,
+    proposers: [...proposers.values()].sort(
+      (left, right) =>
+        left.backend.localeCompare(right.backend) || left.model.localeCompare(right.model),
+    ),
+    sameModelAcceptedUnchanged,
+  };
+};
+
+/**
  * Build a run record from a run and its score.
  *
  * The record carries the corpus's identity — its name, its fingerprint and
@@ -131,6 +200,7 @@ const checkScoreMatchesResults = (results: readonly EvalCaseResult[], score: Eva
  */
 export function buildEvalRunRecord(input: EvalRunRecordInput): EvalRunRecordDraft {
   checkScoreMatchesResults(input.results, input.score);
+  const expectations = expectationsSummary(input.score, input.backend, input.settings.model);
   return {
     contractVersion: EVAL_RUN_RECORD_CONTRACT_VERSION,
     capturedAt: input.capturedAt ?? new Date().toISOString(),
@@ -146,6 +216,7 @@ export function buildEvalRunRecord(input: EvalRunRecordInput): EvalRunRecordDraf
     totals: input.score.totals,
     leafPaths: [...input.score.leafPaths],
     grid: leafMajorGrid(input.score),
+    ...(expectations === undefined ? {} : { expectations }),
     ...(input.hazards === undefined ? {} : { hazards: input.hazards }),
   };
 }

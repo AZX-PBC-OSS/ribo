@@ -767,11 +767,27 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
       if (error instanceof SchemaInspectError) failEval(error.message);
       throw error;
     }
+    // R8: circularity is made visible, not forbidden. The count is the
+    // record's own — computed from the scored cells — and the sentence says
+    // plainly what those cells measure.
+    const sameModel = draft.expectations?.sameModelAcceptedUnchanged ?? 0;
+    if (sameModel > 0) {
+      writeEvalErr(
+        `${sameModel} accepted-unchanged cell${sameModel === 1 ? "" : "s"} ${
+          sameModel === 1 ? "was" : "were"
+        } proposed by the scored backend ${flags.backend} and model ${flags.model} — for ${
+          sameModel === 1 ? "that cell" : "those cells"
+        } the run measures agreement with that model's own proposal, not accuracy against an ` +
+          "independent answer",
+      );
+    }
     arms.push({ settings: effectiveSettings, results, fingerprint, totals, record, draft });
   }
   if (arms.length > 1) writeCrossArmSummary(arms);
   // The stdout report keeps the shape T9b shipped — the draft travels to the
-  // summary only, never into the JSON a reader consumes as data.
+  // summary only, never into the JSON a reader consumes as data. The
+  // expectations summary is the one draft member the report carries (R8):
+  // the judged origins are a reading of the run, not just of the record.
   const report = {
     name: corpus.manifest.name,
     backend: flags.backend,
@@ -781,6 +797,7 @@ async function runEvalCommand(flags: EvalFlags): Promise<void> {
       results: entry.results,
       fingerprint: entry.fingerprint,
       totals: entry.totals,
+      ...(entry.draft.expectations === undefined ? {} : { expectations: entry.draft.expectations }),
       record: entry.record,
     })),
   };

@@ -105,16 +105,29 @@ const indexResults = (
 };
 
 /**
+ * Is this corpus proposal-bearing? Any explicit entry carrying a `proposal`
+ * makes it one, and only a proposal-bearing corpus's cells carry the `review`
+ * member (D10): the member is provenance ABOUT proposals, so a corpus that
+ * holds none writes none, keeping every existing record byte-identical.
+ * @param cases - The cases to score.
+ * @returns Whether any case carries a proposal-bearing entry.
+ */
+const isProposalBearing = (cases: readonly ScoreCase[]): boolean =>
+  cases.some((entry) => Object.values(entry.expected).some((leaf) => leaf.proposal !== undefined));
+
+/**
  * Score one case: every leaf of the schema, judged.
  * @param entry - The case to score.
  * @param result - The run's result for that case.
  * @param inventory - The schema's leaf inventory.
+ * @param withReview - Whether the corpus is proposal-bearing.
  * @returns The scored case.
  */
 const scoreCase = (
   entry: ScoreCase,
   result: EvalCaseResult,
   inventory: readonly LeafInventoryEntry[],
+  withReview: boolean,
 ): ScoredCase => {
   const fields = result.status === "failed" ? undefined : result.fields;
   const cells: Record<string, EvalCell> = {};
@@ -129,6 +142,7 @@ const scoreCase = (
       expectation,
       produced: produced.values,
       caseFailed: result.status === "failed",
+      withReview,
     });
   }
   return {
@@ -153,13 +167,14 @@ const scoreWithInventory = (
   results: readonly EvalCaseResult[],
 ): EvalScore => {
   const byCase = indexResults(cases, results);
+  const withReview = isProposalBearing(cases);
   const scored = cases.map((entry) => {
     const result = byCase.get(entry.id);
     if (result === undefined) {
       // `indexResults` refuses a case with no result, so this cannot happen.
       throw new EvalError(`eval: the corpus's case "${entry.id}" has no result in the run`);
     }
-    return scoreCase(entry, result, inventory);
+    return scoreCase(entry, result, inventory, withReview);
   });
   return {
     leafPaths: inventory.map((entry) => entry.path),

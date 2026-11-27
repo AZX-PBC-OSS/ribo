@@ -52,7 +52,7 @@ export type {
   ScopedDefault,
   ScopedDefaultStatus,
 } from "./corpus/case.js";
-export { resolveExpectation } from "./corpus/expectations.js";
+export { resolveExpectation, EXPECTATION_REVIEW_CLASSES } from "./corpus/expectations.js";
 export type {
   ExpectationReviewClass,
   ResolvedExpectation,

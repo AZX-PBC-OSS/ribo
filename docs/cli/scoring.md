@@ -71,6 +71,30 @@ Two rules decide whether the produced value _is_ the expected one:
   every element matching its ordinal's expectation (or an alternative's same ordinal); a run that
   produced extra instances is `wrong`, not correct.
 
+## Judged origins and circularity
+
+A run over confirmed proposals looks, cell for cell, like a run over hand-written answers — so
+every record and report says where its judged cells' expectations came from (R8). Each cell of a
+proposal-bearing corpus's record carries a `review` member: the review class — `hand-written`,
+`accepted-unchanged` or `corrected` — and, when the entry carries a proposal, the proposer's
+backend and model. A judged cell resolved from a covering default carries no `review` member and
+counts as hand-written wherever a summary needs a class for it.
+
+The record also carries an `expectations` summary: the judged cells by review class (the counts
+sum to the judged total), the judged cells per proposer backend and model, and the count of
+accepted-unchanged cells whose proposer is the record's own backend and model. Every count is
+computed from the scored cells only, and no rate is split by origin — corrected cells are
+selected for difficulty, so a rate over them would mislead.
+
+When that same-model count is non-zero, `ribo eval` says so on stderr: for those cells the run
+measures agreement with the scored model's own proposal, not accuracy against an independent
+answer. Circularity cannot be prevented — a subscription user may have one model, and similarity
+cannot be detected — so it is shown instead. The recommendation in
+[Proposals and review state](/cli/corpus) stands: propose with a model that is not the one being
+scored; that reduces the correlation without removing it. The corpus fingerprint covers each
+case's expectations whole, review state and proposal provenance included, so two records whose
+proposers differ never compare as the same questions.
+
 ## The three rates
 
 Every report and record states three rates, always together, because any two read as a
@@ -102,8 +126,14 @@ of earlier records of the same identity in the same directory. A record is zod-p
 malformed one is a refusal, never a silent drop.
 
 The stdout report is the arms' summary — settings, per-case results, totals, fingerprint, record
-path — written only once every arm's record is on disk. A multi-arm run also prints a cross-arm
+path — written only once every arm's record is on disk; a proposal-bearing run's per-arm block
+carries the same `expectations` summary its record does. A multi-arm run also prints a cross-arm
 comparison summary to stderr, rendered by the same code `ribo compare` uses.
+
+The per-cell `review` member and the record-level `expectations` summary are additive at record
+version 1, on the `planFingerprint` precedent: a run over a corpus that holds no proposal writes
+neither, so every existing record stays byte-identical to the earlier format's output. The schema
+is strict, so an older reader refuses a record carrying them rather than misreading it.
 
 ## Planned arms and record identity
 

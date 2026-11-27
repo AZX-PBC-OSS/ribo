@@ -20,6 +20,7 @@
  */
 import { z } from "zod";
 
+import { EXPECTATION_REVIEW_CLASSES } from "../corpus/expectations.js";
 import type { EvalBackendName } from "./backend.js";
 import { EVAL_BACKENDS } from "./backend.js";
 import { EVAL_UNSCORABLE_REASONS, EVAL_VERDICTS } from "./score-types.js";
@@ -153,6 +154,30 @@ export const EvalRunRecordTotalsSchema = z.strictObject({
 });
 
 /**
+ * A cell's review provenance, as the record persists it (R8, ADR 0049): the
+ * review class of the explicit entry the expectation was resolved from, and
+ * — when that entry carries a proposal — the proposer's backend and model.
+ * The member is written only by a run over a proposal-bearing corpus, so a
+ * proposal-free corpus's records stay byte-identical to the format's earlier
+ * output (D10).
+ * @category Eval
+ */
+export const EvalRunRecordCellReviewSchema = z.strictObject({
+  /** How the entry's answer came to be what it is. */
+  class: z.enum(EXPECTATION_REVIEW_CLASSES),
+  /** The proposal's backend, when the entry carries a proposal. */
+  proposerBackend: z.string().min(1).optional(),
+  /** The proposal's model, when the entry carries a proposal. */
+  proposerModel: z.string().min(1).optional(),
+});
+
+/**
+ * A cell's review provenance, as the record persists it.
+ * @category Eval
+ */
+export type EvalRunRecordCellReview = z.infer<typeof EvalRunRecordCellReviewSchema>;
+
+/**
  * One scored cell, as the record persists it.
  * @category Eval
  */
@@ -167,6 +192,8 @@ export const EvalRunRecordCellSchema = z.strictObject({
   sourceSpan: z.string().optional(),
   /** Where the expectation came from. */
   origin: z.enum(["explicit", "default", "none"]),
+  /** The cell's review provenance, when the corpus is proposal-bearing. */
+  review: EvalRunRecordCellReviewSchema.optional(),
   /** Why the cell is unscorable, when it is. */
   reason: z.enum(EVAL_UNSCORABLE_REASONS).optional(),
 });
@@ -210,6 +237,52 @@ export const EvalRunRecordHazardsSchema = z.strictObject({
 });
 
 /**
+ * The record's expectations summary: how the judged cells' expectations came
+ * to be what they are (R8, ADR 0049). Every count is computed from the
+ * scored cells only — never by re-reading case files — and the review-class
+ * counts always sum to the record's judged total. No rate is split by
+ * origin: a corrected cell is selected for difficulty, so a rate over it
+ * would mislead (D5).
+ *
+ * The summary is written only when the corpus holds a proposal-bearing
+ * entry, so every record over a proposal-free corpus — every record written
+ * before proposals existed — stays byte-identical (D10).
+ * @category Eval
+ */
+export const EvalRunRecordExpectationsSchema = z.strictObject({
+  /** The judged cells, by review class. A class no judged cell carries is omitted. */
+  reviewClasses: z.partialRecord(
+    z.enum(EXPECTATION_REVIEW_CLASSES),
+    z.number().int().nonnegative(),
+  ),
+  /** The judged cells proposed by each proposer, by backend and model, ordered by backend then model. */
+  proposers: z
+    .array(
+      z.strictObject({
+        /** The proposer's backend. */
+        backend: z.string().min(1),
+        /** The proposer's model. */
+        model: z.string().min(1),
+        /** The judged cells this proposer proposed. */
+        cells: z.number().int().nonnegative(),
+      }),
+    )
+    .readonly(),
+  /**
+   * The accepted-unchanged cells whose proposer is the record's own backend
+   * AND model — the cells over which the run measures agreement with the
+   * scored model's own proposal, not accuracy against an independent answer.
+   */
+  sameModelAcceptedUnchanged: z.number().int().nonnegative(),
+});
+
+/**
+ * The record's expectations summary.
+ * @category Eval
+ */
+export type EvalRunRecordExpectations = z.infer<typeof EvalRunRecordExpectationsSchema>;
+
+/**
  * The record format's version, as the record carries it.
  * @category Eval
  */
@@ -241,6 +314,8 @@ export const EvalRunRecordSchema = z.strictObject({
   leafPaths: z.array(z.string()),
   /** The dense grid, keyed leaf-major: `grid[leafPath][caseId]`. */
   grid: z.record(z.string(), z.record(z.string(), EvalRunRecordCellSchema)),
+  /** The judged cells' expectation origins, when the corpus is proposal-bearing. */
+  expectations: EvalRunRecordExpectationsSchema.optional(),
   /** The lineage: the strictly-earlier records of the same identity in the same directory. */
   history: z.array(EvalRunRecordHistoryEntrySchema),
   /** The optional hazard extension. */

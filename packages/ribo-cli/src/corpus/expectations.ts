@@ -34,6 +34,19 @@ export type ExpectationReviewClass =
   "hand-written" | "pending" | "accepted-unchanged" | "corrected";
 
 /**
+ * The review-class vocabulary, as a runtime constant and not a type alone —
+ * the pattern the verdict vocabulary sets — so the record's persisted schema
+ * can parse a cell against the same list the scorer wrote.
+ * @category Eval
+ */
+export const EXPECTATION_REVIEW_CLASSES = [
+  "hand-written",
+  "pending",
+  "accepted-unchanged",
+  "corrected",
+] as const;
+
+/**
  * A leaf's resolved expectation.
  * @category Eval
  */
