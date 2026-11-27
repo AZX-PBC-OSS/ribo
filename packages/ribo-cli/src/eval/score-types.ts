@@ -34,10 +34,15 @@ export type EvalVerdict = (typeof EVAL_VERDICTS)[number];
  *
  * `unmentioned` is the design's own word for a leaf the corpus says nothing
  * about; `incomparable-expectation` names the case where the corpus expects
- * a value the schema cannot hold.
+ * a value the schema cannot hold; `unreviewed-proposal` names a pending
+ * proposal — an unreviewed model answer is never a measurement (R5).
  * @category Eval
  */
-export const EVAL_UNSCORABLE_REASONS = ["unmentioned", "incomparable-expectation"] as const;
+export const EVAL_UNSCORABLE_REASONS = [
+  "unmentioned",
+  "incomparable-expectation",
+  "unreviewed-proposal",
+] as const;
 
 /**
  * Why a cell is unscorable.
