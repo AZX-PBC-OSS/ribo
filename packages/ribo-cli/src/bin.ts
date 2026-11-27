@@ -98,6 +98,7 @@ import type {
 import type { EvalScoreTotals } from "./eval/score-types.js";
 import { inspectSchema, inspectSchemaWithPlan, SchemaInspectError } from "./inspect-schema.js";
 import type { ThresholdRow } from "./inspect/report-schema.js";
+import { MAX_RETRIES_DEFAULT } from "./inspect/calls.js";
 import { InputFault, readDocumentSource } from "./read-input.js";
 import { renderHumanReport } from "./render-human.js";
 import { registerSchemaInitCommand } from "./schema-init/command.js";
@@ -952,7 +953,7 @@ const evalCommand = program
   )
   .option(
     "--max-retries <n>",
-    "the retry budget per call, for the strategies that have one",
+    `the retry budget per call, for the strategies that have one (default: ${MAX_RETRIES_DEFAULT} — the estimate multiplies each call by one plus it)`,
     parseThreshold,
   )
   .option("--response-cap <n>", "the cap on generated tokens per call", parseCap)

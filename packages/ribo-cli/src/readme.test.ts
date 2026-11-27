@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vitest";
 
+import { MAX_RETRIES_DEFAULT } from "./inspect/calls.js";
+
 /**
  * @file The package README's load-bearing claims, pinned: the `npx ribo`
  * name-collision warning that names this package, the invocation paths the
@@ -18,6 +20,10 @@ import { expect, test } from "vitest";
 const README = readFileSync(fileURLToPath(new URL("../README.md", import.meta.url)), "utf8");
 const SCHEMA_DOC = readFileSync(
   fileURLToPath(new URL("../../../docs/cli/schema.md", import.meta.url)),
+  "utf8",
+);
+const SPEND_DOC = readFileSync(
+  fileURLToPath(new URL("../../../docs/cli/spend.md", import.meta.url)),
   "utf8",
 );
 
@@ -117,6 +123,13 @@ test("the schema doc requires a layout on every threshold row, with depth shared
 test("the schema doc pins the one-based size-split call label", () => {
   expect(SCHEMA_DOC).toContain("call <i> of <n>");
   expect(SCHEMA_DOC).toMatch(/one-based/u);
+});
+
+test("the spend doc names --max-retries, and its stated default is the call model's", () => {
+  expect(SPEND_DOC).toContain("--max-retries");
+  const stated = /`--max-retries` \(default: (\d+)\)/.exec(SPEND_DOC)?.[1];
+  expect(stated).toBeDefined();
+  expect(Number(stated)).toBe(MAX_RETRIES_DEFAULT);
 });
 
 test("the schema doc distinguishes unbuildable-plan exit 2 with no report from a judged-breach exit 1", () => {

@@ -73,6 +73,13 @@ class PlanConstructionChatInvoked extends Error {
   }
 }
 
+/**
+ * The phase engine's default retry budget: a run's attempts multiply by
+ * `1 + maxRetries`. The estimate, the flag help and the docs prose all read
+ * this one value, so the stated default cannot drift from the applied one.
+ */
+export const MAX_RETRIES_DEFAULT = 2;
+
 /** A chat that must never be called: plan construction reads no model. */
 const neverCalledChat = (): ChatClient => ({
   complete: (request: ChatRequest) => {
@@ -185,6 +192,6 @@ export function describeCalls(
     presenceNarrowedAtMost:
       groupCount > 0 && fillPieceCount !== null ? groupCount + fillPieceCount : null,
     consensusPerCandidate: description.callShape === "single-shot" ? 1 : perGroup,
-    maxRetriesDefault: 2,
+    maxRetriesDefault: MAX_RETRIES_DEFAULT,
   };
 }
