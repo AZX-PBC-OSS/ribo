@@ -123,7 +123,36 @@ out.
   they exist only in your zod copy.
 - **refusal** — the refusal constructing the extraction would raise, carried as a finding in the
   report, not a failure. Exit codes are unaffected by it.
-- **threshold** — one line per supplied `--max-depth` / `--max-piece-chars`, within or breached.
+- **threshold** — one row per supplied `--max-depth` / `--max-piece-chars`, each naming the layout
+  whose measurement it judged. The full row contract is pinned in
+  [Threshold rows](#threshold-rows) below.
+
+## Threshold rows
+
+Since report contract version 4 (`contractVersion: 4`), every threshold row names the **layout** it
+judged, and a report computed without `--plan` is unchanged by that contract: it keeps the
+rule-based measurements and the rows read exactly as they did before planning existed.
+
+Three layouts exist, and the measure selects between them:
+
+- **depth is `shared`.** The whole schema's nesting depth is one number, the same under a rule-based
+  split and a planned one, so a `--max-depth` row is always judged at the `shared` layout and names
+  no piece.
+- **piece-character rows are `rule-based` or `planned`.** Without `--plan`, `--max-piece-chars`
+  judges the worst rule-based piece. With `--plan`, it judges the worst **actual planned packed
+  call** — the real layout the plan produces under the split caps, not the rule-based worst piece.
+
+A semantic piece the packer splits across several calls is named precisely: the row's piece is
+`<piece name> — call <i> of <n>`, one-based — the first call is call 1 of n, and a piece that fits
+one call is named without the suffix.
+
+The two outcomes are never conflated:
+
+- a **judged breach** is exit 1, and the full report is still on stdout — the measurement ran, and
+  the number is the finding;
+- an **unbuildable planned layout** is a could-not-run fault — exit 2, no report, stdout empty —
+  whether or not `--max-piece-chars` was supplied. If the plan cannot be built into calls at all,
+  there is no measurement to report, with or without a threshold.
 
 ## Granularity violations
 

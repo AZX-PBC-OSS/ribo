@@ -56,6 +56,17 @@ test("the packed tarball ships the worked example corpus the README walks throug
   }
 });
 
+test("the packed tarball ships the example plan and the planning guide the README links", () => {
+  expect(paths).toContain("examples/basic-corpus/plan.json");
+  expect(paths).toContain("docs/cli/planning.md");
+});
+
+test("the README links the shipped planning guide and the example plan", () => {
+  const readme = readFileSync(join(PACKAGE_DIR, "README.md"), "utf8");
+  expect(readme).toContain("(docs/cli/planning.md");
+  expect(readme).toContain("(examples/basic-corpus/plan.json");
+});
+
 test("the packed tarball ships the CLI docs pages, and every relative link in the README resolves in it", () => {
   for (const page of ["index.md", "schema.md", "corpus.md", "scoring.md", "spend.md"]) {
     expect(paths).toContain(`docs/cli/${page}`);

@@ -323,6 +323,8 @@ const help = [
   "",
   "Docs: node_modules/@azx/ribo-cli/docs/cli/schema.md — schema input and plan review " +
     "(online: https://ribo-docs.azx.helix.azxlabs.io/cli/schema.html).",
+  "Docs: node_modules/@azx/ribo-cli/docs/cli/planning.md — authoring a schema and reviewing its " +
+    "plan (online: https://ribo-docs.azx.helix.azxlabs.io/cli/planning.html).",
 ].join("\n");
 
 /** Register the thin Commander shell; the runner above owns all testable behavior. */

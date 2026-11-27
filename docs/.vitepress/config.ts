@@ -218,6 +218,7 @@ export default defineConfig({
           items: [
             { text: "Overview & Install", link: "/cli/" },
             { text: "Writing a Schema", link: "/cli/schema" },
+            { text: "Planning & Authoring", link: "/cli/planning" },
             { text: "The Corpus Format", link: "/cli/corpus" },
             { text: "Scoring & Comparing", link: "/cli/scoring" },
             { text: "Spend", link: "/cli/spend" },

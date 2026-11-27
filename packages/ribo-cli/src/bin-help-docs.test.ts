@@ -92,3 +92,42 @@ test("ribo corpus text --help ends with the docs pointer", () => {
     new RegExp(pointer("corpus", "the corpus format this command reads"), "u"),
   );
 });
+
+/** The planning pointer, installed path primary and online rendering secondary, as a regex body. */
+const planningPointer = (what: string): string => pointer("planning", what).replace(/\\\.\$$/, "");
+
+test("the root --help points at the planning guide", () => {
+  expect(helpOf()).toMatch(
+    new RegExp(planningPointer("authoring a schema and reviewing its plan"), "u"),
+  );
+});
+
+test("ribo schema --help points at the planning guide", () => {
+  expect(helpOf("schema")).toMatch(
+    new RegExp(planningPointer("authoring a schema and reviewing its plan"), "u"),
+  );
+});
+
+test("ribo schema inspect --help points at the planning guide", () => {
+  expect(helpOf("schema", "inspect")).toMatch(
+    new RegExp(planningPointer("authoring a schema and reviewing its plan"), "u"),
+  );
+});
+
+test("ribo eval --help points at the planning guide", () => {
+  expect(helpOf("eval")).toMatch(
+    new RegExp(planningPointer("authoring a schema and reviewing its plan"), "u"),
+  );
+});
+
+test("ribo schema init --help points at the planning guide", () => {
+  expect(helpOf("schema", "init")).toMatch(
+    new RegExp(planningPointer("authoring a schema and reviewing its plan"), "u"),
+  );
+});
+
+test("ribo schema plan --help points at the planning guide", () => {
+  expect(helpOf("schema", "plan")).toMatch(
+    new RegExp(planningPointer("authoring a schema and reviewing its plan"), "u"),
+  );
+});

@@ -392,6 +392,9 @@ const help = [
   "  ribo schema init ./notes.txt ./spoken-case --backend openai-compatible --model gpt-4o",
   "  ribo schema init ./notes.txt --backend claude-cli --model claude-haiku-5-5 --out ./schema.json",
   "  ribo schema init ./notes.txt --backend openai-compatible --model gpt-4o --corpus ./draft-corpus --corpus-name workshop --corpus-provenance real",
+  "",
+  "Docs: node_modules/@azx/ribo-cli/docs/cli/planning.md — authoring a schema and reviewing its plan " +
+    "(online: https://ribo-docs.azx.helix.azxlabs.io/cli/planning.html).",
 ].join("\n");
 
 /** Register the thin Commander shell; the runner owns all testable behavior. */
