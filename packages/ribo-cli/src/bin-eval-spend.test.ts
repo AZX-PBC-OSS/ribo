@@ -208,9 +208,10 @@ test("the estimate states its basis: the bound, the multipliers, the case count,
   const stderr = result.stderr;
   // It is an upper bound, and it says so.
   expect(stderr).toContain("upper bound");
-  // The call model, the multipliers and their values.
+  // The call model, the multipliers and their values — the retry multiplier
+  // names the flag it came from and the sum it came from.
   expect(stderr).toContain("single-shot");
-  expect(stderr).toContain("retries ×2");
+  expect(stderr).toContain("retries ×2 (1 + --max-retries 1)");
   expect(stderr).toContain("consensus ×3");
   // The case count, the token bound and the price row with its date.
   expect(stderr).toMatch(/calls: at most \d+ over \d+ case\(s\)/);
@@ -221,6 +222,22 @@ test("the estimate states its basis: the bound, the multipliers, the case count,
   expect(stderr).toContain("ribo eval: ");
   // Piped output carries no escape bytes.
   expect(stderr).not.toContain("\x1b");
+});
+
+test("the retry multiplier names --max-retries, and zero removes it", async () => {
+  const corpus = corpusWithoutDocuments();
+  const result = await run([
+    ...baseArgs(corpus),
+    "--strategy",
+    "single-shot",
+    "--max-retries",
+    "0",
+  ]);
+
+  expect(result.status).toBe(0);
+  // The arm line names the control, and the multiplier of one is the sum it
+  // came from: 1 + 0.
+  expect(result.stderr).toContain("retries ×1 (1 + --max-retries 0)");
 });
 
 // --- The ceiling (criteria 7, 8) --------------------------------------------------

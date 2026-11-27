@@ -21,7 +21,11 @@ inspect` reports (`describeCalls`), computed **with the run's own split caps** �
   state — the presence-narrowed strategy over a schema with no groups, or a schema the split
   refuses — makes the estimate **underivable**, and the run is refused with the cause named: no
   flag coerces "no bound" into a number.
-- **Retries** — a call's worst case is `1 + maxRetries` attempts.
+- **Retries** — a call's worst case is `1 + maxRetries` attempts, where the retry budget comes
+  from `--max-retries` (default: 2). Setting `--max-retries 0` removes the multiplier: the retry
+  factor becomes one. The multiplier applies to every rung of the ladder — including a
+  `single-shot` rung, which passes no retry budget to its extractor and never retries — so a
+  single-shot arm's estimate overcounts in the safe direction.
 - **Tokens** — the prompt tokens are measured from the run's real prompts (document cases are
   transcribed first, so the estimate prices the text the run will send, not a schema-sized guess;
   a planned arm's prompts are measured from its real packed calls, plan descriptions included);

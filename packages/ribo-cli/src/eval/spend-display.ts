@@ -31,7 +31,11 @@ const armCallLine = (estimate: SpendEstimate, index: number): string => {
   const arm = estimate.arms[index];
   if (arm === undefined) return "";
   const rungs = arm.rungs.map((rung) => `${rung.strategy} ${rung.calls}`).join(", ");
-  const multipliers = `retries ×${arm.retryMultiplier}, consensus ×${arm.consensusCandidates}`;
+  // The multiplier is the sum it came from, named by the flag that sets it —
+  // the reader should not have to discover the control to change the number.
+  const multipliers =
+    `retries ×${arm.retryMultiplier} (1 + --max-retries ${arm.retryMultiplier - 1}), ` +
+    `consensus ×${arm.consensusCandidates}`;
   return (
     `arm ${index + 1} (${arm.strategies.join(" → ")}): ${arm.callsPerCase} per case ` +
     `(${rungs}; ${multipliers})`
