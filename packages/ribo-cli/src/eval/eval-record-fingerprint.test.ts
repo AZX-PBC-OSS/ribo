@@ -393,3 +393,69 @@ test("case, input and default edits count while capture and unrelated manifest m
   });
   expect(corpusFingerprint(loadCorpus(dir))).not.toBe(base);
 });
+
+// ---------------------------------------------------------------------------
+// Proposal provenance and review state (ADR 0049) — no chat, no transcription:
+// the fingerprint is a hash over the loaded corpus, so these load and hash
+// directly.
+// ---------------------------------------------------------------------------
+
+/** Stamp a pending asserted proposal onto the fixture's `frame.material` entry. */
+const proposeMaterial = (
+  dir: string,
+  proposalBlock: Record<string, unknown>,
+  review: string,
+): void => {
+  editJson(path.join(dir, "spoken-note", "case.json"), (document) => {
+    const expected = document["expected"] as Record<string, Record<string, unknown>>;
+    expected["frame.material"] = {
+      ...expected["frame.material"]!,
+      proposal: proposalBlock,
+      review,
+    };
+  });
+};
+
+/** The proposal block the provenance suites stamp, at the given model. */
+const proposalBlock = (model: string): Record<string, unknown> => ({
+  status: "asserted",
+  value: "steel",
+  evidence: { quote: "steel frame", input: "input.txt" },
+  backend: "http",
+  model,
+  proposedAt: "2026-01-01T00:00:00Z",
+});
+
+test("flipping an entry's review state moves the corpus fingerprint", () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS);
+  proposeMaterial(dir, proposalBlock("proposer-1"), "pending");
+  const pending = corpusFingerprint(loadCorpus(dir));
+
+  editJson(path.join(dir, "spoken-note", "case.json"), (document) => {
+    const expected = document["expected"] as Record<string, { review: string }>;
+    expected["frame.material"]!.review = "confirmed";
+  });
+  const confirmed = corpusFingerprint(loadCorpus(dir));
+
+  expect(confirmed).not.toBe(pending);
+});
+
+test("changing the proposer's model moves the corpus fingerprint", () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS);
+  proposeMaterial(dir, proposalBlock("proposer-1"), "confirmed");
+  const first = corpusFingerprint(loadCorpus(dir));
+
+  proposeMaterial(dir, proposalBlock("proposer-2"), "confirmed");
+  const second = corpusFingerprint(loadCorpus(dir));
+
+  expect(second).not.toBe(first);
+});
+
+test("a proposal-free corpus hashes to its pre-proposal value", () => {
+  const dir = copiedCorpus(FIXTURE_CORPUS);
+  // Pinned: the format's proposal and review members are additive, and a
+  // corpus without them fingerprints exactly as it did before they existed.
+  expect(corpusFingerprint(loadCorpus(dir))).toBe(
+    "62c8b2d193562af597d5668d5e1b7414072f3ae26190b1dcc47241f30369d3f2",
+  );
+});

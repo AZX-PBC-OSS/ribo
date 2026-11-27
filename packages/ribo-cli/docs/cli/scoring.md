@@ -145,7 +145,9 @@ case's id; the case's declared inputs in order — each input contributing its f
 and a digest of the file's bytes; the case's expected entries and its defaults; and the
 corpus-wide effective `markCaptures` policy. Changing any of those — an edited expectation, a
 different input file, a re-ordered inputs list, a flipped marker policy — changes the corpus
-fingerprint, and the pair is refused without `--allow-corpus-mismatch`.
+fingerprint, and the pair is refused without `--allow-corpus-mismatch`. The expected entries are
+hashed whole: a proposal's provenance and an entry's review state are covered too, because review
+state decides which cells are judged and provenance decides how the totals may be read (ADR 0049).
 
 Just as exactly, these leave the corpus fingerprint alone and never cause that refusal: the
 capture metadata beside a document's bytes (`capturedAt`, `pageCount`), the schema document, the

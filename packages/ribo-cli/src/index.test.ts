@@ -12,7 +12,10 @@ import {
   CorpusManifestSchema,
   CorpusPromptInputsSchema,
   ExpectationEntrySchema,
+  ExpectationProposalSchema,
+  ExpectationReviewSchema,
   ExpectationValueSchema,
+  ProposalEvidenceSchema,
   SchemaInspectReportSchema,
   SchemaInspectError,
   ScopedDefaultSchema,
@@ -105,6 +108,23 @@ test("the corpus loader and its schemas are exported from the package's public e
   expect(ScopedDefaultSchema.safeParse({ scope: "a", status: "unmentioned" }).success).toBe(true);
 });
 
+test("the proposal-format schemas are exported from the public runtime barrel", () => {
+  // The proposal and review schemas are exported so a proposer and a review
+  // sheet validate what they write against the same shape the loader parses.
+  const pending = ExpectationProposalSchema.safeParse({
+    status: "asserted",
+    value: "gas",
+    evidence: { quote: "runs on gas", input: "input.txt" },
+    backend: "http",
+    model: "proposer-1",
+    proposedAt: "2026-01-01T00:00:00Z",
+  });
+  expect(pending.success).toBe(true);
+  expect(ExpectationReviewSchema.safeParse("pending").success).toBe(true);
+  expect(ExpectationReviewSchema.safeParse("rejected").success).toBe(false);
+  expect(ProposalEvidenceSchema.safeParse({ quote: "q", input: "i" }).success).toBe(true);
+});
+
 // The barrel's job is to be a stable, complete list of what consumers may
 // depend on. This test pins that list: adding an export means adding it here
 // deliberately, and removing one cannot happen by accident during a refactor.
@@ -130,7 +150,12 @@ test("the barrel exports the package's public runtime surface", () => {
     "EvalError",
     "EvalRunRecordSchema",
     "ExpectationEntrySchema",
+    "ExpectationProposalSchema",
+    "ExpectationReviewSchema",
     "ExpectationValueSchema",
+    "ProposalEvidenceMapSchema",
+    "ProposalEvidenceSchema",
+    "ProposalEvidenceSetSchema",
     "RETIRED_VERDICT_TRANSLATION",
     "SchemaInspectError",
     "SchemaInspectReportSchema",

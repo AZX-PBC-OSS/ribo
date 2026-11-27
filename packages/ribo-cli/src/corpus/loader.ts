@@ -23,7 +23,7 @@ import type { z } from "zod";
 import { convertDocument } from "../inspect/convert.js";
 import { unwrapFieldEnvelopes, walkFieldInventory } from "../inspect/field-inventory.js";
 import { CorpusCaseSchema } from "./case.js";
-import type { CorpusCase, CorpusCaseInput } from "./case.js";
+import type { CorpusCase, CorpusCaseInput, ProposalEvidence } from "./case.js";
 import { CorpusError } from "./error.js";
 import { scopeCovers } from "./expectations.js";
 import { describeIssues } from "./issues.js";
@@ -248,6 +248,61 @@ const checkExpectedLeaves = (
   }
 };
 
+/** Is this evidence set the scalar shape — one quote-plus-input, not a map? */
+const isScalarEvidence = (evidence: unknown): evidence is ProposalEvidence =>
+  typeof evidence === "object" &&
+  evidence !== null &&
+  typeof (evidence as { quote?: unknown }).quote === "string";
+
+/** Is every key of this evidence map a canonical ordinal string — "0", "1", not "00" or "-1"? */
+const isOrdinalKeyed = (evidence: Record<string, ProposalEvidence>): boolean =>
+  Object.keys(evidence).every((key) => /^(?:0|[1-9]\d*)$/u.test(key));
+
+/** Refuse a proposal's evidence that is malformed for its leaf, or names an undeclared input. */
+const checkProposalEvidence = (
+  caseFile: CorpusCase,
+  caseFilePath: string,
+  inventory: readonly LeafInventoryEntry[],
+): void => {
+  const declaredInputs = new Set(caseFile.inputs.map((entry) => entry.file));
+  for (const [leafPath, entry] of Object.entries(caseFile.expected)) {
+    const { proposal } = entry;
+    if (proposal?.status !== "asserted") continue;
+    const leaf = inventory.find((candidate) => candidate.path === leafPath);
+    if (leaf === undefined) continue; // checkExpectedLeaves refuses an unknown leaf first.
+    const { evidence } = proposal;
+    if (leaf.inArray) {
+      if (isScalarEvidence(evidence) || !isOrdinalKeyed(evidence)) {
+        throw new CorpusError(
+          `the corpus case file "${caseFilePath}" proposes a value for the collection leaf ` +
+            `"${leafPath}", but its evidence is not ordinal-keyed — a collection leaf's evidence ` +
+            `is one quote-plus-input per instance, keyed by the instance's ordinal — ` +
+            `e.g. { "0": { "quote": "…", "input": "input.txt" } } (fix: key the evidence by ` +
+            `instance ordinal)`,
+        );
+      }
+    } else if (!isScalarEvidence(evidence)) {
+      throw new CorpusError(
+        `the corpus case file "${caseFilePath}" proposes a value for the scalar leaf ` +
+          `"${leafPath}", but its evidence is ordinal-keyed — a scalar leaf's evidence is one ` +
+          `quote-plus-input (fix: replace the map with { "quote", "input" })`,
+      );
+    }
+    const links: readonly ProposalEvidence[] = isScalarEvidence(evidence)
+      ? [evidence]
+      : Object.values(evidence);
+    for (const { input } of links) {
+      if (declaredInputs.has(input)) continue;
+      throw new CorpusError(
+        `the corpus case file "${caseFilePath}" proposes a value for the leaf "${leafPath}" with ` +
+          `evidence naming the input "${input}", which the case does not declare — a proposal's ` +
+          `evidence quotes one of the case's declared inputs (fix: name one of ` +
+          `${[...declaredInputs].join(", ")} in the evidence, or declare the input)`,
+      );
+    }
+  }
+};
+
 /** Refuse a default whose scope covers no leaf, or names the same scope twice. */
 const checkDefaults = (
   caseFile: CorpusCase,
@@ -372,7 +427,12 @@ const loadCaseInputs = (
 };
 
 /** Load one case directory. */
-const loadCase = (root: string, dirName: string, leafPaths: ReadonlySet<string>): LoadedCase => {
+const loadCase = (
+  root: string,
+  dirName: string,
+  leafPaths: ReadonlySet<string>,
+  inventory: readonly LeafInventoryEntry[],
+): LoadedCase => {
   const caseDir = path.join(root, dirName);
   const caseFilePath = path.join(caseDir, "case.json");
   if (!isFile(caseFilePath)) {
@@ -393,6 +453,7 @@ const loadCase = (root: string, dirName: string, leafPaths: ReadonlySet<string>)
   }
   checkExpectedLeaves(caseFile, caseFilePath, leafPaths);
   checkDefaults(caseFile, caseFilePath, leafPaths);
+  checkProposalEvidence(caseFile, caseFilePath, inventory);
   const inputs = loadCaseInputs(caseDir, caseFile.id, caseFile.inputs);
   return {
     id: caseFile.id,
@@ -457,7 +518,7 @@ export function loadCorpus(corpusDir: string): LoadedCorpus {
         `(fix: add at least one case directory, each holding a case.json and its input file)`,
     );
   }
-  const cases = dirNames.map((dirName) => loadCase(root, dirName, leafPaths));
+  const cases = dirNames.map((dirName) => loadCase(root, dirName, leafPaths, inventory));
   cases.sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   return {
     root,
