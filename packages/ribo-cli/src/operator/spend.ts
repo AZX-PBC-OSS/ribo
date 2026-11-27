@@ -274,12 +274,22 @@ export interface OperatorSpendCeilingInput {
   readonly maxSpendUsd: number;
   readonly yes: boolean;
   readonly confirmation?: SpendConfirmation;
+  /**
+   * A second fix named in the refusal, for a command that can shrink the priced
+   * work (schema init names `--draft-from`); absent keeps the message unchanged.
+   */
+  readonly cheaperFix?: string;
 }
 
-const refusalMessage = (estimateUsd: number, maxSpendUsd: number): string =>
+const refusalMessage = (
+  estimateUsd: number,
+  maxSpendUsd: number,
+  cheaperFix: string | undefined,
+): string =>
   `the estimated spend (${usd(estimateUsd)}) is above the ceiling ` +
   `(${usd(maxSpendUsd)}) — the run was refused before any model call (fix: raise the ` +
-  `ceiling with --max-spend ${(estimateUsd * 1.1).toFixed(2)}, or confirm the run with --yes)`;
+  `ceiling with --max-spend ${(estimateUsd * 1.1).toFixed(2)}` +
+  `${cheaperFix === undefined ? "" : `, ${cheaperFix}`}, or confirm the run with --yes)`;
 
 /** Enforce the ceiling before the caller's first model call. */
 export async function enforceOperatorSpendCeiling(input: OperatorSpendCeilingInput): Promise<void> {
@@ -301,5 +311,5 @@ export async function enforceOperatorSpendCeiling(input: OperatorSpendCeilingInp
     if (await confirmation.ask(question)) return;
   }
 
-  throw new OperatorError(refusalMessage(estimate.usd, maxSpendUsd));
+  throw new OperatorError(refusalMessage(estimate.usd, maxSpendUsd, input.cheaperFix));
 }

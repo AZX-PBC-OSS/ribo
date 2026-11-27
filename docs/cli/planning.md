@@ -37,6 +37,18 @@ structure. With `--corpus`, the command also scaffolds a corpus directory beside
 scaffold's `expected` maps and instructions stay **empty** — a draft never invents expected answers
 or defaults, because expectations are the author's judgement, not the model's.
 
+A real corpus usually holds more samples than a draft needs. Draft from a few representative
+samples and scaffold all of them: repeatable `--draft-from <sample>` names the samples the draft
+reads, by loaded sample name (a bare file's basename without extension, a case folder's case id, a
+plain folder's directory name), matched exactly as passed. The prompt, the spend estimate and
+evidence validation cover only the named samples; every passed sample still loads, transcribes and
+scaffolds as a case, so a full corpus arrives in one command. `--draft-from` requires `--corpus`,
+and a name matching no passed sample is refused before any spend — as is an unreadable
+non-drafting sample, because every sample loads before the estimate. An estimate above `--max-spend`
+that drafts from more than one sample also names `--draft-from` as a fix, together with
+`--corpus` when the run has none: drafting from fewer samples prices less. Without the flag,
+every sample is drafted from, exactly as before.
+
 Output discipline matches `eval`: without `--out`, stdout is the complete schema alone; `--out`
 writes a distinct new file and never overwrites an existing path. Every run prints an upper-bound
 spend estimate to stderr before the first call and refuses above `--max-spend`.

@@ -41,7 +41,11 @@ directory, its `.pdf`, `.txt` and `.md` files in byte-wise file-name order), or 
 case folder with any number of declared inputs
 — and optionally scaffolds a corpus
 beside it. The draft's expectations and instructions stay empty: a draft never invents what your
-documents should answer. Without `--out`, stdout is the complete schema alone; `--out` names a
+documents should answer. With repeatable `--draft-from <sample>`, the prompt, spend estimate and
+evidence validation read only the named samples (by loaded sample name, matched exactly as passed;
+requires `--corpus`) while every passed sample still loads, transcribes and scaffolds as a case —
+draft from a few representative samples, scaffold all of them. Without `--out`, stdout is the
+complete schema alone; `--out` names a
 distinct new file and never overwrites an existing path. Spend is estimated to stderr before the
 first call and refused above `--max-spend`.
 
