@@ -1,0 +1,113 @@
+{
+  "id": "attic-report",
+  "inputs": [
+    {
+      "file": "input.txt",
+      "kind": "text"
+    }
+  ],
+  "expected": {
+    "home.address": {
+      "status": "asserted",
+      "value": "14 Alder Street",
+      "proposal": {
+        "status": "asserted",
+        "value": "14 Alder Street",
+        "evidence": {
+          "quote": "The home is at 14 Alder Street",
+          "input": "input.txt"
+        },
+        "backend": "openai-compatible",
+        "model": "gpt-4o",
+        "proposedAt": "2026-11-27T10:15:00.000Z"
+      },
+      "review": "pending"
+    },
+    "home.yearBuilt": {
+      "status": "asserted",
+      "value": 1928,
+      "proposal": {
+        "status": "asserted",
+        "value": 1928,
+        "evidence": {
+          "quote": "built 1928",
+          "input": "input.txt"
+        },
+        "backend": "openai-compatible",
+        "model": "gpt-4o",
+        "proposedAt": "2026-11-27T10:15:00.000Z"
+      },
+      "review": "pending"
+    },
+    "heating.fuel": {
+      "status": "asserted",
+      "value": "gas",
+      "proposal": {
+        "status": "asserted",
+        "value": "gas",
+        "evidence": {
+          "quote": "Heating runs on gas",
+          "input": "input.txt"
+        },
+        "backend": "openai-compatible",
+        "model": "gpt-4o",
+        "proposedAt": "2026-11-27T10:15:00.000Z"
+      },
+      "review": "confirmed"
+    },
+    "heating.servicedAt": {
+      "status": "declared-absent",
+      "proposal": {
+        "status": "declared-absent",
+        "backend": "openai-compatible",
+        "model": "gpt-4o",
+        "proposedAt": "2026-11-27T10:15:00.000Z"
+      },
+      "review": "pending"
+    },
+    "upgrades.measure": {
+      "status": "asserted",
+      "value": {
+        "0": "insulation"
+      },
+      "proposal": {
+        "status": "asserted",
+        "value": {
+          "0": "insulation"
+        },
+        "evidence": {
+          "0": {
+            "quote": "An attic insulation top-up",
+            "input": "input.txt"
+          }
+        },
+        "backend": "openai-compatible",
+        "model": "gpt-4o",
+        "proposedAt": "2026-11-27T10:15:00.000Z"
+      },
+      "review": "pending"
+    },
+    "upgrades.cost": {
+      "status": "asserted",
+      "value": {
+        "0": 1800
+      },
+      "proposal": {
+        "status": "asserted",
+        "value": {
+          "0": 1750
+        },
+        "evidence": {
+          "0": {
+            "quote": "quoted at $1,800",
+            "input": "input.txt"
+          }
+        },
+        "backend": "openai-compatible",
+        "model": "gpt-4o",
+        "proposedAt": "2026-11-27T10:15:00.000Z"
+      },
+      "review": "confirmed"
+    }
+  }
+}

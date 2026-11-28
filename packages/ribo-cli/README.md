@@ -264,9 +264,18 @@ command below runs against it verbatim; substitute your own directory once the s
 10. **Propose the expected answers, then review them.** The fast path:
     `ribo corpus propose node_modules/@azx/ribo-cli/examples/basic-corpus --backend claude-cli --model claude-haiku-5-5`
     proposes pending expected answers for every leaf no entry and no default answers, writing each
-    `case.json` in place — only `expected` gains keys, each entry pending your review. Read the
+    `case.json` in place — only `expected` gains keys, each entry pending your review. Then
+    `ribo corpus review` shows every pending proposal with its evidence — value, quote and input,
+    each quote re-verified and each value marked when it occurs literally in its quote — and
+    records the decision: `--confirm` (whole-case confirms only literal, still-grounded entries
+    and prints what it left pending and why), `--confirm --leaf` to confirm named entries, an
+    edit to `value` in `case.json` plus `--confirm --leaf` to correct one, `--mark-absent --leaf`
+    to claim the silence yourself, and `--reject --leaf` to remove the proposal so the leaf
+    resolves as the corpus otherwise would. Read the
     report, correct what the model got wrong, and confirm each entry (`"review": "confirmed"`):
-    a pending proposal is never judged; eval scores only confirmed expectations. Hand-writing
+    a pending proposal is never judged; eval scores only confirmed expectations. A worked example
+    with proposals in every review state ships at `examples/proposed-corpus`, walked by the docs'
+    "Reviewing proposed answers" section. Hand-writing
     every entry remains the alternative: each `expected` maps a dotted leaf path to an `asserted`
     value (with optional `alternatives` and a `sourceSpan`) or a `declared-absent` entry; a leaf
     you say nothing about is simply not judged, and a `defaults` entry declares a whole scope

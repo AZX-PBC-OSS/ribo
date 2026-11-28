@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "description": "One home's audit visit.",
+  "properties": {
+    "home": {
+      "type": "object",
+      "description": "What was visited.",
+      "properties": {
+        "address": { "type": "string", "description": "The home's street address." },
+        "yearBuilt": { "type": "number", "description": "The construction year." }
+      },
+      "required": ["address", "yearBuilt"]
+    },
+    "heating": {
+      "type": "object",
+      "description": "What heats the home and when it was last serviced.",
+      "properties": {
+        "fuel": {
+          "type": "string",
+          "enum": ["gas", "electric", "oil"],
+          "description": "The heating fuel."
+        },
+        "servicedAt": { "type": "string", "description": "The day of the last service." }
+      },
+      "required": ["fuel", "servicedAt"]
+    },
+    "upgrades": {
+      "type": "array",
+      "description": "The upgrades quoted during the visit.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "measure": { "type": "string", "description": "The measure's name." },
+          "cost": { "type": "number", "description": "The quoted cost." }
+        },
+        "required": ["measure", "cost"]
+      }
+    }
+  },
+  "required": ["home", "heating", "upgrades"]
+}

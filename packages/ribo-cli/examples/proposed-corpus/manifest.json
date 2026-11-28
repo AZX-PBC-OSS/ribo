@@ -1,0 +1,9 @@
+{
+  "name": "proposed-corpus",
+  "schema": "schema.json",
+  "provenance": "synthetic",
+  "prompt": {
+    "instructions": "Read the auditor's report and extract the home's details, the heating details and the quoted upgrades."
+  },
+  "description": "A synthetic corpus showing proposals in review states — pending, confirmed and corrected. Walked by the Reviewing proposed answers section of the corpus page; not an eval target."
+}
