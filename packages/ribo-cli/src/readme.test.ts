@@ -185,6 +185,31 @@ test("the CLI overview and package README lead with authoring and link all new d
   }
 });
 
+test("the authoring docs lead expected answers through propose and review while instructions stay author-written", () => {
+  // Both entry documents name the two commands, propose before review.
+  for (const doc of [README, INDEX_DOC]) {
+    expect(doc).toContain("ribo corpus propose");
+    expect(doc).toContain("ribo corpus review");
+    expect(doc.indexOf("ribo corpus propose")).toBeLessThan(doc.indexOf("ribo corpus review"));
+  }
+  // The review-before-scoring rule: a pending proposal is never judged.
+  expect(README).toMatch(/pending proposal is never judged/u);
+  expect(INDEX_DOC).toMatch(/pending proposal is never judged/u);
+  // The separate instruction-authoring responsibility: the proposal pass
+  // never writes prompt instructions, and the docs never blur the two.
+  expect(README).toMatch(/prompt instructions are yours to write/u);
+  expect(INDEX_DOC).toMatch(/Prompt instructions stay the author's to write/u);
+  expect(PLANNING_DOC).toMatch(/confirmed by the author before it is scored/u);
+  expect(CORPUS_DOC).toMatch(/confirmed by the author before it is scored/u);
+  // The scaffold-passage wording that made hand-authoring the only path is gone.
+  expect(PLANNING_DOC).not.toMatch(/expectations are the author's judgement, not the model's/u);
+  expect(CORPUS_DOC).not.toMatch(/expectations are the author's judgement, not the model's/u);
+  // Keep the drafted schema whole; an unjudgeable leaf is rejected, not cut.
+  expect(INDEX_DOC).toMatch(/Keep the drafted schema whole/u);
+  expect(INDEX_DOC).toMatch(/stays\s+unmentioned/u);
+  expect(README).toMatch(/Keep the drafted schema whole/u);
+});
+
 test("the plan-worth-trying body states its triggers, single-shot caveat, cost and no accuracy claim", () => {
   // The three conditions under which a plan is worth measuring. Prettier
   // wraps prose at its own width, so every phrase matches across line breaks.

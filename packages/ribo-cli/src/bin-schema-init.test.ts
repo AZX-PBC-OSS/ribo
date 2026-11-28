@@ -422,9 +422,35 @@ test("a corpus scaffold has byte-identical schema output, one empty case per sam
   expect(loaded.cases.every((entry) => entry.defaults === undefined)).toBe(true);
   expect(loaded.cases[0]?.inputs[0]).toMatchObject({ kind: "text", file: "field-notes.txt" });
   expect(loaded.cases[1]?.inputs[0]).toMatchObject({ kind: "transcript", file: "input.txt" });
-  for (const handoff of ["schema inspect", "schema plan", "corpus text", "expectation", "eval"]) {
+  for (const handoff of ["schema inspect", "schema plan", "corpus text", "eval"]) {
     expect(result.stderr).toContain(handoff);
   }
+  // The expected-answers handoff names propose then review, on one line that
+  // says nothing about prompt instructions (ADR 0049).
+  const expectedAnswers = result.stderr
+    .split("\n")
+    .find((line) => line.includes("expected-answers handoff"));
+  expect(expectedAnswers).toBeDefined();
+  expect(expectedAnswers).toContain(`ribo corpus propose ${corpus}`);
+  expect(expectedAnswers).toContain("--backend <name> --model <id>");
+  expect(expectedAnswers).toMatch(/prefer a proposer that is not the model you will score/u);
+  expect(expectedAnswers).toContain(`ribo corpus review ${corpus}`);
+  expect(expectedAnswers).not.toContain("instruction");
+  // The old hand-authoring wording for expected answers is gone.
+  expect(result.stderr).not.toContain("author them explicitly before measuring");
+  // Prompt instructions stay the author's, on their own line, and the
+  // expected-answers handoff does not replace that line.
+  const instructions = result.stderr
+    .split("\n")
+    .find((line) => line.includes("prompt-instructions handoff"));
+  expect(instructions).toBeDefined();
+  expect(instructions).toContain("empty");
+  expect(instructions).toMatch(/author/u);
+  expect(instructions).not.toContain("propose");
+  // Eval runs only after review.
+  const evalLine = result.stderr.split("\n").find((line) => line.includes("eval handoff"));
+  expect(evalLine).toBeDefined();
+  expect(evalLine).toMatch(/review/iu);
 });
 
 test("existing --out and --corpus destinations are refused before any request and never overwritten", async () => {

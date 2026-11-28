@@ -14,7 +14,9 @@ import { convertDocument } from "./inspect/convert.js";
  * section walk through, held to the loader and the inspector it teaches:
  * the corpus loads with no error, and its schema inspects with every leaf
  * described — the example's guidance coverage is the property the docs
- * claim, so it is pinned here rather than restated in prose.
+ * claim, so it is pinned here rather than restated in prose. The example
+ * stays proposal-free (ADR 0049), and the walkthroughs that walk through it
+ * route its expected answers through propose and review before eval.
  *
  * Nothing here makes a model call; the eval-over-the-example suite lives in
  * `bin-example-eval.test.ts`.
@@ -50,6 +52,38 @@ test("the worked example corpus loads through loadCorpus with no error", () => {
   const absent = morning.expected["heating.servicedAt"];
   expect(absent?.status).toBe("declared-absent");
   expect(absent?.sourceSpan).not.toBeUndefined();
+
+  // The committed example stays proposal-free (ADR 0049): every entry is
+  // hand-written, with no proposal block for review to act on.
+  for (const entry of corpus.cases) {
+    for (const expectation of Object.values(entry.expected)) {
+      expect(expectation.proposal).toBeUndefined();
+      expect(expectation.review).toBeUndefined();
+    }
+  }
+});
+
+test("the walkthroughs of this example route its expected answers through propose and review before eval", () => {
+  // The README and the docs site both walk through this corpus verbatim, so
+  // their expected-answers step is pinned beside the corpus it steps through
+  // (ADR 0049): propose drafts, review confirms, and only then does eval
+  // score — the hand-written-only step this walkthrough carried before is
+  // gone.
+  const INDEX_DOC = readFileSync(
+    fileURLToPath(new URL("../../../docs/cli/index.md", import.meta.url)),
+    "utf8",
+  );
+  const README = readFileSync(fileURLToPath(new URL("../README.md", import.meta.url)), "utf8");
+
+  expect(INDEX_DOC).toContain("Propose, then review, the expected answers");
+  expect(INDEX_DOC).not.toMatch(/Write the expected answers\*\* in each case's/u);
+  // Propose-and-review sits before the eval step in the walkthrough's order.
+  expect(INDEX_DOC.indexOf("Propose, then review, the expected answers")).toBeLessThan(
+    INDEX_DOC.indexOf("Run `eval` under a spend cap"),
+  );
+  // The README tells the same story about this example's scaffold, and names
+  // the walkthrough step where the decisions happen.
+  expect(README).toMatch(/go through `ribo corpus propose` and `ribo corpus review` \(step 10\)/u);
 });
 
 test("the worked example covers a document case: it loads with its capture block and its expectations", () => {

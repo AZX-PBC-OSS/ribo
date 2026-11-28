@@ -112,7 +112,13 @@ test("ribo corpus review --help ends with the docs pointer", () => {
 const planningPointer = (what: string): string => pointer("planning", what).replace(/\\\.\$$/, "");
 
 test("the root --help names ribo schema init as the start", () => {
-  expect(helpOf()).toMatch(/Start here:[^\n]*ribo schema init/u);
+  const help = helpOf();
+  expect(help).toMatch(/Start here:[^\n]*ribo schema init/u);
+  // ADR 0049: the start-here path runs scaffold → propose → review → eval,
+  // with review gating eval, in that order.
+  expect(help).toMatch(
+    /scaffold a corpus around them; then ribo corpus propose drafts the expected\s+answers and ribo corpus review confirms them before eval scores anything\./u,
+  );
 });
 
 test("the root --help points at the planning guide", () => {
