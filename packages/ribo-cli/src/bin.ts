@@ -105,6 +105,7 @@ import { renderHumanReport } from "./render-human.js";
 import { registerSchemaInitCommand } from "./schema-init/command.js";
 import { registerSchemaPlanCommand } from "./schema-plan/command.js";
 import { registerCorpusProposeCommand } from "./corpus/propose-command.js";
+import { registerCorpusReviewCommand } from "./corpus/review-command.js";
 import { schemaPlanFreshness, schemaPlanUpdateCommand } from "./schema-plan/freshness.js";
 
 /**
@@ -1258,8 +1259,9 @@ const corpusTextHelp = [
 const corpusCommand = program
   .command("corpus")
   .description(
-    "Read a corpus directory without spending, or propose its pending expected answers — the " +
-      "one corpus subcommand that calls a model, priced and capped like every authoring command",
+    "Read a corpus directory without spending, propose its pending expected answers (the one " +
+      "subcommand that calls a model, priced and capped like every authoring command), or " +
+      "review those proposals — the sheet and the decisions, free and read-only without a flag",
   )
   .addHelpText("after", docsPointer("corpus", "the corpus format the subcommand reads"));
 
@@ -1283,6 +1285,8 @@ corpusTextCommand
   .configureOutput({ writeErr: writeCorpusTextErr });
 
 registerCorpusProposeCommand(corpusCommand);
+
+registerCorpusReviewCommand(corpusCommand);
 
 // Commander's parse() reads process.argv by default. Exit codes are the
 // command's own: 0 from run(), 1 from the threshold-breach path, 2 from

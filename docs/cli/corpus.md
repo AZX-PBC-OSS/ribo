@@ -213,6 +213,71 @@ judge it. Review it, correct it if the model was wrong, and confirm it (`review:
 then run eval as usual. The exit code is 0 when the run completed (a failed case is a report
 entry, not a failure of the command) and 2 when it could not run.
 
+## Reviewing proposed answers: `ribo corpus review`
+
+The other half of the proposal pass. One command shows every pending proposal with its evidence
+and records the reviewer's decision — and with no action flag it is read-only, free, and makes no
+model call:
+
+```bash
+ribo corpus review ./corpora/workshop            # every case's pending sheet
+ribo corpus review ./corpora/workshop service-sheet
+```
+
+The sheet prints, per case, every pending proposal's **value, quote and input** — the quote
+re-verified against the case's current inputs (`grounded`) and the value marked `literal` when
+the value itself occurs in its quote. Collections render **row-major**: one row per instance
+ordinal, each row carrying its leaves' cells, and a leaf that says nothing about a row shows the
+cell as missing. Proposed absences sit in their own block, because a claim of silence has no
+evidence to show. `--json` emits the same sheet as one versioned document.
+
+A decision needs a **case id** and **exactly one action**. A decision on a leaf with no pending
+proposal — already confirmed, or hand-written — is refused by name, stdout stays empty, and the
+exit code is 2:
+
+- **Confirm — `--confirm`, optionally narrowed by repeatable `--leaf <path>`.** A whole-case
+  confirm deliberately confirms only entries whose every value is literal in a still-grounded
+  quote: proposed absences and non-literal values stay pending, and the command prints what it
+  left pending and why. The friction is the point — the trial's failure was exactly a false
+  "absent", and silence is the one claim the sheet cannot show evidence for. Name those entries
+  with `--leaf` once you have judged them yourself.
+- **Correct, then confirm.** A correction is an edit to the entry's `value` in `case.json` — a
+  JSON value on a command line is unwritable — followed by `--confirm --leaf <path>`. Code then
+  classifies the entry as **corrected** rather than accepted-unchanged, and the run record says
+  so.
+- **Mark absent — `--mark-absent --leaf <path>`.** Sets the entry `declared-absent` and confirms
+  it: the reviewer's own claim of silence, riding beside the untouched proposal.
+- **Reject — `--reject --leaf <path>`.** Removes the pending explicit entry, so the leaf resolves
+  exactly as the corpus otherwise would — through a covering default if one exists, else
+  unmentioned. Reject never edits a default and never writes an explicit unmentioned entry.
+
+The `proposal` block is never modified by any decision — it is the record of what the model
+proposed, which is what lets a reader of a run record tell accepted-unchanged from corrected.
+Removing it by hand defeats the record's honesty; the honest path is cheaper than the dishonest
+one.
+
+Every write goes through the same guarded writer propose uses: only the case's `expected` map
+changes, every other member and key order survives, and publication is a temp file then a rename,
+so an interrupted write never leaves a half-written case.
+
+**An agent can be the reviewer.** The `--json` sheet is the input an agent reads; the docs tell
+it to check each proposed absence against `ribo corpus text <corpus-dir> <case-id>` — the
+combined text is what a claim of silence must be true about — and then to drive the same flags a
+human would. The backstop is the run record's accepted-unchanged count: an entry proposed and
+confirmed by the same model is counted, and stderr says so on every eval run over it.
+
+The package ships a worked example holding proposals in every state — pending, confirmed
+unchanged, confirmed corrected, and a pending absence — at
+`node_modules/@azx/ribo-cli/examples/proposed-corpus` (in the repository:
+`packages/ribo-cli/examples/proposed-corpus`). It is a reading example for this section, not an
+eval target. Its case file:
+
+<<< @/../packages/ribo-cli/examples/proposed-corpus/attic-report/case.json
+
+and the input every quote grounds in:
+
+<<< @/../packages/ribo-cli/examples/proposed-corpus/attic-report/input.txt
+
 ## When a case's inputs disagree
 
 A multi-input case can hold inputs that disagree — two transcripts giving different floor areas, a
@@ -288,5 +353,6 @@ list order, capture markers included when they are on; document inputs transcrib
 same path `ribo eval` uses, with no model call and no credential. That is the handoff in order:
 scaffold, then corpus text, then expectations — the text is what an expectation is checked against,
 so it is read before anything is asserted. The expectations themselves can be hand-written, or
-drafted by `ribo corpus propose` and reviewed by you — see
-[the proposal pass](#proposing-expected-answers-ribo-corpus-propose) above.
+drafted by `ribo corpus propose` and reviewed with `ribo corpus review` — see
+[the proposal pass](#proposing-expected-answers-ribo-corpus-propose) and
+[reviewing proposed answers](#reviewing-proposed-answers-ribo-corpus-review) above.

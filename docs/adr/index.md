@@ -91,3 +91,4 @@ receives.
 | [0047](./0047-a-bare-pdfs-capture-block-is-measured-and-ingestion-stamped.md)           | A bare PDF's capture block is measured and ingestion-stamped                                   | Accepted |
 | [0048](./0048-schema-init-reads-a-plain-folder-as-one-ordered-sample.md)                | Schema init reads a plain folder as one ordered sample                                         | Accepted |
 | [0049](./0049-expectations-may-be-proposed-and-are-scored-only-once-reviewed.md)        | Expectations may be proposed and are scored only once reviewed                                 | Accepted |
+| [0050](./0050-rejecting-a-proposal-removes-the-entry-and-nothing-else.md)               | Rejecting a proposal removes the entry and nothing else                                        | Accepted |
