@@ -1,5 +1,33 @@
 # @azx/ribo-core
 
+## 0.2.0
+
+### Minor Changes
+
+- e49c689: Execute reviewed nested schema plans through `plannedExtractor`, expose their model-free `plannedPerGroupPlan` compilation, and add an opt-in grouped same-key merge seam while preserving the legacy shallow default.
+- 8606411: Add the versioned schema-plan contract, exact inventory coverage validation and canonical browser-safe plan identity. Move the provenance-aware field inventory into core while retaining the CLI's existing import surface.
+- 5302513: `describeExtraction` reports, beside a per-group call shape, the measured conditions that excluded single-shot — the whole schema's nullable-union count over its cap, its serialized size over a supplied byte cap, or forced partitions — each with its measured value and limit where one exists, as `singleShotExclusions`.
+- 85e3505: Rename four public names to read better next to the rest of the API. The packages are 0.x, so this ships as a minor with no deprecation alias.
+
+  - `Recording` is now `AudioCapture` (it pairs with `DocumentCapture`); `recordingSchema` is now `audioCaptureSchema` and `baseRecordingSchema` is now `baseAudioCaptureSchema`. Persisted data is unchanged — the `kind: "audio"` literal and every storage field name stay as they were.
+  - `hedged` is now `hedgedTranscriber`, matching `hedgedExtractor`; its option type `HedgedOptions` is now `HedgedTranscriberOptions`.
+  - `ChatRequest.response_format` is now `ChatRequest.responseFormat`, matching `maxTokens`. Only the TypeScript member changed: each transport still sends its current wire body, so OpenAI's chat surface keeps the `response_format` wire field.
+  - `createSequentialExtractor` and `createConcurrentExtractor` are no longer exported from the barrel. They stay as the internal engines behind `fallbackExtractor` and `raceExtractor` — use those instead.
+
+- e76e1db: Remove internal names from the public barrel: `abstainedValue`, `addUsage`, `buildFieldPath`, `CapabilityCache` (with the `CapabilityCacheOptions` type), `capturePayloadSchema`, `createCaptureStorageScope`, `createPluginStorage`, `createPluginStorageScope`, `DEFAULT_FAKE_TRANSCRIBER_ENGINE`, `DEFAULT_MIME_TYPE_PREFERENCES`, `fieldDescriptionsMode`, `holdLock` (with the `HeldLock` type), `partitionLabelLine`, `projectFillExample`, `relayItemLock`, `retypeToPatchValue`, `TRANSCRIBER_UNAVAILABLE_REASONS`, and `writableGroupEntry`. None has an importer outside the package; each is either still used internally or kept where it is unused. If you relied on one, open an issue.
+
+### Patch Changes
+
+- 6fb69fe: Add internal nested schema-plan projection and planned-group compilation with single-owner row citations and existing cap packing.
+- 13616f9: `stripOptionalNullable` now carries the description of the outermost optional/nullable wrapper that HAS one, at any depth of the chain — previously it read only the outermost wrapper. `z.fromJSONSchema` renders a property that is absent from its parent's `required` list and carries `"nullable": true` plus a `description` as `ZodOptional(ZodNullable(leaf))` with the text on the middle `ZodNullable`, so that description was silently dropped: `walkLeafInventory` reported the leaf as undescribed, and everything built from the walk — the field-guidance block rendered into extraction prompts, and `ribo schema inspect`'s guidance coverage figure — lost the text with it. The outer-described-wins rule is unchanged: when several layers carry a description, the outermost-described wrapper's text still wins. Schemas whose descriptions were already found (the outermost wrapper, or the inner type itself) behave exactly as before.
+- a39efc5: `presenceNarrowedExtractor`'s fill phase now honours the same split caps the per-group strategy honours. It previously sent exactly one value-extraction call per group with present leaves, however large the group's narrowed schema — so under a byte-capped route (the Helix vendor cap of 32,768 serialized characters on the real Snugg Pro schema) it could send an over-cap call the per-group path would have partitioned, and the route refused it. The fill now narrows first and then splits each group's narrowed schema through the same `splitExtractionSchema` the per-group plan partitions with: `presenceFillPhase` (and the preset, which forwards it) takes `maxNullableUnionsPerGroup` (same default, `MAX_NULLABLE_UNIONS_PER_CALL`) and `maxSerializedCharsPerGroup` (same pass-through, off when absent). One fill item per piece, so a failed piece nulls only its own leaves under `onItemFailure: "skip"`, and a collection group's pieces zip back by instance index — presence still decides which leaves, never how many instances. Narrowing runs before the split, so a group with few present leaves still costs one call.
+
+  `ribo schema inspect`'s `presenceNarrowedAtMost` moves with the fix: it is now the group count (presence, one call per group always) plus the split's own grouped-piece count under the reported caps — the all-present worst case the agreement test pins, partition included — instead of the old `2 × groupCount`. The JSON contract's shape is unchanged, so `contractVersion` stays at 3.
+
+  The adapter's entry covers its new presence-narrowed cap test against the real schema and vendor cap — no runtime change.
+
+- c8c5461: `ChatCompletion`'s documentation now names the CLI transport's home as `@azx/ribo-cli`'s `cli-chat.ts`; it named a path that no longer exists. No runtime change.
+
 ## 0.1.0
 
 ### Minor Changes

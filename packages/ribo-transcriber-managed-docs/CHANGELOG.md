@@ -1,5 +1,24 @@
 # @azx/ribo-transcriber-managed-docs
 
+## 0.2.0
+
+### Minor Changes
+
+- e76e1db: Remove the response-parsing internals from the public barrel: `flattenDocumentAnalysisResponse`, `isEncryptedError`, `stripMarkersAndWhitespace`, and the `DocumentAnalysisCell`, `DocumentAnalysisErrorBody`, `DocumentAnalysisPage`, `DocumentAnalysisResponse`, and `DocumentAnalysisTable` types. The managed-docs `Transcriber` class is the public surface.
+
+### Patch Changes
+
+- Updated dependencies [e49c689]
+- Updated dependencies [6fb69fe]
+- Updated dependencies [8606411]
+- Updated dependencies [5302513]
+- Updated dependencies [13616f9]
+- Updated dependencies [a39efc5]
+- Updated dependencies [85e3505]
+- Updated dependencies [c8c5461]
+- Updated dependencies [e76e1db]
+  - @azx/ribo-core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

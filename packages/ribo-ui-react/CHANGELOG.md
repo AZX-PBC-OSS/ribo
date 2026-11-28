@@ -1,5 +1,20 @@
 # @azx/ribo-ui-react
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [e49c689]
+- Updated dependencies [6fb69fe]
+- Updated dependencies [8606411]
+- Updated dependencies [5302513]
+- Updated dependencies [13616f9]
+- Updated dependencies [a39efc5]
+- Updated dependencies [85e3505]
+- Updated dependencies [c8c5461]
+- Updated dependencies [e76e1db]
+  - @azx/ribo-core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
