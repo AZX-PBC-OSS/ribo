@@ -1,5 +1,24 @@
 # @azx/ribo-chat-helix
 
+## 0.2.0
+
+### Minor Changes
+
+- 85e3505: Follow @azx/ribo-core's rename of `ChatRequest.response_format` to `ChatRequest.responseFormat`. The flattened Helix wire body is unchanged and a new wire-drift test pins it, asserting the body carries no `response_format` key.
+
+### Patch Changes
+
+- Updated dependencies [e49c689]
+- Updated dependencies [6fb69fe]
+- Updated dependencies [8606411]
+- Updated dependencies [5302513]
+- Updated dependencies [13616f9]
+- Updated dependencies [a39efc5]
+- Updated dependencies [85e3505]
+- Updated dependencies [c8c5461]
+- Updated dependencies [e76e1db]
+  - @azx/ribo-core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
