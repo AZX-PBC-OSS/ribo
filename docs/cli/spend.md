@@ -50,10 +50,21 @@ and the estimate says it fell back and names the reference it used** — a model
 priced at the wrong class's prices. A model whose list price cannot be stated from a public source
 gets no row and takes the fallback; no price is invented.
 
-Authoring has its own ceiling: `ribo schema init` and `ribo schema plan` print the same kind of
-upper-bound estimate and refuse above `--max-spend` before their first call. The authoring-side
-behavior — what a plan costs to write and update — is
+Authoring has its own ceiling: `ribo schema init`, `ribo schema plan` and `ribo corpus propose`
+print the same kind of upper-bound estimate and refuse above `--max-spend` before their first
+call. The authoring-side behavior — what a plan costs to write and update — is
 [Planning and authoring](/cli/planning); this page is the run-side bound.
+
+`ribo corpus propose` prices one initial proposal call per case that has unanswered leaves, each
+on that case's own measured prompt (document cases are transcribed first, so a PDF is priced at
+the text it actually yields), and sums the per-case bounds into one invocation-wide estimate —
+never one corpus-sized call, never every case at the largest prompt. Each per-case bound carries
+the same multipliers as init: one semantic repair round, two transport retries and the authoring
+CLI shape budget, with the completion side at `--response-cap` or the default cap. The repair
+request quotes only the named problems, bounded in size, so the per-attempt growth term stays
+small on long case texts and never scales with `--response-cap`. The ceiling is **per
+invocation**: proposing a corpus in chunks — a `--only` scope at a time, or a few case ids per
+run — spends up to the ceiling for each chunk, not across all chunks combined.
 
 The `claude-cli` and `codex-cli` backends are subscriptions: their use is not metered per token.
 Their rows price the run at the token-equivalent list price of the named class, and the estimate
@@ -81,7 +92,11 @@ backend sends it in each request, and the CLI backends pass it to the binary the
 (`claude --model`, `codex -m`).
 
 One caveat: a CLI cannot cap generated tokens, so `--response-cap` with a CLI backend is refused up
-front; run against `--backend openai-compatible`, which honours the cap.
+front; run against `--backend openai-compatible`, which honours the cap. The same asymmetry shapes
+an over-ceiling refusal's cheaper fixes: on `openai-compatible` the refusal may recommend naming
+fewer case ids, narrowing the asked leaves with `--only`, or lowering `--response-cap`; on
+`claude-cli` or `codex-cli` it recommends only fewer case ids or a narrower `--only` — never a
+flag that backend refuses.
 
 `--timeout <seconds>` sets how long one CLI call may run before its case fails (default 600 — a
 large-document prompt takes a CLI minutes to answer, and a timed-out call's failure names the

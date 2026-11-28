@@ -263,6 +263,141 @@ export function formatFixedCallSpend(estimate: FixedCallSpendEstimate, colors: C
   return lines;
 }
 
+/**
+ * The invocation-wide aggregate over per-case fixed-call estimates: every
+ * case's own measured bound, summed. One command run prices one backend and
+ * one model, so the dated price basis is shared; a caller that mixes them is
+ * refused rather than silently priced at the first row.
+ */
+export interface FixedCallSpendTotal {
+  /** The priced cases — those whose work contributed a bound. */
+  readonly caseCount: number;
+  /** The summed upper-bound dollars. */
+  readonly usd: number;
+  /** The summed worst-case transport calls. */
+  readonly worstCaseCalls: number;
+  /** The summed worst-case prompt tokens. */
+  readonly worstCasePromptTokens: number;
+  /** The summed worst-case completion tokens. */
+  readonly worstCaseCompletionTokens: number;
+  /** The completion cap every case priced its calls at. */
+  readonly completionTokensPerCall: number;
+  /** The per-case budget every estimate shared. */
+  readonly budget: NormalizedFixedCallBudget;
+  /** The shared dated price basis; absent when no case was priced. */
+  readonly price?: PriceResolution;
+}
+
+/**
+ * Sum per-case fixed-call estimates into one invocation-wide bound. The sum
+ * is over every case's own measured prompt — never one corpus-sized call,
+ * never every case at the largest — and a non-finite total is refused rather
+ * than undercounted.
+ */
+export function sumFixedCallSpendEstimates(
+  estimates: readonly FixedCallSpendEstimate[],
+): FixedCallSpendTotal {
+  const first = estimates[0];
+  if (first === undefined) {
+    return {
+      caseCount: 0,
+      usd: 0,
+      worstCaseCalls: 0,
+      worstCasePromptTokens: 0,
+      worstCaseCompletionTokens: 0,
+      completionTokensPerCall: 0,
+      budget: {
+        initialCalls: 0,
+        semanticRepairs: 0,
+        transportRetries: 0,
+        cliShapeAttempts: 1,
+      },
+    };
+  }
+  const budgetJson = JSON.stringify(first.budget);
+  let usd = first.usd;
+  let worstCaseCalls = first.worstCaseCalls;
+  let worstCasePromptTokens = first.worstCasePromptTokens;
+  let worstCaseCompletionTokens = first.worstCaseCompletionTokens;
+  for (const estimate of estimates.slice(1)) {
+    if (estimate.backend !== first.backend || estimate.model !== first.model) {
+      throw new OperatorError(
+        `the per-case estimates mix backends or models (${first.backend}/${first.model} and ` +
+          `${estimate.backend}/${estimate.model}) — one invocation prices one backend and one ` +
+          "model (fix: run each backend's cases as its own command)",
+      );
+    }
+    if (JSON.stringify(estimate.budget) !== budgetJson) {
+      throw new OperatorError(
+        "the per-case estimates mix call budgets — one invocation prices one call model " +
+          "(fix: report the mixed budgets to the command's maintainer)",
+      );
+    }
+    usd += estimate.usd;
+    worstCaseCalls = safeAdd(worstCaseCalls, estimate.worstCaseCalls, "the summed call bound");
+    worstCasePromptTokens = safeAdd(
+      worstCasePromptTokens,
+      estimate.worstCasePromptTokens,
+      "the summed prompt bound",
+    );
+    worstCaseCompletionTokens = safeAdd(
+      worstCaseCompletionTokens,
+      estimate.worstCaseCompletionTokens,
+      "the summed completion bound",
+    );
+  }
+  if (!Number.isFinite(usd) || usd < 0) {
+    throw new OperatorError(
+      "the summed spend estimate is not a finite non-negative amount " +
+        "(fix: reduce the per-case budgets)",
+    );
+  }
+  return {
+    caseCount: estimates.length,
+    usd,
+    worstCaseCalls,
+    worstCasePromptTokens,
+    worstCaseCompletionTokens,
+    completionTokensPerCall: first.completionTokensPerCall,
+    budget: first.budget,
+    price: first.price,
+  };
+}
+
+/** Render the per-case aggregate with its shared call model and price basis visible. */
+export function formatFixedCallSpendTotal(total: FixedCallSpendTotal, colors: Colors): string[] {
+  if (total.caseCount === 0) {
+    return [
+      colors.yellow(
+        "spend estimate: USD 0 — every case has nothing to propose, so no model call is made.",
+      ),
+    ];
+  }
+  const { budget } = total;
+  const lines = [
+    colors.yellow(
+      `spend estimate: at most ${usd(total.usd)} for this operation — an upper bound, not a forecast.`,
+    ),
+    colors.dim(
+      `  cases: ${groupDigits(total.caseCount)} priced — one initial proposal call each, summed ` +
+        "over each case's own measured prompt",
+    ),
+    colors.dim(
+      `  calls: at most ${groupDigits(total.worstCaseCalls)} — per case initial ` +
+        `${budget.initialCalls}, semantic repairs +${budget.semanticRepairs} ` +
+        `(×${budget.semanticRepairs + 1}), transport retries +${budget.transportRetries} ` +
+        `(×${budget.transportRetries + 1}), CLI shape attempts ×${budget.cliShapeAttempts}`,
+    ),
+    colors.dim(
+      `  tokens: at most ${groupDigits(total.worstCasePromptTokens)} prompt + ` +
+        `${groupDigits(total.worstCaseCompletionTokens)} completion ` +
+        `(${groupDigits(total.completionTokensPerCall)} per call)`,
+    ),
+  ];
+  if (total.price !== undefined) lines.push(...formatPriceResolution(total.price, colors));
+  return lines;
+}
+
 /** How an operator confirms an otherwise-refused spend. */
 export interface SpendConfirmation {
   readonly ask: (question: string) => Promise<boolean>;

@@ -93,6 +93,12 @@ test("ribo corpus text --help ends with the docs pointer", () => {
   );
 });
 
+test("ribo corpus propose --help ends with the docs pointer", () => {
+  expect(helpOf("corpus", "propose").trimEnd()).toMatch(
+    new RegExp(pointer("corpus", "the corpus format, propose and the review handoff"), "u"),
+  );
+});
+
 /** The planning pointer, installed path primary and online rendering secondary, as a regex body. */
 const planningPointer = (what: string): string => pointer("planning", what).replace(/\\\.\$$/, "");
 

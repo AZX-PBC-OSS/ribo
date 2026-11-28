@@ -104,6 +104,7 @@ import { InputFault, readDocumentSource } from "./read-input.js";
 import { renderHumanReport } from "./render-human.js";
 import { registerSchemaInitCommand } from "./schema-init/command.js";
 import { registerSchemaPlanCommand } from "./schema-plan/command.js";
+import { registerCorpusProposeCommand } from "./corpus/propose-command.js";
 import { schemaPlanFreshness, schemaPlanUpdateCommand } from "./schema-plan/freshness.js";
 
 /**
@@ -1256,7 +1257,10 @@ const corpusTextHelp = [
 
 const corpusCommand = program
   .command("corpus")
-  .description("Read a corpus directory without spending: see what a run would send")
+  .description(
+    "Read a corpus directory without spending, or propose its pending expected answers — the " +
+      "one corpus subcommand that calls a model, priced and capped like every authoring command",
+  )
   .addHelpText("after", docsPointer("corpus", "the corpus format the subcommand reads"));
 
 const corpusTextCommand = corpusCommand
@@ -1277,6 +1281,8 @@ const corpusTextCommand = corpusCommand
 corpusTextCommand
   .showHelpAfterError("run 'ribo corpus text --help' for the command's arguments and exit codes.")
   .configureOutput({ writeErr: writeCorpusTextErr });
+
+registerCorpusProposeCommand(corpusCommand);
 
 // Commander's parse() reads process.argv by default. Exit codes are the
 // command's own: 0 from run(), 1 from the threshold-breach path, 2 from

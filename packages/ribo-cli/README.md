@@ -131,6 +131,21 @@ per-case header.
 - **2** — could not run: an unreadable corpus, an unknown case id, or a document input that
   cannot be transcribed (no text layer, or bytes pdf.js cannot open).
 
+### `ribo corpus propose <corpus-dir> [case-id...] --backend <name> --model <id>`
+
+Proposes pending expected answers for every schema leaf no entry and no default answers, and
+writes each `case.json` in place, additively and atomically — only `expected` gains keys, and
+every new entry is pending review. The proposal prompt carries exactly the text `corpus text`
+prints, and every quote is verified by code against the case's inputs. One model call per case
+that needs one; an upper-bound estimate summed per case goes to stderr before any backend is
+prepared, and `--max-spend`/`--yes` behave as on schema init. Repeatable `--only <scope>` narrows
+the leaves asked. stdout is a versioned JSON report (one entry per selected case: `proposed`,
+`nothing-to-propose`, or `failed` with its unanswered leaves and reasons).
+
+- **0** — the run completed; a failed case is a report entry, not an exit code.
+- **2** — could not run: usage, an unreadable corpus, an unknown case id, transcription, spend,
+  backend, or a case file that could not be written.
+
 ### `ribo eval --corpus <dir> --backend <name> --model <id> --strategy <ids> [...]`
 
 Runs a corpus through the eval runner, scores every case against its expected answers, and writes
@@ -246,12 +261,18 @@ command below runs against it verbatim; substitute your own directory once the s
 9. **Read each case's text with `corpus text`.**
    `ribo corpus text node_modules/@azx/ribo-cli/examples/basic-corpus` — what the model will read,
    for free.
-10. **Write the expected answers.** Each case's `expected` maps a dotted leaf path to an
-    `asserted` value (with optional `alternatives` and a `sourceSpan`) or a `declared-absent`
-    entry; a leaf you say nothing about is simply not judged, and a `defaults` entry declares a
-    whole scope absent at once. The example's `morning-visit` case shows both kinds, and its
-    `service-sheet` case — a worksheet that says nothing the schema asks — shows the blanket form:
-    one `defaults` entry declaring every scope absent.
+10. **Propose the expected answers, then review them.** The fast path:
+    `ribo corpus propose node_modules/@azx/ribo-cli/examples/basic-corpus --backend claude-cli --model claude-haiku-5-5`
+    proposes pending expected answers for every leaf no entry and no default answers, writing each
+    `case.json` in place — only `expected` gains keys, each entry pending your review. Read the
+    report, correct what the model got wrong, and confirm each entry (`"review": "confirmed"`):
+    a pending proposal is never judged; eval scores only confirmed expectations. Hand-writing
+    every entry remains the alternative: each `expected` maps a dotted leaf path to an `asserted`
+    value (with optional `alternatives` and a `sourceSpan`) or a `declared-absent` entry; a leaf
+    you say nothing about is simply not judged, and a `defaults` entry declares a whole scope
+    absent at once. The example's `morning-visit` case shows both kinds, and its `service-sheet`
+    case — a worksheet that says nothing the schema asks — shows the blanket form: one `defaults`
+    entry declaring every scope absent.
 11. **Run the per-group arm under a spend cap.**
     `ribo eval --corpus node_modules/@azx/ribo-cli/examples/basic-corpus --backend claude-cli --model claude-haiku-5-5 --strategy per-group --max-spend 1.00 --out ./runs`.
     Read the estimate on stderr before you confirm anything — it is an upper bound, priced per
