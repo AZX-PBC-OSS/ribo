@@ -123,8 +123,12 @@ export const schemaInitProposalSchema = z.strictObject({ root: objectDeclaration
  * Strict structured output requires every property to be listed as required, so
  * the wire form lists them all and lets a member the parser treats as optional
  * arrive as null. {@link dropOptionalNulls} turns those nulls back into absence.
+ *
+ * Shared with the corpus proposal language (`corpus/propose-language.ts`), whose
+ * reply schema gets the same strict-wire treatment: one copy of the transform,
+ * so both languages' wire forms stay all-required and null-optional.
  */
-function strictWireSchema(node: unknown): unknown {
+export function strictWireSchema(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(strictWireSchema);
   if (node === null || typeof node !== "object") return node;
   const record: Record<string, unknown> = {};
@@ -161,13 +165,21 @@ export const schemaInitProposalJsonSchema = strictWireSchema(
 /** The members the parser treats as optional, which the strict wire form sends as null. */
 const OPTIONAL_MEMBERS = new Set(["optional", "enum"]);
 
-/** Remove null optional members so the strict parser sees them as absent. */
-export function dropOptionalNulls(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(dropOptionalNulls);
+/**
+ * Remove null members for the named keys, recursively — what a strict
+ * transport sends for a member the parser treats as optional.
+ */
+export function dropNullMembers(value: unknown, keys: ReadonlySet<string>): unknown {
+  if (Array.isArray(value)) return value.map((member) => dropNullMembers(member, keys));
   if (value === null || typeof value !== "object") return value;
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
-      .filter(([key, member]) => !(member === null && OPTIONAL_MEMBERS.has(key)))
-      .map(([key, member]) => [key, dropOptionalNulls(member)]),
+      .filter(([key, member]) => !(member === null && keys.has(key)))
+      .map(([key, member]) => [key, dropNullMembers(member, keys)]),
   );
+}
+
+/** Remove null optional members so the strict parser sees them as absent. */
+export function dropOptionalNulls(value: unknown): unknown {
+  return dropNullMembers(value, OPTIONAL_MEMBERS);
 }

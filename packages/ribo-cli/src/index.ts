@@ -53,6 +53,13 @@
  * every differing cell pair with both sides' persisted cells — the
  * computation behind the `ribo compare` command and behind a multi-arm
  * `ribo eval` run's cross-arm summary.
+ *
+ * The package's eighth surface is the corpus proposal engine: `proposeCase`
+ * asks a model for one case's unanswered answers over an injected transport,
+ * verifies every proposed value's quote against the case's own inputs under
+ * the one rule schema init applies, and pivots the reply into pending
+ * expectation entries (`walkCollectionPaths` supplies the collection
+ * membership both the proposer and the review sheet read).
  */
 export { CONTRACT_VERSION, SchemaInspectError, inspectSchema } from "./inspect-schema.js";
 export type { SchemaInspectOptions, SchemaInspectReport } from "./inspect-schema.js";
@@ -116,6 +123,7 @@ export type {
   CorpusManifest,
   CorpusProvenance,
   CorpusPromptInputs,
+  CollectionPathEntry,
   ExpectationEntry,
   ExpectationProposal,
   ExpectationReview,
@@ -131,6 +139,16 @@ export type {
   ScopedDefault,
   ScopedDefaultStatus,
 } from "./corpus.js";
+export { walkCollectionPaths } from "./corpus.js";
+export { PROPOSE_REPAIRS, proposeCase } from "./corpus/propose.js";
+export type {
+  FailedProposeCase,
+  ProposeCaseOptions,
+  ProposeCaseParams,
+  ProposeCaseResult,
+  ProposedCase,
+  ProposeUnproposedLeaf,
+} from "./corpus/propose.js";
 export { runEval, runEvalWithSettings } from "./eval/run.js";
 export type { RunEvalOptions, RunEvalWithSettingsResult } from "./eval/run.js";
 export { transcribeDocumentCases } from "./eval/documents.js";

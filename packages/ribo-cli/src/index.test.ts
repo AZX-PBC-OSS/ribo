@@ -154,6 +154,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "ExpectationProposalSchema",
     "ExpectationReviewSchema",
     "ExpectationValueSchema",
+    "PROPOSE_REPAIRS",
     "ProposalEvidenceMapSchema",
     "ProposalEvidenceSchema",
     "ProposalEvidenceSetSchema",
@@ -173,6 +174,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "isRecordCurrent",
     "loadCorpus",
     "planSchema",
+    "proposeCase",
     "readEvalRunRecords",
     "recordIdentity",
     "resolveExpectation",
@@ -182,6 +184,7 @@ test("the barrel exports the package's public runtime surface", () => {
     "schemaPlanFreshness",
     "scoreEvalRun",
     "transcribeDocumentCases",
+    "walkCollectionPaths",
     "writeEvalRunRecord",
   ]);
 });
@@ -193,6 +196,13 @@ test("the public runtime barrel deliberately includes schema initialization and 
   expect(typeof initSchema).toBe("function");
   expect(typeof planSchema).toBe("function");
   expect(typeof schemaPlanFreshness).toBe("function");
+});
+
+test("the public runtime barrel includes the proposal engine and the collection-path walk", () => {
+  expect(typeof cli.proposeCase).toBe("function");
+  expect(typeof cli.walkCollectionPaths).toBe("function");
+  // The engine's one bounded repair round, exported for its command's spend estimate.
+  expect(cli.PROPOSE_REPAIRS).toBe(1);
 });
 
 test("the CLI transport's internals stay off the public surface", () => {
