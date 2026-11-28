@@ -72,6 +72,37 @@ export function effectiveMarkCaptures(corpus: LoadedCorpus): boolean {
 }
 
 /**
+ * One case's ordered per-input texts: each declared input's `kind`, `file` and exact text, with
+ * document inputs transcribed through the one map `transcribeDocumentCases` built. The shared
+ * join and the proposal engine's per-input evidence matching both read this — one mapping, so
+ * the combined text and the evidence substrate can never disagree about an input's text.
+ * @param entry - The loaded case whose inputs are mapped.
+ * @param documents - The document inputs' transcribed text, keyed by `documentTextKey`.
+ * @returns The case's inputs, in declared order, with their text.
+ * @throws {@link EvalError} when a document input has no transcribed text.
+ * @category Eval
+ */
+export function caseInputsOf(
+  entry: LoadedCase,
+  documents: DocumentTexts | undefined,
+): readonly CaseInputText[] {
+  return entry.inputs.map((input): CaseInputText => {
+    if (input.kind !== "document") return { kind: input.kind, file: input.file, text: input.text };
+    const text = documents?.get(documentTextKey(entry.id, input.file));
+    if (text === undefined) {
+      throw new EvalError(
+        `eval: the corpus case "${entry.id}"'s document input "${input.file}" has no ` +
+          "transcribed text — document inputs are transcribed once per run and the run " +
+          "refuses rather than skipping one: a partially-run corpus measures nothing (fix: " +
+          "transcribe the corpus's document inputs with transcribeDocumentCases and pass " +
+          "the result to every arm and to the estimate)",
+      );
+    }
+    return { kind: input.kind, file: input.file, text };
+  });
+}
+
+/**
  * The one text a case's prompt carries: its declared inputs, each loaded or
  * transcribed exactly as a single input is today, joined in declared order by
  * core's combiner under the corpus's marker policy.
@@ -92,20 +123,7 @@ export function caseTextOf(
   entry: LoadedCase,
   documents: DocumentTexts | undefined,
 ): string {
-  const inputs = entry.inputs.map((input): CaseInputText => {
-    if (input.kind !== "document") return { kind: input.kind, file: input.file, text: input.text };
-    const text = documents?.get(documentTextKey(entry.id, input.file));
-    if (text === undefined) {
-      throw new EvalError(
-        `eval: the corpus case "${entry.id}"'s document input "${input.file}" has no ` +
-          "transcribed text — document inputs are transcribed once per run and the run " +
-          "refuses rather than skipping one: a partially-run corpus measures nothing (fix: " +
-          "transcribe the corpus's document inputs with transcribeDocumentCases and pass " +
-          "the result to every arm and to the estimate)",
-      );
-    }
-    return { kind: input.kind, file: input.file, text };
-  });
+  const inputs = caseInputsOf(entry, documents);
   if (effectiveMarkCaptures(corpus)) return joinCaseInputTexts(inputs);
   return createDefaultTranscriptCombiner({ markCaptures: false })(annotatedParts(inputs)).text;
 }

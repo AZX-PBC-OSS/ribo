@@ -37,6 +37,7 @@ import { walkCollectionPaths } from "./collection-paths.js";
 import type { ProposeReply, ProposeValue } from "./propose-language.js";
 import { dropProposeReplyNulls, proposeReplySchema } from "./propose-language.js";
 import { initialProposePrompt, repairProposePrompt } from "./propose-prompt.js";
+export type { ProposePromptLeaf } from "./propose-prompt.js";
 import type { ProposePromptLeaf } from "./propose-prompt.js";
 import type { ExpectationEntry, ExpectationValue, ProposalEvidence } from "./case.js";
 
@@ -184,6 +185,34 @@ const groundQuote = (
 };
 
 /**
+ * The asked leaves as the prompt renders them, in asked order — the ONE
+ * prompt-leaf construction, shared by the engine and by the command's spend
+ * estimate, so the estimate prices the request the engine actually sends.
+ */
+export function proposePromptLeaves(
+  schema: z.ZodObject,
+  leafInventory: readonly LeafInventoryEntry[],
+  askedPaths: readonly string[],
+): readonly ProposePromptLeaf[] {
+  const collectionPathByLeaf = new Map<string, string | undefined>(
+    walkCollectionPaths(schema).map((entry) => [entry.path, entry.collectionPath]),
+  );
+  return askedPaths.flatMap((path) => {
+    const entry = leafInventory.find((candidate) => candidate.path === path);
+    if (entry === undefined) return [];
+    const collectionPath = collectionPathByLeaf.get(path);
+    return [
+      {
+        path,
+        kind: entry.kind,
+        ...(entry.values === undefined ? {} : { values: entry.values }),
+        ...(collectionPath === undefined ? {} : { collectionPath }),
+      },
+    ];
+  });
+}
+
+/**
  * Propose one case's answers: one initial call, at most one bounded repair
  * round for an unparseable reply, then code-owned validation and the pivot
  * into pending expectation entries. Item-level problems never fail the case —
@@ -206,19 +235,7 @@ export async function proposeCase(params: ProposeCaseParams): Promise<ProposeCas
   const askedPaths = [...new Set(params.unanswered)];
   const asked = new Set(askedPaths);
 
-  const promptLeaves: readonly ProposePromptLeaf[] = askedPaths.flatMap((path) => {
-    const info = leavesByPath.get(path);
-    if (info === undefined) return [];
-    const { entry, collectionPath } = info;
-    return [
-      {
-        path,
-        kind: entry.kind,
-        ...(entry.values === undefined ? {} : { values: entry.values }),
-        ...(collectionPath === undefined ? {} : { collectionPath }),
-      },
-    ];
-  });
+  const promptLeaves = proposePromptLeaves(params.schema, params.leafInventory, askedPaths);
 
   const base = initialProposePrompt({
     model: options.model,

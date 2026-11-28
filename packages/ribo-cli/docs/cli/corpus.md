@@ -156,6 +156,63 @@ strings is a set of prefixes — each scope string once per case. A default's st
 an explicit entry in `expected` always wins; among covering defaults the longest scope wins; a
 leaf covered by neither is unmentioned.
 
+## Proposing expected answers: `ribo corpus propose`
+
+Hand-writing every entry is one path. The other is a proposal pass:
+
+```bash
+ribo corpus propose ./corpora/workshop --backend openai-compatible --model gpt-4o
+```
+
+The command works on any existing corpus — a freshly scaffolded one, a hand-built one, or one
+whose schema just changed. For every selected case, each schema leaf with **no explicit entry and
+no covering default** gets a pending proposal: a value with evidence grounded in one of the
+case's inputs, or a proposed absence. One model call is made per case that has such leaves —
+none at all for a case whose every leaf is already answered, so a rerun after a complete pass is
+free.
+
+- **Case selection.** With no case ids, every case is proposed. With ids, each named case is
+  selected once, in corpus order; an unknown id is refused naming the cases the corpus holds,
+  before any transcription or spend.
+- **The text path is the shared one.** The proposal prompt carries exactly the text `ribo eval`
+  and `ribo corpus text` send — document inputs transcribed through the same pdf.js path, then
+  joined by the same rule. The prompt's case text is byte-identical to what `ribo corpus text`
+  prints for the case.
+- **Evidence is verified, not claimed.** Every proposed value carries a quote, and code — not the
+  model — matches that quote against each of the case's inputs under that input's own rule (exact
+  for text and transcript inputs, the layout fold for documents). The earliest matching input in
+  declared order is recorded as the evidence's input. A quote that matches no input is dropped,
+  and the leaf is named in the report.
+- **Nothing is silently skipped.** Every asked leaf ends the round either written (a pending
+  value or a pending proposed absence) or named in the report's `unproposed` list with the reason
+  it remains unanswered. One bad quote among a hundred values drops only its own leaf.
+- **Writes are additive, in place and atomic.** Each case's `case.json` is edited as soon as its
+  round validates, and only its `expected` map gains keys — every existing entry, covering
+  default, input and member survives untouched, and publication is a temp file then a rename, so
+  an interrupted write never leaves a half-written case. The corpus is your working tree: review,
+  diff and commit the result as ordinary files.
+- **A failed case keeps the paid work.** Cases are processed in order; one case's unparseable or
+  failed round is a `failed` entry in the report and does not prevent the later cases from being
+  proposed and written. A fault that stops the run itself (an unreadable corpus, a refused spend,
+  a case file that cannot be written) exits 2 with empty stdout; cases already written stay
+  written.
+- **Spend.** The estimate is the sum of per-case upper bounds, each priced on that case's own
+  measured prompt — see [spend](/cli/spend). `--max-spend` and `--yes` behave as on schema init;
+  an over-ceiling run makes no request and writes nothing. A ceiling is per invocation: chunking
+  the corpus spends up to the ceiling per chunk.
+- **`--only <scope>`** (repeatable) narrows the leaves asked, matched at segment boundaries like
+  a default's scope — the way through for a schema too large for one reply. A scope that covers
+  no unanswered leaf is legal and proposes nothing. Rerunning with a new scope picks up exactly
+  the leaves the new scopes cover that are still unanswered.
+
+stdout is one versioned JSON report — one entry per selected case, in corpus order, each `proposed`
+(a parsed round completed; `proposed` lists the keys this run wrote), `nothing-to-propose`, or
+`failed` (with a reason and every asked leaf in `unproposed`). stderr carries the estimate and,
+on completion, the handoff: **a pending proposal is not a reviewed expectation** — eval will not
+judge it. Review it, correct it if the model was wrong, and confirm it (`review: "confirmed"`),
+then run eval as usual. The exit code is 0 when the run completed (a failed case is a report
+entry, not a failure of the command) and 2 when it could not run.
+
 ## When a case's inputs disagree
 
 A multi-input case can hold inputs that disagree — two transcripts giving different floor areas, a
@@ -230,4 +287,6 @@ Read any case's text the way the model will receive it — `ribo corpus text <co
 list order, capture markers included when they are on; document inputs transcribed, through the
 same path `ribo eval` uses, with no model call and no credential. That is the handoff in order:
 scaffold, then corpus text, then expectations — the text is what an expectation is checked against,
-so it is read before anything is asserted.
+so it is read before anything is asserted. The expectations themselves can be hand-written, or
+drafted by `ribo corpus propose` and reviewed by you — see
+[the proposal pass](#proposing-expected-answers-ribo-corpus-propose) above.
