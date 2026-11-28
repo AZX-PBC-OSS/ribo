@@ -870,7 +870,7 @@ test("the reference pages document the workflow these runs observe", () => {
   expect(corpus).toMatch(/never overwrite|all-or-nothing|no partial/iu);
   // The corpus-text-before-expectations handoff.
   expect(corpus).toContain("ribo corpus text");
-  expect(corpus.match(/before writing/gu)?.length).toBeGreaterThan(0);
+  expect(corpus.match(/before any expectation is written/gu)?.length).toBeGreaterThan(0);
 
   const scoring = page("scoring.md");
   // Both plan refusals, the stale-then-construction ordering and the no-artifact guarantee.

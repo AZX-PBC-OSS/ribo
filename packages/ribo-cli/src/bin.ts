@@ -133,10 +133,11 @@ const rootDocsPointer = docsPointer(
 /** The authoring page's pointer: init, plan review and update, and the planned strategy. */
 const planningDocsPointer = docsPointer("planning", "authoring a schema and reviewing its plan");
 
-/** The start-here line: `schema init` is the first command a corpus author runs. */
+/** The start-here line: `schema init` opens the scaffold → propose → review path. */
 const startHereLine =
-  "Start here: ribo schema init — draft a schema from your own samples (bare PDFs, plain folders, " +
-  "case folders) and scaffold a corpus around them.";
+  "Start here: ribo schema init — draft a schema from your own samples (bare PDFs, plain folders,\n" +
+  "case folders) and scaffold a corpus around them; then ribo corpus propose drafts the expected\n" +
+  "answers and ribo corpus review confirms them before eval scores anything.";
 
 /** Reports a could-not-run fault under a command's name and exits 2. Stdout stays empty. */
 function failWith(command: string, message: string): never {

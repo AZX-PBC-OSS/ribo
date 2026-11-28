@@ -342,17 +342,19 @@ declared input's exact bytes, in the case's declared order (a document input kee
 `capture` block).
 
 Two things the scaffold deliberately does not contain: `expected` maps and instructions. Both stay
-**empty** — a draft never invents expected answers or prompt wording, because expectations are the
-author's judgement, not the model's. Publication is all-or-nothing and the output is never
+**empty** — a draft never invents expected answers or prompt wording. The empty expected maps are
+then drafted by `ribo corpus propose` and confirmed with `ribo corpus review`, and every proposal
+is confirmed by the author before it is scored; prompt instructions stay the author's to write,
+and the proposal pass never touches them. Publication is all-or-nothing and the output is never
 overwritten: the scaffold is staged and renamed into a path that did not exist, a fault midway
 removes every partial survivor, and an existing destination is refused with nothing touched.
 
 Read any case's text the way the model will receive it — `ribo corpus text <corpus-dir>
-[case-id]` — before writing its expectations. Every case prints its combined text — inputs in
+[case-id]` — before any expectation is written. Every case prints its combined text — inputs in
 list order, capture markers included when they are on; document inputs transcribed, through the
 same path `ribo eval` uses, with no model call and no credential. That is the handoff in order:
-scaffold, then corpus text, then expectations — the text is what an expectation is checked against,
-so it is read before anything is asserted. The expectations themselves can be hand-written, or
-drafted by `ribo corpus propose` and reviewed with `ribo corpus review` — see
-[the proposal pass](#proposing-expected-answers-ribo-corpus-propose) and
+scaffold, then corpus text, then propose and review — the text is what a proposal's evidence and
+every confirmed expectation is checked against, so it is read before anything is asserted. The
+expectations themselves can be hand-written, or drafted by `ribo corpus propose` and reviewed with
+`ribo corpus review` — see [the proposal pass](#proposing-expected-answers-ribo-corpus-propose) and
 [reviewing proposed answers](#reviewing-proposed-answers-ribo-corpus-review) above.

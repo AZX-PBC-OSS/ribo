@@ -286,8 +286,15 @@ function handoffText(flags: SchemaInitFlags): string {
     `inspect handoff: save the drafted schema if needed, then run ribo schema inspect ${schema}.`,
     `plan handoff: after review, run ribo schema plan ${schema} --backend <name> --model <id>.`,
     `corpus-text handoff: after scaffolding, inspect the exact case text with ribo corpus text ${corpus}.`,
-    "expectation-authoring handoff: case expected maps and prompt instructions are empty and defaults are omitted; author them explicitly before measuring.",
-    `eval handoff: after expectation authoring, run ribo eval --corpus ${corpus} --backend <name> --model <id> --strategy single-shot.`,
+    // ADR 0049: expected answers are proposed and then confirmed by a
+    // reviewer before anything scores them; prompt instructions are a
+    // separate subject and stay the author's own line.
+    `expected-answers handoff: case expected maps are empty and defaults are omitted; draft them ` +
+      `with ribo corpus propose ${corpus} --backend <name> --model <id> — prefer a proposer that ` +
+      `is not the model you will score — then review every pending proposal with ribo corpus review ${corpus}.`,
+    "prompt-instructions handoff: prompt instructions are empty and are the author's to write, in " +
+      "the manifest; the expected-answers handoff does not write them.",
+    `eval handoff: once every proposal is reviewed, run ribo eval --corpus ${corpus} --backend <name> --model <id> --strategy single-shot — eval judges confirmed expectations only.`,
   ];
   return `${lines.map((line) => `${COMMAND}: ${line}`).join("\n")}\n`;
 }
@@ -510,7 +517,9 @@ const help = [
   "  Without --out, stdout is the complete OpenAPI schema alone. Spend and handoffs use stderr.",
   "  --out and --corpus name distinct new destinations; neither ever overwrites an existing path.",
   "  --corpus requires explicit --corpus-name and --corpus-provenance. Cases keep every declared",
-  "  input in order; expectations and instructions stay empty, and no defaults or provenance are invented.",
+  "  input in order; expected maps and instructions stay empty, and no defaults or provenance are",
+  "  invented — the handoff then names corpus propose and corpus review for the expected answers,",
+  "  and leaves prompt instructions to the author.",
   "  Draft the corpus, not every sample: repeatable --draft-from <sample> names the samples the",
   "  draft reads, by loaded sample name (a bare file's basename without extension, a case folder's",
   "  case id, a plain folder's directory name), matched exactly as passed. The prompt, spend",

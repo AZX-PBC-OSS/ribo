@@ -52,8 +52,10 @@ default, never a silent one. The draft is
 **evidence-linked**:
 every leaf it proposes carries guidance grounded in what a sample actually said, not invented
 structure. With `--corpus`, the command also scaffolds a corpus directory beside the schema; the
-scaffold's `expected` maps and instructions stay **empty** — a draft never invents expected answers
-or defaults, because expectations are the author's judgement, not the model's.
+scaffold's `expected` maps and instructions stay **empty** — a draft never invents expected
+answers, prompt wording or defaults. The empty expected maps then go through `ribo corpus
+propose` and `ribo corpus review` ([the corpus format](/cli/corpus)), and every proposal is
+confirmed by the author before it is scored; prompt instructions stay the author's to write.
 
 A real corpus usually holds more samples than a draft needs. Draft from a few representative
 samples and scaffold all of them: repeatable `--draft-from <sample>` names the samples the draft

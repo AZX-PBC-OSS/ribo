@@ -2,7 +2,7 @@
 
 Ribo's command-line tools for measuring extraction quality before you trust a schema to a model.
 The CLI drafts a schema from real samples, authors a reviewed semantic plan over it, sizes both
-before the first paid call, runs a hand-written corpus of documents through a model backend, scores
+before the first paid call, runs a reviewed corpus of documents through a model backend, scores
 the answers against what you said was true, and compares two runs — so a schema change, a plan
 change or a model change shows up as numbers, not vibes.
 
@@ -30,7 +30,12 @@ The rest of this README says `ribo` and means one of those three.
 
 Start from what you have: `ribo schema init` drafts an evidence-linked schema from bare PDFs, a
 folder per job, existing corpus case folders, or plain text files — and with `--corpus` scaffolds
-a corpus around every sample. For a large set, `--draft-from` drafts from a few representative
+a corpus around every sample. Keep the drafted schema whole: do not cut it down to what is cheap
+to label — a leaf the reviewer cannot judge is rejected and stays unmentioned. The scaffold's
+expected maps then go through `ribo corpus propose` (a pending draft per unanswered leaf) and
+`ribo corpus review` (the decision), and every proposal is confirmed by you before eval scores
+it; prompt instructions are yours to write — the proposal pass never touches them. For a large
+set, `--draft-from` drafts from a few representative
 samples while scaffolding all of them; if you already have a hand-written schema, start at
 [Writing the schema](#from-documents-to-scores). Three decisions have their own guides:
 
@@ -58,8 +63,10 @@ the explicit `--captured-at`), a plain folder of inputs (loaded as one sample na
 directory, its `.pdf`, `.txt` and `.md` files in byte-wise file-name order), or an existing corpus
 case folder with any number of declared inputs
 — and optionally scaffolds a corpus
-beside it. The draft's expectations and instructions stay empty: a draft never invents what your
-documents should answer. With repeatable `--draft-from <sample>`, the prompt, spend estimate and
+beside it. The draft's expected maps and instructions stay empty: a draft never invents what your
+documents should answer — the scaffold's expected answers then go through `ribo corpus propose`
+and `ribo corpus review`, and prompt instructions stay the author's to write. With repeatable
+`--draft-from <sample>`, the prompt, spend estimate and
 evidence validation read only the named samples (by loaded sample name, matched exactly as passed;
 requires `--corpus`) while every passed sample still loads, transcribes and scaffolds as a case —
 draft from a few representative samples, scaffold all of them. Without `--out`, stdout is the
@@ -220,8 +227,10 @@ command below runs against it verbatim; substitute your own directory once the s
    `ribo schema init ./notes.txt --backend claude-cli --model claude-haiku-5-5 --out ./schema.json`
    — an evidence-linked OpenAPI draft, every leaf's guidance grounded in what a sample said. Then
    **review it yourself**: the model proposed, you own the result. With `--corpus`, the same run
-   scaffolds a corpus whose expectations and instructions stay empty — filling those is your
-   judgement, never the draft's.
+   scaffolds a corpus whose expected maps and prompt instructions stay empty: the expected
+   answers then go through `ribo corpus propose` and `ribo corpus review` (step 10), where every
+   proposal is confirmed by you before it is scored, and prompt instructions are yours to write —
+   the proposal pass never writes them.
 3. **Pick the fields.** Decide what the model should read out of your documents. The example asks
    for a home's address and year built, its heating fuel and last service date, and a list of
    recommended upgrades.
