@@ -60,3 +60,5 @@ export type {
 } from "./corpus/expectations.js";
 export { loadCorpus } from "./corpus/loader.js";
 export type { LoadedCorpus, LoadedCase, LoadedCaseInput } from "./corpus/loader.js";
+export { walkCollectionPaths } from "./corpus/collection-paths.js";
+export type { CollectionPathEntry } from "./corpus/collection-paths.js";

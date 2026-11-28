@@ -10,8 +10,9 @@
  */
 import type { z } from "zod";
 
+import type { CorpusInputKind } from "../corpus/case.js";
 import { OperatorError } from "../operator/error.js";
-import type { SchemaInitSample, SchemaInitSampleInput } from "./samples.js";
+import type { SchemaInitSample } from "./samples.js";
 import { dropOptionalNulls, schemaInitProposalSchema } from "./proposal.js";
 import type {
   SchemaInitEvidence,
@@ -69,17 +70,44 @@ export function normalizeSchemaInitDocumentText(text: string): string {
     .trim();
 }
 
-const inputMatches = (quote: string, input: SchemaInitSampleInput): boolean =>
-  input.kind === "document"
+/**
+ * The minimal shape the quote matchers read — an input's kind and its exact
+ * text, beside whatever else the caller's richer input type carries. A
+ * proposal's evidence is verified against this shape, never against a joined
+ * text, so schema init and the corpus proposer share one matching rule.
+ */
+export interface QuoteMatchingInput {
+  readonly kind: CorpusInputKind;
+  readonly text: string;
+}
+
+/**
+ * Does one input's own rule accept the quote? Text and transcript inputs
+ * match exactly; only a document input receives the layout fold.
+ */
+export function inputMatchesQuote(quote: string, input: QuoteMatchingInput): boolean {
+  return input.kind === "document"
     ? normalizeSchemaInitDocumentText(input.text).includes(normalizeSchemaInitDocumentText(quote))
     : input.text.includes(quote);
+}
 
-/** The inputs whose own rule accepts the quote — empty when none does. */
+/**
+ * The inputs whose own rule accepts the quote, in the order given — so the
+ * first match is the earliest declared input, which is the one an evidence
+ * link records. Empty when no input matches.
+ */
+export function matchingQuoteInputs<I extends QuoteMatchingInput>(
+  quote: string,
+  inputs: readonly I[],
+): readonly I[] {
+  return inputs.filter((input) => inputMatchesQuote(quote, input));
+}
+
+/** The inputs of one sample whose own rule accepts the quote. */
 const matchingInputs = (
   evidence: SchemaInitEvidence,
   sample: SchemaInitSample,
-): readonly SchemaInitSampleInput[] =>
-  sample.inputs.filter((input) => inputMatches(evidence.quote, input));
+): readonly QuoteMatchingInput[] => matchingQuoteInputs(evidence.quote, sample.inputs);
 
 /**
  * An enum member's quote must contain the member itself, ignoring letter case
@@ -90,9 +118,9 @@ const matchingInputs = (
 function quoteNamesValue(
   value: string,
   quote: string,
-  matched: readonly SchemaInitSampleInput[],
+  matched: readonly QuoteMatchingInput[],
 ): boolean {
-  const fold = (input: SchemaInitSampleInput | undefined, text: string): string =>
+  const fold = (input: QuoteMatchingInput | undefined, text: string): string =>
     (input?.kind === "document" ? normalizeSchemaInitDocumentText(text) : text).toLowerCase();
   // An unmatched quote is already reported; judge the member by its quote alone.
   if (matched.length === 0) return fold(undefined, quote).includes(fold(undefined, value));
